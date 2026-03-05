@@ -208,7 +208,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M39` renderer lookup fast-path policy closure complete; expanding additional HIRES-risk readiness tests).
+- Active phase: `T10` execution (`M40` CI/TLUT palette-CRC policy closure complete; expanding additional HIRES-risk readiness tests).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -924,4 +924,16 @@
   - Gap closure: “feature-off fast path” and lookup counter invariants are now explicitly locked for future HIRES pipeline changes.
 - 2026-03-05: Validated current `T10` (`M39`) slice with:
   - `./run-tests.sh -R "emu.unit.hires_(runtime|state|lookup)_policy|hires.texture_replacement_provider_(decode_matrix|parser_edge)|hires.texture_keying|hires.texture_replacement_provider"`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M40`) CI/TLUT palette-CRC policy closure:
+  - Added `parallel-rdp/parallel-rdp/rdp_hires_ci_palette_policy.hpp` with testable CI palette keying helpers for:
+    - CI8 palette-entry CRC window computation,
+    - CI4 nibble-index palette-entry CRC window computation,
+    - palette-bank clamp behavior (`min(palette, 15)`),
+    - invalid-input and non-CI-size guard behavior.
+  - Integrated helper in `parallel-rdp/parallel-rdp/rdp_renderer.cpp` to centralize palette CRC computation for CI keying.
+  - Added `tests/emulator_behavior/emu_unit_hires_ci_palette_policy_test.cpp` as `emu.unit.hires_ci_palette_policy` and registered in `tests/emulator_behavior/CMakeLists.txt`.
+  - Gap closure: TLUT/palette-driven checksum behavior for upcoming HIRES CI correctness work is now locked with deterministic unit tests.
+- 2026-03-05: Validated current `T10` (`M40`) slice with:
+  - `./run-tests.sh -R "emu.unit.hires_(runtime|state|lookup|ci_palette)_policy|hires.texture_replacement_provider_(decode_matrix|parser_edge)|hires.texture_keying|hires.texture_replacement_provider"`,
   - `./run-tests.sh --profile emu-required`.

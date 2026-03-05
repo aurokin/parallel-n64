@@ -22,6 +22,7 @@
 
 #include "rdp_renderer.hpp"
 #include "rdp_device.hpp"
+#include "rdp_hires_ci_palette_policy.hpp"
 #include "rdp_hires_lookup_policy.hpp"
 #include "rdp_hires_state_policy.hpp"
 #include "texture_replacement.hpp"
@@ -3332,25 +3333,18 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			uint32_t palette_crc = 0;
 
 			if (meta.fmt == TextureFormat::CI && tlut_shadow_valid)
-			{
-				if (meta.size == TextureSize::Bpp8)
-				{
-					const uint32_t cimax = compute_ci8_max_index(cpu_rdram, rdram_size, src_base_addr,
-					                                              key_width_pixels, key_height_pixels,
-					                                              row_stride_bytes);
-					const uint32_t entries = std::min<uint32_t>(cimax + 1, 256u);
-					palette_crc = rice_crc32_wrapped(tlut_shadow, sizeof(tlut_shadow), 0, entries, 1, 2, 512);
-				}
-				else if (meta.size == TextureSize::Bpp4)
-				{
-					const uint32_t cimax = compute_ci4_max_index(cpu_rdram, rdram_size, src_base_addr,
-					                                              key_width_pixels, key_height_pixels,
-					                                              row_stride_bytes);
-					const uint32_t entries = std::min<uint32_t>(cimax + 1, 16u);
-					const uint32_t bank = std::min<uint32_t>(meta.palette, 15u);
-					palette_crc = rice_crc32_wrapped(tlut_shadow, sizeof(tlut_shadow), bank * 32, entries, 1, 2, 32);
-				}
-			}
+				palette_crc = detail::compute_hires_ci_palette_crc(
+						meta.size,
+						meta.palette,
+						cpu_rdram,
+						rdram_size,
+						src_base_addr,
+						key_width_pixels,
+						key_height_pixels,
+						row_stride_bytes,
+						tlut_shadow,
+						sizeof(tlut_shadow),
+						tlut_shadow_valid);
 
 			const uint64_t checksum64 = (uint64_t(palette_crc) << 32) | uint64_t(texture_crc);
 			const uint16_t formatsize = formatsize_key(meta.fmt, meta.size);

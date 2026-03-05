@@ -383,7 +383,7 @@ bool parallel_create_device(struct retro_vulkan_context *frontend_context, VkIns
 {
 	::RDP::detail::CreateDeviceHooks hooks = {};
 	hooks.userdata = &::RDP::context;
-	hooks.context_creation_flags = Vulkan::CONTEXT_CREATION_DISABLE_BINDLESS_BIT;
+	hooks.context_creation_flags = ::RDP::detail::default_context_creation_flags();
 	hooks.init_loader = [](PFN_vkGetInstanceProcAddr proc_addr, void *) -> bool {
 		return Vulkan::Context::init_loader(proc_addr);
 	};

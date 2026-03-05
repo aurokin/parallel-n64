@@ -19,6 +19,11 @@ inline bool init_prerequisites_met(const void *context_ptr, const void *vulkan_p
 	return context_ptr != nullptr && vulkan_ptr != nullptr;
 }
 
+inline uint32_t default_context_creation_flags()
+{
+	return 0u;
+}
+
 inline SyncFrameCounts compute_sync_frame_counts(unsigned mask)
 {
 	SyncFrameCounts counts = {};

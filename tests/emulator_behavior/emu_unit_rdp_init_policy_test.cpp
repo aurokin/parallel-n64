@@ -28,6 +28,12 @@ static void test_init_prerequisite_checks()
 	check(init_prerequisites_met(&dummy, &dummy), "non-null context + vulkan should pass");
 }
 
+static void test_default_context_creation_flags()
+{
+	check(default_context_creation_flags() == 0u,
+	      "default context creation flags should not force-disable bindless");
+}
+
 static void test_sync_frame_counts()
 {
 	{
@@ -152,6 +158,7 @@ static void test_clear_deinit_state_idempotency()
 int main()
 {
 	test_init_prerequisite_checks();
+	test_default_context_creation_flags();
 	test_sync_frame_counts();
 	test_host_memory_import_plan();
 	test_ensure_frontend_device_supported();

@@ -127,3 +127,11 @@ I will post updates in this format as work progresses:
     - `./run-tests.sh --profile hires-readiness` (pass),
     - `./run-build.sh` (pass),
     - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (pass, forced timeout exit).
+- 2026-03-05: Resolved descriptor-indexing auto-disable root cause:
+  - Root cause: `parallel_create_device()` forced `CONTEXT_CREATION_DISABLE_BINDLESS_BIT`, preventing descriptor-indexing enablement.
+  - Fix: switched to policy default creation flags (`0`) so bindless/descriptor indexing can be negotiated on capable hardware.
+  - Added local regression unit coverage in `emu.unit.rdp_init_policy`.
+  - Revalidated runtime on RADV:
+    - Vulkan init now enables `VK_EXT_descriptor_indexing`,
+    - HIRES path reports enabled and loads cache (`15159` entries),
+    - 20s smoke run ends cleanly with keying summary (`lookups=31902 hits=18376 misses=13526 provider=on`).

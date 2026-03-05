@@ -184,7 +184,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M27` test-runner profile contract coverage in progress).
+- Active phase: `T10` execution (`M28` dump-runner contract coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -757,4 +757,14 @@
 - 2026-03-05: Validated current `T10` (`M27`) slice with:
   - `./run-tests.sh -R emu.unit.test_runner_profile_contract`,
   - `./run-tests.sh --profile emu-runtime-conformance`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M28`) dump-runner contract coverage:
+  - Added `tests/emulator_behavior/support/emu_dump_runner_contract.sh` and registered `emu.unit.dump_runner_contract`.
+    - Locks `run-dump-tests.sh` usage surface for strict/composition flags.
+    - Locks required-argument guards for validator/corpus/capture/required-tags options.
+    - Locks env-export behavior for corpus/strict/required-tags and default capture-output remap.
+    - Locks tool handoff wiring to provision/capture helpers and final `run-tests.sh -R emu.dump` invocation.
+  - Gap closure: prevents drift in local dump-gate wrapper behavior and CLI contract.
+- 2026-03-05: Validated current `T10` (`M28`) slice with:
+  - `./run-tests.sh -R emu.unit.dump_runner_contract`,
   - `./run-tests.sh --profile emu-required`.

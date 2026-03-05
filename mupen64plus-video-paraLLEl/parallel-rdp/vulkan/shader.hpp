@@ -58,6 +58,9 @@ struct ResourceLayout
 	uint32_t spec_constant_mask = 0;
 	uint32_t bindless_set_mask = 0;
 	DescriptorSetLayout sets[VULKAN_NUM_DESCRIPTOR_SETS];
+	enum { Version = 6 };
+
+	bool unserialize(const uint8_t *data, size_t size);
 };
 
 struct CombinedResourceLayout
@@ -135,7 +138,7 @@ private:
 class Shader : public HashedObject<Shader>
 {
 public:
-	Shader(Util::Hash hash, Device *device, const uint32_t *data, size_t size);
+	Shader(Util::Hash hash, Device *device, const uint32_t *data, size_t size, const ResourceLayout *resource_layout = nullptr);
 	~Shader();
 
 	const ResourceLayout &get_layout() const

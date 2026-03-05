@@ -34,30 +34,26 @@ Expected fallback behavior:
 - [x] M2: Replacement provider module (`.htc` + `.hts` parse + decode).
 - [x] M3: Keying replication + logging harness (`checksum64`, `formatsize`, match logs).
 - [x] M4: GPU registry (bindless descriptor pool + lazy upload).
-- [ ] M5: Shader texel-stage late swap (before combiner).
+- [x] M5: Shader texel-stage late swap (before combiner).
 - [ ] M6: CI/TLUT correctness for palette-influenced keys.
 - [ ] M7: Mips/LOD/filtering + memory budget controls.
 - [ ] M8: Validation + performance pass + docs.
 
 ## Current Status
-- Feature milestone state: `M0`..`M4` complete; `M5` in progress; `M6`..`M8` pending.
-- Pre-`M4` readiness work is complete and locally gated:
-  - descriptor-indexing capability contract + runtime auto-disable behavior are implemented and tested;
-  - registry lifecycle/descriptor-handle policy scaffolding is implemented and tested;
-  - local mini-pack generation + validation tooling is implemented and compatibility-tested against `ReplacementProvider`;
-  - `./run-tests.sh --profile hires-readiness` is the local safety gate for HIRES readiness.
-- `M4` is closed:
-  - renderer-owned HIRES registry allocates a bindless descriptor pool and performs lazy decode/upload on lookup hits;
-  - resolved descriptor indices and replacement dimensions are persisted into per-tile replacement state;
-  - upload residency/handle/budget decisions are routed through registry policy helpers.
-- `M5` is now active:
-  - CPU tile replacement metadata is now plumbed through `TileInfo` into shader-visible tile state;
-  - shader policy helpers and unit tests are in place for enable/bind/clear/apply replacement decisions;
-  - texel-stage swap code is integrated in shader sources and gated by `HIRES_REPLACEMENT`.
-- Current blocker for closing `M5`:
-  - embedded shader bank regeneration (`shaders/slangmosh.hpp`) is pending because the currently available `slangmosh` tool emits a newer interface contract that is incompatible with this repo's older Vulkan program-loading API.
-  - default non-`PARALLEL_RDP_SHADER_DIR` builds therefore still run without the new `HIRES_REPLACEMENT` permutation in the baked bank.
-- Next execution target: finish `M5` shader late-swap integration and validate via local smoke + unit tests.
+- Feature milestone state: `M0`..`M5` complete; `M6`..`M8` pending.
+- Local readiness gate remains: `./run-tests.sh --profile hires-readiness`.
+- `M5` is closed:
+  - Vulkan program-loading API now accepts optional precomputed reflection layouts (`request_shader` / `request_program` overloads with `ResourceLayout` pointers).
+  - `ResourceLayout::unserialize()` now supports slangmosh v6 serialized layouts (`GRA6`, 348-byte payload) and maps them into this fork's legacy `8 sets x 16 bindings` layout contract with validation guards.
+  - Added missing shader include dependency `shaders/debug_channel.h` and regenerated baked `shaders/slangmosh.hpp`; baked bank now includes `HIRES_REPLACEMENT` permutations for `ubershader` and `rasterizer`.
+  - Updated shader-bank integration to pass serialized reflection layouts during baked-program loads.
+  - Added local unit coverage for layout policy parsing/validation (`emu.unit.hires_slangmosh_layout_policy`).
+- Local validation for `M5` closeout:
+  - `./run-build.sh`
+  - `./run-tests.sh --profile hires-readiness`
+  - `./run-tests.sh --profile emu-required`
+  - `timeout --signal=INT --kill-after=5 10s ./run-n64.sh -- --verbose` (Paper Mario, hi-res enabled, summary `lookups=2299 hits=2299 misses=0 provider=on`)
+- Next execution target: start `M6` (CI/TLUT correctness hardening).
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -150,3 +146,16 @@ I will post updates in this format as work progresses:
     - `./run-tests.sh --profile hires-readiness` (pass),
     - 20s Paper Mario smoke with debug keying (`provider=on`, live hit/miss stream).
   - noted open blocker: embedded shader bank regeneration mismatch (new `slangmosh` output vs current repo Vulkan API), so default baked-shader path still needs a compatible regeneration step before `M5` can be closed.
+- 2026-03-05: Updated Vulkan baked-shader loading API for modern slangmosh output:
+  - Added `ResourceLayout` overload plumbing through `vulkan/device.*` + `vulkan/shader.*`.
+  - Added `vulkan/resource_layout_policy.hpp` and compatibility parsing for serialized slangmosh v6 (`GRA6`, 348-byte reflection payload).
+  - Added `shaders/debug_channel.h` so debug shader variants preprocess cleanly during header generation.
+- 2026-03-05: Regenerated baked shader bank (`parallel-rdp/parallel-rdp/shaders/slangmosh.hpp`) with `HIRES_REPLACEMENT` variants for `ubershader` and `rasterizer`, and updated shader-bank integration to pass reflection layouts during baked loads.
+- 2026-03-05: Added local coverage for reflection policy helpers (`emu.unit.hires_slangmosh_layout_policy`) and revalidated M5 closeout with local gates:
+  - `./run-build.sh`
+  - `./run-tests.sh --profile hires-readiness`
+  - `./run-tests.sh --profile emu-required`
+  - 20s Paper Mario smoke (`provider=on`, live descriptor hits/misses, clean unload).
+- 2026-03-05: Revalidated `M5` with non-debug runtime smoke for deterministic summary output:
+  - `timeout --signal=INT --kill-after=5 10s ./run-n64.sh -- --verbose`
+  - summary: `lookups=2299 hits=2299 misses=0 provider=on` (Paper Mario, hi-res enabled).

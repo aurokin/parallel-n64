@@ -482,3 +482,12 @@ add_test(
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_manifest_check.sh"
 )
 set_tests_properties(emu.dump.manifest PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(emu_unit_hires_slangmosh_layout_policy_test
+  emu_unit_hires_slangmosh_layout_policy_test.cpp
+)
+target_include_directories(emu_unit_hires_slangmosh_layout_policy_test PRIVATE
+  "${CMAKE_SOURCE_DIR}"
+)
+target_compile_features(emu_unit_hires_slangmosh_layout_policy_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.hires_slangmosh_layout_policy COMMAND emu_unit_hires_slangmosh_layout_policy_test)

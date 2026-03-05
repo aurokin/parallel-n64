@@ -30,10 +30,14 @@ class Program;
 class Shader;
 }
 
-namespace RDP
+namespace ShaderBank
 {
 template <typename Program, typename Shader> struct Shaders;
-using ShaderBank = Shaders<Vulkan::Program *, Vulkan::Shader *>;
+}
+
+namespace RDP
+{
+using ShaderBank = ::ShaderBank::Shaders<Vulkan::Program *, Vulkan::Shader *>;
 
 // list of command IDs
 enum class Op

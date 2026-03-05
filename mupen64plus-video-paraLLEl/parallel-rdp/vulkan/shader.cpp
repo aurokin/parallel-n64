@@ -22,6 +22,7 @@
 
 #include "shader.hpp"
 #include "device.hpp"
+#include "resource_layout_policy.hpp"
 #include "spirv_cross.hpp"
 
 #ifdef GRANITE_SPIRV_DUMP
@@ -255,6 +256,103 @@ const char *Shader::stage_to_name(ShaderStage stage)
 	}
 }
 
+// Implicitly also checks for endian issues.
+static const uint16_t reflection_magic[] = { 'G', 'R', 'A', ResourceLayout::Version };
+
+namespace
+{
+bool apply_slangmosh_resource_layout(ResourceLayout &layout,
+                                     const detail::SlangmoshResourceLayoutV6 &source)
+{
+	const unsigned source_set_limit = VULKAN_NUM_DESCRIPTOR_SETS < 4u ? VULKAN_NUM_DESCRIPTOR_SETS : 4u;
+	const uint32_t valid_set_mask = detail::binding_mask_for_limit(source_set_limit);
+	const uint32_t unexpected_set_mask = source.bindless_set_mask & ~valid_set_mask;
+	if (unexpected_set_mask != 0u)
+	{
+		LOGE("Cannot map slangmosh reflection: bindless set mask 0x%x exceeds local set limit (%u).\n",
+		     unexpected_set_mask, VULKAN_NUM_DESCRIPTOR_SETS);
+		return false;
+	}
+
+	layout = {};
+	layout.input_mask = source.input_mask;
+	layout.output_mask = source.output_mask;
+	layout.push_constant_size = source.push_constant_size;
+	layout.spec_constant_mask = source.spec_constant_mask;
+	layout.bindless_set_mask = source.bindless_set_mask;
+
+	for (unsigned set = 0; set < VULKAN_NUM_DESCRIPTOR_SETS; set++)
+		layout.sets[set] = {};
+
+	for (unsigned set = 0; set < VULKAN_NUM_DESCRIPTOR_SETS && set < 4u; set++)
+	{
+		const auto &source_set = source.sets[set];
+		auto &target_set = layout.sets[set];
+
+		if (detail::set_uses_unsupported_features(source_set))
+		{
+			LOGE("Cannot map slangmosh reflection: set %u requires unsupported descriptor features.\n", set);
+			return false;
+		}
+
+		if (detail::set_uses_high_bindings(source_set, VULKAN_NUM_BINDINGS))
+		{
+			LOGE("Cannot map slangmosh reflection: set %u uses bindings outside local limit (%u).\n",
+			     set, VULKAN_NUM_BINDINGS);
+			return false;
+		}
+
+		if (source_set.immutable_sampler_mask != 0u)
+		{
+			LOGE("Cannot map slangmosh reflection: set %u uses immutable samplers with no local mapping.\n", set);
+			return false;
+		}
+
+		target_set.sampled_image_mask = source_set.sampled_image_mask;
+		target_set.storage_image_mask = source_set.storage_image_mask;
+		target_set.uniform_buffer_mask = source_set.uniform_buffer_mask;
+		target_set.storage_buffer_mask = source_set.storage_buffer_mask;
+		target_set.sampled_buffer_mask = source_set.sampled_texel_buffer_mask;
+		target_set.input_attachment_mask = source_set.input_attachment_mask;
+		target_set.sampler_mask = source_set.sampler_mask;
+		target_set.separate_image_mask = source_set.separate_image_mask;
+		target_set.fp_mask = source_set.fp_mask;
+		target_set.immutable_sampler_mask = 0u;
+		target_set.immutable_samplers = 0u;
+
+		for (unsigned binding = 0; binding < VULKAN_NUM_BINDINGS; binding++)
+			target_set.array_size[binding] = source_set.array_size[binding];
+	}
+
+	return true;
+}
+}
+
+bool ResourceLayout::unserialize(const uint8_t *data, size_t size)
+{
+	if (!data)
+		return false;
+
+	if (size == sizeof(*this) + sizeof(reflection_magic))
+	{
+		if (std::memcmp(data, reflection_magic, sizeof(reflection_magic)) != 0)
+		{
+			LOGE("Magic mismatch.\n");
+			return false;
+		}
+
+		std::memcpy(this, data + sizeof(reflection_magic), sizeof(*this));
+		return true;
+	}
+
+	detail::SlangmoshResourceLayoutV6 source = {};
+	if (detail::parse_slangmosh_resource_layout_v6(data, size, &source))
+		return apply_slangmosh_resource_layout(*this, source);
+
+	LOGE("Unsupported reflection payload format (size=%zu).\n", size);
+	return false;
+}
+
 static bool get_stock_sampler(StockSampler &sampler, const string &name)
 {
 	if (name.find("NearestClamp") != string::npos)
@@ -328,7 +426,7 @@ void Shader::update_array_info(const SPIRType &type, unsigned set, unsigned bind
 	}
 }
 
-Shader::Shader(Hash hash, Device *device_, const uint32_t *data, size_t size)
+Shader::Shader(Hash hash, Device *device_, const uint32_t *data, size_t size, const ResourceLayout *resource_layout)
 	: IntrusiveHashMapEnabled<Shader>(hash)
 	, device(device_)
 {
@@ -351,6 +449,12 @@ Shader::Shader(Hash hash, Device *device_, const uint32_t *data, size_t size)
 #ifdef GRANITE_VULKAN_FOSSILIZE
 	device->register_shader_module(module, get_hash(), info);
 #endif
+
+	if (resource_layout)
+	{
+		layout = *resource_layout;
+		return;
+	}
 
 	Compiler compiler(data, size / sizeof(uint32_t));
 

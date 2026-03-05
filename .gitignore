@@ -32,3 +32,6 @@ Release/
 # Local hi-res texture cache artifacts
 *.htc
 *.hts
+
+# Local RDP dump corpus artifacts
+tests/rdp_dumps/*.rdp

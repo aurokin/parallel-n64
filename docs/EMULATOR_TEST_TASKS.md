@@ -129,7 +129,7 @@
 ## Current Status
 - Active phase: `T8` (Dump Replay Regression Suite).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
-- Open risk: `emu.dump.*` harness is wired, but no local `.rdp` corpus or `rdp-validate-dump` binary is provisioned yet (tests currently skip).
+- Open risk: dump corpus is still locally generated (not committed), so out-of-the-box `emu.dump.*` remains skip-by-default unless provisioning/capture flow is run.
 
 ## Change Log
 - 2026-03-05: Initialized non-hires emulator behavior test track and separated it from hi-res tasks.
@@ -328,3 +328,20 @@
     - `--dump-dir PATH` (`RDP_DUMP_CORPUS_DIR`)
 - 2026-03-05: Validated dump-suite runner with:
   - `./run-dump-tests.sh` (expected skip until dump corpus + validator are provisioned).
+- 2026-03-05: Added dump provisioning + capture workflow to execute `T8` locally without manual setup:
+  - Added `tools/provision-rdp-validate-dump.sh` to clone/build `rdp-validate-dump` (Themaister `parallel-rdp`) and print the resulting binary path.
+  - Added `tools/capture-rdp-dump.sh` to generate Angrylion `.rdp` captures with temporary isolated core-options state (`core_options_path` sandbox, no persistent config edits).
+  - Extended `run-dump-tests.sh` with:
+    - `--provision-validator`
+    - `--capture-if-missing`
+    - `--capture-output PATH`
+    - `--capture-rom PATH`
+    - `--capture-frames N`
+  - Added `tests/rdp_dumps/README.md` and `.gitignore` entry for local `tests/rdp_dumps/*.rdp` artifacts.
+- 2026-03-05: Validated full `T8` runtime path with real artifacts:
+  - Built core with dump instrumentation: `./run-build.sh --clean -- HAVE_RDP_DUMP=1`
+  - Captured real dump (`Paper Mario`) and validated directly:
+    - `/home/auro/code/mupen/parallel-rdp-upstream/build/rdp-validate-dump /tmp/paper_mario_t8_test.rdp`
+    - `/home/auro/code/mupen/parallel-rdp-upstream/build/rdp-validate-dump /tmp/paper_mario_t8_test.rdp --sync-only`
+  - Verified test harness pass with overrides:
+    - `RDP_VALIDATE_DUMP_BIN=... RDP_DUMP_CORPUS_DIR=/tmp/rdp_corpus_t8 ./run-tests.sh -R emu.dump`

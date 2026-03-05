@@ -475,6 +475,11 @@ add_test(
 )
 
 add_test(
+  NAME emu.unit.run_n64_smoke_start_contract
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_run_n64_smoke_start_contract.sh"
+)
+
+add_test(
   NAME emu.dump.validate
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_validate.sh" normal
 )

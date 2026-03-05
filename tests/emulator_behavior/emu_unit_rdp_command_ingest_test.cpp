@@ -217,6 +217,96 @@ static void test_incomplete_command_tail_behavior()
 	check(dpc_start == dpc_end && dpc_current == dpc_end, "incomplete tail should set DPC start/current to end");
 }
 
+static void test_incomplete_tail_with_complete_prefix()
+{
+	std::vector<uint32_t> dram_words(0x2000 / 4, 0);
+	std::vector<uint32_t> dmem_words(0x1000 / 4, 0);
+	uint8_t *dram = reinterpret_cast<uint8_t *>(dram_words.data());
+	uint8_t *dmem = reinterpret_cast<uint8_t *>(dmem_words.data());
+
+	// Complete command 0 (opcode 8, 4 qwords).
+	write_u32(dram, 0x00, 0x08000000u);
+	write_u32(dram, 0x04, 0x11111111u);
+	write_u32(dram, 0x08, 0x22222222u);
+	write_u32(dram, 0x0c, 0x33333333u);
+	write_u32(dram, 0x10, 0x44444444u);
+	write_u32(dram, 0x14, 0x55555555u);
+	write_u32(dram, 0x18, 0x66666666u);
+	write_u32(dram, 0x1c, 0x77777777u);
+
+	// Incomplete command 1 (opcode 8 requires 4 qwords, only 2 provided).
+	write_u32(dram, 0x20, 0x08000000u);
+	write_u32(dram, 0x24, 0xaaaaaaaau);
+	write_u32(dram, 0x28, 0xbbbbbbbbu);
+	write_u32(dram, 0x2c, 0xccccccccu);
+
+	std::array<uint32_t, 64> cmd_data = {};
+	CommandIngestState state = {};
+	state.cmd_data = cmd_data.data();
+
+	uint32_t dpc_start = 0x00u;
+	uint32_t dpc_end = 0x30u;
+	uint32_t dpc_current = 0x00u;
+	uint32_t dpc_status = 0;
+	CallbackHarness h = {};
+	CommandIngestHooks hooks = make_hooks(h, true, false);
+
+	process_command_ingest(state, dram, dmem, dpc_start, dpc_end, dpc_current, dpc_status, hooks);
+
+	check(h.enqueue_calls == 1, "complete prefix command should enqueue before incomplete tail");
+	check(h.last_num_words == 8, "unexpected command length for complete prefix command");
+	check(state.cmd_cur == 4 && state.cmd_ptr == 6,
+	      "parser should retain pending qwords for incomplete tail command");
+	check(dpc_start == dpc_end && dpc_current == dpc_end, "incomplete tail should still clamp DPC regs to end");
+}
+
+static void test_incomplete_command_resume_across_calls()
+{
+	std::vector<uint32_t> dram_words(0x2000 / 4, 0);
+	std::vector<uint32_t> dmem_words(0x1000 / 4, 0);
+	uint8_t *dram = reinterpret_cast<uint8_t *>(dram_words.data());
+	uint8_t *dmem = reinterpret_cast<uint8_t *>(dmem_words.data());
+
+	write_u32(dram, 0x00, 0x08000000u);
+	write_u32(dram, 0x04, 0x11111111u);
+	write_u32(dram, 0x08, 0x22222222u);
+	write_u32(dram, 0x0c, 0x33333333u);
+	write_u32(dram, 0x10, 0x44444444u);
+	write_u32(dram, 0x14, 0x55555555u);
+	write_u32(dram, 0x18, 0x66666666u);
+	write_u32(dram, 0x1c, 0x77777777u);
+
+	std::array<uint32_t, 64> cmd_data = {};
+	CommandIngestState state = {};
+	state.cmd_data = cmd_data.data();
+
+	uint32_t dpc_start = 0x00u;
+	uint32_t dpc_end = 0x08u;
+	uint32_t dpc_current = 0x00u;
+	uint32_t dpc_status = 0;
+	CallbackHarness h = {};
+	CommandIngestHooks hooks = make_hooks(h, true, false);
+
+	// First call: incomplete command chunk.
+	process_command_ingest(state, dram, dmem, dpc_start, dpc_end, dpc_current, dpc_status, hooks);
+	check(h.enqueue_calls == 0, "first call should not enqueue incomplete command");
+	check(state.cmd_cur == 0 && state.cmd_ptr == 1, "first call should preserve one pending qword");
+
+	// Second call: provide remaining qwords.
+	dpc_start = dpc_end;
+	dpc_current = dpc_end;
+	dpc_end = 0x20u;
+	process_command_ingest(state, dram, dmem, dpc_start, dpc_end, dpc_current, dpc_status, hooks);
+
+	check(h.enqueue_calls == 1, "second call should complete and enqueue pending command");
+	check(h.last_num_words == 8, "unexpected resumed command word count");
+	check(h.last_words.size() == 8, "unexpected resumed payload size");
+	check(h.last_words[0] == 0x08000000u && h.last_words[1] == 0x11111111u,
+	      "resumed command payload mismatch at head");
+	check(state.cmd_cur == 0 && state.cmd_ptr == 0, "state should reset after resumed command is consumed");
+	check(dpc_start == dpc_end && dpc_current == dpc_end, "DPC start/current should reset after resumed parse");
+}
+
 static void test_syncfull_synchronous_ordering()
 {
 	std::vector<uint32_t> dram_words(0x2000 / 4, 0);
@@ -250,6 +340,41 @@ static void test_syncfull_synchronous_ordering()
 	      "expected callback ordering signal->wait->interrupt");
 }
 
+static void test_repeated_syncfull_synchronous_ordering()
+{
+	std::vector<uint32_t> dram_words(0x2000 / 4, 0);
+	std::vector<uint32_t> dmem_words(0x1000 / 4, 0);
+	uint8_t *dram = reinterpret_cast<uint8_t *>(dram_words.data());
+	uint8_t *dmem = reinterpret_cast<uint8_t *>(dmem_words.data());
+
+	write_u32(dram, 0x00, 0x29000000u);
+	write_u32(dram, 0x04, 0xaaaabbbb);
+	write_u32(dram, 0x08, 0x29000000u);
+	write_u32(dram, 0x0c, 0xccccdddd);
+
+	std::array<uint32_t, 64> cmd_data = {};
+	CommandIngestState state = {};
+	state.cmd_data = cmd_data.data();
+
+	uint32_t dpc_start = 0;
+	uint32_t dpc_end = 0x10u;
+	uint32_t dpc_current = 0x00u;
+	uint32_t dpc_status = 0;
+	CallbackHarness h = {};
+	CommandIngestHooks hooks = make_hooks(h, true, true);
+
+	process_command_ingest(state, dram, dmem, dpc_start, dpc_end, dpc_current, dpc_status, hooks);
+
+	check(h.enqueue_calls == 2, "both SyncFull commands should enqueue");
+	check(h.signal_calls == 2, "expected one signal per SyncFull");
+	check(h.wait_calls == 2, "expected one wait per SyncFull");
+	check(h.interrupt_calls == 2, "expected one interrupt per SyncFull");
+	check(h.order.size() == 6, "unexpected callback order count for repeated SyncFull");
+	check(h.order[0] == 1 && h.order[1] == 2 && h.order[2] == 3 &&
+	              h.order[3] == 1 && h.order[4] == 2 && h.order[5] == 3,
+	      "expected repeated signal->wait->interrupt ordering");
+}
+
 static void test_commands_below_8_do_not_enqueue()
 {
 	std::vector<uint32_t> dram_words(0x2000 / 4, 0);
@@ -275,6 +400,38 @@ static void test_commands_below_8_do_not_enqueue()
 
 	check(h.enqueue_calls == 0, "opcode < 8 should not enqueue");
 	check(h.interrupt_calls == 0, "opcode < 8 should not interrupt");
+}
+
+static void test_opcode_boundary_low_and_high()
+{
+	std::vector<uint32_t> dram_words(0x2000 / 4, 0);
+	std::vector<uint32_t> dmem_words(0x1000 / 4, 0);
+	uint8_t *dram = reinterpret_cast<uint8_t *>(dram_words.data());
+	uint8_t *dmem = reinterpret_cast<uint8_t *>(dmem_words.data());
+
+	write_u32(dram, 0x00, 0x00000000u); // opcode 0, length 1, no enqueue.
+	write_u32(dram, 0x04, 0x11111111u);
+	write_u32(dram, 0x08, 0x3f000000u); // opcode 63, length 1, enqueue.
+	write_u32(dram, 0x0c, 0x22222222u);
+
+	std::array<uint32_t, 64> cmd_data = {};
+	CommandIngestState state = {};
+	state.cmd_data = cmd_data.data();
+
+	uint32_t dpc_start = 0;
+	uint32_t dpc_end = 0x10u;
+	uint32_t dpc_current = 0x00u;
+	uint32_t dpc_status = 0;
+	CallbackHarness h = {};
+	CommandIngestHooks hooks = make_hooks(h, true, false);
+
+	process_command_ingest(state, dram, dmem, dpc_start, dpc_end, dpc_current, dpc_status, hooks);
+
+	check(h.enqueue_calls == 1, "only opcode >= 8 boundary command should enqueue");
+	check(h.last_num_words == 2, "opcode 63 should decode as length-1 command");
+	check(h.last_words.size() == 2 && h.last_words[0] == 0x3f000000u,
+	      "opcode 63 payload mismatch");
+	check(h.interrupt_calls == 0, "non-SyncFull boundary commands should not interrupt");
 }
 
 static void test_high_address_bits_are_masked_before_dram_guard()
@@ -311,8 +468,12 @@ int main()
 	test_xbus_path_alignment_and_syncfull_interrupt();
 	test_command_buffer_overflow_guard();
 	test_incomplete_command_tail_behavior();
+	test_incomplete_tail_with_complete_prefix();
+	test_incomplete_command_resume_across_calls();
 	test_syncfull_synchronous_ordering();
+	test_repeated_syncfull_synchronous_ordering();
 	test_commands_below_8_do_not_enqueue();
+	test_opcode_boundary_low_and_high();
 	test_high_address_bits_are_masked_before_dram_guard();
 	std::cout << "emu_unit_rdp_command_ingest_test: PASS" << std::endl;
 	return 0;

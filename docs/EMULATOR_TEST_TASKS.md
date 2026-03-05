@@ -179,7 +179,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M4` triangle setup/raster decode policy coverage in progress).
+- Active phase: `T10` execution (`M5` DP parser robustness coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -488,3 +488,13 @@
   - Frame glue resilience around error fallback + image slot rotation.
   - Dump corpus manifest/composition gates.
   - Optional TSAN and deterministic-seed tooling checks.
+- 2026-03-05: Advanced `T10` (`M5`) DP parser robustness coverage:
+  - Expanded `tests/emulator_behavior/emu_unit_rdp_command_ingest_test.cpp` with:
+    - complete-prefix + incomplete-tail multi-command stream behavior,
+    - resume-across-calls behavior for incomplete command tails,
+    - repeated synchronous `SyncFull` ordering (`signal -> wait -> interrupt` per command),
+    - opcode boundary checks (`0x00` vs `0x3f`) for enqueue gating and length decode.
+  - This closes the first part of the “DP parser robustness/fuzz-style boundary” gap.
+- 2026-03-05: Validated current `T10` (`M5`) slice with:
+  - `./run-tests.sh -R emu.unit.rdp_command_ingest`,
+  - `./run-tests.sh --profile emu-required`.

@@ -1,0 +1,4 @@
+# path|tags|modes
+# tags: comma-separated behavior tags (example: smoke,sync,tmem,tlut,depth,coverage,rect)
+# modes: comma-separated validator modes; each entry must include normal and sync-only
+baseline_minimal_eof.rdp|smoke,sync|normal,sync-only

@@ -4,6 +4,8 @@ This directory is the default corpus location for `emu.dump.*` tests.
 
 - Committed baseline fixture:
   - `baseline_minimal_eof.rdp` (tiny smoke fixture; header + EOF)
+- Corpus manifest:
+  - `MANIFEST.txt` (path/tags/modes metadata used by `emu.dump.manifest`)
 - Local captures:
   - place under `tests/rdp_dumps/local/` (ignored by Git)
 
@@ -17,6 +19,15 @@ This will:
 
 1. Build `rdp-validate-dump` if it is not already available.
 2. Run `ctest -R emu.dump` through `run-tests.sh` using the committed baseline fixture.
+
+Strict composition gate (optional):
+
+```bash
+RDP_DUMP_STRICT_COMPOSITION=1 ./run-tests.sh -R emu.dump.manifest
+```
+
+By default, manifest validation requires `smoke,sync` tags.
+Strict mode raises requirements to a broader behavior tag set.
 
 Optional local capture flow:
 

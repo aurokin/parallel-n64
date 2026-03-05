@@ -179,7 +179,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M9` scissor/interlace policy coverage in progress).
+- Active phase: `T10` execution (`M10` dump corpus manifest/composition gate coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -544,4 +544,15 @@
   - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
 - 2026-03-05: Validated current `T10` (`M9`) slice with:
   - `./run-tests.sh -R emu.unit.rdp_scissor_policy`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M10`) dump corpus manifest/composition gating:
+  - Added `tests/rdp_dumps/MANIFEST.txt` with per-dump metadata (`path|tags|modes`).
+  - Added `tests/emulator_behavior/support/emu_dump_manifest_check.sh` and ctest target `emu.dump.manifest`.
+    - Validates manifest formatting, referenced-file existence, and per-entry mode coverage (`normal` + `sync-only`).
+    - Enforces required tag coverage (`smoke,sync` by default).
+    - Supports stricter composition mode via `RDP_DUMP_STRICT_COMPOSITION=1` (extended tag set).
+  - Updated `tests/rdp_dumps/README.md` with manifest and strict-composition usage guidance.
+  - Registered `emu.dump.manifest` in `tests/emulator_behavior/CMakeLists.txt`.
+- 2026-03-05: Validated current `T10` (`M10`) slice with:
+  - `./run-tests.sh -R emu.dump.manifest`,
   - `./run-tests.sh --profile emu-required`.

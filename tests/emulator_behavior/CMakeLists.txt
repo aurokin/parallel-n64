@@ -303,3 +303,9 @@ add_test(
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_validate.sh" sync-only
 )
 set_tests_properties(emu.dump.validate_sync_only PROPERTIES SKIP_RETURN_CODE 77)
+
+add_test(
+  NAME emu.dump.manifest
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_manifest_check.sh"
+)
+set_tests_properties(emu.dump.manifest PROPERTIES SKIP_RETURN_CODE 77)

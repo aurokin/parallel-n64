@@ -101,6 +101,29 @@ static void test_eviction_candidate_selection_skips_pinned_entries()
 	check(choose_hires_eviction_candidate(entries, sizeof(entries) / sizeof(entries[0])) == -1,
 	      "all-pinned resident entries should yield no eviction candidate");
 }
+
+struct FormatsizeEntry
+{
+	uint16_t formatsize = 0;
+};
+
+static void test_formatsize_match_contract()
+{
+	FormatsizeEntry entries[] = {
+		{ 0x0000 },
+		{ 0x00f1 },
+		{ 0x00f2 },
+	};
+
+	const auto *exact = find_hires_registry_formatsize_match(entries, 3, 0x00f2);
+	check(exact && exact->formatsize == 0x00f2, "exact formatsize match should win over wildcard");
+
+	const auto *wildcard = find_hires_registry_formatsize_match(entries, 3, 0x1234);
+	check(wildcard && wildcard->formatsize == 0x0000, "wildcard formatsize should match when exact key is missing");
+
+	const auto *empty = find_hires_registry_formatsize_match(entries, 0, 0x00f1);
+	check(!empty, "empty entry set should not match");
+}
 }
 
 int main()
@@ -110,6 +133,7 @@ int main()
 	test_handle_validity_and_allocation_contract();
 	test_budget_decision_contract();
 	test_eviction_candidate_selection_skips_pinned_entries();
+	test_formatsize_match_contract();
 
 	std::cout << "emu_unit_hires_registry_policy_test: PASS" << std::endl;
 	return 0;

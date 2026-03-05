@@ -99,6 +99,42 @@ inline bool should_queue_hires_upload(HiresRegistryResidencyState state,
 	return true;
 }
 
+template <typename Entry>
+inline Entry *find_hires_registry_formatsize_match(Entry *entries, size_t count, uint16_t formatsize)
+{
+	if (!entries || count == 0)
+		return nullptr;
+
+	Entry *wildcard_match = nullptr;
+	for (size_t i = 0; i < count; i++)
+	{
+		if (entries[i].formatsize == formatsize)
+			return &entries[i];
+		if (entries[i].formatsize == 0 || formatsize == 0)
+			wildcard_match = &entries[i];
+	}
+
+	return wildcard_match;
+}
+
+template <typename Entry>
+inline const Entry *find_hires_registry_formatsize_match(const Entry *entries, size_t count, uint16_t formatsize)
+{
+	if (!entries || count == 0)
+		return nullptr;
+
+	const Entry *wildcard_match = nullptr;
+	for (size_t i = 0; i < count; i++)
+	{
+		if (entries[i].formatsize == formatsize)
+			return &entries[i];
+		if (entries[i].formatsize == 0 || formatsize == 0)
+			wildcard_match = &entries[i];
+	}
+
+	return wildcard_match;
+}
+
 struct HiresRegistryEntryResidentMeta
 {
 	bool resident = false;

@@ -46,6 +46,8 @@ namespace RDP
 {
 namespace
 {
+constexpr uint32_t HIRES_DESCRIPTOR_CAPACITY = 4096u;
+
 static const char *load_mode_to_string(UploadMode mode)
 {
 	switch (mode)
@@ -141,6 +143,8 @@ bool Renderer::init_renderer(const RendererOptions &options)
 
 void Renderer::set_device(Vulkan::Device *device_)
 {
+	if (device != device_)
+		reset_hires_registry();
 	device = device_;
 }
 
@@ -664,7 +668,10 @@ void Renderer::set_tmem(Vulkan::Buffer *buffer)
 
 void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 {
+	const void *previous_provider = replacement_provider;
 	replacement_provider = provider;
+	if (detail::hires_provider_changed(previous_provider, provider))
+		reset_hires_registry();
 	detail::reset_hires_tracking_state(
 			replacement_tiles, tlut_shadow_valid, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
 }
@@ -684,6 +691,169 @@ void Renderer::log_hires_summary() const
 	     static_cast<unsigned long long>(hires_lookup_hits),
 	     static_cast<unsigned long long>(hires_lookup_misses),
 	     replacement_provider ? "on" : "off");
+}
+
+void Renderer::reset_hires_registry()
+{
+	hires_registry = {};
+}
+
+bool Renderer::ensure_hires_registry()
+{
+	if (hires_registry.ready)
+		return true;
+
+	if (!device)
+		return false;
+
+	hires_registry.bindless_pool = device->create_bindless_descriptor_pool(
+			Vulkan::BindlessResourceType::ImageFP,
+			1,
+			HIRES_DESCRIPTOR_CAPACITY);
+	if (!hires_registry.bindless_pool)
+		return false;
+
+	if (!hires_registry.bindless_pool->allocate_descriptors(HIRES_DESCRIPTOR_CAPACITY))
+	{
+		hires_registry.bindless_pool.reset();
+		return false;
+	}
+
+	hires_registry.ready = true;
+	hires_registry.capacity = HIRES_DESCRIPTOR_CAPACITY;
+	hires_registry.next_descriptor = 0;
+	hires_registry.tick = 0;
+	return true;
+}
+
+Renderer::HiresRegistryEntry *Renderer::find_hires_registry_entry(uint64_t checksum64, uint16_t formatsize)
+{
+	auto itr = hires_registry.entries_by_checksum.find(checksum64);
+	if (itr == hires_registry.entries_by_checksum.end())
+		return nullptr;
+	return detail::find_hires_registry_formatsize_match(
+			itr->second.data(),
+			itr->second.size(),
+			formatsize);
+}
+
+bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta)
+{
+	meta.vk_image_index = detail::hires_registry_invalid_handle();
+
+	if (!replacement_provider || !ensure_hires_registry())
+		return false;
+
+	auto *entry = find_hires_registry_entry(checksum64, formatsize);
+	if (!entry)
+	{
+		auto &bucket = hires_registry.entries_by_checksum[checksum64];
+		bucket.push_back({});
+		entry = &bucket.back();
+		entry->formatsize = formatsize;
+	}
+
+	entry->last_used_tick = ++hires_registry.tick;
+	const bool descriptor_valid = detail::hires_registry_handle_valid(entry->descriptor_index, hires_registry.capacity);
+	if (entry->state == detail::HiresRegistryResidencyState::Ready && descriptor_valid)
+	{
+		meta.vk_image_index = entry->descriptor_index;
+		meta.repl_w = entry->repl_w;
+		meta.repl_h = entry->repl_h;
+		return true;
+	}
+
+	if (!detail::should_queue_hires_upload(entry->state, true, descriptor_valid))
+		return false;
+
+	entry->state = detail::advance_hires_registry_state(
+			entry->state,
+			detail::HiresRegistryTransition::QueueUpload);
+
+	if (!descriptor_valid)
+	{
+		if (detail::check_hires_registry_handle_allocation(
+				    hires_registry.next_descriptor,
+				    hires_registry.capacity) == detail::HiresRegistryHandleAllocationResult::Exhausted)
+		{
+			entry->state = detail::advance_hires_registry_state(
+					entry->state,
+					detail::HiresRegistryTransition::UploadFailed);
+			return false;
+		}
+
+		entry->descriptor_index = hires_registry.next_descriptor++;
+	}
+
+	ReplacementImage replacement = {};
+	if (!replacement_provider->decode_rgba8(checksum64, formatsize, &replacement))
+	{
+		entry->state = detail::advance_hires_registry_state(
+				entry->state,
+				detail::HiresRegistryTransition::UploadFailed);
+		return false;
+	}
+
+	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
+	{
+		entry->state = detail::advance_hires_registry_state(
+				entry->state,
+				detail::HiresRegistryTransition::UploadFailed);
+		return false;
+	}
+
+	const auto budget_decision = detail::decide_hires_registry_budget(
+			hires_registry.resident_bytes,
+			replacement.rgba8.size(),
+			hires_registry.budget_bytes,
+			hires_registry.eviction_enabled,
+			false);
+	if (budget_decision == detail::HiresRegistryBudgetDecision::RejectOverBudget)
+	{
+		entry->state = detail::advance_hires_registry_state(
+				entry->state,
+				detail::HiresRegistryTransition::UploadFailed);
+		return false;
+	}
+
+	Vulkan::ImageInitialData initial = {};
+	initial.data = replacement.rgba8.data();
+	initial.row_length = replacement.meta.repl_w;
+	initial.image_height = replacement.meta.repl_h;
+
+	auto image_info = Vulkan::ImageCreateInfo::immutable_2d_image(
+			replacement.meta.repl_w,
+			replacement.meta.repl_h,
+			VK_FORMAT_R8G8B8A8_UNORM,
+			false);
+
+	auto image = device->create_image(image_info, &initial);
+	if (!image)
+	{
+		entry->state = detail::advance_hires_registry_state(
+				entry->state,
+				detail::HiresRegistryTransition::UploadFailed);
+		return false;
+	}
+
+	hires_registry.bindless_pool->set_texture(entry->descriptor_index, image->get_view());
+
+	if (entry->resident_bytes <= hires_registry.resident_bytes)
+		hires_registry.resident_bytes -= entry->resident_bytes;
+
+	entry->image = std::move(image);
+	entry->repl_w = replacement.meta.repl_w;
+	entry->repl_h = replacement.meta.repl_h;
+	entry->resident_bytes = replacement.rgba8.size();
+	hires_registry.resident_bytes += entry->resident_bytes;
+	entry->state = detail::advance_hires_registry_state(
+			entry->state,
+			detail::HiresRegistryTransition::UploadSucceeded);
+
+	meta.vk_image_index = entry->descriptor_index;
+	meta.repl_w = entry->repl_w;
+	meta.repl_h = entry->repl_h;
+	return true;
 }
 
 void Renderer::flush_and_signal()
@@ -3351,6 +3521,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			const uint16_t formatsize = formatsize_key(meta.fmt, meta.size);
 			ReplacementMeta repl_meta = {};
 			const bool hit = replacement_provider->lookup(checksum64, formatsize, &repl_meta);
+			if (hit)
+				resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
 
 			auto &repl_state = replacement_tiles[tile & (Limits::MaxNumTiles - 1)];
 			detail::write_hires_lookup_tile_state(
@@ -3359,13 +3531,16 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					checksum64,
 					formatsize,
 					key_width_pixels,
-					key_height_pixels);
+					key_height_pixels,
+					repl_meta.vk_image_index,
+					repl_meta.repl_w,
+					repl_meta.repl_h);
 
 			detail::record_hires_lookup_result(hit, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
 
 			if (hires_debug)
 			{
-				LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u wh=%ux%u key=%016llx fs=%u hit=%d.\n",
+				LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u wh=%ux%u key=%016llx fs=%u hit=%d desc=%u.\n",
 				     hit ? "hit" : "miss",
 				     load_mode_to_string(info.mode),
 				     src_base_addr & 0x00ffffffu,
@@ -3376,7 +3551,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				     key_height_pixels,
 				     static_cast<unsigned long long>(checksum64),
 				     unsigned(formatsize),
-				     hit ? 1 : 0);
+				     hit ? 1 : 0,
+				     repl_meta.vk_image_index);
 			}
 		}
 	}

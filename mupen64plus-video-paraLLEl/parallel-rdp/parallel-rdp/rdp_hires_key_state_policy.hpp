@@ -23,7 +23,10 @@ inline void write_hires_lookup_tile_state(TileState &state,
                                           uint64_t checksum64,
                                           uint16_t formatsize,
                                           uint32_t orig_w,
-                                          uint32_t orig_h)
+                                          uint32_t orig_h,
+                                          uint32_t vk_image_index = 0xffffffffu,
+                                          uint32_t repl_w = 0,
+                                          uint32_t repl_h = 0)
 {
 	state.valid = true;
 	state.hit = hit;
@@ -31,6 +34,9 @@ inline void write_hires_lookup_tile_state(TileState &state,
 	state.formatsize = formatsize;
 	state.orig_w = clamp_hires_dimension_u16(orig_w);
 	state.orig_h = clamp_hires_dimension_u16(orig_h);
+	state.vk_image_index = vk_image_index;
+	state.repl_w = clamp_hires_dimension_u16(repl_w);
+	state.repl_h = clamp_hires_dimension_u16(repl_h);
 }
 }
 }

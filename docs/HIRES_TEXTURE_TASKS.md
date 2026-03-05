@@ -40,14 +40,18 @@ Expected fallback behavior:
 - [ ] M8: Validation + performance pass + docs.
 
 ## Current Status
-- Feature milestone state: `M0`..`M3` complete; `M4`..`M8` pending.
+- Feature milestone state: `M0`..`M3` complete; `M4` in progress; `M5`..`M8` pending.
 - Pre-`M4` readiness work is complete and locally gated:
   - descriptor-indexing capability contract + runtime auto-disable behavior are implemented and tested;
   - registry lifecycle/descriptor-handle policy scaffolding is implemented and tested;
   - local mini-pack generation + validation tooling is implemented and compatibility-tested against `ReplacementProvider`;
   - `./run-tests.sh --profile hires-readiness` is the local safety gate for HIRES readiness.
-- Important boundary: this readiness work does not mark `M4` complete; descriptor-backed GPU upload/registry runtime wiring is still pending.
-- Next execution target: implement `M4` runtime GPU registry path, then move to `M5` shader late-swap integration.
+- `M4` is now in active implementation:
+  - renderer-owned HIRES registry allocates a bindless descriptor pool and performs lazy decode/upload on lookup hits;
+  - resolved descriptor indices and replacement dimensions are now persisted into per-tile replacement state;
+  - upload residency/handle/budget decisions are routed through registry policy helpers.
+- Important boundary: `M4` is still open until shader consumption (`M5`) can read/use descriptor-backed replacements in texel stage.
+- Next execution target: finish `M4` runtime stabilization/coverage, then move to `M5` shader late-swap integration.
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -112,3 +116,14 @@ I will post updates in this format as work progresses:
 - 2026-03-05: Synced tracker after emulator-test-plan closure:
   - Confirmed this HIRES plan remains active with `M4`..`M8` still open.
   - Added explicit pre-`M4` readiness status so implemented scaffolding is visible without overstating milestone completion.
+- 2026-03-05: Started `M4` runtime GPU-registry implementation pass:
+  - Added renderer-side HIRES registry state with descriptor-capacity initialization (`4096`) via bindless sampled-image pool.
+  - Added lazy decode/upload path on lookup hits (`ReplacementProvider::decode_rgba8` -> Vulkan image -> bindless descriptor write).
+  - Extended replacement tile state to capture `vk_image_index` and replacement dimensions for upcoming shader-stage consumption.
+  - Expanded policy/helper coverage:
+    - `rdp_hires_key_state_policy` now writes descriptor + replacement dimensions;
+    - `rdp_hires_registry_policy` adds tested formatsize-match helper for exact/wildcard behavior.
+  - Local validation:
+    - `./run-tests.sh --profile hires-readiness` (pass),
+    - `./run-build.sh` (pass),
+    - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (pass, forced timeout exit).

@@ -16,6 +16,9 @@ struct TileState
 	uint16_t formatsize = 0;
 	uint16_t orig_w = 0;
 	uint16_t orig_h = 0;
+	uint16_t repl_w = 0;
+	uint16_t repl_h = 0;
+	uint32_t vk_image_index = 0xffffffffu;
 };
 
 static void check(bool condition, const char *message)
@@ -55,7 +58,10 @@ static void test_write_hires_lookup_tile_state_contract()
 	                              0x1234567887654321ull,
 	                              0x2201,
 	                              80000,
-	                              300);
+	                              300,
+	                              41,
+	                              2048,
+	                              70000);
 
 	check(state.valid, "tile state should be marked valid");
 	check(state.hit, "tile state hit should mirror lookup result");
@@ -63,6 +69,9 @@ static void test_write_hires_lookup_tile_state_contract()
 	check(state.formatsize == 0x2201, "tile state formatsize mismatch");
 	check(state.orig_w == 0xffff, "tile state width should clamp to u16 max");
 	check(state.orig_h == 300, "tile state height should keep in-range values");
+	check(state.vk_image_index == 41u, "tile state descriptor index mismatch");
+	check(state.repl_w == 2048, "tile replacement width mismatch");
+	check(state.repl_h == 0xffff, "tile replacement height should clamp to u16 max");
 }
 
 static void test_write_hires_lookup_tile_state_overwrites_previous_values()
@@ -74,6 +83,9 @@ static void test_write_hires_lookup_tile_state_overwrites_previous_values()
 	state.formatsize = 0xffff;
 	state.orig_w = 0xffff;
 	state.orig_h = 0xffff;
+	state.repl_w = 0xffff;
+	state.repl_h = 0xffff;
+	state.vk_image_index = 17;
 
 	write_hires_lookup_tile_state(state,
 	                              false,
@@ -87,6 +99,8 @@ static void test_write_hires_lookup_tile_state_overwrites_previous_values()
 	check(state.checksum64 == 0, "tile state checksum should overwrite previous value");
 	check(state.formatsize == 0x0102, "tile state formatsize should overwrite previous value");
 	check(state.orig_w == 16 && state.orig_h == 32, "tile state dimensions should overwrite previous values");
+	check(state.vk_image_index == 0xffffffffu, "tile descriptor index should default to invalid sentinel");
+	check(state.repl_w == 0 && state.repl_h == 0, "tile replacement dimensions should default to zero");
 }
 }
 

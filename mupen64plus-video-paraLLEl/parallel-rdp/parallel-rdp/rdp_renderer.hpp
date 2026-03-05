@@ -25,13 +25,17 @@
 #include "rdp_data_structures.hpp"
 #include "device.hpp"
 #include "rdp_common.hpp"
+#include "rdp_hires_registry_policy.hpp"
 #include "worker_thread.hpp"
+#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace RDP
 {
 struct CoherencyOperation;
 class ReplacementProvider;
+struct ReplacementMeta;
 
 struct SyncObject
 {
@@ -214,6 +218,9 @@ private:
 		uint16_t formatsize = 0;
 		uint16_t orig_w = 0;
 		uint16_t orig_h = 0;
+		uint16_t repl_w = 0;
+		uint16_t repl_h = 0;
+		uint32_t vk_image_index = 0xffffffffu;
 		bool valid = false;
 		bool hit = false;
 	};
@@ -223,6 +230,38 @@ private:
 	uint64_t hires_lookup_total = 0;
 	uint64_t hires_lookup_hits = 0;
 	uint64_t hires_lookup_misses = 0;
+
+	struct HiresRegistryEntry
+	{
+		uint16_t formatsize = 0;
+		detail::HiresRegistryResidencyState state = detail::HiresRegistryResidencyState::Missing;
+		uint32_t descriptor_index = detail::hires_registry_invalid_handle();
+		uint32_t repl_w = 0;
+		uint32_t repl_h = 0;
+		uint64_t last_used_tick = 0;
+		size_t resident_bytes = 0;
+		bool pinned = false;
+		Vulkan::ImageHandle image;
+	};
+
+	struct HiresRegistryState
+	{
+		bool ready = false;
+		uint32_t capacity = 0;
+		uint32_t next_descriptor = 0;
+		uint64_t tick = 0;
+		size_t resident_bytes = 0;
+		size_t budget_bytes = 0;
+		bool eviction_enabled = false;
+		Vulkan::BindlessDescriptorPoolHandle bindless_pool;
+		std::unordered_map<uint64_t, std::vector<HiresRegistryEntry>> entries_by_checksum;
+	};
+	HiresRegistryState hires_registry = {};
+
+	void reset_hires_registry();
+	bool ensure_hires_registry();
+	HiresRegistryEntry *find_hires_registry_entry(uint64_t checksum64, uint16_t formatsize);
+	bool resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta);
 	Vulkan::BufferHandle tmem_instances;
 	Vulkan::BufferHandle span_setups;
 	Vulkan::BufferHandle blender_divider_lut_buffer;

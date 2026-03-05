@@ -24,6 +24,7 @@
 #include "rdp_common.hpp"
 #include "rdp_memory_path_policy.hpp"
 #include "rdp_other_modes_policy.hpp"
+#include "rdp_scanout_coherency_policy.hpp"
 #include "rdp_scissor_policy.hpp"
 #include "rdp_triangle_setup_policy.hpp"
 #include <chrono>
@@ -974,13 +975,17 @@ Vulkan::ImageHandle CommandProcessor::scanout(const ScanoutOptions &opts)
 	// Block idle callbacks triggering while we're doing this.
 	renderer.lock_command_processing();
 	{
-		renderer.flush_and_signal();
-		if (!is_host_coherent)
-		{
-			unsigned offset, length;
-			vi.scanout_memory_range(offset, length);
-			renderer.resolve_coherency_external(offset, length);
-		}
+		detail::run_scanout_coherency_sequence(
+				is_host_coherent,
+				[&]() {
+					renderer.flush_and_signal();
+				},
+				[&](unsigned &offset, unsigned &length) {
+					vi.scanout_memory_range(offset, length);
+				},
+				[&](unsigned offset, unsigned length) {
+					renderer.resolve_coherency_external(offset, length);
+				});
 	}
 	renderer.unlock_command_processing();
 
@@ -1004,14 +1009,17 @@ void CommandProcessor::drain_command_ring()
 void CommandProcessor::scanout_sync(std::vector<RGBA> &colors, unsigned &width, unsigned &height)
 {
 	drain_command_ring();
-	renderer.flush_and_signal();
-
-	if (!is_host_coherent)
-	{
-		unsigned offset, length;
-		vi.scanout_memory_range(offset, length);
-		renderer.resolve_coherency_external(offset, length);
-	}
+	detail::run_scanout_coherency_sequence(
+			is_host_coherent,
+			[&]() {
+				renderer.flush_and_signal();
+			},
+			[&](unsigned &offset, unsigned &length) {
+				vi.scanout_memory_range(offset, length);
+			},
+			[&](unsigned offset, unsigned length) {
+				renderer.resolve_coherency_external(offset, length);
+			});
 
 	ScanoutOptions opts = {};
 	// Downscale down to 1x, always.

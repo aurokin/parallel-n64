@@ -179,7 +179,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M12` VI serrate/scale policy coverage in progress).
+- Active phase: `T10` execution (`M13` scanout coherency ordering coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -577,4 +577,17 @@
   - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
 - 2026-03-05: Validated current `T10` (`M12`) slice with:
   - `./run-tests.sh -R emu.unit.vi_scale_policy`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M13`) scanout coherency ordering coverage:
+  - Added `parallel-rdp/parallel-rdp/rdp_scanout_coherency_policy.hpp` with shared helper for:
+    - ordered scanout coherency sequence (`flush_and_signal` -> optional memory-range decode -> optional external resolve),
+    - host-coherent short-circuit path.
+  - Updated `parallel-rdp/parallel-rdp/rdp_device.cpp` to use the shared helper in both:
+    - `CommandProcessor::scanout()`,
+    - `CommandProcessor::scanout_sync()`.
+  - Added `tests/emulator_behavior/emu_unit_rdp_scanout_coherency_policy_test.cpp` as `emu.unit.rdp_scanout_coherency_policy`.
+    - Covers host-coherent bypass behavior, non-host-coherent ordering and argument forwarding, and empty-range forwarding semantics.
+  - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
+- 2026-03-05: Validated current `T10` (`M13`) slice with:
+  - `./run-tests.sh -R emu.unit.rdp_scanout_coherency_policy`,
   - `./run-tests.sh --profile emu-required`.

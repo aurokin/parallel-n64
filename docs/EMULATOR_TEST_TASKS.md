@@ -156,7 +156,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M3` VI register-interaction matrix coverage in progress).
+- Active phase: `T10` execution (`M4` triangle setup/raster decode policy coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -444,4 +444,16 @@
   - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
 - 2026-03-05: Validated current `T10` (`M3`) slice with:
   - `./run-tests.sh -R emu.unit.vi_register_interaction_matrix`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M4`) triangle setup/raster decode coverage:
+  - Added `mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_triangle_setup_policy.hpp` with a shared decode helper for:
+    - flip / do-offset / copy-cycle / native-lod flag resolution,
+    - tile extraction,
+    - sign-extension + subpixel decode for triangle edge coefficients.
+  - Updated `parallel-rdp/parallel-rdp/rdp_device.cpp::decode_triangle_setup()` to use the shared helper (no intended behavior change).
+  - Added `tests/emulator_behavior/emu_unit_rdp_triangle_setup_policy_test.cpp` as `emu.unit.rdp_triangle_setup_policy`.
+    - Covers flag combinations, do-offset truth table behavior, and signed/subpixel decode invariants.
+  - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
+- 2026-03-05: Validated current `T10` (`M4`) slice with:
+  - `./run-tests.sh -R emu.unit.rdp_triangle_setup_policy`,
   - `./run-tests.sh --profile emu-required`.

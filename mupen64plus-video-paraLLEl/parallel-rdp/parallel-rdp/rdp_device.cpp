@@ -22,6 +22,7 @@
 
 #include "rdp_device.hpp"
 #include "rdp_common.hpp"
+#include "rdp_triangle_setup_policy.hpp"
 #include <chrono>
 
 #ifdef __SSE2__
@@ -249,30 +250,12 @@ void CommandProcessor::op_sync_full(const uint32_t *)
 
 void CommandProcessor::decode_triangle_setup(TriangleSetup &setup, const uint32_t *words) const
 {
-	bool copy_cycle = (static_state.flags & RASTERIZATION_COPY_BIT) != 0;
-	bool flip = (words[0] & 0x800000u) != 0;
-	bool sign_dxhdy = (words[5] & 0x80000000u) != 0;
-	bool do_offset = flip == sign_dxhdy;
-
-	setup.flags |= flip ? TRIANGLE_SETUP_FLIP_BIT : 0;
-	setup.flags |= do_offset ? TRIANGLE_SETUP_DO_OFFSET_BIT : 0;
-	setup.flags |= copy_cycle ? TRIANGLE_SETUP_SKIP_XFRAC_BIT : 0;
-	setup.flags |= quirks.u.options.native_texture_lod ? TRIANGLE_SETUP_NATIVE_LOD_BIT : 0;
-
-	setup.tile = (words[0] >> 16) & 63;
-
-	setup.yl = sext<14>(words[0]);
-	setup.ym = sext<14>(words[1] >> 16);
-	setup.yh = sext<14>(words[1]);
-
-	// The lower bit is ignored, so shift here to obtain an extra bit of subpixel precision.
-	// This is very useful for upscaling, since we can obtain 8x before we overflow instead of 4x.
-	setup.xl = sext<28>(words[2]) >> 1;
-	setup.xh = sext<28>(words[4]) >> 1;
-	setup.xm = sext<28>(words[6]) >> 1;
-	setup.dxldy = sext<28>(words[3] >> 2) >> 1;
-	setup.dxhdy = sext<28>(words[5] >> 2) >> 1;
-	setup.dxmdy = sext<28>(words[7] >> 2) >> 1;
+	const bool copy_cycle = (static_state.flags & RASTERIZATION_COPY_BIT) != 0;
+	detail::decode_triangle_setup_words(
+			setup,
+			words,
+			copy_cycle,
+			quirks.u.options.native_texture_lod);
 }
 
 static void decode_tex_setup(AttributeSetup &attr, const uint32_t *words)

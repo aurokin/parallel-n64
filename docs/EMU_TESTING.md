@@ -12,6 +12,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-dump-tests.sh --provision-validator`
 - Optional combined non-required gate:
   - `./run-tests.sh --profile emu-optional`
+- Optional TSAN race check tier (local debug):
+  - `./run-tests.sh --profile emu-tsan`
 
 ## Profiles
 
@@ -20,6 +22,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - `emu-optional`: `emu.conformance.*` + `emu.dump.*`
 - `emu-conformance`: `emu.conformance.*`
 - `emu-dump`: `emu.dump.*`
+- `emu-tsan`: `emu.unit.command_ring_policy` + `emu.unit.worker_thread` with ThreadSanitizer flags
 
 ## Triage Flow
 
@@ -39,3 +42,5 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - `emu.dump.*` is skip-by-default without `rdp-validate-dump`.
 - Baseline fixture is committed at `tests/rdp_dumps/baseline_minimal_eof.rdp`.
 - Remote CI enforcement is intentionally disabled for now; run tiers locally.
+- `emu-tsan` runs a compiler/runtime preflight first; if TSAN is unsupported locally it exits with a clear skip message.
+- Set `EMU_TSAN_FORCE=1` to bypass preflight and force TSAN execution.

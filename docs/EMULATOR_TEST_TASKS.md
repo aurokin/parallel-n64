@@ -179,7 +179,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M13` scanout coherency ordering coverage in progress).
+- Active phase: `T10` execution (`M14` local TSAN tier wiring in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -591,3 +591,15 @@
 - 2026-03-05: Validated current `T10` (`M13`) slice with:
   - `./run-tests.sh -R emu.unit.rdp_scanout_coherency_policy`,
   - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M14`) local TSAN race-check tier wiring:
+  - Updated `run-tests.sh` to add `--profile emu-tsan`:
+    - applies ThreadSanitizer compile/link flags in a dedicated default build dir (`build/ctest-tsan`),
+    - scopes execution to race-sensitive unit targets:
+      - `emu.unit.command_ring_policy`
+      - `emu.unit.worker_thread`.
+    - adds TSAN compiler/runtime preflight with explicit local skip behavior when TSAN is unavailable in the host environment (`EMU_TSAN_FORCE=1` override).
+  - Updated `docs/EMU_TESTING.md` with the new local optional TSAN command and profile mapping.
+- 2026-03-05: Validated current `T10` (`M14`) slice with:
+  - `./run-tests.sh --profile emu-tsan`,
+  - `./run-tests.sh --profile emu-required`.
+  - Current host note: TSAN preflight reports unsupported runtime (`unexpected memory mapping`) and skips the TSAN tier cleanly.

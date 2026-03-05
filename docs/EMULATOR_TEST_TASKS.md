@@ -179,7 +179,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M5` DP parser robustness coverage in progress).
+- Active phase: `T10` execution (`M6` frame-glue image-slot resilience coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -497,4 +497,15 @@
   - This closes the first part of the “DP parser robustness/fuzz-style boundary” gap.
 - 2026-03-05: Validated current `T10` (`M5`) slice with:
   - `./run-tests.sh -R emu.unit.rdp_command_ingest`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M6`) frame-glue image slot resilience coverage:
+  - Added `mupen64plus-video-paraLLEl/rdp_retro_image_mapping.hpp` to centralize retro-Vulkan image slot metadata population.
+  - Updated `mupen64plus-video-paraLLEl/rdp.cpp` to use shared slot-population helper for both:
+    - normal scanout path,
+    - `complete_frame_error()` fallback path.
+  - Added `tests/emulator_behavior/emu_unit_rdp_retro_image_mapping_test.cpp` as `emu.unit.rdp_retro_image_mapping`.
+    - Covers slot metadata invariants and sync-index slot rotation/reuse stability.
+  - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
+- 2026-03-05: Validated current `T10` (`M6`) slice with:
+  - `./run-tests.sh -R emu.unit.rdp_retro_image_mapping`,
   - `./run-tests.sh --profile emu-required`.

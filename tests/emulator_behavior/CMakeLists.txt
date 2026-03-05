@@ -87,6 +87,18 @@ target_include_directories(emu_unit_rdp_vulkan_glue_test PRIVATE
 target_compile_features(emu_unit_rdp_vulkan_glue_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.rdp_vulkan_glue COMMAND emu_unit_rdp_vulkan_glue_test)
 
+add_executable(emu_unit_rdp_retro_image_mapping_test
+  emu_unit_rdp_retro_image_mapping_test.cpp
+)
+target_include_directories(emu_unit_rdp_retro_image_mapping_test PRIVATE
+  "${CMAKE_SOURCE_DIR}"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/api"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/vulkan-headers/include"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+)
+target_compile_features(emu_unit_rdp_retro_image_mapping_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.rdp_retro_image_mapping COMMAND emu_unit_rdp_retro_image_mapping_test)
+
 add_executable(emu_unit_parallel_option_wiring_test
   emu_unit_parallel_option_wiring_test.cpp
 )

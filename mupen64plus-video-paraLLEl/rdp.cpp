@@ -2,6 +2,7 @@
 #include "rdp_command_ingest.hpp"
 #include "rdp_frame_mapping.hpp"
 #include "rdp_init_policy.hpp"
+#include "rdp_retro_image_mapping.hpp"
 #include "rdp_scanout_fallback.hpp"
 #include "rdp_vulkan_glue.hpp"
 #include "Gfx #1.3.h"
@@ -259,22 +260,7 @@ static void complete_frame_error()
 	unsigned index = vulkan->get_sync_index(vulkan->handle);
 	assert(index < retro_images.size());
 
-	retro_images[index].image_view = image->get_view().get_view();
-	retro_images[index].image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	retro_images[index].create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	retro_images[index].create_info.image = image->get_image();
-	retro_images[index].create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	retro_images[index].create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-	retro_images[index].create_info.subresourceRange.baseMipLevel = 0;
-	retro_images[index].create_info.subresourceRange.baseArrayLayer = 0;
-	retro_images[index].create_info.subresourceRange.levelCount = 1;
-	retro_images[index].create_info.subresourceRange.layerCount = 1;
-	retro_images[index].create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	retro_images[index].create_info.components.r = VK_COMPONENT_SWIZZLE_R;
-	retro_images[index].create_info.components.g = VK_COMPONENT_SWIZZLE_G;
-	retro_images[index].create_info.components.b = VK_COMPONENT_SWIZZLE_B;
-	retro_images[index].create_info.components.a = VK_COMPONENT_SWIZZLE_A;
+	detail::populate_retro_image_slot(retro_images[index], image->get_image(), image->get_view().get_view());
 
 	vulkan->set_image(vulkan->handle, &retro_images[index], 0, nullptr, VK_QUEUE_FAMILY_IGNORED);
 	width = image->get_width();
@@ -335,22 +321,7 @@ void complete_frame()
 
 	assert(index < retro_images.size());
 
-	retro_images[index].image_view = image->get_view().get_view();
-	retro_images[index].image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	retro_images[index].create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	retro_images[index].create_info.image = image->get_image();
-	retro_images[index].create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	retro_images[index].create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-	retro_images[index].create_info.subresourceRange.baseMipLevel = 0;
-	retro_images[index].create_info.subresourceRange.baseArrayLayer = 0;
-	retro_images[index].create_info.subresourceRange.levelCount = 1;
-	retro_images[index].create_info.subresourceRange.layerCount = 1;
-	retro_images[index].create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	retro_images[index].create_info.components.r = VK_COMPONENT_SWIZZLE_R;
-	retro_images[index].create_info.components.g = VK_COMPONENT_SWIZZLE_G;
-	retro_images[index].create_info.components.b = VK_COMPONENT_SWIZZLE_B;
-	retro_images[index].create_info.components.a = VK_COMPONENT_SWIZZLE_A;
+	detail::populate_retro_image_slot(retro_images[index], image->get_image(), image->get_view().get_view());
 
 	vulkan->set_image(vulkan->handle, &retro_images[index], 0, nullptr, VK_QUEUE_FAMILY_IGNORED);
 	width = image->get_width();

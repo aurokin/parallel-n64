@@ -22,6 +22,7 @@
 
 #include <chrono>
 #include "command_ring.hpp"
+#include "command_ring_policy.hpp"
 #include "rdp_device.hpp"
 #include "thread_id.hpp"
 #include <assert.h>
@@ -72,13 +73,11 @@ void CommandRing::enqueue_command(unsigned num_words, const uint32_t *words)
 {
 	std::unique_lock<std::mutex> holder{lock};
 	cond.wait(holder, [this, num_words]() {
-		return write_count + num_words + 1 <= read_count + ring.size();
+		return detail::can_enqueue_ring_words(write_count, read_count, ring.size(), num_words);
 	});
 
 	size_t mask = ring.size() - 1;
-	ring[write_count++ & mask] = num_words;
-	for (unsigned i = 0; i < num_words; i++)
-		ring[write_count++ & mask] = words[i];
+	detail::write_ring_command(ring.data(), mask, write_count, num_words, words);
 
 	cond.notify_one();
 }
@@ -105,10 +104,7 @@ void CommandRing::thread_loop()
 			std::unique_lock<std::mutex> holder{lock};
 			if (cond.wait_for(holder, std::chrono::microseconds(500), [this]() { return write_count > read_count; }))
 			{
-				uint32_t num_words = ring[read_count++ & mask];
-				tmp_buffer.resize(num_words);
-				for (uint32_t i = 0; i < num_words; i++)
-					tmp_buffer[i] = ring[read_count++ & mask];
+				detail::read_ring_command(ring.data(), mask, read_count, tmp_buffer);
 			}
 			else
 			{

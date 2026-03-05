@@ -76,7 +76,7 @@
   - Exit criteria:
     - Changing option plumbing or constants causes immediate unit-test failures.
 
-- [ ] T6: parallel-rdp Core Module Unit Tests (No Vulkan Rendering Required)
+- [x] T6: parallel-rdp Core Module Unit Tests (No Vulkan Rendering Required)
   - Deliverables:
     - `command_ring` FIFO/wrap/capacity tests.
     - `rdp_data_structures` size/layout assertions.
@@ -127,7 +127,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T6` (parallel-rdp Core Module Unit Tests).
+- Active phase: `T7` (Doc-Backed Behavior Conformance).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 
 ## Change Log
@@ -212,6 +212,20 @@
 - 2026-03-05: Validated `T5` with:
   - `./run-tests.sh -R emu.unit.parallel_option_wiring`,
   - `./run-tests.sh -R emu.unit.z64_constants`,
+  - `./run-tests.sh -R emu.unit`,
+  - `./run-tests.sh`,
+  - `./run-build.sh`,
+  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.
+- 2026-03-05: Completed `T6` parallel-rdp core module unit coverage:
+  - Added `mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/command_ring_policy.hpp` and refactored `command_ring.cpp` to use shared enqueue/dequeue helpers (no functional behavior change intended).
+  - Added `tests/emulator_behavior/emu_unit_command_ring_policy_test.cpp` as `emu.unit.command_ring_policy` for FIFO/wrap/capacity and zero-word sentinel behavior.
+  - Added `tests/emulator_behavior/emu_unit_rdp_data_structures_test.cpp` as `emu.unit.rdp_data_structures` for structure sizing/alignment and cache helper semantics.
+  - Added `tests/emulator_behavior/emu_unit_rdp_common_test.cpp` as `emu.unit.rdp_common` for opcode/enum sanity locks (including `SyncFull == 0x29`).
+  - Added `tests/emulator_behavior/emu_unit_luts_hash_test.cpp` as `emu.unit.luts_hash` for deterministic LUT hash checks.
+  - Added `tests/emulator_behavior/emu_unit_worker_thread_test.cpp` as `emu.unit.worker_thread` for ordering and shutdown semantics.
+  - Added `#include <stdint.h>` to `parallel-rdp/parallel-rdp/rdp_common.hpp` to keep the header self-contained for standalone unit compilation.
+- 2026-03-05: Validated `T6` with:
+  - `./run-tests.sh -R emu.unit.rdp_common`,
   - `./run-tests.sh -R emu.unit`,
   - `./run-tests.sh`,
   - `./run-build.sh`,

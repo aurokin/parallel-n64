@@ -10,7 +10,7 @@
 - [x] M0: Repo hygiene for local packs (`.gitignore` update).
 - [x] M1: Core options and runtime plumbing (`hires_*` toggles + path).
 - [x] M2: Replacement provider module (`.htc` + `.hts` parse + decode).
-- [ ] M3: Keying replication + logging harness (`checksum64`, `formatsize`, match logs).
+- [x] M3: Keying replication + logging harness (`checksum64`, `formatsize`, match logs).
 - [ ] M4: GPU registry (bindless descriptor pool + lazy upload).
 - [ ] M5: Shader texel-stage late swap (before combiner).
 - [ ] M6: CI/TLUT correctness for palette-influenced keys.
@@ -47,3 +47,4 @@ I will post updates in this format as work progresses:
 - 2026-03-04: Revalidated after keying helper refactor and tests:
   - `make HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=1` passes.
   - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` with forced `parallel` + hi-res `enabled` passes (`lookups=31902 hits=18376 misses=13526 provider=on`).
+- 2026-03-04: Marked M3 complete after runtime hit/miss validation and local unit coverage for keying and replacement provider decode paths.

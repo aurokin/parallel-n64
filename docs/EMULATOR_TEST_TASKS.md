@@ -322,3 +322,9 @@
   - `./run-tests.sh`,
   - `./run-build.sh`,
   - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.
+- 2026-03-05: Added dump-suite runner convenience script:
+  - Added `run-dump-tests.sh` to wrap `run-tests.sh -R emu.dump` with explicit overrides:
+    - `--validator PATH` (`RDP_VALIDATE_DUMP_BIN`)
+    - `--dump-dir PATH` (`RDP_DUMP_CORPUS_DIR`)
+- 2026-03-05: Validated dump-suite runner with:
+  - `./run-dump-tests.sh` (expected skip until dump corpus + validator are provisioned).

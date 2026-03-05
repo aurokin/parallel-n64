@@ -44,3 +44,5 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - Remote CI enforcement is intentionally disabled for now; run tiers locally.
 - `emu-tsan` runs a compiler/runtime preflight first; if TSAN is unsupported locally it exits with a clear skip message.
 - Set `EMU_TSAN_FORCE=1` to bypass preflight and force TSAN execution.
+- Randomized ingest fuzz tests are deterministic by default and log their seed.
+- Set `EMU_FUZZ_SEED=<value>` (hex or decimal) to reproduce/override `emu.unit.rdp_command_ingest` fuzz runs.

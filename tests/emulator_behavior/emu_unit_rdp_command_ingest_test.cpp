@@ -1,5 +1,6 @@
 #include "mupen64plus-video-paraLLEl/rdp_command_ingest.hpp"
 #include "mupen64plus-video-paraLLEl/z64.h"
+#include "support/emu_seed.hpp"
 
 #include <array>
 #include <cstdint>
@@ -461,14 +462,6 @@ static void test_high_address_bits_are_masked_before_dram_guard()
 	check(dpc_start == dpc_end && dpc_current == dpc_end, "DPC start/current should reset to end");
 }
 
-static uint32_t next_rand(uint32_t &state)
-{
-	state ^= state << 13;
-	state ^= state >> 17;
-	state ^= state << 5;
-	return state;
-}
-
 static void test_deterministic_fuzz_stream_bounds()
 {
 	constexpr unsigned max_qwords = 32;
@@ -479,17 +472,18 @@ static void test_deterministic_fuzz_stream_bounds()
 	uint8_t *dmem = reinterpret_cast<uint8_t *>(dmem_words.data());
 
 	std::array<uint32_t, max_qwords * 2> cmd_data = {};
-	uint32_t rng = 0x1a2b3c4du;
+	uint32_t rng = EmuTest::resolve_seed("EMU_FUZZ_SEED", 0x1a2b3c4du,
+	                                     "emu.unit.rdp_command_ingest", "fuzz_seed");
 
 	for (unsigned iter = 0; iter < 256; iter++)
 	{
 		CommandIngestState state = {};
 		state.cmd_data = cmd_data.data();
 
-		const unsigned qwords = (next_rand(rng) % max_qwords) + 1;
+		const unsigned qwords = (EmuTest::next_xorshift32(rng) % max_qwords) + 1;
 		for (unsigned i = 0; i < qwords * 2; i++)
 		{
-			const uint32_t value = next_rand(rng);
+			const uint32_t value = EmuTest::next_xorshift32(rng);
 			write_u32(dram, i * sizeof(uint32_t), value);
 			write_u32(dmem, i * sizeof(uint32_t), value);
 		}
@@ -497,7 +491,7 @@ static void test_deterministic_fuzz_stream_bounds()
 		uint32_t dpc_start = 0;
 		uint32_t dpc_current = 0;
 		uint32_t dpc_end = qwords * sizeof(uint64_t);
-		uint32_t dpc_status = (next_rand(rng) & 1u) ? DP_STATUS_XBUS_DMA : 0u;
+		uint32_t dpc_status = (EmuTest::next_xorshift32(rng) & 1u) ? DP_STATUS_XBUS_DMA : 0u;
 		dpc_status |= DP_STATUS_FREEZE;
 
 		CallbackHarness h = {};

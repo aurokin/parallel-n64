@@ -179,7 +179,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M15` complete-frame fallback resilience coverage in progress).
+- Active phase: `T10` execution (`M16` deterministic seed capture coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -614,4 +614,19 @@
   - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
 - 2026-03-05: Validated current `T10` (`M15`) slice with:
   - `./run-tests.sh -R emu.unit.rdp_frame_fallback_policy`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M16`) deterministic seed capture coverage:
+  - Added `tests/emulator_behavior/support/emu_seed.hpp` with shared helpers for:
+    - seed env parsing with default fallback behavior,
+    - deterministic seed logging for randomized tests,
+    - stable xorshift32 RNG helper.
+  - Updated `tests/emulator_behavior/emu_unit_rdp_command_ingest_test.cpp`:
+    - randomized fuzz stream now resolves/logs seed via `EMU_FUZZ_SEED`,
+    - keeps deterministic default seed behavior for local reproducibility.
+  - Added `tests/emulator_behavior/emu_unit_seed_policy_test.cpp` as `emu.unit.seed_policy`.
+    - covers seed env parsing, override handling, zero-seed fallback semantics, and RNG sequence stability.
+  - Updated `docs/EMU_TESTING.md` with deterministic seed override guidance.
+  - Registered `emu.unit.seed_policy` in `tests/emulator_behavior/CMakeLists.txt`.
+- 2026-03-05: Validated current `T10` (`M16`) slice with:
+  - `./run-tests.sh -R \"emu.unit.(seed_policy|rdp_command_ingest)\"`,
   - `./run-tests.sh --profile emu-required`.

@@ -68,7 +68,7 @@
   - Exit criteria:
     - Init/deinit state transitions are fully guarded by tests.
 
-- [ ] T5: Option Wiring and Constants Sanity Locks
+- [x] T5: Option Wiring and Constants Sanity Locks
   - Deliverables:
     - Setter-to-global wiring tests for VI/filter/upscaling options.
     - Propagation checks from setters into `ScanoutOptions`.
@@ -127,7 +127,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T5` (Option Wiring and Constants Sanity Locks).
+- Active phase: `T6` (parallel-rdp Core Module Unit Tests).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 
 ## Change Log
@@ -197,6 +197,21 @@
   - Added `tests/emulator_behavior/emu_unit_rdp_init_policy_test.cpp` as `emu.unit.rdp_init_policy`.
 - 2026-03-05: Validated `T4` with:
   - `./run-tests.sh -R emu.unit.rdp_init_policy`,
+  - `./run-tests.sh -R emu.unit`,
+  - `./run-tests.sh`,
+  - `./run-build.sh`,
+  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.
+- 2026-03-05: Completed `T5` option wiring + constants coverage:
+  - Added `tests/emulator_behavior/emu_unit_parallel_option_wiring_test.cpp` as `emu.unit.parallel_option_wiring`.
+    - Verifies `parallel_set_*` option functions write expected `RDP::` runtime globals.
+    - Covers null handling for `parallel_set_hires_cache_path(nullptr)`.
+  - Added `tests/emulator_behavior/emu_unit_z64_constants_test.cpp` as `emu.unit.z64_constants`.
+    - Static assertions lock interrupt/status bit values from `z64.h`.
+  - `ScanoutOptions` propagation path remains covered by:
+    - setter wiring (`emu.unit.parallel_option_wiring`) + mapping helper checks (`emu.unit.rdp_frame_mapping`).
+- 2026-03-05: Validated `T5` with:
+  - `./run-tests.sh -R emu.unit.parallel_option_wiring`,
+  - `./run-tests.sh -R emu.unit.z64_constants`,
   - `./run-tests.sh -R emu.unit`,
   - `./run-tests.sh`,
   - `./run-build.sh`,

@@ -27,6 +27,7 @@
 #include "rdp_hires_lookup_policy.hpp"
 #include "rdp_hires_shader_policy.hpp"
 #include "rdp_hires_state_policy.hpp"
+#include "rdp_hires_tlut_shadow_policy.hpp"
 #include "texture_replacement.hpp"
 #include "texture_keying.hpp"
 #include "rdp_device_capability_policy.hpp"
@@ -3513,18 +3514,26 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 		if (detail::should_update_tlut_shadow(rdram_view_ok, is_tlut_mode))
 		{
 			const uint32_t bytes = key_width_pixels * key_height_pixels * bpp_bytes;
-			const uint32_t max_copy = std::min<uint32_t>(bytes, sizeof(tlut_shadow));
-			for (uint32_t i = 0; i < max_copy; i++)
-				tlut_shadow[i] = wrapped_read_u8(cpu_rdram, rdram_size, src_base_addr + i);
-			if (max_copy < sizeof(tlut_shadow))
-				memset(tlut_shadow + max_copy, 0, sizeof(tlut_shadow) - max_copy);
-			tlut_shadow_valid = max_copy > 0;
+				auto shadow_update = detail::update_hires_tlut_shadow(
+						tlut_shadow,
+						sizeof(tlut_shadow),
+						tlut_shadow_valid,
+						cpu_rdram,
+						rdram_size,
+						src_base_addr,
+						bytes,
+						upload.tmem_offset);
 
-			if (hires_debug)
-			{
-				LOGI("Hi-res keying TLUT update: addr=0x%06x bytes=%u tile=%u.\n",
-				     src_base_addr & 0x00ffffffu, max_copy, tile);
-			}
+				if (hires_debug)
+				{
+					LOGI("Hi-res keying TLUT update: addr=0x%06x bytes=%u copied=%u tmem=0x%03x shadow_ofs=%u tile=%u.\n",
+					     src_base_addr & 0x00ffffffu,
+					     bytes,
+					     shadow_update.copied_bytes,
+					     upload.tmem_offset,
+					     shadow_update.shadow_offset,
+					     tile);
+				}
 		}
 		else if (detail::should_run_hires_lookup(
 		             rdram_view_ok,

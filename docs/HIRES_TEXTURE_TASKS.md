@@ -40,7 +40,7 @@ Expected fallback behavior:
 - [ ] M8: Validation + performance pass + docs.
 
 ## Current Status
-- Feature milestone state: `M0`..`M5` complete; `M6`..`M8` pending.
+- Feature milestone state: `M0`..`M5` complete; `M6` in progress; `M7`..`M8` pending.
 - Local readiness gate remains: `./run-tests.sh --profile hires-readiness`.
 - `M5` is closed:
   - Vulkan program-loading API now accepts optional precomputed reflection layouts (`request_shader` / `request_program` overloads with `ResourceLayout` pointers).
@@ -48,12 +48,15 @@ Expected fallback behavior:
   - Added missing shader include dependency `shaders/debug_channel.h` and regenerated baked `shaders/slangmosh.hpp`; baked bank now includes `HIRES_REPLACEMENT` permutations for `ubershader` and `rasterizer`.
   - Updated shader-bank integration to pass serialized reflection layouts during baked-program loads.
   - Added local unit coverage for layout policy parsing/validation (`emu.unit.hires_slangmosh_layout_policy`).
-- Local validation for `M5` closeout:
+- `M6` is now active:
+  - TLUT shadow updates now apply at TMEM-relative offsets (base `0x800`) instead of always overwriting from byte `0`, so partial/banked palette loads no longer clobber unrelated shadow regions.
+  - Added `emu.unit.hires_tlut_shadow_policy` to lock full/partial/clipped/out-of-range TLUT-shadow behavior.
+- Local validation for current `M6` step:
   - `./run-build.sh`
   - `./run-tests.sh --profile hires-readiness`
   - `./run-tests.sh --profile emu-required`
-  - `timeout --signal=INT --kill-after=5 10s ./run-n64.sh -- --verbose` (Paper Mario, hi-res enabled, summary `lookups=2299 hits=2299 misses=0 provider=on`)
-- Next execution target: start `M6` (CI/TLUT correctness hardening).
+  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (summary: `lookups=32048 hits=18442 misses=13606 provider=on`)
+- Next execution target: continue `M6` CI/TLUT keying parity work.
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -159,3 +162,12 @@ I will post updates in this format as work progresses:
 - 2026-03-05: Revalidated `M5` with non-debug runtime smoke for deterministic summary output:
   - `timeout --signal=INT --kill-after=5 10s ./run-n64.sh -- --verbose`
   - summary: `lookups=2299 hits=2299 misses=0 provider=on` (Paper Mario, hi-res enabled).
+- 2026-03-05: Started `M6` CI/TLUT hardening with TMEM-aware TLUT shadow updates:
+  - Added `parallel-rdp/parallel-rdp/rdp_hires_tlut_shadow_policy.hpp` and switched renderer TLUT shadow writes to use TMEM-relative clipping (`0x800` TLUT base) instead of always writing from shadow byte `0`.
+  - Preserved partial TLUT updates across banks and added debug logging fields (`copied`, `tmem`, `shadow_ofs`) for runtime verification.
+  - Added unit coverage `emu.unit.hires_tlut_shadow_policy` for full, partial, clipped, out-of-range, and invalid-input update contracts.
+  - Revalidated local gates:
+    - `./run-build.sh`
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-tests.sh --profile emu-required`
+    - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (`lookups=32048 hits=18442 misses=13606 provider=on`).

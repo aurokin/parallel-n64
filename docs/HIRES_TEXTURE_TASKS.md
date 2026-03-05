@@ -40,3 +40,10 @@ I will post updates in this format as work progresses:
 - 2026-03-04: Revalidated M1/M2 under forced `parallel` + `parallel` RSP:
   - hi-res `disabled`: 20s smoke passed (`lookups=0 hits=0 misses=0 provider=off`).
   - hi-res `enabled` with Paper Mario pack: 20s smoke passed with cache load and live matches (`15159` entries loaded; `lookups=31902 hits=18376 misses=13526 provider=on`).
+- 2026-03-04: Added local M3 unit tests and runner:
+  - `tests/m3/texture_keying_test.cpp` validates `formatsize`, wrapped reads, CRC behavior, and CI max-index helpers.
+  - `tests/m3/texture_replacement_provider_test.cpp` validates cache load + lookup + RGBA8 decode on Paper Mario sample key.
+  - Run command: `tests/m3/run.sh` (optional `M3_HIRES_CACHE_DIR=/path/to/cache_dir` override).
+- 2026-03-04: Revalidated after keying helper refactor and tests:
+  - `make HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=1` passes.
+  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` with forced `parallel` + hi-res `enabled` passes (`lookups=31902 hits=18376 misses=13526 provider=on`).

@@ -117,6 +117,16 @@ target_include_directories(emu_unit_rdp_common_test PRIVATE
 target_compile_features(emu_unit_rdp_common_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.rdp_common COMMAND emu_unit_rdp_common_test)
 
+add_executable(emu_unit_rdp_device_capability_policy_test
+  emu_unit_rdp_device_capability_policy_test.cpp
+)
+target_include_directories(emu_unit_rdp_device_capability_policy_test PRIVATE
+  "${CMAKE_SOURCE_DIR}"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/vulkan-headers/include"
+)
+target_compile_features(emu_unit_rdp_device_capability_policy_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.rdp_device_capability_policy COMMAND emu_unit_rdp_device_capability_policy_test)
+
 add_executable(emu_unit_rdp_data_structures_test
   emu_unit_rdp_data_structures_test.cpp
 )

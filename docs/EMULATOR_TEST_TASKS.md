@@ -156,7 +156,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M1` Vulkan glue coverage in progress).
+- Active phase: `T10` execution (`M2` capability/feature negotiation coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -421,4 +421,17 @@
   - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
 - 2026-03-05: Validated current `T10` (`M1`) slice with:
   - `./run-tests.sh -R emu.unit.rdp_vulkan_glue`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M2`) device/renderer capability policy coverage:
+  - Added `mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_device_capability_policy.hpp` with testable policy helpers for:
+    - env override parsing (`PARALLEL_RDP_BENCH`, `PARALLEL_RDP_UBERSHADER`, `PARALLEL_RDP_FORCE_SYNC_SHADER`, `PARALLEL_RDP_SUBGROUP`, `PARALLEL_RDP_SMALL_TYPES`),
+    - minimum feature requirements (8/16-bit storage),
+    - driver-specific small-type policy mapping,
+    - subgroup tile-binning capability checks.
+  - Updated `parallel-rdp/parallel-rdp/rdp_renderer.cpp::init_caps()` to use these helpers while preserving runtime behavior.
+  - Added `tests/emulator_behavior/emu_unit_rdp_device_capability_policy_test.cpp` as `emu.unit.rdp_device_capability_policy`.
+    - Covers capability matrix cases, driver-policy matrix, forced-small-types behavior, env toggle parsing, and subgroup gating behavior.
+  - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
+- 2026-03-05: Validated current `T10` (`M2`) slice with:
+  - `./run-tests.sh -R emu.unit.rdp_device_capability_policy`,
   - `./run-tests.sh --profile emu-required`.

@@ -240,3 +240,16 @@
   - `./run-tests.sh`,
   - `./run-build.sh`,
   - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.
+- 2026-03-05: Expanded `T7` VI scanout conformance coverage:
+  - Added `mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/vi_scanout_policy.hpp` to centralize:
+    - VI register decode math,
+    - scanout memory-range math,
+    - fetch-bug predicate logic.
+  - Updated `parallel-rdp/parallel-rdp/video_interface.cpp` to use shared VI policy helpers (no behavior change intended).
+  - Added `tests/emulator_behavior/emu_conformance_vi_scanout_range_test.cpp` as `emu.conformance.vi_scanout_range` to assert concrete scanout offset/length behavior for representative NTSC 16-bit and RGBA8888+divot scenarios, plus fetch-bug toggling by scale/y-add.
+- 2026-03-05: Revalidated `T7` after VI scanout policy extraction with:
+  - `./run-tests.sh -R emu.conformance`,
+  - `./run-tests.sh -R emu.unit`,
+  - `./run-tests.sh`,
+  - `./run-build.sh`,
+  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.

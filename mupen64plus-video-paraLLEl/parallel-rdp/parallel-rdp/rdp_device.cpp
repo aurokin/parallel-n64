@@ -24,6 +24,7 @@
 #include "rdp_common.hpp"
 #include "rdp_memory_path_policy.hpp"
 #include "rdp_other_modes_policy.hpp"
+#include "rdp_scissor_policy.hpp"
 #include "rdp_triangle_setup_policy.hpp"
 #include <chrono>
 
@@ -428,13 +429,7 @@ void CommandProcessor::op_set_mask_image(const uint32_t *words)
 
 void CommandProcessor::op_set_scissor(const uint32_t *words)
 {
-	scissor_state.xlo = (words[0] >> 12) & 0xfff;
-	scissor_state.xhi = (words[1] >> 12) & 0xfff;
-	scissor_state.ylo = (words[0] >> 0) & 0xfff;
-	scissor_state.yhi = (words[1] >> 0) & 0xfff;
-
-	STATE_MASK(static_state.flags, bool(words[1] & (1 << 25)), RASTERIZATION_INTERLACE_FIELD_BIT);
-	STATE_MASK(static_state.flags, bool(words[1] & (1 << 24)), RASTERIZATION_INTERLACE_KEEP_ODD_BIT);
+	detail::apply_set_scissor_words(scissor_state, static_state, words[0], words[1]);
 	renderer.set_scissor_state(scissor_state);
 	renderer.set_static_rasterization_state(static_state);
 }

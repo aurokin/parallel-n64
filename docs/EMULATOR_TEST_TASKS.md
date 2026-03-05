@@ -179,7 +179,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M8` command-processor memory path policy coverage in progress).
+- Active phase: `T10` execution (`M9` scissor/interlace policy coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -533,4 +533,15 @@
   - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
 - 2026-03-05: Validated current `T10` (`M8`) slice with:
   - `./run-tests.sh -R emu.unit.rdp_memory_path_policy`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M9`) scissor/interlace decode coverage:
+  - Added `parallel-rdp/parallel-rdp/rdp_scissor_policy.hpp` with shared helper for:
+    - scissor coordinate decode (`xlo/xhi/ylo/yhi`),
+    - interlace flag decode (`RASTERIZATION_INTERLACE_FIELD_BIT`, `RASTERIZATION_INTERLACE_KEEP_ODD_BIT`).
+  - Updated `parallel-rdp/parallel-rdp/rdp_device.cpp::op_set_scissor()` to use shared helper (no intended behavior change).
+  - Added `tests/emulator_behavior/emu_unit_rdp_scissor_policy_test.cpp` as `emu.unit.rdp_scissor_policy`.
+    - Covers masked coordinate decode, interlace-bit toggling behavior, and raw bound preservation (no implicit reordering).
+  - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
+- 2026-03-05: Validated current `T10` (`M9`) slice with:
+  - `./run-tests.sh -R emu.unit.rdp_scissor_policy`,
   - `./run-tests.sh --profile emu-required`.

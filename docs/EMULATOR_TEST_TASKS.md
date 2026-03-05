@@ -208,7 +208,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M40` CI/TLUT palette-CRC policy closure complete; expanding additional HIRES-risk readiness tests).
+- Active phase: `T10` execution (`M41` key-state write policy closure complete; expanding additional HIRES-risk readiness tests).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -936,4 +936,15 @@
   - Gap closure: TLUT/palette-driven checksum behavior for upcoming HIRES CI correctness work is now locked with deterministic unit tests.
 - 2026-03-05: Validated current `T10` (`M40`) slice with:
   - `./run-tests.sh -R "emu.unit.hires_(runtime|state|lookup|ci_palette)_policy|hires.texture_replacement_provider_(decode_matrix|parser_edge)|hires.texture_keying|hires.texture_replacement_provider"`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M41`) HIRES key-state write policy closure:
+  - Added `parallel-rdp/parallel-rdp/rdp_hires_key_state_policy.hpp` with testable helpers for:
+    - checksum composition contract (`checksum64 = palette_crc<<32 | texture_crc`),
+    - original-dimension clamp contract (`uint16_t` saturation),
+    - tile-state write contract for lookup outcomes.
+  - Integrated helper in `parallel-rdp/parallel-rdp/rdp_renderer.cpp` to centralize checksum composition and replacement tile state updates.
+  - Added `tests/emulator_behavior/emu_unit_hires_key_state_policy_test.cpp` as `emu.unit.hires_key_state_policy` and registered in `tests/emulator_behavior/CMakeLists.txt`.
+  - Gap closure: key/tile state wiring semantics are now explicit and locked before descriptor-backed replacement integration.
+- 2026-03-05: Validated current `T10` (`M41`) slice with:
+  - `./run-tests.sh -R "emu.unit.hires_(runtime|state|lookup|ci_palette|key_state)_policy|hires.texture_replacement_provider_(decode_matrix|parser_edge)|hires.texture_keying|hires.texture_replacement_provider"`,
   - `./run-tests.sh --profile emu-required`.

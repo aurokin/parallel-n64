@@ -23,6 +23,7 @@
 #include "rdp_renderer.hpp"
 #include "rdp_device.hpp"
 #include "rdp_hires_ci_palette_policy.hpp"
+#include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_lookup_policy.hpp"
 #include "rdp_hires_state_policy.hpp"
 #include "texture_replacement.hpp"
@@ -3346,18 +3347,19 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						sizeof(tlut_shadow),
 						tlut_shadow_valid);
 
-			const uint64_t checksum64 = (uint64_t(palette_crc) << 32) | uint64_t(texture_crc);
+			const uint64_t checksum64 = detail::compose_hires_checksum64(texture_crc, palette_crc);
 			const uint16_t formatsize = formatsize_key(meta.fmt, meta.size);
 			ReplacementMeta repl_meta = {};
 			const bool hit = replacement_provider->lookup(checksum64, formatsize, &repl_meta);
 
 			auto &repl_state = replacement_tiles[tile & (Limits::MaxNumTiles - 1)];
-			repl_state.valid = true;
-			repl_state.hit = hit;
-			repl_state.checksum64 = checksum64;
-			repl_state.formatsize = formatsize;
-			repl_state.orig_w = uint16_t(std::min<uint32_t>(key_width_pixels, 0xffffu));
-			repl_state.orig_h = uint16_t(std::min<uint32_t>(key_height_pixels, 0xffffu));
+			detail::write_hires_lookup_tile_state(
+					repl_state,
+					hit,
+					checksum64,
+					formatsize,
+					key_width_pixels,
+					key_height_pixels);
 
 			detail::record_hires_lookup_result(hit, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
 

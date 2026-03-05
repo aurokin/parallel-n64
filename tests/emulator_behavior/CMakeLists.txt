@@ -65,3 +65,12 @@ target_include_directories(emu_unit_rdp_scanout_fallback_test PRIVATE
 target_compile_definitions(emu_unit_rdp_scanout_fallback_test PRIVATE GRANITE_VULKAN_MT)
 target_compile_features(emu_unit_rdp_scanout_fallback_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.rdp_scanout_fallback COMMAND emu_unit_rdp_scanout_fallback_test)
+
+add_executable(emu_unit_rdp_init_policy_test
+  emu_unit_rdp_init_policy_test.cpp
+)
+target_include_directories(emu_unit_rdp_init_policy_test PRIVATE
+  "${CMAKE_SOURCE_DIR}"
+)
+target_compile_features(emu_unit_rdp_init_policy_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.rdp_init_policy COMMAND emu_unit_rdp_init_policy_test)

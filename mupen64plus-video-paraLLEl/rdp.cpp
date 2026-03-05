@@ -1,6 +1,7 @@
 #include "rdp.hpp"
 #include "rdp_command_ingest.hpp"
 #include "rdp_frame_mapping.hpp"
+#include "rdp_init_policy.hpp"
 #include "rdp_scanout_fallback.hpp"
 #include "Gfx #1.3.h"
 #include "parallel.h"
@@ -129,20 +130,13 @@ void begin_frame()
 
 bool init()
 {
-	if (!context || !vulkan)
+	if (!detail::init_prerequisites_met(context.get(), vulkan))
 		return false;
 
 	unsigned mask = vulkan->get_sync_index_mask(vulkan->handle);
-	unsigned num_frames = 0;
-	unsigned num_sync_frames = 0;
-	for (unsigned i = 0; i < 32; i++)
-	{
-		if (mask & (1u << i))
-		{
-			num_frames = i + 1;
-			num_sync_frames++;
-		}
-	}
+	const detail::SyncFrameCounts sync_counts = detail::compute_sync_frame_counts(mask);
+	const unsigned num_frames = sync_counts.num_frames;
+	const unsigned num_sync_frames = sync_counts.num_sync_frames;
 
 	retro_images.resize(num_frames);
 	retro_image_handles.resize(num_frames);
@@ -155,17 +149,23 @@ bool init()
 			[]() { vulkan->lock_queue(vulkan->handle); },
 			[]() { vulkan->unlock_queue(vulkan->handle); });
 
-	uintptr_t aligned_rdram = reinterpret_cast<uintptr_t>(gfx_info.RDRAM);
-	uintptr_t offset = 0;
+	const auto &features = device->get_device_features();
+	detail::HostMemoryImportPlan host_mem_plan = detail::plan_host_memory_import(
+			reinterpret_cast<uintptr_t>(gfx_info.RDRAM),
+			features.supports_external_memory_host,
+			features.host_memory_properties.minImportedHostPointerAlignment);
 
-	if (device->get_device_features().supports_external_memory_host)
+	uintptr_t aligned_rdram = host_mem_plan.aligned_rdram;
+	uintptr_t offset = host_mem_plan.offset;
+
+	if (!features.supports_external_memory_host)
 	{
-		size_t align = device->get_device_features().host_memory_properties.minImportedHostPointerAlignment;
-		offset = aligned_rdram & (align - 1);
-		aligned_rdram -= offset;
+		log_cb(RETRO_LOG_WARN, "VK_EXT_external_memory_host is not supported by this device. Application might run slower because of this.\n");
 	}
 	else
-		log_cb(RETRO_LOG_WARN, "VK_EXT_external_memory_host is not supported by this device. Application might run slower because of this.\n");
+	{
+		// Keep current behavior: no extra logging on aligned-path success.
+	}
 
 	CommandProcessorFlags flags = 0;
 	switch (upscaling)
@@ -192,10 +192,9 @@ bool init()
 	frontend.reset(new CommandProcessor(*device, reinterpret_cast<void *>(aligned_rdram),
 				offset, 8 * 1024 * 1024, 4 * 1024 * 1024, flags));
 
-	if (!frontend->device_is_supported())
+	if (!detail::ensure_frontend_device_supported(frontend))
 	{
 		log_cb(RETRO_LOG_ERROR, "This device probably does not support 8/16-bit storage. Make sure you're using up-to-date drivers!\n");
-		frontend.reset();
 		return false;
 	}
 
@@ -228,13 +227,7 @@ bool init()
 
 void deinit()
 {
-	begin_ts.reset();
-	end_ts.reset();
-	retro_image_handles.clear();
-	retro_images.clear();
-	frontend.reset();
-	device.reset();
-	context.reset();
+	detail::clear_deinit_state(begin_ts, end_ts, retro_image_handles, retro_images, frontend, device, context);
 }
 
 static void complete_frame_error()

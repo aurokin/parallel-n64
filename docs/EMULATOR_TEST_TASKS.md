@@ -58,7 +58,7 @@
   - Exit criteria:
     - Output image metadata + scanout options are validated at API boundary.
 
-- [ ] T4: Init/Deinit and Device Capability Gating
+- [x] T4: Init/Deinit and Device Capability Gating
   - Deliverables:
     - `init()` precondition failures (`context`/`vulkan` missing).
     - Sync mask frame-count mapping checks.
@@ -127,7 +127,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T4` (Init/Deinit and Device Capability Gating).
+- Active phase: `T5` (Option Wiring and Constants Sanity Locks).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 
 ## Change Log
@@ -182,6 +182,21 @@
   - Added `tests/emulator_behavior/emu_unit_rdp_scanout_fallback_test.cpp` as `emu.unit.rdp_scanout_fallback`.
   - Existing `T1` plugin-contract tests continue to cover `parallelUpdateScreen`/`parallelShowCFB` delegation and call ordering.
 - 2026-03-05: Revalidated after `T3` completion with:
+  - `./run-tests.sh -R emu.unit`,
+  - `./run-tests.sh`,
+  - `./run-build.sh`,
+  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.
+- 2026-03-05: Completed `T4` init/deinit policy coverage:
+  - Added `mupen64plus-video-paraLLEl/rdp_init_policy.hpp` with shared helpers for:
+    - init precondition checks (`context` + `vulkan` presence),
+    - sync-mask frame-count derivation (`num_frames`, `num_sync_frames`),
+    - host memory import alignment planning (including non-power-of-two robustness),
+    - unsupported-device fail-fast handling (`frontend` reset on unsupported),
+    - deinit state clearing/idempotent reset behavior.
+  - Updated `mupen64plus-video-paraLLEl/rdp.cpp` `init()` and `deinit()` to use the shared policy helpers.
+  - Added `tests/emulator_behavior/emu_unit_rdp_init_policy_test.cpp` as `emu.unit.rdp_init_policy`.
+- 2026-03-05: Validated `T4` with:
+  - `./run-tests.sh -R emu.unit.rdp_init_policy`,
   - `./run-tests.sh -R emu.unit`,
   - `./run-tests.sh`,
   - `./run-build.sh`,

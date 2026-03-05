@@ -3,12 +3,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$SCRIPT_DIR/run-n64.sh"
+RETROARCH_CFG_DEFAULT="$HOME/.config/retroarch/retroarch.cfg"
 
 start_delay=20
 post_delay=10
-start_key="Return"
+start_key=""
 window_name="RetroArch"
+start_burst_count=99
+start_burst_interval=5
 declare -a runner_args=()
+declare -a start_keys=()
 
 usage() {
   cat <<'EOF'
@@ -16,20 +20,24 @@ Usage:
   run-n64-smoke-start.sh [options] [RUN_N64_ARGS...]
 
 Options:
-  --start-delay SEC    Seconds before sending Start input (default: 20)
-  --post-delay SEC     Seconds to keep running after Start input (default: 10)
-  --start-key KEY      Key name to inject (default: Return)
-  --window-name NAME   Window title match for xdotool (default: RetroArch)
-  -h, --help           Show this help
+  --start-delay SEC       Seconds before sending Start input (default: 20)
+  --post-delay SEC        Seconds to keep running after Start input (default: 10)
+  --start-key KEY         Key name to inject (default: auto-detect from RetroArch cfg)
+  --window-name NAME      Window title match for xdotool (default: RetroArch)
+  --start-burst-count N   Max number of Start key attempts (default: 99)
+  --start-burst-interval SEC
+                         Seconds between Start attempts (default: 5)
+  -h, --help              Show this help
 
 Behavior:
   - Launches ./run-n64.sh with provided args.
-  - Sends one key press to the RetroArch window after --start-delay.
-  - Sends SIGINT after --post-delay and exits.
+  - Sends Start repeatedly after --start-delay and every --start-burst-interval.
+  - Repeats only inside the --post-delay window, then sends SIGINT and exits.
 
 Examples:
   ./run-n64-smoke-start.sh -- --verbose
   ./run-n64-smoke-start.sh --start-delay 15 --post-delay 20 -- --verbose
+  ./run-n64-smoke-start.sh --start-key Return --start-burst-interval 5 -- --verbose
   ./run-n64-smoke-start.sh --reference "Mario Kart 64 (USA).z64" -- --verbose
 EOF
 }
@@ -43,10 +51,82 @@ require_nonnegative_int() {
   fi
 }
 
-send_start_key() {
+require_positive_int() {
+  local value="$1"
+  local name="$2"
+  if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+    echo "$name must be a positive integer: $value" >&2
+    return 1
+  fi
+}
+
+normalize_key_for_xdotool() {
+  local raw="$1"
+  case "${raw,,}" in
+    ""|nul|none)
+      printf '%s' ""
+      ;;
+    enter|return)
+      printf '%s' "Return"
+      ;;
+    kp_enter|keypad_enter)
+      printf '%s' "KP_Enter"
+      ;;
+    *)
+      printf '%s' "$raw"
+      ;;
+  esac
+}
+
+detect_retroarch_start_key() {
+  local cfg="$RETROARCH_CFG_DEFAULT"
+  local token=""
+
+  if [[ ! -f "$cfg" ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  token="$(awk -F'"' '/^input_player1_start = /{print $2; exit}' "$cfg" 2>/dev/null || true)"
+  normalize_key_for_xdotool "$token"
+}
+
+append_unique_start_key() {
+  local candidate="$1"
+  local existing
+
+  [[ -z "$candidate" ]] && return 0
+
+  for existing in "${start_keys[@]}"; do
+    if [[ "$existing" == "$candidate" ]]; then
+      return 0
+    fi
+  done
+
+  start_keys+=("$candidate")
+}
+
+configure_start_keys() {
+  local detected=""
+
+  if [[ -n "$start_key" ]]; then
+    append_unique_start_key "$(normalize_key_for_xdotool "$start_key")"
+    return 0
+  fi
+
+  detected="$(detect_retroarch_start_key)"
+  append_unique_start_key "$detected"
+  append_unique_start_key "Return"
+  append_unique_start_key "KP_Enter"
+
+  if ((${#start_keys[@]} == 0)); then
+    append_unique_start_key "Return"
+  fi
+}
+
+find_retroarch_window_id() {
   local target_pid="$1"
-  local key="$2"
-  local name="$3"
+  local name="$2"
   local window_id=""
 
   window_id="$(xdotool search --pid "$target_pid" --name "$name" 2>/dev/null | head -n 1 || true)"
@@ -54,10 +134,25 @@ send_start_key() {
     window_id="$(xdotool search --onlyvisible --name "$name" 2>/dev/null | head -n 1 || true)"
   fi
 
+  printf '%s' "$window_id"
+}
+
+send_start_key_once() {
+  local target_pid="$1"
+  local key="$2"
+  local name="$3"
+  local window_id=""
+  local window_label=""
+
+  window_id="$(find_retroarch_window_id "$target_pid" "$name")"
+
   if [[ -n "$window_id" ]]; then
+    window_label="$(xdotool getwindowname "$window_id" 2>/dev/null || true)"
+    echo "Start target window: id=$window_id name=${window_label:-unknown} key=$key"
     timeout 2s xdotool windowactivate "$window_id" >/dev/null 2>&1 || true
     timeout 2s xdotool key --window "$window_id" --clearmodifiers "$key" >/dev/null 2>&1
   else
+    echo "Start target window: fallback-active key=$key"
     timeout 2s xdotool key --clearmodifiers "$key" >/dev/null 2>&1
   fi
 }
@@ -79,6 +174,14 @@ while (($#)); do
     --window-name)
       shift
       window_name="${1:-}"
+      ;;
+    --start-burst-count)
+      shift
+      start_burst_count="${1:-}"
+      ;;
+    --start-burst-interval)
+      shift
+      start_burst_interval="${1:-}"
       ;;
     -h|--help)
       usage
@@ -107,6 +210,12 @@ fi
 if ! require_nonnegative_int "$post_delay" "--post-delay"; then
   exit 1
 fi
+if ! require_nonnegative_int "$start_burst_count" "--start-burst-count"; then
+  exit 1
+fi
+if ! require_positive_int "$start_burst_interval" "--start-burst-interval"; then
+  exit 1
+fi
 if ! command -v xdotool >/dev/null 2>&1; then
   echo "run-n64-smoke-start.sh requires xdotool in PATH." >&2
   exit 1
@@ -116,10 +225,12 @@ if [[ -z "${DISPLAY:-}" ]]; then
   exit 1
 fi
 
+configure_start_keys
+
 "$RUNNER" "${runner_args[@]}" &
 run_pid=$!
 
-echo "Smoke-start: key=$start_key at +${start_delay}s, stop +${post_delay}s later."
+echo "Smoke-start: keys=${start_keys[*]} at +${start_delay}s, repeat every ${start_burst_interval}s within +${post_delay}s window, stop at window end."
 
 (
   elapsed=0
@@ -131,22 +242,47 @@ echo "Smoke-start: key=$start_key at +${start_delay}s, stop +${post_delay}s late
     ((elapsed += 1))
   done
 
-  if kill -0 "$run_pid" 2>/dev/null; then
-    if send_start_key "$run_pid" "$start_key" "$window_name"; then
-      echo "Sent start key: $start_key"
-    else
-      echo "Failed to send start key: $start_key" >&2
+  effective_presses="$start_burst_count"
+  if (( effective_presses > 0 )); then
+    max_window_presses=$(( post_delay / start_burst_interval + 1 ))
+    if (( effective_presses > max_window_presses )); then
+      effective_presses="$max_window_presses"
     fi
   fi
 
-  elapsed=0
-  while (( elapsed < post_delay )); do
+  sent_any=0
+  press=1
+  next_press_at=0
+  elapsed_post=0
+
+  while true; do
     if ! kill -0 "$run_pid" 2>/dev/null; then
       exit 0
     fi
+
+    if (( press <= effective_presses && elapsed_post >= next_press_at )); then
+      for key in "${start_keys[@]}"; do
+        if send_start_key_once "$run_pid" "$key" "$window_name"; then
+          echo "Sent start key [$press/$effective_presses]: $key"
+          sent_any=1
+          break
+        fi
+      done
+      ((press += 1))
+      ((next_press_at += start_burst_interval))
+    fi
+
+    if (( elapsed_post >= post_delay )); then
+      break
+    fi
+
     sleep 1
-    ((elapsed += 1))
+    ((elapsed_post += 1))
   done
+
+  if (( effective_presses > 0 && sent_any == 0 )); then
+    echo "Failed to send any start key from set: ${start_keys[*]}" >&2
+  fi
 
   if kill -0 "$run_pid" 2>/dev/null; then
     kill -INT "$run_pid" 2>/dev/null || true

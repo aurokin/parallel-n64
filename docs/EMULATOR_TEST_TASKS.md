@@ -208,7 +208,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M43` legacy `.htc` compatibility closure complete; running final HIRES-readiness gap pass).
+- Active phase: `T10` execution (`M44` HIRES-readiness runner profile closure complete; HIRES-readiness test gap pass is green).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -964,4 +964,14 @@
   - Gap closure: legacy `.htc` pack compatibility contract is now explicitly tested alongside existing `.hts` compatibility coverage.
 - 2026-03-05: Validated current `T10` (`M43`) slice with:
   - `./run-tests.sh -R "hires.texture_replacement_provider_parser_edge|hires.texture_replacement_provider_decode_matrix|hires.texture_replacement_provider|hires.texture_keying|emu.unit.hires_(runtime|state|lookup|ci_palette|key_state|capability)_policy"`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M44`) HIRES-readiness runner profile closure:
+  - Added `hires-readiness` profile to `run-tests.sh`:
+    - regex scope: `hires.texture_*` + `emu.unit.hires_*`.
+  - Updated `docs/EMU_TESTING.md` with the new local command and profile definition.
+  - Expanded `tests/emulator_behavior/support/emu_test_runner_profile_contract.sh` to lock the new profile usage and regex mapping.
+  - Gap closure: all HIRES readiness tests now run in a single local profile command with contract coverage guarding runner drift.
+- 2026-03-05: Validated current `T10` (`M44`) slice with:
+  - `./run-tests.sh --profile hires-readiness`,
+  - `./run-tests.sh -R emu.unit.test_runner_profile_contract`,
   - `./run-tests.sh --profile emu-required`.

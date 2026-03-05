@@ -18,6 +18,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-tests.sh --profile emu-optional`
 - Optional TSAN race check tier (local debug):
   - `./run-tests.sh --profile emu-tsan`
+- HIRES-readiness safety gate (local):
+  - `./run-tests.sh --profile hires-readiness`
 
 ## Profiles
 
@@ -28,6 +30,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - `emu-runtime-conformance`: runtime lavapipe conformance (`runtime_smoke_lavapipe` + `lavapipe_frame_hash` + `lavapipe_vi_filters_hash` + `lavapipe_vi_filters_mixed_hash` + `lavapipe_vi_downscale_hash` + `lavapipe_sm64_frame_hash`) with opt-in env automatically set
 - `emu-dump`: `emu.dump.*`
 - `emu-tsan`: `emu.unit.command_ring_policy` + `emu.unit.worker_thread` with ThreadSanitizer flags
+- `hires-readiness`: `hires.texture.*` + `emu.unit.hires_*`
 
 ## Triage Flow
 

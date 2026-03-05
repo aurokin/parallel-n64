@@ -28,6 +28,10 @@ void parallel_set_upscaling(unsigned factor);
 void parallel_set_downscaling_steps(unsigned steps);
 void parallel_set_native_texture_lod(bool enable);
 void parallel_set_native_tex_rect(bool enable);
+void parallel_set_hires_textures(bool enable);
+void parallel_set_hires_filter(unsigned filter);
+void parallel_set_hires_srgb(unsigned mode);
+void parallel_set_hires_cache_path(const char *path);
 
 void parallel_set_overscan_crop(unsigned pixels);
 

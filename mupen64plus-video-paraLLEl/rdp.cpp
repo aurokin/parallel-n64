@@ -3,6 +3,7 @@
 #include "parallel.h"
 #include "z64.h"
 #include <assert.h>
+#include <stdlib.h>
 
 using namespace Vulkan;
 using namespace std;
@@ -33,6 +34,10 @@ unsigned downscaling_steps = 0;
 bool native_texture_lod = false;
 bool native_tex_rect = true;
 bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
+bool hires_textures = false;
+unsigned hires_filter = 1;
+unsigned hires_srgb = 0;
+string hires_cache_path;
 
 static const unsigned cmd_len_lut[64] = {
 	1, 1, 1, 1, 1, 1, 1, 1, 4, 6, 12, 14, 12, 14, 20, 22,
@@ -233,6 +238,19 @@ bool init()
 	quirks.set_native_texture_lod(native_texture_lod);
 	quirks.set_native_resolution_tex_rect(native_tex_rect);
 	frontend->set_quirks(quirks);
+
+	if (hires_cache_path.empty())
+	{
+		if (const char *env = getenv("PARALLEL_RDP_HIRES_CACHE_PATH"))
+			hires_cache_path = env;
+	}
+
+	if (hires_textures)
+	{
+		log_cb(RETRO_LOG_INFO,
+		       "Hi-res textures enabled (path=%s, filter=%u, srgb_mode=%u).\n",
+		       hires_cache_path.c_str(), hires_filter, hires_srgb);
+	}
 
 	timeline_value = 0;
 	pending_timeline_value = 0;
@@ -447,4 +465,3 @@ const VkApplicationInfo *parallel_get_application_info(void)
 {
 	return &parallel_app_info;
 }
-

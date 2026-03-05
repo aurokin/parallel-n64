@@ -211,6 +211,26 @@ void parallel_set_native_tex_rect(bool enable)
 	RDP::native_tex_rect = enable;
 }
 
+void parallel_set_hires_textures(bool enable)
+{
+	RDP::hires_textures = enable;
+}
+
+void parallel_set_hires_filter(unsigned filter)
+{
+	RDP::hires_filter = filter;
+}
+
+void parallel_set_hires_srgb(unsigned mode)
+{
+	RDP::hires_srgb = mode;
+}
+
+void parallel_set_hires_cache_path(const char *path)
+{
+	RDP::hires_cache_path = path ? path : "";
+}
+
 void parallel_set_overscan_crop(unsigned pixels)
 {
 	RDP::overscan = pixels;

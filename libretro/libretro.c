@@ -401,6 +401,12 @@ static void setup_variables(void)
          "(ParaLLEl-RDP) Use native texture LOD when upscaling; disabled|enabled" },
       { "parallel-n64-parallel-rdp-native-tex-rect",
          "(ParaLLEl-RDP) Use native resolution for TEX_RECT; enabled|disabled" },
+      { "parallel-n64-parallel-rdp-hirestex",
+         "(ParaLLEl-RDP) Hi-res texture replacement; disabled|enabled" },
+      { "parallel-n64-parallel-rdp-hirestex-filter",
+         "(ParaLLEl-RDP) Hi-res texture filtering; linear|nearest|trilinear" },
+      { "parallel-n64-parallel-rdp-hirestex-srgb",
+         "(ParaLLEl-RDP) Hi-res texture color space; auto|on|off" },
 #endif
       { "parallel-n64-send_allist_to_hle_rsp",
          "Send audio lists to HLE RSP; disabled|enabled" },
@@ -1230,6 +1236,48 @@ void update_variables(bool startup)
        parallel_set_native_tex_rect(!strcmp(var.value, "enabled"));
    else
        parallel_set_native_tex_rect(true);
+
+   var.key = "parallel-n64-parallel-rdp-hirestex";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+       parallel_set_hires_textures(!strcmp(var.value, "enabled"));
+   else
+       parallel_set_hires_textures(false);
+
+   var.key = "parallel-n64-parallel-rdp-hirestex-filter";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+       if (!strcmp(var.value, "nearest"))
+           parallel_set_hires_filter(0);
+       else if (!strcmp(var.value, "trilinear"))
+           parallel_set_hires_filter(2);
+       else
+           parallel_set_hires_filter(1);
+   }
+   else
+       parallel_set_hires_filter(1);
+
+   var.key = "parallel-n64-parallel-rdp-hirestex-srgb";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+       if (!strcmp(var.value, "on"))
+           parallel_set_hires_srgb(1);
+       else if (!strcmp(var.value, "off"))
+           parallel_set_hires_srgb(2);
+       else
+           parallel_set_hires_srgb(0);
+   }
+   else
+       parallel_set_hires_srgb(0);
+
+   {
+      const char *system_dir = ".";
+      if (!environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &system_dir) || !system_dir)
+         system_dir = ".";
+      parallel_set_hires_cache_path(system_dir);
+   }
 #endif
 
    var.key   = "parallel-n64-send_allist_to_hle_rsp";

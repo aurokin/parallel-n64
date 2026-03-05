@@ -384,6 +384,11 @@ add_test(
 )
 
 add_test(
+  NAME emu.unit.build_runner_contract
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_build_runner_contract.sh"
+)
+
+add_test(
   NAME emu.dump.validate
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_validate.sh" normal
 )

@@ -160,7 +160,8 @@
         - optional TSAN profile for command-ring/worker-thread races in local debug runs,
         - deterministic seed capture for all synthetic conformance tests to simplify regression triage,
         - explicit test-runner profile contract checks (`run-tests.sh --profile` mappings, conflict handling) to prevent gate drift,
-        - explicit dump-runner contract checks (`run-dump-tests.sh` flags, env export, and handoff behavior) to prevent local gate drift.
+        - explicit dump-runner contract checks (`run-dump-tests.sh` flags, env export, and handoff behavior) to prevent local gate drift,
+        - explicit build-runner contract checks (`run-build.sh` CLI defaults/toggles/handoff) to prevent local build workflow drift.
   - Exit criteria:
     - New tests exist for Vulkan glue entrypoints and are mapped into `emu.unit.*` or `emu.conformance.*`.
     - Renderer + VI expansion includes at least one non-trivial golden/hash set each with deterministic local pass behavior.
@@ -184,7 +185,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M28` dump-runner contract coverage in progress).
+- Active phase: `T10` execution (`M29` build-runner contract coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -767,4 +768,14 @@
   - Gap closure: prevents drift in local dump-gate wrapper behavior and CLI contract.
 - 2026-03-05: Validated current `T10` (`M28`) slice with:
   - `./run-tests.sh -R emu.unit.dump_runner_contract`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M29`) build-runner contract coverage:
+  - Added `tests/emulator_behavior/support/emu_build_runner_contract.sh` and registered `emu.unit.build_runner_contract`.
+    - Locks `run-build.sh` usage/option surface (`--clean`, `--jobs`, debug/release, rsp toggles).
+    - Locks required-argument guard for `--jobs`.
+    - Locks default env wiring (`HAVE_PARALLEL`, `HAVE_PARALLEL_RSP`) and debug flag mapping.
+    - Locks clean-branch behavior and final `make` handoff arguments (`-j`, `DEBUG`, passthrough args).
+  - Gap closure: prevents drift in local build-wrapper behavior that test/dev workflows depend on.
+- 2026-03-05: Validated current `T10` (`M29`) slice with:
+  - `./run-tests.sh -R emu.unit.build_runner_contract`,
   - `./run-tests.sh --profile emu-required`.

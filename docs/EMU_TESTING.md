@@ -53,3 +53,4 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - Set `EMU_FUZZ_SEED=<value>` (hex or decimal) to reproduce/override `emu.unit.rdp_command_ingest` fuzz runs.
 - `run-tests.sh` profile mapping/guard behavior is locked by `emu.unit.test_runner_profile_contract`.
 - `run-dump-tests.sh` CLI/env handoff behavior is locked by `emu.unit.dump_runner_contract`.
+- `run-build.sh` CLI/env handoff behavior is locked by `emu.unit.build_runner_contract`.

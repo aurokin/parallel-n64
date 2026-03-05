@@ -3,45 +3,51 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$SCRIPT_DIR/run-n64.sh"
-RETROARCH_CFG_DEFAULT="$HOME/.config/retroarch/retroarch.cfg"
+VPAD_TOOL="$SCRIPT_DIR/tools/virtual_gamepad.py"
 
 start_delay=20
 post_delay=10
-start_key=""
-window_name="RetroArch"
-start_burst_count=99
-start_burst_interval=5
-start_key_hold_ms=200
+input_interval=5
+button_hold_ms=140
+max_presses=99
+buttons_csv="start,a"
+vpad_socket="/tmp/parallel-n64-vpad-smoke.sock"
+
+vpad_log=""
+vpad_pid=""
+run_pid=""
+smoke_input_cfg=""
 declare -a runner_args=()
-declare -a start_keys=()
+declare -a buttons=()
 
 usage() {
-  cat <<'EOF'
+  cat <<'EOF_USAGE'
 Usage:
   run-n64-smoke-start.sh [options] [RUN_N64_ARGS...]
 
 Options:
-  --start-delay SEC       Seconds before sending Start input (default: 20)
-  --post-delay SEC        Seconds to keep running after Start input (default: 10)
-  --start-key KEY         Key name to inject (default: auto-detect from RetroArch cfg)
-  --window-name NAME      Window title match for xdotool (default: RetroArch)
-  --start-burst-count N   Max number of Start key attempts (default: 99)
-  --start-burst-interval SEC
-                         Seconds between Start attempts (default: 5)
-  --start-key-hold-ms MS  Milliseconds to hold each key press (default: 200)
+  --start-delay SEC       Seconds before input automation begins (default: 20)
+  --post-delay SEC        Seconds to keep running after first input tick (default: 10)
+  --interval SEC          Seconds between input ticks (default: 5)
+  --button-hold-ms MS     Milliseconds to hold each button tap (default: 140)
+  --buttons CSV           Buttons to tap each tick (default: start,a)
+  --max-presses N         Cap total input ticks (default: 99)
+  --vpad-socket PATH      UNIX socket path for virtual gamepad daemon
   -h, --help              Show this help
 
 Behavior:
+  - Starts tools/virtual_gamepad.py daemon automatically.
   - Launches ./run-n64.sh with provided args.
-  - Sends Start repeatedly after --start-delay and every --start-burst-interval.
-  - Repeats only inside the --post-delay window, then sends SIGINT and exits.
+  - Injects a temporary RetroArch input override for the virtual pad.
+  - After --start-delay, sends each --buttons entry every --interval seconds.
+  - Runs for --post-delay seconds total after first input tick, then sends SIGINT.
+  - Stops virtual gamepad daemon automatically on exit.
 
 Examples:
   ./run-n64-smoke-start.sh -- --verbose
-  ./run-n64-smoke-start.sh --start-delay 15 --post-delay 20 -- --verbose
-  ./run-n64-smoke-start.sh --start-key Return --start-burst-interval 5 -- --verbose
-  ./run-n64-smoke-start.sh --reference "Mario Kart 64 (USA).z64" -- --verbose
-EOF
+  ./run-n64-smoke-start.sh --start-delay 20 --post-delay 15 --interval 5 -- --verbose
+  ./run-n64-smoke-start.sh --buttons start,a,b --button-hold-ms 180 -- --verbose
+EOF_USAGE
 }
 
 require_nonnegative_int() {
@@ -62,107 +68,136 @@ require_positive_int() {
   fi
 }
 
-normalize_key_for_xdotool() {
+split_buttons() {
   local raw="$1"
-  case "${raw,,}" in
-    ""|nul|none)
-      printf '%s' ""
-      ;;
-    enter|return)
-      printf '%s' "Return"
-      ;;
-    kp_enter|keypad_enter)
-      printf '%s' "KP_Enter"
-      ;;
-    *)
-      printf '%s' "$raw"
-      ;;
-  esac
+  local token
+  local -a temp=()
+
+  IFS=',' read -r -a temp <<< "$raw"
+  buttons=()
+
+  for token in "${temp[@]}"; do
+    token="${token//[[:space:]]/}"
+    token="${token,,}"
+    [[ -z "$token" ]] && continue
+    buttons+=("$token")
+  done
+
+  if ((${#buttons[@]} == 0)); then
+    echo "--buttons must contain at least one non-empty button name." >&2
+    return 1
+  fi
 }
 
-detect_retroarch_start_key() {
-  local cfg="$RETROARCH_CFG_DEFAULT"
-  local token=""
-
-  if [[ ! -f "$cfg" ]]; then
-    printf '%s' ""
-    return 0
+start_vpad_daemon() {
+  if [[ ! -x "$VPAD_TOOL" ]]; then
+    echo "Virtual gamepad tool is missing or not executable: $VPAD_TOOL" >&2
+    return 1
   fi
 
-  token="$(awk -F'"' '/^input_player1_start = /{print $2; exit}' "$cfg" 2>/dev/null || true)"
-  normalize_key_for_xdotool "$token"
+  vpad_log="$(mktemp /tmp/parallel-n64-vpad-daemon.XXXX.log)"
+  rm -f "$vpad_socket"
+
+  python3 "$VPAD_TOOL" daemon --socket "$vpad_socket" >"$vpad_log" 2>&1 &
+  vpad_pid="$!"
+
+  local i
+  for i in $(seq 1 40); do
+    if [[ -S "$vpad_socket" ]]; then
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  echo "Virtual gamepad daemon failed to start (socket not ready): $vpad_socket" >&2
+  echo "Daemon log: $vpad_log" >&2
+  sed -n '1,80p' "$vpad_log" >&2 || true
+  return 1
 }
 
-append_unique_start_key() {
-  local candidate="$1"
-  local existing
+write_smoke_input_override() {
+  smoke_input_cfg="$(mktemp /tmp/parallel-n64-smoke-input.XXXX.cfg)"
+  cat >"$smoke_input_cfg" <<'EOF_INPUT'
+input_autodetect_enable = "false"
+input_player1_joypad_index = "0"
+input_player1_device_reservation_type = "0"
+input_player1_reserved_device = "parallel-n64 Virtual Pad"
+input_player1_a_btn = "0"
+input_player1_b_btn = "1"
+input_player1_x_btn = "2"
+input_player1_y_btn = "3"
+input_player1_l_btn = "4"
+input_player1_r_btn = "5"
+input_player1_l2_btn = "6"
+input_player1_r2_btn = "7"
+input_player1_select_btn = "8"
+input_player1_start_btn = "9"
+input_player1_l3_btn = "11"
+input_player1_r3_btn = "12"
+input_player1_up_btn = "13"
+input_player1_down_btn = "14"
+input_player1_left_btn = "15"
+input_player1_right_btn = "16"
+EOF_INPUT
+}
 
-  [[ -z "$candidate" ]] && return 0
+append_runner_passthrough() {
+  local arg=""
+  local has_separator=0
 
-  for existing in "${start_keys[@]}"; do
-    if [[ "$existing" == "$candidate" ]]; then
-      return 0
+  for arg in "${runner_args[@]}"; do
+    if [[ "$arg" == "--" ]]; then
+      has_separator=1
+      break
     fi
   done
 
-  start_keys+=("$candidate")
+  if (( has_separator == 0 )); then
+    runner_args+=(--)
+  fi
+
+  runner_args+=("$@")
 }
 
-configure_start_keys() {
-  local detected=""
+stop_vpad_daemon() {
+  if [[ -n "$vpad_socket" && -S "$vpad_socket" ]]; then
+    python3 "$VPAD_TOOL" stop --socket "$vpad_socket" >/dev/null 2>&1 || true
+  fi
 
-  if [[ -n "$start_key" ]]; then
-    append_unique_start_key "$(normalize_key_for_xdotool "$start_key")"
+  if [[ -n "$vpad_pid" ]]; then
+    wait "$vpad_pid" >/dev/null 2>&1 || true
+  fi
+
+  if [[ -n "$vpad_socket" ]]; then
+    rm -f "$vpad_socket" || true
+  fi
+}
+
+cleanup() {
+  if [[ -n "$run_pid" ]] && kill -0 "$run_pid" 2>/dev/null; then
+    kill -INT "$run_pid" >/dev/null 2>&1 || true
+    sleep 1
+    if kill -0 "$run_pid" 2>/dev/null; then
+      kill -KILL "$run_pid" >/dev/null 2>&1 || true
+    fi
+  fi
+  stop_vpad_daemon
+  if [[ -n "$smoke_input_cfg" && -f "$smoke_input_cfg" ]]; then
+    rm -f "$smoke_input_cfg" || true
+  fi
+}
+
+send_button_tap() {
+  local button="$1"
+  local output=""
+
+  if output="$(python3 "$VPAD_TOOL" send --socket "$vpad_socket" tap "$button" "$button_hold_ms" 2>&1)"; then
+    echo "Virtual pad tap: button=$button hold_ms=$button_hold_ms ($output)"
     return 0
   fi
 
-  detected="$(detect_retroarch_start_key)"
-  append_unique_start_key "$detected"
-  append_unique_start_key "Return"
-  append_unique_start_key "KP_Enter"
-
-  if ((${#start_keys[@]} == 0)); then
-    append_unique_start_key "Return"
-  fi
-}
-
-find_retroarch_window_id() {
-  local target_pid="$1"
-  local name="$2"
-  local window_id=""
-
-  window_id="$(xdotool search --pid "$target_pid" --name "$name" 2>/dev/null | head -n 1 || true)"
-  if [[ -z "$window_id" ]]; then
-    window_id="$(xdotool search --onlyvisible --name "$name" 2>/dev/null | head -n 1 || true)"
-  fi
-
-  printf '%s' "$window_id"
-}
-
-send_start_key_once() {
-  local target_pid="$1"
-  local key="$2"
-  local name="$3"
-  local window_id=""
-  local window_label=""
-  local hold_seconds
-
-  hold_seconds="$(awk -v ms="$start_key_hold_ms" "BEGIN { printf \"%.3f\", ms / 1000.0 }")"
-  window_id="$(find_retroarch_window_id "$target_pid" "$name")"
-
-  if [[ -n "$window_id" ]]; then
-    window_label="$(xdotool getwindowname "$window_id" 2>/dev/null || true)"
-    echo "Start target window: id=$window_id name=${window_label:-unknown} key=$key hold_ms=$start_key_hold_ms"
-    timeout 2s xdotool windowactivate "$window_id" >/dev/null 2>&1 || true
-    timeout 2s xdotool keydown --window "$window_id" --clearmodifiers "$key" >/dev/null 2>&1
-    sleep "$hold_seconds"
-    timeout 2s xdotool keyup --window "$window_id" --clearmodifiers "$key" >/dev/null 2>&1
-  else
-    echo "Start target window: fallback-active key=$key hold_ms=$start_key_hold_ms"
-    timeout 2s xdotool keydown --clearmodifiers "$key" >/dev/null 2>&1
-    sleep "$hold_seconds"
-    timeout 2s xdotool keyup --clearmodifiers "$key" >/dev/null 2>&1
-  fi
+  echo "Virtual pad tap failed: button=$button ($output)" >&2
+  return 1
 }
 
 while (($#)); do
@@ -175,25 +210,25 @@ while (($#)); do
       shift
       post_delay="${1:-}"
       ;;
-    --start-key)
+    --interval)
       shift
-      start_key="${1:-}"
+      input_interval="${1:-}"
       ;;
-    --window-name)
+    --button-hold-ms)
       shift
-      window_name="${1:-}"
+      button_hold_ms="${1:-}"
       ;;
-    --start-burst-count)
+    --buttons)
       shift
-      start_burst_count="${1:-}"
+      buttons_csv="${1:-}"
       ;;
-    --start-burst-interval)
+    --max-presses)
       shift
-      start_burst_interval="${1:-}"
+      max_presses="${1:-}"
       ;;
-    --start-key-hold-ms)
+    --vpad-socket)
       shift
-      start_key_hold_ms="${1:-}"
+      vpad_socket="${1:-}"
       ;;
     -h|--help)
       usage
@@ -215,6 +250,10 @@ if [[ ! -x "$RUNNER" ]]; then
   echo "run-n64.sh is missing or not executable: $RUNNER" >&2
   exit 1
 fi
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required for virtual gamepad automation." >&2
+  exit 1
+fi
 
 if ! require_nonnegative_int "$start_delay" "--start-delay"; then
   exit 1
@@ -222,30 +261,30 @@ fi
 if ! require_nonnegative_int "$post_delay" "--post-delay"; then
   exit 1
 fi
-if ! require_nonnegative_int "$start_burst_count" "--start-burst-count"; then
+if ! require_positive_int "$input_interval" "--interval"; then
   exit 1
 fi
-if ! require_positive_int "$start_burst_interval" "--start-burst-interval"; then
+if ! require_positive_int "$button_hold_ms" "--button-hold-ms"; then
   exit 1
 fi
-if ! require_positive_int "$start_key_hold_ms" "--start-key-hold-ms"; then
+if ! require_positive_int "$max_presses" "--max-presses"; then
   exit 1
 fi
-if ! command -v xdotool >/dev/null 2>&1; then
-  echo "run-n64-smoke-start.sh requires xdotool in PATH." >&2
-  exit 1
-fi
-if [[ -z "${DISPLAY:-}" ]]; then
-  echo "run-n64-smoke-start.sh requires DISPLAY to be set." >&2
+if ! split_buttons "$buttons_csv"; then
   exit 1
 fi
 
-configure_start_keys
+trap cleanup EXIT
+
+start_vpad_daemon
+write_smoke_input_override
+append_runner_passthrough --appendconfig "$smoke_input_cfg"
+
+echo "Smoke-start: buttons=${buttons[*]} at +${start_delay}s, every ${input_interval}s, hold=${button_hold_ms}ms, post_window=${post_delay}s, socket=$vpad_socket"
+echo "Smoke-start: retroarch input override=$smoke_input_cfg"
 
 "$RUNNER" "${runner_args[@]}" &
-run_pid=$!
-
-echo "Smoke-start: keys=${start_keys[*]} at +${start_delay}s, repeat every ${start_burst_interval}s within +${post_delay}s window, hold=${start_key_hold_ms}ms, stop at window end."
+run_pid="$!"
 
 (
   elapsed=0
@@ -257,53 +296,55 @@ echo "Smoke-start: keys=${start_keys[*]} at +${start_delay}s, repeat every ${sta
     ((elapsed += 1))
   done
 
-  effective_presses="$start_burst_count"
-  if (( effective_presses > 0 )); then
-    max_window_presses=$(( post_delay / start_burst_interval + 1 ))
-    if (( effective_presses > max_window_presses )); then
-      effective_presses="$max_window_presses"
-    fi
+  # Input ticks happen at t=0, interval, 2*interval ... inside post window.
+  effective_presses="$max_presses"
+  max_window_presses=$(( post_delay / input_interval + 1 ))
+  if (( effective_presses > max_window_presses )); then
+    effective_presses="$max_window_presses"
   fi
 
-  sent_any=0
-  press=1
-  next_press_at=0
+  tick=1
   elapsed_post=0
+  sent_any=0
 
-  while true; do
+  while (( tick <= effective_presses )); do
     if ! kill -0 "$run_pid" 2>/dev/null; then
       exit 0
     fi
 
-    if (( press <= effective_presses && elapsed_post >= next_press_at )); then
-      for key in "${start_keys[@]}"; do
-        if send_start_key_once "$run_pid" "$key" "$window_name"; then
-          echo "Sent start key [$press/$effective_presses]: $key"
-          sent_any=1
-          break
-        fi
-      done
-      ((press += 1))
-      ((next_press_at += start_burst_interval))
-    fi
+    for button in "${buttons[@]}"; do
+      if send_button_tap "$button"; then
+        sent_any=1
+      fi
+    done
 
-    if (( elapsed_post >= post_delay )); then
+    if (( elapsed_post + input_interval > post_delay )); then
       break
     fi
 
+    sleep "$input_interval"
+    ((elapsed_post += input_interval))
+    ((tick += 1))
+  done
+
+  # Fill remaining post window time.
+  while (( elapsed_post < post_delay )); do
+    if ! kill -0 "$run_pid" 2>/dev/null; then
+      exit 0
+    fi
     sleep 1
     ((elapsed_post += 1))
   done
 
-  if (( effective_presses > 0 && sent_any == 0 )); then
-    echo "Failed to send any start key from set: ${start_keys[*]}" >&2
+  if (( sent_any == 0 )); then
+    echo "No virtual pad inputs were sent successfully." >&2
   fi
 
   if kill -0 "$run_pid" 2>/dev/null; then
-    kill -INT "$run_pid" 2>/dev/null || true
+    kill -INT "$run_pid" >/dev/null 2>&1 || true
     sleep 5
     if kill -0 "$run_pid" 2>/dev/null; then
-      kill -KILL "$run_pid" 2>/dev/null || true
+      kill -KILL "$run_pid" >/dev/null 2>&1 || true
     fi
   fi
 ) &
@@ -317,6 +358,10 @@ wait "$helper_pid" || true
 
 if (( rc == 130 || rc == 143 )); then
   rc=0
+fi
+
+if [[ -n "$vpad_log" ]]; then
+  echo "Virtual gamepad daemon log: $vpad_log"
 fi
 
 exit "$rc"

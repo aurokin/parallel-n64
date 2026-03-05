@@ -350,6 +350,12 @@ add_test(
 set_tests_properties(emu.conformance.lavapipe_frame_hash PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
+  NAME emu.conformance.lavapipe_vi_filters_hash
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_lavapipe_vi_filters_hash.sh"
+)
+set_tests_properties(emu.conformance.lavapipe_vi_filters_hash PROPERTIES SKIP_RETURN_CODE 77)
+
+add_test(
   NAME emu.dump.validate
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_validate.sh" normal
 )

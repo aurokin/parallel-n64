@@ -156,7 +156,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M2` capability/feature negotiation coverage in progress).
+- Active phase: `T10` execution (`M3` VI register-interaction matrix coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -434,4 +434,14 @@
   - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
 - 2026-03-05: Validated current `T10` (`M2`) slice with:
   - `./run-tests.sh -R emu.unit.rdp_device_capability_policy`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M3`) VI interaction-matrix coverage:
+  - Added `tests/emulator_behavior/emu_unit_vi_register_interaction_matrix_test.cpp` as `emu.unit.vi_register_interaction_matrix`.
+    - Covers clamp behavior interactions across `HStart`/`VStart`/`XScale`/`YScale`,
+    - PAL/NTSC offset semantics and `is_pal` decode behavior,
+    - `VCurrentLine` parity decode path,
+    - invalid horizontal range handling (`compute_scanout_memory_range` returns empty range).
+  - Registered target in `tests/emulator_behavior/CMakeLists.txt`.
+- 2026-03-05: Validated current `T10` (`M3`) slice with:
+  - `./run-tests.sh -R emu.unit.vi_register_interaction_matrix`,
   - `./run-tests.sh --profile emu-required`.

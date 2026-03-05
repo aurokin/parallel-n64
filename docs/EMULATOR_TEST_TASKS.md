@@ -138,6 +138,7 @@
       - DP parser robustness expansion:
         - opcode boundary/fuzz-style coverage for malformed lengths and multi-command tail truncation,
         - full opcode-length LUT matrix coverage (`0x00..0x3f`) for command segmentation invariants,
+        - XBUS/DRAM parity checks for long variable-length command decode paths,
         - repeated `SyncFull` sequencing and MI interrupt edge-order verification in mixed streams,
         - `SyncFull` interrupt behavior when frontend callbacks are unavailable.
       - Command processor memory/coherency paths:
@@ -187,7 +188,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M31` opcode-length LUT matrix coverage in progress).
+- Active phase: `T10` execution (`M32` XBUS long-command decode parity coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -798,5 +799,14 @@
     - locks enqueue gating (`>= 8`), `SyncFull` interrupt behavior (`0x29` only), and parser/DPC reset invariants.
   - Gap closure: command-length decode is now comprehensively guarded, not sample-based.
 - 2026-03-05: Validated current `T10` (`M31`) slice with:
+  - `./run-tests.sh -R emu.unit.rdp_command_ingest`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M32`) XBUS long-command decode parity coverage:
+  - Expanded `tests/emulator_behavior/emu_unit_rdp_command_ingest_test.cpp` with `test_xbus_long_command_length_decode()`.
+    - Exercises XBUS DMA ingest for opcode `0x0f` (22 qwords / 44 words),
+    - locks enqueue payload length and parser reset behavior on long commands,
+    - locks XBUS misalignment-mask behavior (`dpc_current` mask to `0xFF8`) for long command streams.
+  - Gap closure: prevents DRAM/XBUS divergence on large command-length decode paths.
+- 2026-03-05: Validated current `T10` (`M32`) slice with:
   - `./run-tests.sh -R emu.unit.rdp_command_ingest`,
   - `./run-tests.sh --profile emu-required`.

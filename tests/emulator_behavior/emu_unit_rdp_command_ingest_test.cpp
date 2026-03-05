@@ -157,6 +157,45 @@ static void test_xbus_path_alignment_and_syncfull_interrupt()
 	check(dpc_start == dpc_end && dpc_current == dpc_end, "DPC start/current should reset to end");
 }
 
+static void test_xbus_long_command_length_decode()
+{
+	std::vector<uint32_t> dram_words(0x2000 / 4, 0);
+	std::vector<uint32_t> dmem_words(0x2000 / 4, 0);
+	uint8_t *dram = reinterpret_cast<uint8_t *>(dram_words.data());
+	uint8_t *dmem = reinterpret_cast<uint8_t *>(dmem_words.data());
+
+	// Opcode 0x0f should decode as 22 qwords (44 words).
+	const uint32_t xbus_base = 0x8u; // dpc_current misalignment is masked down to this base.
+	for (unsigned i = 0; i < 22; i++)
+	{
+		const uint32_t w0 = (i == 0) ? 0x0f000000u : (0x0f000000u | i);
+		const uint32_t w1 = 0xabc00000u | i;
+		write_u32(dmem, xbus_base + i * sizeof(uint64_t), w0);
+		write_u32(dmem, xbus_base + i * sizeof(uint64_t) + 4u, w1);
+	}
+
+	std::array<uint32_t, 128> cmd_data = {};
+	CommandIngestState state = {};
+	state.cmd_data = cmd_data.data();
+
+	uint32_t dpc_start = 0x9u;
+	uint32_t dpc_current = 0x9u;
+	uint32_t dpc_end = 0xb9u; // masked to 0xb8 => 22 qwords.
+	uint32_t dpc_status = DP_STATUS_XBUS_DMA;
+	CallbackHarness h = {};
+	CommandIngestHooks hooks = make_hooks(h, true, false);
+
+	process_command_ingest(state, dram, dmem, dpc_start, dpc_end, dpc_current, dpc_status, hooks);
+
+	check(h.enqueue_calls == 1, "xbus long command should enqueue once");
+	check(h.last_num_words == 44u, "xbus long command expected 44-word payload");
+	check(h.last_words.size() == 44u, "xbus long command payload size mismatch");
+	check(h.last_words[0] == 0x0f000000u, "xbus long command payload head mismatch");
+	check(h.interrupt_calls == 0, "xbus long non-SyncFull command should not interrupt");
+	check(state.cmd_cur == 0 && state.cmd_ptr == 0, "xbus long command parser state should reset");
+	check(dpc_start == dpc_end && dpc_current == dpc_end, "xbus long command DPC reset mismatch");
+}
+
 static void test_command_buffer_overflow_guard()
 {
 	std::vector<uint32_t> dram_words(0x2000 / 4, 0);
@@ -629,6 +668,7 @@ int main()
 {
 	test_dram_path_alignment_and_enqueue();
 	test_xbus_path_alignment_and_syncfull_interrupt();
+	test_xbus_long_command_length_decode();
 	test_command_buffer_overflow_guard();
 	test_incomplete_command_tail_behavior();
 	test_incomplete_tail_with_complete_prefix();

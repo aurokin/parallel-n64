@@ -9,7 +9,7 @@
 ## Milestones
 - [x] M0: Repo hygiene for local packs (`.gitignore` update).
 - [x] M1: Core options and runtime plumbing (`hires_*` toggles + path).
-- [ ] M2: Replacement provider module (`.htc` + `.hts` parse + decode).
+- [x] M2: Replacement provider module (`.htc` + `.hts` parse + decode).
 - [ ] M3: Keying replication + logging harness (`checksum64`, `formatsize`, match logs).
 - [ ] M4: GPU registry (bindless descriptor pool + lazy upload).
 - [ ] M5: Shader texel-stage late swap (before combiner).
@@ -30,3 +30,6 @@ I will post updates in this format as work progresses:
 - 2026-03-04: Added ignore rules for local hires cache artifacts in `.gitignore`.
 - 2026-03-04: Added M1 plumbing for hi-res options (`enabled`, `filter`, `srgb`, cache path) from libretro options to paraLLEl runtime globals.
 - 2026-03-04: Began M2 by reverse-checking `.hts` layout from the Paper Mario pack (header + `storagePos`, indexed `key -> offset|formatsize`, per-entry payload with dimensions/metadata + zlib blob).
+- 2026-03-04: Completed M2 standalone loader in paraLLEl-RDP (`texture_replacement.*`) with `.hts` index parsing, `.htc` gzip-record parsing, `(checksum64, formatsize)` lookup (with wildcard fallback), zlib blob handling, and decode to canonical RGBA8.
+- 2026-03-04: Added non-Windows `-lz` link flag for paraLLEl builds to satisfy loader zlib usage.
+- 2026-03-04: Validated M2 on local `PAPER MARIO_HIRESTEXTURES.hts` (loaded 15159 entries; lookup + RGBA8 decode succeeded on sampled key).

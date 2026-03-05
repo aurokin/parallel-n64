@@ -1,0 +1,74 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace RDP
+{
+struct ReplacementMeta
+{
+	uint32_t repl_w = 0;
+	uint32_t repl_h = 0;
+	uint32_t orig_w = 0;
+	uint32_t orig_h = 0;
+	uint32_t vk_image_index = 0xffffffffu;
+	bool has_mips = false;
+	bool srgb = false;
+};
+
+struct ReplacementImage
+{
+	ReplacementMeta meta;
+	std::vector<uint8_t> rgba8;
+};
+
+class ReplacementProvider
+{
+public:
+	bool enabled() const;
+	void set_enabled(bool enable);
+	bool load_cache_dir(const std::string &path);
+	bool lookup(uint64_t checksum64, uint16_t formatsize, ReplacementMeta *out) const;
+	bool decode_rgba8(uint64_t checksum64, uint16_t formatsize, ReplacementImage *out) const;
+	void trim_to_budget(size_t bytes);
+	void clear();
+	size_t entry_count() const;
+
+private:
+	struct Entry
+	{
+		std::string source_path;
+		uint64_t checksum64 = 0;
+		uint64_t data_offset = 0;
+		uint32_t data_size = 0;
+		uint32_t width = 0;
+		uint32_t height = 0;
+		uint32_t format = 0;
+		uint16_t texture_format = 0;
+		uint16_t pixel_type = 0;
+		uint16_t formatsize = 0;
+		bool is_hires = false;
+		bool inline_blob = false;
+		std::vector<uint8_t> blob;
+	};
+
+	const Entry *find_entry(uint64_t checksum64, uint16_t formatsize) const;
+	bool load_hts(const std::string &path);
+	bool load_htc(const std::string &path);
+	bool read_blob(const Entry &entry, std::vector<uint8_t> &blob) const;
+	static bool decode_pixels_rgba8(const Entry &entry, const std::vector<uint8_t> &pixel_data, std::vector<uint8_t> &rgba8);
+	static bool decompress_if_needed(const Entry &entry, const std::vector<uint8_t> &blob, std::vector<uint8_t> &pixel_data);
+	static uint32_t expected_decoded_size(const Entry &entry);
+	void add_entry(Entry &&entry);
+
+	bool enabled_ = false;
+	std::string cache_dir_;
+	std::vector<Entry> entries_;
+	std::unordered_map<uint64_t, std::vector<size_t>> checksum_index_;
+	size_t memory_budget_bytes_ = 0;
+};
+}
+

@@ -468,6 +468,9 @@ ifeq ($(HAVE_PARALLEL),1)
 	SOURCES_CXX += $(PARALLEL_RDP_SOURCES_CXX) $(VIDEODIR_PARALLEL)/parallel.cpp $(VIDEODIR_PARALLEL)/rdp.cpp
 	SOURCES_C += $(PARALLEL_RDP_SOURCES_C)
 	LDFLAGS += $(PARALLEL_RDP_LDFLAGS)
+ifeq (,$(findstring win,$(platform)))
+	LDFLAGS += -lz
+endif
 endif
 
 ifeq ($(HAVE_PARALLEL_RSP), 1)

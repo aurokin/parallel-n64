@@ -140,3 +140,22 @@ target_include_directories(emu_unit_worker_thread_test PRIVATE
 )
 target_compile_features(emu_unit_worker_thread_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.worker_thread COMMAND emu_unit_worker_thread_test)
+
+add_executable(emu_conformance_vi_register_contract_test
+  emu_conformance_vi_register_contract_test.cpp
+)
+target_include_directories(emu_conformance_vi_register_contract_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp"
+)
+target_compile_features(emu_conformance_vi_register_contract_test PRIVATE cxx_std_17)
+add_test(NAME emu.conformance.vi_register_contract COMMAND emu_conformance_vi_register_contract_test)
+
+add_executable(emu_conformance_rdp_command_fields_test
+  emu_conformance_rdp_command_fields_test.cpp
+)
+target_include_directories(emu_conformance_rdp_command_fields_test PRIVATE
+  "${CMAKE_SOURCE_DIR}"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+)
+target_compile_features(emu_conformance_rdp_command_fields_test PRIVATE cxx_std_17)
+add_test(NAME emu.conformance.rdp_command_fields COMMAND emu_conformance_rdp_command_fields_test)

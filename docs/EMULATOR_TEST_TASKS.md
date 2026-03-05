@@ -230,3 +230,13 @@
   - `./run-tests.sh`,
   - `./run-build.sh`,
   - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.
+- 2026-03-05: Started `T7` doc-backed conformance coverage:
+  - Added `emu.conformance.vi_register_contract` (`tests/emulator_behavior/emu_conformance_vi_register_contract_test.cpp`) to lock VI register packing/masking/default contracts from `rdp_common.hpp`.
+  - Added `emu.conformance.rdp_command_fields` (`tests/emulator_behavior/emu_conformance_rdp_command_fields_test.cpp`) to lock command opcode/length behavior for `FillRectangle`, `TextureRectangle`, and `SyncFull` via `rdp_command_ingest.hpp`, including synchronous `signal -> wait -> interrupt` ordering.
+  - Registered new targets in `tests/emulator_behavior/CMakeLists.txt`.
+- 2026-03-05: Validated current `T7` progress with:
+  - `./run-tests.sh -R emu.conformance`,
+  - `./run-tests.sh -R emu.unit`,
+  - `./run-tests.sh`,
+  - `./run-build.sh`,
+  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.

@@ -148,8 +148,7 @@
         - serrate/interlace field handling by `VCurrentLine` parity and `VI_CONTROL_SERRATE_BIT`,
         - runtime hash fixtures across AA/divot/dither/gamma combinations (deterministic lavapipe tier).
       - Runtime conformance matrix breadth:
-        - add at least one additional deterministic lavapipe hash fixture for non-default VI filter combination beyond fully-disabled baseline (e.g. mixed enabled path),
-        - evaluate overscan crop and/or downscale interaction hash fixtures under explicit core-option control.
+        - add at least one deterministic lavapipe hash fixture specifically exercising downscale interaction under explicit core-option control.
       - Frame glue resilience paths:
         - explicit tests for `complete_frame_error()` fallback invariants when frontend/context transitions occur mid-frame,
         - retro image slot reuse/index-rotation metadata stability across frame contexts.
@@ -182,7 +181,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M22` runtime VI filter hash coverage in progress).
+- Active phase: `T10` execution (`M23` runtime VI mixed filter hash coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -703,5 +702,15 @@
   - Updated `run-tests.sh --profile emu-runtime-conformance` to include this new runtime hash target.
   - Updated `docs/EMU_TESTING.md` runtime profile mapping to include the new conformance test.
 - 2026-03-05: Validated current `T10` (`M22`) slice with:
+  - `./run-tests.sh --profile emu-runtime-conformance`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M23`) runtime VI mixed filter hash coverage:
+  - Added `tests/emulator_behavior/support/emu_conformance_lavapipe_vi_filters_mixed_hash.sh`:
+    - deterministic lavapipe screenshot hash run with explicit mixed/enabled VI options,
+    - covers non-default filter pipeline state (`vi-aa`, `vi-bilinear`, `divot-filter`, `gamma-dither`, `dither-filter` enabled) plus explicit overscan/upscaling settings.
+  - Registered `emu.conformance.lavapipe_vi_filters_mixed_hash` in `tests/emulator_behavior/CMakeLists.txt`.
+  - Updated `run-tests.sh --profile emu-runtime-conformance` and `docs/EMU_TESTING.md` to include the mixed-hash runtime target.
+  - Gap tracking update: runtime VI filter breadth now has both disabled and mixed/enabled deterministic hashes; remaining runtime-matrix gap is explicit downscale-focused hash coverage.
+- 2026-03-05: Validated current `T10` (`M23`) slice with:
   - `./run-tests.sh --profile emu-runtime-conformance`,
   - `./run-tests.sh --profile emu-required`.

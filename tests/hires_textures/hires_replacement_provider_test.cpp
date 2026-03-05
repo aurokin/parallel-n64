@@ -70,6 +70,28 @@ static void write_fixture_htc(const std::filesystem::path &path, uint64_t key_ex
 	gzclose(fp);
 }
 
+static void write_low32_fallback_fixture_htc(const std::filesystem::path &path,
+                                             uint64_t unique_low32_key,
+                                             uint64_t ambiguous_low32_key_a,
+                                             uint64_t ambiguous_low32_key_b)
+{
+	gzFile fp = gzopen(path.c_str(), "wb");
+	check(fp != nullptr, "failed to create low32 fallback fixture .htc");
+
+	const int32_t version = TXCACHE_FORMAT_VERSION;
+	const int32_t config = 0;
+	gzwrite(fp, &version, sizeof(version));
+	gzwrite(fp, &config, sizeof(config));
+
+	write_record_htc(fp, unique_low32_key, 0, 4, 1, { 0x11, 0x22, 0x33, 0x44,
+	                                                 0x55, 0x66, 0x77, 0x88,
+	                                                 0x99, 0xaa, 0xbb, 0xcc,
+	                                                 0xdd, 0xee, 0xff, 0x10 });
+	write_record_htc(fp, ambiguous_low32_key_a, 0, 1, 1, { 0x01, 0x02, 0x03, 0x04 });
+	write_record_htc(fp, ambiguous_low32_key_b, 0, 1, 1, { 0x05, 0x06, 0x07, 0x08 });
+	gzclose(fp);
+}
+
 static void write_fixture_hts(const std::filesystem::path &path, uint64_t key, uint16_t formatsize,
                               const std::vector<uint8_t> &rgba)
 {
@@ -125,11 +147,16 @@ int main()
 	const uint16_t formatsize = 0x0201;
 	const std::vector<uint8_t> rgba = { 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80 };
 
+	const uint64_t unique_low32_key = 0x11111111aabbccdduLL;
+	const uint64_t ambiguous_low32_key_a = 0x22222222ddeeff00uLL;
+	const uint64_t ambiguous_low32_key_b = 0x33333333ddeeff00uLL;
+
 	const auto temp_root = std::filesystem::temp_directory_path();
 	const auto test_dir = temp_root / ("parallel_n64_m3_provider_test_" + std::to_string(getpid()));
 	std::filesystem::remove_all(test_dir);
 	std::filesystem::create_directories(test_dir);
 	write_fixture_htc(test_dir / "fixture.htc", key_htc, formatsize, key_wildcard, rgba);
+	write_low32_fallback_fixture_htc(test_dir / "low32_fallback.htc", unique_low32_key, ambiguous_low32_key_a, ambiguous_low32_key_b);
 	write_fixture_hts(test_dir / "fixture.hts", key_hts, formatsize, rgba);
 
 	ReplacementProvider provider;
@@ -155,16 +182,36 @@ int main()
 	check(provider.lookup(key_wildcard, 0x9999, &wildcard_meta), "formatsize wildcard fallback failed");
 	check(wildcard_meta.repl_w == 1 && wildcard_meta.repl_h == 1, "wildcard dimensions mismatch");
 
+	uint64_t resolved_checksum64 = 0;
+	ReplacementMeta low32_unique_meta = {};
+	check(provider.lookup_ci_low32_unique(uint32_t(unique_low32_key & 0xffffffffu), formatsize,
+	                                      &low32_unique_meta, &resolved_checksum64),
+	      "unique low32 fallback should resolve");
+	check(resolved_checksum64 == unique_low32_key, "unique low32 fallback should resolve expected checksum");
+	check(low32_unique_meta.repl_w == 4 && low32_unique_meta.repl_h == 1,
+	      "unique low32 fallback dimensions mismatch");
+
+	ReplacementMeta low32_ambiguous_meta = {};
+	check(!provider.lookup_ci_low32_unique(uint32_t(ambiguous_low32_key_a & 0xffffffffu), formatsize,
+	                                       &low32_ambiguous_meta, &resolved_checksum64),
+	      "ambiguous low32 fallback should not resolve");
+
 	const size_t expected_size = size_t(image.meta.repl_w) * size_t(image.meta.repl_h) * 4u;
 	check(image.rgba8.size() == expected_size, "decoded image does not match RGBA8 size");
 
 	provider.set_enabled(false);
 	check(!provider.lookup(key_htc, formatsize, &meta), "disabled provider should not match");
+	check(!provider.lookup_ci_low32_unique(uint32_t(unique_low32_key & 0xffffffffu), formatsize,
+	                                       &low32_unique_meta, &resolved_checksum64),
+	      "disabled provider should not resolve low32 fallback");
 
 	provider.clear();
 	check(provider.entry_count() == 0, "provider clear should remove all loaded entries");
 	check(!provider.lookup(key_htc, formatsize, &meta), "cleared provider should not match");
 	check(!provider.decode_rgba8(key_htc, formatsize, &image), "cleared provider should not decode entries");
+	check(!provider.lookup_ci_low32_unique(uint32_t(unique_low32_key & 0xffffffffu), formatsize,
+	                                       &low32_unique_meta, &resolved_checksum64),
+	      "cleared provider should not resolve low32 fallback");
 
 	provider.set_enabled(true);
 	check(provider.load_cache_dir(test_dir.string()), "provider should reload fixtures after clear");

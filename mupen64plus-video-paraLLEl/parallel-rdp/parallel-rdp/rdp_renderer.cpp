@@ -3545,10 +3545,15 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			uint32_t texture_crc = rice_crc32_wrapped(cpu_rdram, rdram_size, src_base_addr,
 			                                          key_width_pixels, key_height_pixels,
 			                                          uint32_t(info.size), row_stride_bytes);
-			uint32_t palette_crc = 0;
+
+			const uint16_t formatsize = formatsize_key(meta.fmt, meta.size);
+			ReplacementMeta repl_meta = {};
+			uint64_t checksum64 = detail::compose_hires_checksum64(texture_crc, 0);
+			bool hit = false;
 
 			if (meta.fmt == TextureFormat::CI && tlut_shadow_valid)
-				palette_crc = detail::compute_hires_ci_palette_crc(
+			{
+				auto palette_crc_candidates = detail::compute_hires_ci_palette_crc_candidates(
 						meta.size,
 						meta.palette,
 						cpu_rdram,
@@ -3561,10 +3566,27 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						sizeof(tlut_shadow),
 						tlut_shadow_valid);
 
-			const uint64_t checksum64 = detail::compose_hires_checksum64(texture_crc, palette_crc);
-			const uint16_t formatsize = formatsize_key(meta.fmt, meta.size);
-			ReplacementMeta repl_meta = {};
-			const bool hit = replacement_provider->lookup(checksum64, formatsize, &repl_meta);
+				for (uint32_t i = 0; i < palette_crc_candidates.count && !hit; i++)
+				{
+					checksum64 = detail::compose_hires_checksum64(texture_crc, palette_crc_candidates.values[i]);
+					hit = replacement_provider->lookup(checksum64, formatsize, &repl_meta);
+				}
+			}
+			else
+			{
+				hit = replacement_provider->lookup(checksum64, formatsize, &repl_meta);
+			}
+			if (!hit && meta.fmt == TextureFormat::CI)
+			{
+				uint64_t ci_fallback_checksum64 = 0;
+				if (replacement_provider->lookup_ci_low32_unique(texture_crc, formatsize, &repl_meta, &ci_fallback_checksum64))
+				{
+					checksum64 = ci_fallback_checksum64;
+					hit = true;
+				}
+			}
+
+
 			if (hit)
 				resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
 

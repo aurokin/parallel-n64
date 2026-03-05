@@ -35,12 +35,12 @@ Expected fallback behavior:
 - [x] M3: Keying replication + logging harness (`checksum64`, `formatsize`, match logs).
 - [x] M4: GPU registry (bindless descriptor pool + lazy upload).
 - [x] M5: Shader texel-stage late swap (before combiner).
-- [ ] M6: CI/TLUT correctness for palette-influenced keys.
+- [x] M6: CI/TLUT correctness for palette-influenced keys.
 - [ ] M7: Mips/LOD/filtering + memory budget controls.
 - [ ] M8: Validation + performance pass + docs.
 
 ## Current Status
-- Feature milestone state: `M0`..`M5` complete; `M6` in progress; `M7`..`M8` pending.
+- Feature milestone state: `M0`..`M6` complete; `M7`..`M8` pending.
 - Local readiness gate remains: `./run-tests.sh --profile hires-readiness`.
 - `M5` is closed:
   - Vulkan program-loading API now accepts optional precomputed reflection layouts (`request_shader` / `request_program` overloads with `ResourceLayout` pointers).
@@ -48,15 +48,20 @@ Expected fallback behavior:
   - Added missing shader include dependency `shaders/debug_channel.h` and regenerated baked `shaders/slangmosh.hpp`; baked bank now includes `HIRES_REPLACEMENT` permutations for `ubershader` and `rasterizer`.
   - Updated shader-bank integration to pass serialized reflection layouts during baked-program loads.
   - Added local unit coverage for layout policy parsing/validation (`emu.unit.hires_slangmosh_layout_policy`).
-- `M6` is now active:
-  - TLUT shadow updates now apply at TMEM-relative offsets (base `0x800`) instead of always overwriting from byte `0`, so partial/banked palette loads no longer clobber unrelated shadow regions.
-  - Added `emu.unit.hires_tlut_shadow_policy` to lock full/partial/clipped/out-of-range TLUT-shadow behavior.
-- Local validation for current `M6` step:
+- `M6` is closed:
+  - TLUT shadow updates apply at TMEM-relative offsets (base `0x800`) with clipping, so partial/banked palette loads preserve unrelated shadow regions.
+  - CI palette CRC candidate keying now tries a deduplicated candidate set (`primary`, `min2`, `full-bank`) before miss classification.
+  - CI-only strict low32 fallback now resolves replacements when the low32 texture CRC is unique for a given `formatsize`, while rejecting ambiguous matches.
+  - Added/expanded local unit coverage:
+    - `emu.unit.hires_tlut_shadow_policy`
+    - `emu.unit.hires_ci_palette_policy`
+    - `hires.texture_replacement_provider` (CI low32 unique fallback cases)
+- Local validation for `M6` close:
   - `./run-build.sh`
   - `./run-tests.sh --profile hires-readiness`
   - `./run-tests.sh --profile emu-required`
-  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (summary: `lookups=32048 hits=18442 misses=13606 provider=on`)
-- Next execution target: continue `M6` CI/TLUT keying parity work.
+  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (summary: `lookups=31902 hits=18520 misses=13382 provider=on`)
+- Next execution target: start `M7` (mips/LOD/filtering + memory budget controls).
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -171,3 +176,14 @@ I will post updates in this format as work progresses:
     - `./run-tests.sh --profile hires-readiness`
     - `./run-tests.sh --profile emu-required`
     - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (`lookups=32048 hits=18442 misses=13606 provider=on`).
+- 2026-03-05: Closed `M6` CI/TLUT keying parity pass:
+  - Added CI palette CRC candidate generation (`primary`, `min2`, `full-bank`, deduplicated) and renderer-side candidate probing for CI lookups.
+  - Added strict CI low32 unique fallback lookup in `ReplacementProvider` to recover valid matches when palette high32 does not align, without permitting ambiguous matches.
+  - Expanded tests:
+    - `emu.unit.hires_ci_palette_policy` (candidate-set and dedupe contracts),
+    - `hires.texture_replacement_provider` (CI low32 unique/ambiguous fallback contracts).
+  - Revalidated local gates:
+    - `./run-build.sh`
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-tests.sh --profile emu-required`
+    - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (`lookups=31902 hits=18520 misses=13382 provider=on`).

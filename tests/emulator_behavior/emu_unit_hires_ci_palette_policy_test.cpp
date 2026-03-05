@@ -67,6 +67,20 @@ static void test_invalid_input_guard_matrix()
 	                                   0, 8, 1, 8,
 	                                   tlut.data(), tlut.size(), true) == 0,
 	      "non-CI texture sizes should return zero palette crc");
+
+	auto candidates = compute_hires_ci_palette_crc_candidates(
+			TextureSize::Bpp16,
+			0,
+			rdram.data(),
+			rdram.size(),
+			0,
+			8,
+			1,
+			8,
+			tlut.data(),
+			tlut.size(),
+			true);
+	check(candidates.count == 0, "non-CI palette candidate set should be empty");
 }
 
 static void test_ci8_palette_crc_contract()
@@ -108,6 +122,60 @@ static void test_ci4_palette_crc_contract_and_bank_clamp()
 	const uint32_t expected_max = rice_crc32_wrapped(tlut.data(), tlut.size(), 0, 16, 1, 2, 32);
 	check(actual_max == expected_max, "CI4 max-index should clamp to 16 palette entries");
 }
+
+static void test_ci_palette_crc_candidates_include_fallbacks()
+{
+	std::vector<uint8_t> rdram(128, 0);
+	const auto tlut = make_tlut_shadow();
+
+	const auto candidates = compute_hires_ci_palette_crc_candidates(
+			TextureSize::Bpp8,
+			0,
+			rdram.data(),
+			rdram.size(),
+			0,
+			8,
+			1,
+			8,
+			tlut.data(),
+			tlut.size(),
+			true);
+
+	check(candidates.count >= 2, "CI8 candidates should include fallback variants");
+	check(candidates.values[0] == 0u, "CI8 primary candidate should preserve legacy zero-CRC behavior");
+	bool has_nonzero = false;
+	for (uint32_t i = 1; i < candidates.count; i++)
+	{
+		if (candidates.values[i] != 0u)
+			has_nonzero = true;
+	}
+	check(has_nonzero, "CI8 fallback candidates should include non-zero CRC options");
+}
+
+static void test_ci_palette_crc_candidates_dedupe_when_equal()
+{
+	std::vector<uint8_t> rdram(128, 0xff);
+	const auto tlut = make_tlut_shadow();
+
+	const auto candidates = compute_hires_ci_palette_crc_candidates(
+			TextureSize::Bpp4,
+			5,
+			rdram.data(),
+			rdram.size(),
+			0,
+			2,
+			1,
+			1,
+			tlut.data(),
+			tlut.size(),
+			true);
+
+	for (uint32_t i = 0; i < candidates.count; i++)
+	{
+		for (uint32_t j = i + 1; j < candidates.count; j++)
+			check(candidates.values[i] != candidates.values[j], "candidate set should be deduplicated");
+	}
+}
 }
 
 int main()
@@ -115,6 +183,8 @@ int main()
 	test_invalid_input_guard_matrix();
 	test_ci8_palette_crc_contract();
 	test_ci4_palette_crc_contract_and_bank_clamp();
+	test_ci_palette_crc_candidates_include_fallbacks();
+	test_ci_palette_crc_candidates_dedupe_when_equal();
 
 	std::cout << "emu_unit_hires_ci_palette_policy_test: PASS" << std::endl;
 	return 0;

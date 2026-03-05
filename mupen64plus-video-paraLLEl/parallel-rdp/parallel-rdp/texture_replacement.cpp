@@ -108,6 +108,7 @@ void ReplacementProvider::add_entry(Entry &&entry)
 {
 	const size_t index = entries_.size();
 	checksum_index_[entry.checksum64].push_back(index);
+	checksum_low32_index_[uint32_t(entry.checksum64 & 0xffffffffu)].push_back(index);
 	entries_.push_back(std::move(entry));
 }
 
@@ -116,6 +117,7 @@ void ReplacementProvider::clear()
 	cache_dir_.clear();
 	entries_.clear();
 	checksum_index_.clear();
+	checksum_low32_index_.clear();
 }
 
 size_t ReplacementProvider::entry_count() const
@@ -208,6 +210,64 @@ bool ReplacementProvider::lookup(uint64_t checksum64, uint16_t formatsize, Repla
 	out->srgb = meta.srgb;
 	return true;
 }
+bool ReplacementProvider::lookup_ci_low32_unique(uint32_t checksum_low32,
+                                                 uint16_t formatsize,
+                                                 ReplacementMeta *out,
+                                                 uint64_t *resolved_checksum64) const
+{
+	if (!enabled_ || !out)
+		return false;
+
+	auto it = checksum_low32_index_.find(checksum_low32);
+	if (it == checksum_low32_index_.end())
+		return false;
+
+	auto collect_unique_checksums = [&](uint16_t candidate_formatsize, std::vector<uint64_t> &unique) {
+		for (size_t index : it->second)
+		{
+			const Entry &entry = entries_[index];
+			if (entry.formatsize != candidate_formatsize)
+				continue;
+
+			bool seen = false;
+			for (uint64_t existing : unique)
+			{
+				if (existing == entry.checksum64)
+				{
+					seen = true;
+					break;
+				}
+			}
+			if (!seen)
+				unique.push_back(entry.checksum64);
+		}
+	};
+
+	std::vector<uint64_t> unique;
+	collect_unique_checksums(formatsize, unique);
+	if (unique.empty())
+		collect_unique_checksums(0, unique);
+
+	if (unique.size() != 1)
+		return false;
+
+	const uint64_t checksum64 = unique.front();
+	const Entry *entry = find_entry(checksum64, formatsize);
+	if (!entry)
+		return false;
+
+	out->repl_w = entry->width;
+	out->repl_h = entry->height;
+	out->orig_w = 0;
+	out->orig_h = 0;
+	out->vk_image_index = 0xffffffffu;
+	out->has_mips = false;
+	out->srgb = false;
+	if (resolved_checksum64)
+		*resolved_checksum64 = checksum64;
+	return true;
+}
+
 
 uint32_t ReplacementProvider::expected_decoded_size(const Entry &entry)
 {

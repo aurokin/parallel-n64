@@ -112,6 +112,15 @@ DEFINE_GFX(parallel);
 gfx_plugin_functions gfx;
 GFX_INFO gfx_info;
 
+static void plugin_select_default_gfx(void)
+{
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+   gfx = gfx_glide64;
+#elif defined(HAVE_THR_AL)
+   gfx = gfx_angrylion;
+#endif
+}
+
 static m64p_error plugin_start_gfx(void)
 {
    /* fill in the GFX_INFO data structure */
@@ -152,6 +161,12 @@ static m64p_error plugin_start_gfx(void)
    gfx_info.VI_X_SCALE_REG = &(g_dev.vi.regs[VI_X_SCALE_REG]);
    gfx_info.VI_Y_SCALE_REG = &(g_dev.vi.regs[VI_Y_SCALE_REG]);
    gfx_info.CheckInterrupts = EmptyFunc;
+
+   if (gfx.initiateGFX == NULL)
+   {
+      printf("plugin_start_gfx fail: no GFX plugin connected.\n");
+      return M64ERR_PLUGIN_FAIL;
+   }
 
    /* call the audio plugin */
    if (!gfx.initiateGFX(gfx_info))
@@ -292,13 +307,12 @@ void plugin_connect_all(enum gfx_plugin_type gfx_plugin, enum rsp_plugin_type rs
          break;
 #endif
       default:
-#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
-         gfx = gfx_glide64;
-#elif defined(HAVE_THR_AL)
-         gfx = gfx_angrylion;
-#endif
+         plugin_select_default_gfx();
          break;
    }
+
+   if (gfx.initiateGFX == NULL)
+      plugin_select_default_gfx();
 
    switch (rsp_plugin)
    {

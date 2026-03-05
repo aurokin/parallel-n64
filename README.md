@@ -25,6 +25,8 @@ Local helpers:
 * `./run-tests.sh --profile emu-required` - required emulator-behavior gate (`emu.unit.*`)
 * `./run-tests.sh --profile emu-runtime-conformance` - runtime lavapipe conformance tier
 * `./run-dump-tests.sh --provision-validator` - provision validator and run `emu.dump.*` against baseline dump fixtures
+* `python3 tools/virtual_gamepad.py daemon` - start a local virtual gamepad daemon for CLI-driven input
+* `python3 tools/virtual_gamepad.py send tap start` - send a button tap to the virtual gamepad
 
 Task trackers:
 * `docs/HIRES_TEXTURE_TASKS.md` - hi-res texture replacement roadmap

@@ -480,6 +480,12 @@ add_test(
 )
 
 add_test(
+  NAME emu.unit.virtual_gamepad_tool_contract
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_virtual_gamepad_tool_contract.sh"
+)
+
+
+add_test(
   NAME emu.dump.validate
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_validate.sh" normal
 )

@@ -11,6 +11,7 @@ start_key=""
 window_name="RetroArch"
 start_burst_count=99
 start_burst_interval=5
+start_key_hold_ms=200
 declare -a runner_args=()
 declare -a start_keys=()
 
@@ -27,6 +28,7 @@ Options:
   --start-burst-count N   Max number of Start key attempts (default: 99)
   --start-burst-interval SEC
                          Seconds between Start attempts (default: 5)
+  --start-key-hold-ms MS  Milliseconds to hold each key press (default: 200)
   -h, --help              Show this help
 
 Behavior:
@@ -143,17 +145,23 @@ send_start_key_once() {
   local name="$3"
   local window_id=""
   local window_label=""
+  local hold_seconds
 
+  hold_seconds="$(awk -v ms="$start_key_hold_ms" "BEGIN { printf \"%.3f\", ms / 1000.0 }")"
   window_id="$(find_retroarch_window_id "$target_pid" "$name")"
 
   if [[ -n "$window_id" ]]; then
     window_label="$(xdotool getwindowname "$window_id" 2>/dev/null || true)"
-    echo "Start target window: id=$window_id name=${window_label:-unknown} key=$key"
+    echo "Start target window: id=$window_id name=${window_label:-unknown} key=$key hold_ms=$start_key_hold_ms"
     timeout 2s xdotool windowactivate "$window_id" >/dev/null 2>&1 || true
-    timeout 2s xdotool key --window "$window_id" --clearmodifiers "$key" >/dev/null 2>&1
+    timeout 2s xdotool keydown --window "$window_id" --clearmodifiers "$key" >/dev/null 2>&1
+    sleep "$hold_seconds"
+    timeout 2s xdotool keyup --window "$window_id" --clearmodifiers "$key" >/dev/null 2>&1
   else
-    echo "Start target window: fallback-active key=$key"
-    timeout 2s xdotool key --clearmodifiers "$key" >/dev/null 2>&1
+    echo "Start target window: fallback-active key=$key hold_ms=$start_key_hold_ms"
+    timeout 2s xdotool keydown --clearmodifiers "$key" >/dev/null 2>&1
+    sleep "$hold_seconds"
+    timeout 2s xdotool keyup --clearmodifiers "$key" >/dev/null 2>&1
   fi
 }
 
@@ -182,6 +190,10 @@ while (($#)); do
     --start-burst-interval)
       shift
       start_burst_interval="${1:-}"
+      ;;
+    --start-key-hold-ms)
+      shift
+      start_key_hold_ms="${1:-}"
       ;;
     -h|--help)
       usage
@@ -216,6 +228,9 @@ fi
 if ! require_positive_int "$start_burst_interval" "--start-burst-interval"; then
   exit 1
 fi
+if ! require_positive_int "$start_key_hold_ms" "--start-key-hold-ms"; then
+  exit 1
+fi
 if ! command -v xdotool >/dev/null 2>&1; then
   echo "run-n64-smoke-start.sh requires xdotool in PATH." >&2
   exit 1
@@ -230,7 +245,7 @@ configure_start_keys
 "$RUNNER" "${runner_args[@]}" &
 run_pid=$!
 
-echo "Smoke-start: keys=${start_keys[*]} at +${start_delay}s, repeat every ${start_burst_interval}s within +${post_delay}s window, stop at window end."
+echo "Smoke-start: keys=${start_keys[*]} at +${start_delay}s, repeat every ${start_burst_interval}s within +${post_delay}s window, hold=${start_key_hold_ms}ms, stop at window end."
 
 (
   elapsed=0

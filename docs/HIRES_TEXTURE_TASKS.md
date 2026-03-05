@@ -33,25 +33,31 @@ Expected fallback behavior:
 - [x] M1: Core options and runtime plumbing (`hires_*` toggles + path).
 - [x] M2: Replacement provider module (`.htc` + `.hts` parse + decode).
 - [x] M3: Keying replication + logging harness (`checksum64`, `formatsize`, match logs).
-- [ ] M4: GPU registry (bindless descriptor pool + lazy upload).
+- [x] M4: GPU registry (bindless descriptor pool + lazy upload).
 - [ ] M5: Shader texel-stage late swap (before combiner).
 - [ ] M6: CI/TLUT correctness for palette-influenced keys.
 - [ ] M7: Mips/LOD/filtering + memory budget controls.
 - [ ] M8: Validation + performance pass + docs.
 
 ## Current Status
-- Feature milestone state: `M0`..`M3` complete; `M4` in progress; `M5`..`M8` pending.
+- Feature milestone state: `M0`..`M4` complete; `M5` in progress; `M6`..`M8` pending.
 - Pre-`M4` readiness work is complete and locally gated:
   - descriptor-indexing capability contract + runtime auto-disable behavior are implemented and tested;
   - registry lifecycle/descriptor-handle policy scaffolding is implemented and tested;
   - local mini-pack generation + validation tooling is implemented and compatibility-tested against `ReplacementProvider`;
   - `./run-tests.sh --profile hires-readiness` is the local safety gate for HIRES readiness.
-- `M4` is now in active implementation:
+- `M4` is closed:
   - renderer-owned HIRES registry allocates a bindless descriptor pool and performs lazy decode/upload on lookup hits;
-  - resolved descriptor indices and replacement dimensions are now persisted into per-tile replacement state;
+  - resolved descriptor indices and replacement dimensions are persisted into per-tile replacement state;
   - upload residency/handle/budget decisions are routed through registry policy helpers.
-- Important boundary: `M4` is still open until shader consumption (`M5`) can read/use descriptor-backed replacements in texel stage.
-- Next execution target: finish `M4` runtime stabilization/coverage, then move to `M5` shader late-swap integration.
+- `M5` is now active:
+  - CPU tile replacement metadata is now plumbed through `TileInfo` into shader-visible tile state;
+  - shader policy helpers and unit tests are in place for enable/bind/clear/apply replacement decisions;
+  - texel-stage swap code is integrated in shader sources and gated by `HIRES_REPLACEMENT`.
+- Current blocker for closing `M5`:
+  - embedded shader bank regeneration (`shaders/slangmosh.hpp`) is pending because the currently available `slangmosh` tool emits a newer interface contract that is incompatible with this repo's older Vulkan program-loading API.
+  - default non-`PARALLEL_RDP_SHADER_DIR` builds therefore still run without the new `HIRES_REPLACEMENT` permutation in the baked bank.
+- Next execution target: finish `M5` shader late-swap integration and validate via local smoke + unit tests.
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -135,3 +141,12 @@ I will post updates in this format as work progresses:
     - Vulkan init now enables `VK_EXT_descriptor_indexing`,
     - HIRES path reports enabled and loads cache (`15159` entries),
     - 20s smoke run ends cleanly with keying summary (`lookups=31902 hits=18376 misses=13526 provider=on`).
+- 2026-03-05: Began `M5` texel-stage shader swap integration:
+  - added `rdp_hires_shader_policy.hpp` and new `emu.unit.hires_shader_policy` coverage;
+  - extended tile host/shader data structures with replacement metadata (`orig/replacement dims + descriptor index`);
+  - wired renderer bindless set-3 binding and `HIRES_REPLACEMENT` define resolution in rasterizer/ubershader paths;
+  - validated local gates:
+    - `./run-build.sh` (pass),
+    - `./run-tests.sh --profile hires-readiness` (pass),
+    - 20s Paper Mario smoke with debug keying (`provider=on`, live hit/miss stream).
+  - noted open blocker: embedded shader bank regeneration mismatch (new `slangmosh` output vs current repo Vulkan API), so default baked-shader path still needs a compatible regeneration step before `M5` can be closed.

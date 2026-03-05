@@ -25,6 +25,7 @@
 #include "rdp_hires_ci_palette_policy.hpp"
 #include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_lookup_policy.hpp"
+#include "rdp_hires_shader_policy.hpp"
 #include "rdp_hires_state_policy.hpp"
 #include "texture_replacement.hpp"
 #include "texture_keying.hpp"
@@ -264,6 +265,8 @@ int Renderer::resolve_shader_define(const char *name, const char *define) const
 		return int(caps.ubershader);
 	else if (strcmp(define, "SMALL_TYPES") == 0)
 		return int(caps.supports_small_integer_arithmetic);
+	else if (strcmp(define, "HIRES_REPLACEMENT") == 0)
+		return int(hires_shader_path_enabled);
 	else if (strcmp(define, "SUBGROUP") == 0)
 	{
 		if (strcmp(name, "tile_binning_combined") == 0)
@@ -674,6 +677,16 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 		reset_hires_registry();
 	detail::reset_hires_tracking_state(
 			replacement_tiles, tlut_shadow_valid, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
+
+	for (auto &tile : tiles)
+		detail::clear_hires_tile_replacement_binding(tile);
+
+	if (replacement_provider && !hires_registry.ready)
+		ensure_hires_registry();
+
+	hires_shader_path_enabled = detail::should_enable_hires_shader_path(
+			replacement_provider != nullptr,
+			hires_registry.ready);
 }
 
 void Renderer::set_hires_debug(bool enable)
@@ -696,15 +709,24 @@ void Renderer::log_hires_summary() const
 void Renderer::reset_hires_registry()
 {
 	hires_registry = {};
+	hires_shader_path_enabled = false;
 }
 
 bool Renderer::ensure_hires_registry()
 {
 	if (hires_registry.ready)
+	{
+		hires_shader_path_enabled = detail::should_enable_hires_shader_path(
+				replacement_provider != nullptr,
+				true);
 		return true;
+	}
 
 	if (!device)
+	{
+		hires_shader_path_enabled = false;
 		return false;
+	}
 
 	hires_registry.bindless_pool = device->create_bindless_descriptor_pool(
 			Vulkan::BindlessResourceType::ImageFP,
@@ -723,6 +745,9 @@ bool Renderer::ensure_hires_registry()
 	hires_registry.capacity = HIRES_DESCRIPTOR_CAPACITY;
 	hires_registry.next_descriptor = 0;
 	hires_registry.tick = 0;
+	hires_shader_path_enabled = detail::should_enable_hires_shader_path(
+			replacement_provider != nullptr,
+			hires_registry.ready);
 	return true;
 }
 
@@ -1864,14 +1889,19 @@ void Renderer::submit_rasterization(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &
 
 	global_fb_info->base_primitive_index = base_primitive_index;
 
+	const bool use_hires_shader = hires_shader_path_enabled;
 #ifdef PARALLEL_RDP_SHADER_DIR
 	cmd.set_program("rdp://rasterizer.comp", {
 		{ "DEBUG_ENABLE", debug_channel ? 1 : 0 },
 		{ "SMALL_TYPES", caps.supports_small_integer_arithmetic ? 1 : 0 },
+		{ "HIRES_REPLACEMENT", use_hires_shader ? 1 : 0 },
 	});
 #else
 	cmd.set_program(shader_bank->rasterizer);
 #endif
+
+	if (detail::should_bind_hires_descriptor_set(use_hires_shader, hires_registry.bindless_pool.get() != nullptr))
+		cmd.set_bindless(3, hires_registry.bindless_pool->get_descriptor_set());
 
 	cmd.set_specialization_constant(0, ImplementationConstants::TileWidth);
 	cmd.set_specialization_constant(1, ImplementationConstants::TileHeight);
@@ -2202,12 +2232,14 @@ void Renderer::submit_depth_blend(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &tm
 	push.group_mask = (1u << num_primitives_32) - 1;
 	cmd.push_constants(&push, 0, sizeof(push));
 
+	const bool use_hires_shader = caps.ubershader && hires_shader_path_enabled;
 	if (caps.ubershader)
 	{
 #ifdef PARALLEL_RDP_SHADER_DIR
 		cmd.set_program("rdp://ubershader.comp", {
 				{ "DEBUG_ENABLE", debug_channel ? 1 : 0 },
 				{ "SMALL_TYPES", caps.supports_small_integer_arithmetic ? 1 : 0 },
+				{ "HIRES_REPLACEMENT", use_hires_shader ? 1 : 0 },
 		});
 #else
 		cmd.set_program(shader_bank->ubershader);
@@ -2224,6 +2256,9 @@ void Renderer::submit_depth_blend(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &tm
 		cmd.set_program(shader_bank->depth_blend);
 #endif
 	}
+
+	if (detail::should_bind_hires_descriptor_set(use_hires_shader, hires_registry.bindless_pool.get() != nullptr))
+		cmd.set_bindless(3, hires_registry.bindless_pool->get_descriptor_set());
 
 	Vulkan::QueryPoolHandle start_ts, end_ts;
 	if (caps.timestamp >= 2)
@@ -3535,6 +3570,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					repl_meta.vk_image_index,
 					repl_meta.repl_w,
 					repl_meta.repl_h);
+			detail::apply_hires_tile_replacement_binding(tiles[tile], repl_state);
 
 			detail::record_hires_lookup_result(hit, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
 
@@ -3555,6 +3591,14 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				     repl_meta.vk_image_index);
 			}
 		}
+		else if (!is_tlut_mode)
+		{
+			detail::clear_hires_tile_replacement_binding(tiles[tile]);
+		}
+	}
+	else if (!is_tlut_mode)
+	{
+		detail::clear_hires_tile_replacement_binding(tiles[tile]);
 	}
 
 	stream.tmem_upload_infos.push_back(upload);

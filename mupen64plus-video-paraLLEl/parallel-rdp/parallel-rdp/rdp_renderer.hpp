@@ -169,6 +169,7 @@ private:
 	const ShaderBank *shader_bank = nullptr;
 	const ReplacementProvider *replacement_provider = nullptr;
 	bool hires_debug = false;
+	bool hires_shader_path_enabled = false;
 
 	bool init_caps();
 	void init_blender_lut();
@@ -211,7 +212,7 @@ private:
 
 	void ensure_command_buffer();
 
-	TileInfo tiles[Limits::MaxNumTiles];
+	TileInfo tiles[Limits::MaxNumTiles] = {};
 	struct ReplacementTileState
 	{
 		uint64_t checksum64 = 0;

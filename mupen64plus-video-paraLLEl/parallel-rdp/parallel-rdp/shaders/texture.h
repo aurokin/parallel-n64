@@ -25,11 +25,45 @@
 
 #include "data_structures.h"
 
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_samplerless_texture_functions : require
+layout(set = 3, binding = 0) uniform mediump texture2D uHiresTextures[];
+#endif
+
 const int TEXTURE_FORMAT_RGBA = 0;
 const int TEXTURE_FORMAT_YUV = 1;
 const int TEXTURE_FORMAT_CI = 2;
 const int TEXTURE_FORMAT_IA = 3;
 const int TEXTURE_FORMAT_I = 4;
+
+const uint HIRES_INVALID_DESC_INDEX = 0xffffffffu;
+
+bool tile_uses_hires_replacement(TileInfo tile)
+{
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	return tile.repl_desc_index != HIRES_INVALID_DESC_INDEX &&
+	       tile.repl_orig_w > U16_C(0) && tile.repl_orig_h > U16_C(0) &&
+	       tile.repl_w > U16_C(0) && tile.repl_h > U16_C(0);
+#else
+	return false;
+#endif
+}
+
+i16x4 sample_hires_replacement_texel(TileInfo tile, ivec2 st)
+{
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	ivec2 orig_dims = max(ivec2(tile.repl_orig_w, tile.repl_orig_h), ivec2(1));
+	ivec2 repl_dims = max(ivec2(tile.repl_w, tile.repl_h), ivec2(1));
+	vec2 uv = (vec2(st) + vec2(0.5)) / vec2(orig_dims);
+	ivec2 repl_coord = ivec2(clamp(uv * vec2(repl_dims), vec2(0.0), vec2(repl_dims - 1)));
+	vec4 repl = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], repl_coord, 0);
+	ivec4 expanded = ivec4(clamp(repl * vec4(255.0) + vec4(0.5), vec4(0.0), vec4(255.0)));
+	return i16x4(expanded);
+#else
+	return i16x4(0);
+#endif
+}
 
 int texel_mask_s(TileInfo tile, int s)
 {
@@ -517,8 +551,21 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 
 	bool yuv = tile.fmt == TEXTURE_FORMAT_YUV;
 	ivec2 base_st = sum_frac >= 0x20 ? ivec2(s1, t1) : ivec2(s0, t0);
+	bool replacement_active = tile_uses_hires_replacement(tile);
 
-	if (tlut)
+	if (replacement_active)
+	{
+		yuv = false;
+		t_base = sample_hires_replacement_texel(tile, base_st);
+		if (sample_quad)
+		{
+			t10 = sample_hires_replacement_texel(tile, ivec2(s1, t0));
+			t01 = sample_hires_replacement_texel(tile, ivec2(s0, t1));
+		}
+		if (mid_texel)
+			t11 = sample_hires_replacement_texel(tile, ivec2(s1, t1));
+	}
+	else if (tlut)
 	{
 		switch (int(tile.fmt))
 		{

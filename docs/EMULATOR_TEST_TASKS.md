@@ -265,3 +265,14 @@
   - `./run-tests.sh`,
   - `./run-build.sh`,
   - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.
+- 2026-03-05: Added texture-load command sequence conformance:
+  - Added `tests/emulator_behavior/emu_conformance_rdp_texture_load_sequence_test.cpp` as `emu.conformance.rdp_texture_load_sequence`.
+  - Asserts parser command segmentation/order for a minimal texture setup sequence:
+    - `SetTextureImage`, `SetTile`, `LoadBlock`, `SetTileSize`, `SyncLoad`, `SyncPipe`, `SyncTile`.
+  - Asserts these non-Full sync commands do not raise the DP interrupt.
+- 2026-03-05: Revalidated after texture-load conformance coverage with:
+  - `./run-tests.sh -R emu.conformance`,
+  - `./run-tests.sh -R emu.unit`,
+  - `./run-tests.sh`,
+  - `./run-build.sh`,
+  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose`.

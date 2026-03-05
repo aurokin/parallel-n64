@@ -161,7 +161,8 @@
         - deterministic seed capture for all synthetic conformance tests to simplify regression triage,
         - explicit test-runner profile contract checks (`run-tests.sh --profile` mappings, conflict handling) to prevent gate drift,
         - explicit dump-runner contract checks (`run-dump-tests.sh` flags, env export, and handoff behavior) to prevent local gate drift,
-        - explicit build-runner contract checks (`run-build.sh` CLI defaults/toggles/handoff) to prevent local build workflow drift.
+        - explicit build-runner contract checks (`run-build.sh` CLI defaults/toggles/handoff) to prevent local build workflow drift,
+        - explicit runtime-launcher contract checks (`run-n64.sh` default core/ROM selection and CLI handoff) to prevent local runtime workflow drift.
   - Exit criteria:
     - New tests exist for Vulkan glue entrypoints and are mapped into `emu.unit.*` or `emu.conformance.*`.
     - Renderer + VI expansion includes at least one non-trivial golden/hash set each with deterministic local pass behavior.
@@ -185,7 +186,7 @@
 - `Next`: immediate next step.
 
 ## Current Status
-- Active phase: `T10` execution (`M29` build-runner contract coverage in progress).
+- Active phase: `T10` execution (`M30` runtime-launcher contract coverage in progress).
 - Hi-res plan: on hold for new feature work until emulator behavior test baseline is established.
 - Open risk: local optional tiers depend on host tooling (Vulkan/lavapipe + `rdp-validate-dump`) and may skip when unavailable.
 
@@ -778,4 +779,14 @@
   - Gap closure: prevents drift in local build-wrapper behavior that test/dev workflows depend on.
 - 2026-03-05: Validated current `T10` (`M29`) slice with:
   - `./run-tests.sh -R emu.unit.build_runner_contract`,
+  - `./run-tests.sh --profile emu-required`.
+- 2026-03-05: Advanced `T10` (`M30`) runtime-launcher contract coverage:
+  - Added `tests/emulator_behavior/support/emu_run_n64_contract.sh` and registered `emu.unit.run_n64_contract`.
+    - Locks `run-n64.sh` usage/option surface (`--reference`, `--core`, `--retroarch`, `--rom-dir`, `--menu`, `--list-cores`).
+    - Locks default runtime contracts (Paper Mario default ROM, reference core path, non-reference core discovery filter).
+    - Locks core selection priority and runtime error guards for RetroArch/core/ROM validation.
+    - Locks final RetroArch launch handoff (`-L`, passthrough args, `exec` behavior).
+  - Gap closure: prevents drift in local runtime launch workflow used by conformance/debug runs.
+- 2026-03-05: Validated current `T10` (`M30`) slice with:
+  - `./run-tests.sh -R emu.unit.run_n64_contract`,
   - `./run-tests.sh --profile emu-required`.

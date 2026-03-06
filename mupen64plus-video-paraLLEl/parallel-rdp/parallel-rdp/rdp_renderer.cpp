@@ -680,6 +680,8 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 			replacement_tiles, tlut_shadow_valid, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
 	hires_descriptor_bound_hits = 0;
 	hires_descriptor_unbound_hits = 0;
+	hires_budget_evictions = 0;
+	hires_budget_rejections = 0;
 
 	for (auto &tile : tiles)
 		detail::clear_hires_tile_replacement_binding(tile);
@@ -698,6 +700,9 @@ void Renderer::set_hires_budget(size_t budget_bytes, bool eviction_enabled)
 	hires_eviction_enabled = eviction_enabled && budget_bytes > 0;
 	hires_registry.budget_bytes = hires_budget_bytes;
 	hires_registry.eviction_enabled = hires_eviction_enabled;
+
+	if (hires_registry.ready && hires_registry.eviction_enabled)
+		evict_hires_registry_entries(0, nullptr);
 }
 
 void Renderer::set_hires_debug(bool enable)
@@ -710,12 +715,16 @@ void Renderer::log_hires_summary() const
 	if (!replacement_provider && !hires_debug)
 		return;
 
-	LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu bound_hits=%llu unbound_hits=%llu provider=%s.\n",
+	LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu bound_hits=%llu unbound_hits=%llu evictions=%llu rejects=%llu resident_bytes=%llu budget_bytes=%llu provider=%s.\n",
 	     static_cast<unsigned long long>(hires_lookup_total),
 	     static_cast<unsigned long long>(hires_lookup_hits),
 	     static_cast<unsigned long long>(hires_lookup_misses),
 	     static_cast<unsigned long long>(hires_descriptor_bound_hits),
 	     static_cast<unsigned long long>(hires_descriptor_unbound_hits),
+	     static_cast<unsigned long long>(hires_budget_evictions),
+	     static_cast<unsigned long long>(hires_budget_rejections),
+	     static_cast<unsigned long long>(hires_registry.resident_bytes),
+	     static_cast<unsigned long long>(hires_registry.budget_bytes),
 	     replacement_provider ? "on" : "off");
 }
 
@@ -754,6 +763,21 @@ bool Renderer::ensure_hires_registry()
 		return false;
 	}
 
+	const uint32_t fallback_pixel = 0;
+	Vulkan::ImageInitialData fallback_initial = {};
+	fallback_initial.data = &fallback_pixel;
+	auto fallback_info = Vulkan::ImageCreateInfo::immutable_2d_image(
+			1,
+			1,
+			VK_FORMAT_R8G8B8A8_UNORM,
+			false);
+	hires_registry.fallback_image = device->create_image(fallback_info, &fallback_initial);
+	if (!hires_registry.fallback_image)
+	{
+		hires_registry.bindless_pool.reset();
+		return false;
+	}
+
 	hires_registry.ready = true;
 	hires_registry.capacity = HIRES_DESCRIPTOR_CAPACITY;
 	hires_registry.next_descriptor = 0;
@@ -775,6 +799,65 @@ Renderer::HiresRegistryEntry *Renderer::find_hires_registry_entry(uint64_t check
 			itr->second.data(),
 			itr->second.size(),
 			formatsize);
+}
+
+Renderer::HiresRegistryEntry *Renderer::find_hires_registry_eviction_candidate(const HiresRegistryEntry *exclude_entry)
+{
+	HiresRegistryEntry *candidate = nullptr;
+	for (auto &bucket : hires_registry.entries_by_checksum)
+	{
+		for (auto &entry : bucket.second)
+		{
+			if (&entry == exclude_entry)
+				continue;
+			if (entry.pinned)
+				continue;
+			if (entry.state != detail::HiresRegistryResidencyState::Ready)
+				continue;
+			if (!entry.image || entry.resident_bytes == 0)
+				continue;
+
+			if (!candidate || entry.last_used_tick < candidate->last_used_tick)
+				candidate = &entry;
+		}
+	}
+
+	return candidate;
+}
+
+bool Renderer::evict_hires_registry_entries(size_t incoming_bytes, const HiresRegistryEntry *exclude_entry)
+{
+	if (hires_registry.budget_bytes == 0)
+		return true;
+	if (incoming_bytes > hires_registry.budget_bytes)
+		return false;
+
+	while (hires_registry.resident_bytes > hires_registry.budget_bytes - incoming_bytes)
+	{
+		auto *victim = find_hires_registry_eviction_candidate(exclude_entry);
+		if (!victim)
+			return false;
+
+		const bool descriptor_valid = detail::hires_registry_handle_valid(victim->descriptor_index, hires_registry.capacity);
+		if (descriptor_valid && hires_registry.bindless_pool && hires_registry.fallback_image)
+			hires_registry.bindless_pool->set_texture(victim->descriptor_index, hires_registry.fallback_image->get_view());
+
+		if (victim->resident_bytes <= hires_registry.resident_bytes)
+			hires_registry.resident_bytes -= victim->resident_bytes;
+		else
+			hires_registry.resident_bytes = 0;
+
+		victim->image.reset();
+		victim->repl_w = 0;
+		victim->repl_h = 0;
+		victim->resident_bytes = 0;
+		victim->state = detail::advance_hires_registry_state(
+				victim->state,
+				detail::HiresRegistryTransition::DisableOrReset);
+		hires_budget_evictions++;
+	}
+
+	return true;
 }
 
 bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta)
@@ -813,8 +896,8 @@ bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t f
 	if (!descriptor_valid)
 	{
 		if (detail::check_hires_registry_handle_allocation(
-				    hires_registry.next_descriptor,
-				    hires_registry.capacity) == detail::HiresRegistryHandleAllocationResult::Exhausted)
+					hires_registry.next_descriptor,
+					hires_registry.capacity) == detail::HiresRegistryHandleAllocationResult::Exhausted)
 		{
 			entry->state = detail::advance_hires_registry_state(
 					entry->state,
@@ -842,14 +925,25 @@ bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t f
 		return false;
 	}
 
+	const bool has_evictable_candidate = find_hires_registry_eviction_candidate(entry) != nullptr;
 	const auto budget_decision = detail::decide_hires_registry_budget(
 			hires_registry.resident_bytes,
 			replacement.rgba8.size(),
 			hires_registry.budget_bytes,
 			hires_registry.eviction_enabled,
-			false);
+			has_evictable_candidate);
 	if (budget_decision == detail::HiresRegistryBudgetDecision::RejectOverBudget)
 	{
+		hires_budget_rejections++;
+		entry->state = detail::advance_hires_registry_state(
+				entry->state,
+				detail::HiresRegistryTransition::UploadFailed);
+		return false;
+	}
+	if (budget_decision == detail::HiresRegistryBudgetDecision::EvictOldestThenAdmit &&
+	    !evict_hires_registry_entries(replacement.rgba8.size(), entry))
+	{
+		hires_budget_rejections++;
 		entry->state = detail::advance_hires_registry_state(
 				entry->state,
 				detail::HiresRegistryTransition::UploadFailed);

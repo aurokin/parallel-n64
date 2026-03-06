@@ -244,15 +244,16 @@ bool init()
 	if (hires_capabilities_ok)
 	{
 		log_cb(RETRO_LOG_INFO,
-		       "Hi-res textures enabled (path=%s, filter=%u, srgb_mode=%u, budget_mb=%u).\n",
-		       hires_cache_path.c_str(), hires_filter, hires_srgb, hires_budget_mb);
+		       "Hi-res textures enabled (path=%s, filter=%u, srgb_mode=%u, budget_mb=%u, eviction=%s).\n",
+		       hires_cache_path.c_str(), hires_filter, hires_srgb, hires_budget_mb,
+		       hires_budget_mb > 0 ? "on" : "off");
 	}
 
 	frontend->configure_hires_replacement(
 			hires_capabilities_ok,
 			hires_cache_path.c_str(),
 			size_t(hires_budget_mb) * 1024ull * 1024ull,
-			false);
+			hires_budget_mb > 0);
 
 	timeline_value = 0;
 	pending_timeline_value = 0;

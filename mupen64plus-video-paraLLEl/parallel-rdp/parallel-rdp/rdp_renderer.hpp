@@ -234,6 +234,8 @@ private:
 	uint64_t hires_lookup_misses = 0;
 	uint64_t hires_descriptor_bound_hits = 0;
 	uint64_t hires_descriptor_unbound_hits = 0;
+	uint64_t hires_budget_evictions = 0;
+	uint64_t hires_budget_rejections = 0;
 
 	struct HiresRegistryEntry
 	{
@@ -258,6 +260,7 @@ private:
 		size_t budget_bytes = 0;
 		bool eviction_enabled = false;
 		Vulkan::BindlessDescriptorPoolHandle bindless_pool;
+		Vulkan::ImageHandle fallback_image;
 		std::unordered_map<uint64_t, std::vector<HiresRegistryEntry>> entries_by_checksum;
 	};
 	HiresRegistryState hires_registry = {};
@@ -267,6 +270,8 @@ private:
 	void reset_hires_registry();
 	bool ensure_hires_registry();
 	HiresRegistryEntry *find_hires_registry_entry(uint64_t checksum64, uint16_t formatsize);
+	HiresRegistryEntry *find_hires_registry_eviction_candidate(const HiresRegistryEntry *exclude_entry);
+	bool evict_hires_registry_entries(size_t incoming_bytes, const HiresRegistryEntry *exclude_entry);
 	bool resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta);
 	Vulkan::BufferHandle tmem_instances;
 	Vulkan::BufferHandle span_setups;

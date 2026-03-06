@@ -82,6 +82,10 @@ static void test_budget_decision_contract()
 	      "over-budget upload with eviction enabled and candidate should evict+admit");
 	check(decide_hires_registry_budget(64, 96, 128, true, false) == HiresRegistryBudgetDecision::RejectOverBudget,
 	      "over-budget upload with no evictable candidate should reject");
+	check(decide_hires_registry_budget(64, 300, 128, true, true) == HiresRegistryBudgetDecision::RejectOverBudget,
+	      "incoming texture larger than total budget should always reject");
+	check(decide_hires_registry_budget(129, 0, 128, true, true) == HiresRegistryBudgetDecision::EvictOldestThenAdmit,
+	      "budget shrink with eviction enabled should request eviction pass");
 }
 
 static void test_eviction_candidate_selection_skips_pinned_entries()

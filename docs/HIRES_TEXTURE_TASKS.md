@@ -69,7 +69,13 @@ Expected fallback behavior:
     - `emu.unit.hires_lookup_policy` (descriptor-bound outcome accounting)
     - `emu.unit.parallel_option_wiring` (`parallel_set_hires_budget_mb`)
     - `emu.unit.plugin_contract` stub sync for new option setter
-- Next execution target: continue `M7` with replacement filtering/mips/LOD behavior wiring and follow-up tests.
+- `M7` slice 2 (budget enforcement) is now in:
+  - Implemented renderer-side LRU eviction when budget is enabled, including repeated eviction passes until the incoming upload fits.
+  - Added a fallback descriptor image for evicted handles so descriptor slots remain valid after residency drops.
+  - Enabled eviction from runtime configure path whenever `budget_mb > 0`.
+  - Extended summary observability with `evictions`, `rejects`, and resident/budget byte counters.
+  - Expanded unit coverage in `emu.unit.hires_registry_policy` for oversized-texture reject and budget-shrink eviction decisions.
+- Next execution target: continue `M7` with replacement filtering/sRGB and mips/LOD behavior wiring, plus follow-up tests.
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -202,3 +208,16 @@ I will post updates in this format as work progresses:
   - Extended hi-res summary metrics with descriptor-bind outcomes (`bound_hits`, `unbound_hits`) to distinguish key matches from actually bound replacements.
   - Added unit coverage updates in `emu.unit.hires_lookup_policy`, `emu.unit.parallel_option_wiring`, and `emu.unit.plugin_contract`.
   - Revalidated with `./run-build.sh`, focused unit set, and 30s smoke (`bound_hits` observed, `unbound_hits=0`).
+
+- 2026-03-05: Continued `M7` with budget-enforcement slice:
+  - Added renderer-side LRU eviction path (with repeated evictions) when resident bytes exceed configured hi-res budget.
+  - Added per-registry fallback image binding for evicted descriptor slots to keep bindless descriptors valid.
+  - Enabled eviction automatically from runtime configure when `parallel-n64-parallel-rdp-hirestex-budget-mb > 0`.
+  - Extended summary metrics with budget observability (`evictions`, `rejects`, `resident_bytes`, `budget_bytes`).
+  - Expanded `emu.unit.hires_registry_policy` budget-decision coverage for oversize rejection and budget-shrink eviction.
+  - Revalidated locally with:
+    - `./run-tests.sh -R '^emu\.unit\.(hires_registry_policy|hires_lookup_policy|hires_runtime_policy|parallel_option_wiring|plugin_contract)$'`
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-build.sh`
+    - `timeout --signal=KILL 40s ./run-n64-smoke-start.sh -- --verbose`
+    - 30s smoke with temporary `budget_mb=128` (`evictions=2`, `rejects=0`, `resident_bytes=132587920`, `budget_bytes=134217728`).

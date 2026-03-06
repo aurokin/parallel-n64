@@ -167,6 +167,29 @@ int texel_mask_t(TileInfo tile, int t)
 	return t;
 }
 
+ivec2 remap_hires_st_fp5(TileInfo tile, ivec2 st_fp5)
+{
+#if SCALING_FACTOR > 1
+	st_fp5 /= SCALING_FACTOR;
+#endif
+	int s = texel_mask_s(tile, st_fp5.x >> 5);
+	int t = texel_mask_t(tile, st_fp5.y >> 5);
+	return ivec2((s << 5) + (st_fp5.x & 31),
+	             (t << 5) + (st_fp5.y & 31));
+}
+
+ivec2 remap_hires_st_fp5_copy(TileInfo tile, ivec2 st_fp5, int s_offset)
+{
+	int s = texel_mask_s(tile, (st_fp5.x >> 5) + s_offset);
+	int t = texel_mask_t(tile, st_fp5.y >> 5);
+	ivec2 remapped = ivec2((s << 5) + (st_fp5.x & 31),
+	                       (t << 5) + (st_fp5.y & 31));
+#if SCALING_FACTOR > 1
+	remapped /= SCALING_FACTOR;
+#endif
+	return remapped;
+}
+
 i16x4 convert_rgba16(uint word)
 {
 	uvec3 rgb = (uvec3(word) >> uvec3(11, 6, 1)) & 31u;
@@ -550,13 +573,7 @@ int sample_texture_copy(TileInfo tile, uint tmem_instance, ivec2 st, int s_offse
 
 	if (tile_uses_hires_replacement(tile))
 	{
-		int s = texel_mask_s(tile, st.x + s_offset);
-		int t = texel_mask_t(tile, st.y);
-		ivec2 st_repl_fp5 = ivec2((s << 5) + (st_fp5.x & 31),
-		                          (t << 5) + (st_fp5.y & 31));
-#if SCALING_FACTOR > 1
-		st_repl_fp5 /= SCALING_FACTOR;
-#endif
+		ivec2 st_repl_fp5 = remap_hires_st_fp5_copy(tile, st_fp5, s_offset);
 		int hires_lod = compute_hires_replacement_lod(tile, I16_C(0));
 		i16x4 repl_texel = sample_hires_replacement_texel_fp5(tile, st_repl_fp5, hires_lod, false);
 		uvec4 repl = uvec4(clamp(ivec4(repl_texel), ivec4(0), ivec4(255)));
@@ -641,11 +658,7 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 	{
 		yuv = false;
 		int hires_lod = compute_hires_replacement_lod(tile, lod_frac);
-		ivec2 st_repl_fp5 = ivec2((base_st.x << 5) + (st_fp5.x & 31),
-		                          (base_st.y << 5) + (st_fp5.y & 31));
-#if SCALING_FACTOR > 1
-		st_repl_fp5 /= SCALING_FACTOR;
-#endif
+		ivec2 st_repl_fp5 = remap_hires_st_fp5(tile, st_fp5);
 		t_base = sample_hires_replacement_texel_fp5(tile, st_repl_fp5, hires_lod, true);
 
 		// Replacement textures sample in continuous coordinate space.

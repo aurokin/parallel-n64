@@ -45,6 +45,7 @@
 #include "shaders/slangmosh.hpp"
 #endif
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 
 namespace RDP
@@ -690,6 +691,7 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_shader_dispatch_total = 0;
 	hires_shader_dispatch_with_define = 0;
 	hires_shader_dispatch_with_bindless = 0;
+	hires_ci_palette_hint = 0;
 
 	for (auto &tile : tiles)
 		detail::clear_hires_tile_replacement_binding(tile);
@@ -3764,20 +3766,23 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 		if (detail::should_update_tlut_shadow(rdram_view_ok, is_tlut_mode))
 		{
 			const uint32_t bytes = key_width_pixels * key_height_pixels * bpp_bytes;
+				// GLideN64 TexFilterPalette compatibility:
+				// TLUT shadow source is taken from texture-image base address, not uls/ult-adjusted address.
+				const uint32_t tlut_src_base_addr = info.tex_addr;
 				auto shadow_update = detail::update_hires_tlut_shadow(
 						tlut_shadow,
 						sizeof(tlut_shadow),
 						tlut_shadow_valid,
 						cpu_rdram,
 						rdram_size,
-						src_base_addr,
+						tlut_src_base_addr,
 						bytes,
 						upload.tmem_offset);
 
 				if (hires_debug)
 				{
 					LOGI("Hi-res keying TLUT update: addr=0x%06x bytes=%u copied=%u tmem=0x%03x shadow_ofs=%u tile=%u.\n",
-					     src_base_addr & 0x00ffffffu,
+					     tlut_src_base_addr & 0x00ffffffu,
 					     bytes,
 					     shadow_update.copied_bytes,
 					     upload.tmem_offset,
@@ -3805,8 +3810,13 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					meta.fmt,
 					meta.size,
 					tlut_shadow_valid);
+			detail::HiresCiPaletteCrcCandidates last_palette_crc_candidates = {};
+			uint32_t last_palette_texture_crc = 0;
 
-			auto try_lookup_for_texture_crc = [&](uint32_t candidate_texture_crc) {
+			auto try_lookup_for_texture_crc = [&](uint32_t candidate_texture_crc,
+			                                     uint32_t candidate_width_pixels,
+			                                     uint32_t candidate_height_pixels,
+			                                     uint32_t candidate_row_stride_bytes) {
 				bool candidate_hit = false;
 				checksum64 = detail::compose_hires_checksum64(candidate_texture_crc, 0);
 
@@ -3818,12 +3828,14 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							cpu_rdram,
 							rdram_size,
 							src_base_addr,
-							key_width_pixels,
-							key_height_pixels,
-							row_stride_bytes,
+							candidate_width_pixels,
+							candidate_height_pixels,
+							candidate_row_stride_bytes,
 							tlut_shadow,
 							sizeof(tlut_shadow),
 							tlut_shadow_valid);
+					last_palette_crc_candidates = palette_crc_candidates;
+					last_palette_texture_crc = candidate_texture_crc;
 
 					for (uint32_t i = 0; i < palette_crc_candidates.count && !candidate_hit; i++)
 					{
@@ -3844,12 +3856,34 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						checksum64 = ci_fallback_checksum64;
 						candidate_hit = true;
 					}
+					else if (replacement_provider->lookup_ci_low32_any(
+							candidate_texture_crc,
+							formatsize,
+							hires_ci_palette_hint,
+							&repl_meta,
+							&ci_fallback_checksum64))
+					{
+						checksum64 = ci_fallback_checksum64;
+						candidate_hit = true;
+						if (hires_debug)
+						{
+							LOGI("Hi-res keying CI ambiguous fallback: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
+							     candidate_texture_crc,
+							     unsigned(formatsize),
+							     hires_ci_palette_hint,
+							     static_cast<unsigned long long>(checksum64));
+						}
+					}
 				}
 
 				return candidate_hit;
 			};
 
-			hit = try_lookup_for_texture_crc(texture_crc);
+			hit = try_lookup_for_texture_crc(
+					texture_crc,
+					key_width_pixels,
+					key_height_pixels,
+					row_stride_bytes);
 
 			uint32_t lookup_width_pixels = key_width_pixels;
 			uint32_t lookup_height_pixels = key_height_pixels;
@@ -3877,7 +3911,11 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							uint32_t(info.size),
 							row_stride_bytes);
 
-					if (try_lookup_for_texture_crc(masked_texture_crc))
+					if (try_lookup_for_texture_crc(
+							masked_texture_crc,
+							masked_width_pixels,
+							masked_height_pixels,
+							row_stride_bytes))
 					{
 						hit = true;
 						texture_crc = masked_texture_crc;
@@ -3892,6 +3930,42 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 								key_height_pixels,
 								lookup_width_pixels,
 								lookup_height_pixels,
+								static_cast<unsigned long long>(checksum64),
+								unsigned(formatsize));
+						}
+					}
+				}
+			}
+			if (!hit && info.mode == UploadMode::Tile)
+			{
+				const uint32_t tile_row_stride_bytes = (meta.size == TextureSize::Bpp32) ?
+						(meta.stride << 1) :
+						meta.stride;
+				if (tile_row_stride_bytes != 0 && tile_row_stride_bytes != row_stride_bytes)
+				{
+					const uint32_t alt_texture_crc = rice_crc32_wrapped(
+							cpu_rdram,
+							rdram_size,
+							src_base_addr,
+							lookup_width_pixels,
+							lookup_height_pixels,
+							uint32_t(info.size),
+							tile_row_stride_bytes);
+					if (try_lookup_for_texture_crc(
+							alt_texture_crc,
+							lookup_width_pixels,
+							lookup_height_pixels,
+							tile_row_stride_bytes))
+					{
+						hit = true;
+						texture_crc = alt_texture_crc;
+						if (hires_debug)
+						{
+							LOGI("Hi-res keying tile-stride fallback hit: addr=0x%06x wh=%ux%u stride=%u key=%016llx fs=%u.\n",
+								src_base_addr & 0x00ffffffu,
+								lookup_width_pixels,
+								lookup_height_pixels,
+								tile_row_stride_bytes,
 								static_cast<unsigned long long>(checksum64),
 								unsigned(formatsize));
 						}
@@ -3989,6 +4063,24 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						{
 							probe_checksum64 = ci_fallback_checksum64;
 							probe_hit = true;
+						}
+						else if (replacement_provider->lookup_ci_low32_any(
+								probe_texture_crc,
+								probe_formatsize,
+								hires_ci_palette_hint,
+								&probe_repl_meta,
+								&ci_fallback_checksum64))
+						{
+							probe_checksum64 = ci_fallback_checksum64;
+							probe_hit = true;
+							if (hires_debug)
+							{
+								LOGI("Hi-res keying CI ambiguous block fallback: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
+								     probe_texture_crc,
+								     unsigned(probe_formatsize),
+								     hires_ci_palette_hint,
+								     static_cast<unsigned long long>(probe_checksum64));
+							}
 						}
 					}
 
@@ -4127,7 +4219,12 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			}
 
 			if (hit)
+			{
+				const uint32_t palette_crc = uint32_t((checksum64 >> 32) & 0xffffffffu);
+				if (palette_crc != 0)
+					hires_ci_palette_hint = palette_crc;
 				resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
+			}
 
 			// Preserve key dimensions for replacement sampling whenever available.
 			// Falling back to tile-span/mask heuristics can undershoot orig dims and introduce banding.
@@ -4178,10 +4275,10 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					hires_descriptor_bound_hits,
 					hires_descriptor_unbound_hits);
 
-			if (hires_debug)
-			{
-				LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u wh=%ux%u samp=%ux%u repl=%ux%u key=%016llx fs=%u hit=%d desc=%u mips=%d srgb=%d.\n",
-					hit ? "hit" : "miss",
+				if (hires_debug)
+				{
+					LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u wh=%ux%u samp=%ux%u repl=%ux%u key=%016llx fs=%u hit=%d desc=%u mips=%d srgb=%d.\n",
+						hit ? "hit" : "miss",
 					load_mode_to_string(info.mode),
 					src_base_addr & 0x00ffffffu,
 					tile,
@@ -4196,11 +4293,37 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					static_cast<unsigned long long>(checksum64),
 					unsigned(formatsize),
 					hit ? 1 : 0,
-					repl_meta.vk_image_index,
-					repl_meta.has_mips ? 1 : 0,
-					repl_meta.srgb ? 1 : 0);
+						repl_meta.vk_image_index,
+						repl_meta.has_mips ? 1 : 0,
+						repl_meta.srgb ? 1 : 0);
+
+					if (!hit && ci_uses_palette_candidates && last_palette_crc_candidates.count > 0)
+					{
+						char palette_buf[256];
+						int offset = 0;
+						for (uint32_t i = 0; i < last_palette_crc_candidates.count; i++)
+						{
+							const int wrote = snprintf(
+									palette_buf + offset,
+									sizeof(palette_buf) - size_t(offset),
+									"%s%08x",
+									(i == 0) ? "" : ",",
+									last_palette_crc_candidates.values[i]);
+							if (wrote <= 0)
+								break;
+							offset += wrote;
+							if (offset >= int(sizeof(palette_buf) - 1))
+								break;
+						}
+						palette_buf[sizeof(palette_buf) - 1] = '\0';
+						LOGI("Hi-res keying CI palette candidates: tex_crc=%08x palette=%u count=%u values=[%s].\n",
+						     last_palette_texture_crc,
+						     unsigned(meta.palette),
+						     unsigned(last_palette_crc_candidates.count),
+						     palette_buf);
+					}
+				}
 			}
-		}
 		else if (!is_tlut_mode)
 		{
 			detail::clear_hires_tile_replacement_binding(tiles[tile]);

@@ -19,9 +19,19 @@ static void check(bool condition, const char *message)
 	}
 }
 
+static bool contains_candidate(const HiresCiPaletteCrcCandidates &candidates, uint32_t value)
+{
+	for (uint32_t i = 0; i < candidates.count; i++)
+	{
+		if (candidates.values[i] == value)
+			return true;
+	}
+	return false;
+}
+
 static std::vector<uint8_t> make_tlut_shadow()
 {
-	std::vector<uint8_t> tlut(512);
+	std::vector<uint8_t> tlut(1024);
 	for (uint32_t i = 0; i < tlut.size(); i++)
 		tlut[i] = static_cast<uint8_t>((i * 13u + 7u) & 0xffu);
 	return tlut;
@@ -152,6 +162,33 @@ static void test_ci_palette_crc_candidates_include_fallbacks()
 	check(has_nonzero, "CI8 fallback candidates should include non-zero CRC options");
 }
 
+static void test_ci4_candidates_include_alt_crc_layout()
+{
+	std::vector<uint8_t> rdram(128, 0);
+	// CI4 max index = 1, so primary uses 2 entries.
+	rdram[0] = 0x10;
+	const auto tlut = make_tlut_shadow();
+
+	const uint32_t palette = 5u;
+	const auto candidates = compute_hires_ci_palette_crc_candidates(
+			TextureSize::Bpp4,
+			palette,
+			rdram.data(),
+			rdram.size(),
+			0,
+			2,
+			1,
+			1,
+			tlut.data(),
+			tlut.size(),
+			true);
+
+	const uint32_t expected_default = rice_crc32_wrapped(tlut.data(), tlut.size(), palette * 32u, 2, 1, 2, 32);
+	const uint32_t expected_alt = rice_crc32_wrapped(tlut.data(), tlut.size(), palette * 64u, 2, 1, 2, 32);
+	check(contains_candidate(candidates, expected_default), "CI4 candidates should include default bank-offset CRC");
+	check(contains_candidate(candidates, expected_alt), "CI4 candidates should include alternate bank-offset CRC");
+}
+
 static void test_ci_palette_crc_candidates_dedupe_when_equal()
 {
 	std::vector<uint8_t> rdram(128, 0xff);
@@ -184,6 +221,7 @@ int main()
 	test_ci8_palette_crc_contract();
 	test_ci4_palette_crc_contract_and_bank_clamp();
 	test_ci_palette_crc_candidates_include_fallbacks();
+	test_ci4_candidates_include_alt_crc_layout();
 	test_ci_palette_crc_candidates_dedupe_when_equal();
 
 	std::cout << "emu_unit_hires_ci_palette_policy_test: PASS" << std::endl;

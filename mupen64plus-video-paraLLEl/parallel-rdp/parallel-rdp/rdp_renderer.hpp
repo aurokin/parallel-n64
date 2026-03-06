@@ -230,7 +230,7 @@ private:
 		bool has_mips = false;
 	};
 	ReplacementTileState replacement_tiles[Limits::MaxNumTiles] = {};
-	uint8_t tlut_shadow[512] = {};
+	uint8_t tlut_shadow[1024] = {};
 	bool tlut_shadow_valid = false;
 	uint64_t hires_lookup_total = 0;
 	uint64_t hires_lookup_hits = 0;
@@ -244,6 +244,7 @@ private:
 	uint64_t hires_shader_dispatch_total = 0;
 	uint64_t hires_shader_dispatch_with_define = 0;
 	uint64_t hires_shader_dispatch_with_bindless = 0;
+	uint32_t hires_ci_palette_hint = 0;
 
 	struct HiresRegistryEntry
 	{

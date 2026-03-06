@@ -73,6 +73,15 @@ Expected fallback behavior:
     - `emu.unit.hires_tlut_shadow_policy`
     - `emu.unit.hires_ci_palette_policy`
     - `hires.texture_replacement_provider` (CI low32 unique fallback cases)
+- Post-`M6` compatibility tuning (active):
+  - Added CI ambiguous low32 fallback with palette-hint preference:
+    - on CI misses where exact `(palette_crc, texture_crc)` lookup fails and low32 has multiple pack variants, lookup now prefers entries matching the most recently successful CI palette CRC, then falls back to latest low32 variant.
+  - Added provider unit coverage for the ambiguous fallback contract:
+    - preferred palette match wins when available;
+    - otherwise newest low32 candidate is selected deterministically.
+  - Latest local debug smoke (`PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose`):
+    - `lookups=13017 hits=12705 misses=312 provider=on`
+    - remaining misses are 4 repeated keys with no low32 candidates present in the pack (`fs=514/516` block paths).
 - Local validation for `M6` close:
   - `./run-build.sh`
   - `./run-tests.sh --profile hires-readiness`
@@ -124,6 +133,14 @@ I will post updates in this format as work progresses:
   - Writes `<name>_manifest.json` with key and synthetic texture metadata.
 
 ## Change Log
+- 2026-03-06: Added CI ambiguous low32 fallback tuning:
+  - Implemented `ReplacementProvider::lookup_ci_low32_any` (preferred palette CRC match, deterministic newest-entry fallback).
+  - Wired renderer CI miss path to use the new fallback after strict unique lookup fails, and carry forward a runtime CI palette hint from successful matches.
+  - Expanded `hires.texture_replacement_provider` unit coverage for preferred-palette and deterministic fallback behavior.
+  - Local validation:
+    - `./run-tests.sh -R '^(hires\\.texture_replacement_provider|hires\\.texture_replacement_provider_parser_edge|hires\\.texture_keying|emu\\.unit\\.hires_ci_palette_policy|emu\\.unit\\.hires_tlut_shadow_policy)$'`
+    - `./run-build.sh`
+    - `PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose` (`lookups=13017 hits=12705 misses=312`).
 - 2026-03-04: Created tracker and aligned scope to latest-hardware-only descriptor-indexing path.
 - 2026-03-04: Added ignore rules for local hires cache artifacts in `.gitignore`.
 - 2026-03-04: Added M1 plumbing for hi-res options (`enabled`, `filter`, `srgb`, cache path) from libretro options to paraLLEl runtime globals.

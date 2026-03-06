@@ -6,6 +6,7 @@ DEFAULT_RETROARCH="/home/auro/code/mupen/RetroArch-upstream/retroarch"
 DEFAULT_ROM_DIR="/home/auro/code/n64_roms"
 DEFAULT_ROM_NAME="Paper Mario (USA).zip"
 REFERENCE_CORE="$SCRIPT_DIR/builds/parallel_n64_libretro.reference.so"
+DEFAULT_CORE_OPTIONS_FILE="$HOME/.config/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"
 
 use_reference=0
 menu_mode=0
@@ -14,6 +15,7 @@ rom_dir="${ROM_DIR:-$DEFAULT_ROM_DIR}"
 explicit_core=""
 rom_path=""
 force_fullscreen="${RUN_N64_FULLSCREEN:-1}"
+core_options_file="${RUN_N64_CORE_OPTIONS_FILE:-$DEFAULT_CORE_OPTIONS_FILE}"
 declare -a passthrough_args=()
 
 start_maximize_helper() {
@@ -74,6 +76,8 @@ Behavior:
     Set RUN_N64_FULLSCREEN=0 or pass --no-fullscreen to disable.
   - When not fullscreen, attempts to maximize via `xdotool` when available.
     Set RUN_N64_MAXIMIZE=0 to disable maximize helper.
+  - Enforces core options each launch: `parallel-n64-gfxplugin=parallel`
+    and `parallel-n64-parallel-rdp-upscaling=4x`.
 EOF_HELP
 }
 
@@ -111,6 +115,29 @@ resolve_rom_path() {
   fi
 
   return 1
+}
+
+ensure_core_option() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  mkdir -p "$(dirname "$file")"
+  if [[ ! -f "$file" ]]; then
+    printf '%s = "%s"\n' "$key" "$value" >"$file"
+    return
+  fi
+
+  if rg -q "^${key} = " "$file"; then
+    sed -i "s#^${key} = .*#${key} = \"${value}\"#" "$file"
+  else
+    printf '%s = "%s"\n' "$key" "$value" >>"$file"
+  fi
+}
+
+enforce_parallel_defaults() {
+  ensure_core_option "$core_options_file" "parallel-n64-gfxplugin" "parallel"
+  ensure_core_option "$core_options_file" "parallel-n64-parallel-rdp-upscaling" "4x"
 }
 
 while (($#)); do
@@ -186,6 +213,8 @@ if [[ ! -f "$core_path" ]]; then
   exit 1
 fi
 
+enforce_parallel_defaults
+
 if [[ -z "$rom_path" && "$menu_mode" -eq 0 ]]; then
   rom_path="$DEFAULT_ROM_NAME"
 fi
@@ -212,7 +241,21 @@ fi
 cmd+=("${passthrough_args[@]}")
 
 echo "Using core: $core_path"
+echo "Enforced core options: parallel-n64-gfxplugin=parallel, parallel-n64-parallel-rdp-upscaling=4x"
 if [[ "$force_fullscreen" == "0" ]]; then
   start_maximize_helper
 fi
+
+
+# RetroArch can rewrite core options on shutdown. Start a detached watcher
+# that re-applies pinned defaults after this process (replaced via exec) exits.
+(
+  target_pid=$$
+  while kill -0 "$target_pid" 2>/dev/null; do
+    sleep 0.25
+  done
+  ensure_core_option "$core_options_file" "parallel-n64-gfxplugin" "parallel"
+  ensure_core_option "$core_options_file" "parallel-n64-parallel-rdp-upscaling" "4x"
+) >/dev/null 2>&1 &
+
 exec "${cmd[@]}"

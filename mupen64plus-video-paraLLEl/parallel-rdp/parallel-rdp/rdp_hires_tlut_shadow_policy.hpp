@@ -23,6 +23,25 @@ inline constexpr uint32_t hires_tlut_shadow_base_offset_bytes()
 	return 0x800u;
 }
 
+inline constexpr uint32_t hires_tlut_shadow_bytes()
+{
+	// Match GLideN64 TexFilterPalette backing size (512 x u16 = 1024 bytes).
+	return 1024u;
+}
+
+inline constexpr uint32_t hires_tlut_shadow_tmem_window_bytes()
+{
+	return 0x800u;
+}
+
+inline uint32_t map_hires_tlut_tmem_offset_to_shadow_offset(uint64_t tmem_offset_bytes)
+{
+	const uint64_t base = uint64_t(hires_tlut_shadow_base_offset_bytes());
+	if (tmem_offset_bytes <= base)
+		return 0u;
+	return uint32_t((tmem_offset_bytes - base) >> 2u);
+}
+
 inline HiresTlutShadowUpdateResult update_hires_tlut_shadow(
 		uint8_t *tlut_shadow,
 		size_t tlut_shadow_size,
@@ -38,7 +57,7 @@ inline HiresTlutShadowUpdateResult update_hires_tlut_shadow(
 		return result;
 
 	const uint64_t shadow_base = uint64_t(hires_tlut_shadow_base_offset_bytes());
-	const uint64_t shadow_end = shadow_base + uint64_t(tlut_shadow_size);
+	const uint64_t shadow_end = shadow_base + uint64_t(hires_tlut_shadow_tmem_window_bytes());
 	const uint64_t upload_begin = uint64_t(tmem_offset_bytes);
 	const uint64_t upload_end = upload_begin + uint64_t(bytes);
 
@@ -50,9 +69,15 @@ inline HiresTlutShadowUpdateResult update_hires_tlut_shadow(
 	if (!tlut_shadow_valid)
 		std::memset(tlut_shadow, 0, tlut_shadow_size);
 
-	const uint32_t dst_offset = uint32_t(clipped_begin - shadow_base);
+	const uint32_t dst_offset = map_hires_tlut_tmem_offset_to_shadow_offset(clipped_begin);
+	if (dst_offset >= tlut_shadow_size)
+		return result;
+
 	const uint32_t src_offset = uint32_t(clipped_begin - upload_begin);
-	const uint32_t copied_bytes = uint32_t(clipped_end - clipped_begin);
+	const uint32_t copied_bytes_unclamped = uint32_t(clipped_end - clipped_begin);
+	const uint32_t copied_bytes = uint32_t(std::min<uint64_t>(copied_bytes_unclamped, tlut_shadow_size - dst_offset));
+	if (copied_bytes == 0)
+		return result;
 
 	for (uint32_t i = 0; i < copied_bytes; i++)
 		tlut_shadow[dst_offset + i] = wrapped_read_u8(cpu_rdram, rdram_size, src_base_addr + src_offset + i);

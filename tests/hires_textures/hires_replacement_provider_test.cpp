@@ -195,6 +195,22 @@ int main()
 	check(!provider.lookup_ci_low32_unique(uint32_t(ambiguous_low32_key_a & 0xffffffffu), formatsize,
 	                                       &low32_ambiguous_meta, &resolved_checksum64),
 	      "ambiguous low32 fallback should not resolve");
+	check(provider.lookup_ci_low32_any(uint32_t(ambiguous_low32_key_a & 0xffffffffu),
+	                                   formatsize,
+	                                   uint32_t((ambiguous_low32_key_a >> 32) & 0xffffffffu),
+	                                   &low32_ambiguous_meta,
+	                                   &resolved_checksum64),
+	      "ambiguous low32 fallback with preferred palette should resolve");
+	check(resolved_checksum64 == ambiguous_low32_key_a,
+	      "ambiguous low32 fallback should honor preferred palette match");
+	check(provider.lookup_ci_low32_any(uint32_t(ambiguous_low32_key_a & 0xffffffffu),
+	                                   formatsize,
+	                                   0x44444444u,
+	                                   &low32_ambiguous_meta,
+	                                   &resolved_checksum64),
+	      "ambiguous low32 fallback should resolve newest entry when preferred palette misses");
+	check(resolved_checksum64 == ambiguous_low32_key_b,
+	      "ambiguous low32 fallback newest-entry selection mismatch");
 
 	const size_t expected_size = size_t(image.meta.repl_w) * size_t(image.meta.repl_h) * 4u;
 	check(image.rgba8.size() == expected_size, "decoded image does not match RGBA8 size");
@@ -204,6 +220,9 @@ int main()
 	check(!provider.lookup_ci_low32_unique(uint32_t(unique_low32_key & 0xffffffffu), formatsize,
 	                                       &low32_unique_meta, &resolved_checksum64),
 	      "disabled provider should not resolve low32 fallback");
+	check(!provider.lookup_ci_low32_any(uint32_t(unique_low32_key & 0xffffffffu), formatsize,
+	                                    0, &low32_unique_meta, &resolved_checksum64),
+	      "disabled provider should not resolve best-effort low32 fallback");
 
 	provider.clear();
 	check(provider.entry_count() == 0, "provider clear should remove all loaded entries");
@@ -212,6 +231,9 @@ int main()
 	check(!provider.lookup_ci_low32_unique(uint32_t(unique_low32_key & 0xffffffffu), formatsize,
 	                                       &low32_unique_meta, &resolved_checksum64),
 	      "cleared provider should not resolve low32 fallback");
+	check(!provider.lookup_ci_low32_any(uint32_t(unique_low32_key & 0xffffffffu), formatsize,
+	                                    0, &low32_unique_meta, &resolved_checksum64),
+	      "cleared provider should not resolve best-effort low32 fallback");
 
 	provider.set_enabled(true);
 	check(provider.load_cache_dir(test_dir.string()), "provider should reload fixtures after clear");

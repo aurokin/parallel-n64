@@ -26,10 +26,23 @@ static std::vector<uint8_t> make_rdram(size_t size)
 	return data;
 }
 
+static void test_tlut_shadow_offset_mapping_contract()
+{
+	check(hires_tlut_shadow_base_offset_bytes() == 0x800u, "TLUT base offset should match TMEM palette window");
+	check(hires_tlut_shadow_tmem_window_bytes() == 0x800u, "TLUT TMEM window width mismatch");
+	check(hires_tlut_shadow_bytes() == 1024u, "TexFilter palette shadow should be 1024 bytes");
+	check(map_hires_tlut_tmem_offset_to_shadow_offset(0x800u) == 0u,
+	      "TLUT base should map to shadow offset 0");
+	check(map_hires_tlut_tmem_offset_to_shadow_offset(0x880u) == 0x20u,
+	      "TMEM offset should compact into TexFilter palette space");
+	check(map_hires_tlut_tmem_offset_to_shadow_offset(0x900u) == 0x40u,
+	      "TMEM offset mapping should preserve palette-bank ordering");
+}
+
 static void test_full_tlut_update_from_base_offset()
 {
 	auto rdram = make_rdram(4096);
-	std::vector<uint8_t> shadow(512, 0);
+	std::vector<uint8_t> shadow(hires_tlut_shadow_bytes(), 0);
 	bool valid = false;
 
 	auto result = update_hires_tlut_shadow(
@@ -38,35 +51,38 @@ static void test_full_tlut_update_from_base_offset()
 			123u, 512u, hires_tlut_shadow_base_offset_bytes());
 
 	check(result.updated, "full update should be marked updated");
-	check(result.copied_bytes == 512u, "full update should copy full shadow size");
+	check(result.copied_bytes == 512u, "full update should copy full TexFilter palette span");
 	check(result.shadow_offset == 0u, "full update should begin at shadow offset 0");
 	check(valid, "full update should mark shadow valid");
 
 	for (uint32_t i = 0; i < 512u; i++)
 		check(shadow[i] == rdram[(123u + i) & uint32_t(rdram.size() - 1)], "full update contents mismatch");
+	for (uint32_t i = 512u; i < shadow.size(); i++)
+		check(shadow[i] == 0u, "first update should preserve zero-init for untouched upper shadow");
 }
 
 static void test_partial_update_preserves_existing_shadow()
 {
 	auto rdram = make_rdram(4096);
-	std::vector<uint8_t> shadow(512, 0xee);
+	std::vector<uint8_t> shadow(hires_tlut_shadow_bytes(), 0xee);
 	bool valid = true;
 
-	const uint32_t dst_offset = 96u;
+	const uint32_t tmem_offset = hires_tlut_shadow_base_offset_bytes() + 96u;
+	const uint32_t expected_shadow_offset = map_hires_tlut_tmem_offset_to_shadow_offset(tmem_offset);
 	auto result = update_hires_tlut_shadow(
 			shadow.data(), shadow.size(), valid,
 			rdram.data(), rdram.size(),
-			200u, 32u, hires_tlut_shadow_base_offset_bytes() + dst_offset);
+			200u, 32u, tmem_offset);
 
 	check(result.updated, "partial update should be marked updated");
 	check(result.copied_bytes == 32u, "partial update should copy requested bytes");
-	check(result.shadow_offset == dst_offset, "partial update shadow offset mismatch");
+	check(result.shadow_offset == expected_shadow_offset, "partial update shadow offset mismatch");
 	check(valid, "partial update should keep shadow valid");
 
-	for (uint32_t i = 0; i < 512u; i++)
+	for (uint32_t i = 0; i < shadow.size(); i++)
 	{
-		if (i >= dst_offset && i < dst_offset + 32u)
-			check(shadow[i] == rdram[(200u + (i - dst_offset)) & uint32_t(rdram.size() - 1)], "partial updated range mismatch");
+		if (i >= expected_shadow_offset && i < expected_shadow_offset + 32u)
+			check(shadow[i] == rdram[(200u + (i - expected_shadow_offset)) & uint32_t(rdram.size() - 1)], "partial updated range mismatch");
 		else
 			check(shadow[i] == 0xee, "partial update should preserve untouched bytes");
 	}
@@ -75,24 +91,25 @@ static void test_partial_update_preserves_existing_shadow()
 static void test_first_partial_update_zero_fills_rest()
 {
 	auto rdram = make_rdram(4096);
-	std::vector<uint8_t> shadow(512, 0xaa);
+	std::vector<uint8_t> shadow(hires_tlut_shadow_bytes(), 0xaa);
 	bool valid = false;
 
-	const uint32_t dst_offset = 32u;
+	const uint32_t tmem_offset = hires_tlut_shadow_base_offset_bytes() + 32u;
+	const uint32_t expected_shadow_offset = map_hires_tlut_tmem_offset_to_shadow_offset(tmem_offset);
 	auto result = update_hires_tlut_shadow(
 			shadow.data(), shadow.size(), valid,
 			rdram.data(), rdram.size(),
-			500u, 16u, hires_tlut_shadow_base_offset_bytes() + dst_offset);
+			500u, 16u, tmem_offset);
 
 	check(result.updated, "first partial update should be marked updated");
 	check(result.copied_bytes == 16u, "first partial update copied bytes mismatch");
-	check(result.shadow_offset == dst_offset, "first partial update offset mismatch");
+	check(result.shadow_offset == expected_shadow_offset, "first partial update offset mismatch");
 	check(valid, "first partial update should mark shadow valid");
 
-	for (uint32_t i = 0; i < 512u; i++)
+	for (uint32_t i = 0; i < shadow.size(); i++)
 	{
-		if (i >= dst_offset && i < dst_offset + 16u)
-			check(shadow[i] == rdram[(500u + (i - dst_offset)) & uint32_t(rdram.size() - 1)], "first partial updated bytes mismatch");
+		if (i >= expected_shadow_offset && i < expected_shadow_offset + 16u)
+			check(shadow[i] == rdram[(500u + (i - expected_shadow_offset)) & uint32_t(rdram.size() - 1)], "first partial updated bytes mismatch");
 		else
 			check(shadow[i] == 0u, "first partial update should zero untouched bytes");
 	}
@@ -101,7 +118,7 @@ static void test_first_partial_update_zero_fills_rest()
 static void test_clipped_overlap_and_out_of_range_paths()
 {
 	auto rdram = make_rdram(4096);
-	std::vector<uint8_t> shadow(512, 0);
+	std::vector<uint8_t> shadow(hires_tlut_shadow_bytes(), 0);
 	bool valid = false;
 
 	auto clipped = update_hires_tlut_shadow(
@@ -119,7 +136,7 @@ static void test_clipped_overlap_and_out_of_range_paths()
 	auto skipped = update_hires_tlut_shadow(
 			shadow.data(), shadow.size(), valid,
 			rdram.data(), rdram.size(),
-			300u, 32u, hires_tlut_shadow_base_offset_bytes() + uint32_t(shadow.size()) + 4u);
+			300u, 32u, hires_tlut_shadow_base_offset_bytes() + hires_tlut_shadow_tmem_window_bytes() + 4u);
 
 	check(!skipped.updated, "out-of-range upload should not update shadow");
 	check(skipped.copied_bytes == 0u, "out-of-range upload should copy zero bytes");
@@ -161,6 +178,7 @@ static void test_invalid_input_guard_matrix()
 
 int main()
 {
+	test_tlut_shadow_offset_mapping_contract();
 	test_full_tlut_update_from_base_offset();
 	test_partial_update_preserves_existing_shadow();
 	test_first_partial_update_zero_fills_rest();

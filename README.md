@@ -28,9 +28,17 @@ Local helpers:
 * `python3 tools/virtual_gamepad.py daemon` - start a local virtual gamepad daemon for CLI-driven input
 * `python3 tools/virtual_gamepad.py send tap start` - send a button tap to the virtual gamepad
 
-Task trackers:
-* `docs/HIRES_TEXTURE_TASKS.md` - hi-res texture replacement status, invariants, and remaining work
+Docs:
+* `docs/HIRES_TEXTURE_TASKS.md` - current HIRES feature state, invariants, broken/incomplete areas
 * `docs/EMU_TESTING.md` - tiered emulator test commands and triage workflow
+* `AGENTS.md` - repo-specific agent instructions and local repo references
+
+Local reference repos:
+* `~/code/mupen/parallel-n64-upstream` - upstream parallel-n64 reference
+* `~/code/mupen/parallel-rdp-upstream` - upstream paraLLEl-RDP reference
+* `~/code/mupen/RetroArch-upstream` - RetroArch reference used for local runtime validation
+* `~/code/mupen/GLideN64-upstream` - GLideN64 reference for texture-pack behavior checks
+* `~/code/n64_roms` - local ROM directory
 
 Archive notes:
 * The former non-HIRES emulator test-roadmap plan (`EMULATOR_TEST_TASKS.md`) was closed and retired on 2026-03-05 after completing `T0`..`T10`.

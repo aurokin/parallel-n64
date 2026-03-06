@@ -36,12 +36,13 @@ Expected fallback behavior:
 - [x] M4: GPU registry (bindless descriptor pool + lazy upload).
 - [x] M5: Shader texel-stage late swap (before combiner).
 - [x] M6: CI/TLUT correctness for palette-influenced keys.
-- [ ] M7: Mips/LOD/filtering + memory budget controls.
+- [x] M7: Mips/LOD/filtering + memory budget controls.
 - [ ] M8: Validation + performance pass + docs.
 
 ## Current Status
-- Feature milestone state: `M0`..`M6` complete; `M7` in progress; `M8` pending.
+- Feature milestone state: `M0`..`M7` complete; `M8` pending.
 - Local readiness gate remains: `./run-tests.sh --profile hires-readiness`.
+- `M7` closure is complete locally (8-case policy smoke matrix + unit/build gates; no reflection errors/segfaults; enabled cases maintained `provider=on`, `unbound_hits=0`).
 - `M5` is closed:
   - Vulkan program-loading API now accepts optional precomputed reflection layouts (`request_shader` / `request_program` overloads with `ResourceLayout` pointers).
   - `ResourceLayout::unserialize()` now supports slangmosh v6 serialized layouts (`GRA6`, 348-byte payload) and maps them into this fork's legacy `8 sets x 16 bindings` layout contract with validation guards.
@@ -61,7 +62,7 @@ Expected fallback behavior:
   - `./run-tests.sh --profile hires-readiness`
   - `./run-tests.sh --profile emu-required`
   - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (summary: `lookups=31902 hits=18520 misses=13382 provider=on`)
-- `M7` has started (slice 1):
+- `M7` implementation history (slice 1):
   - Added local-only hi-res budget control plumbing via core option `parallel-n64-parallel-rdp-hirestex-budget-mb` (`0` = unlimited).
   - Plumbed budget into renderer registry policy (`budget_bytes`) during hi-res configure/init; eviction remains disabled in this slice.
   - Added descriptor-binding observability split in summary logs: `bound_hits` vs `unbound_hits` in addition to `hits`/`misses`.
@@ -82,7 +83,7 @@ Expected fallback behavior:
     - `trilinear` -> mipmapped replacement image uploads,
     - `srgb on|auto` -> SRGB replacement uploads and SRGB descriptor view binding.
   - Added local unit coverage `emu.unit.hires_sampling_policy` and included it in hires-readiness profile execution.
-- Next execution target: finish `M7` closure criteria (extended smoke/stability/policy checks), then move into `M8` validation/performance/docs pass.
+- Next execution target: start `M8` validation/performance/docs pass (extended conformance + perf characterization + rollout notes).
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -262,3 +263,15 @@ I will post updates in this format as work progresses:
     - `./run-tests.sh --profile hires-readiness`
     - `./run-build.sh`
     - `./run-n64-smoke-start.sh` (30s smoke with input automation; clean exit, no reflection/segfault regression; summary: `lookups=73913 hits=45139 misses=28774 bound_hits=45139 unbound_hits=0 evictions=0 rejects=0`).
+- 2026-03-05: Closed `M7` after full local smoke matrix validation across policy combinations:
+  - Matrix cases executed (30s each, local-only):
+    - `hires=disabled` baseline (`linear`, `srgb=auto`, `budget=0`),
+    - `hires=enabled` with filters `linear|nearest|trilinear` under `srgb=auto`, `budget=0`,
+    - `hires=enabled` with `filter=linear` under `srgb=on|off`, `budget=0`,
+    - budget stress: `budget=128` for `linear/auto` and `trilinear/on`.
+  - Closure invariants satisfied:
+    - all runs exited cleanly (`rc=0`),
+    - no reflection-format regressions (`Cannot map slangmosh reflection`/`Unsupported reflection payload` absent),
+    - no segfaults,
+    - with hires enabled: `provider=on` and `unbound_hits=0` in all cases,
+    - with tight budget: eviction path exercised (`evictions=2`, `rejects=0`, resident bytes under budget cap).

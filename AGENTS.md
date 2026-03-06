@@ -19,7 +19,11 @@ Co-Authored-By: Codex <noreply@openai.com>
   - `./run-tests.sh`
   - `./run-n64.sh`
   - `./run-n64-smoke-state.sh`
+  - `./run-paper-mario-hires-capture.sh`
+  - `./run-paper-mario-gliden64-capture.sh`
 - Keep CI local-only unless the user explicitly asks to add remote CI.
+- Keep the writable target inside this repo only.
+- Revert dead-end local experiments before compacting or handing off.
 
 ## Local Repos
 - Current fork: `/home/auro/code/parallel-n64`
@@ -37,8 +41,30 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Read-only GLideN64 reference: `/home/auro/code/mupen/GLideN64-upstream`
   - branch: `master`
   - remote: `https://github.com/gonetz/GLideN64.git`
+- Read-only Paper Mario decomp/reference: `/home/auro/code/paper_mario/papermariodx`
+- Read-only Paper Mario pack source: `/home/auro/code/paper_mario/PAPER MARIO_HIRESTEXTURES.hts`
 - ROMs: `/home/auro/code/n64_roms`
 
 ## Testing Docs
 - Emulator test tiers: `docs/EMU_TESTING.md`
 - HIRES status and open work: `docs/HIRES_TEXTURE_TASKS.md`
+
+## Paper Mario HIRES Loop
+- Primary path: `parallel`
+- Oracle path: `GLideN64`
+- Parallel capture:
+  - `./run-paper-mario-hires-capture.sh --tag <tag>`
+- GLide oracle capture:
+  - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
+- Preserved GLide oracle:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
+- Button-path scene for comparable screenshots:
+  - boot
+  - wait `20s`
+  - press `Start`
+  - wait `5s`
+  - press `Start`
+  - wait `2s`
+- Save-state warning:
+  - avoid save states from `/home/auro/code/paper_mario`
+  - they were made from a modified ROM and a different emulator

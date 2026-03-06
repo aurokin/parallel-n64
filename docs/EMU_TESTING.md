@@ -24,6 +24,10 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-n64-smoke-state.sh -- --verbose`
 - Quick runtime smoke:
   - `./run-n64.sh -- --verbose`
+- Paper Mario button-path capture on `parallel`:
+  - `./run-paper-mario-hires-capture.sh --tag <tag>`
+- Paper Mario button-path oracle capture on `GLideN64`:
+  - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
 
 ## Profiles
 
@@ -66,3 +70,39 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - HIRES mini-pack tooling contract is covered by `hires.texture_minipack_tool` (`tools/hires_minipack.py` end-to-end generation + provider decode).
 - HIRES work must preserve native behavior when HIRES is disabled; any disabled-path regression is a blocker.
 - The former non-HIRES emulator test-roadmap plan (`EMULATOR_TEST_TASKS.md`) was closed and retired on 2026-03-05 after `T0`..`T10` completion.
+
+## Paper Mario HIRES Workflow
+
+- Writable code lives in `/home/auro/code/parallel-n64`.
+- Read-only references:
+  - `/home/auro/code/mupen/parallel-n64-upstream`
+  - `/home/auro/code/mupen/parallel-rdp-upstream`
+  - `/home/auro/code/mupen/RetroArch-upstream`
+  - `/home/auro/code/mupen/GLideN64-upstream`
+  - `/home/auro/code/paper_mario/papermariodx`
+  - `/home/auro/code/paper_mario/PAPER MARIO_HIRESTEXTURES.hts`
+- Default debugging path:
+  - use `parallel` first
+  - use `GLideN64` only as an oracle or after major scene changes
+- Comparable Paper Mario scene:
+  1. boot
+  2. wait `20s`
+  3. press `Start`
+  4. wait `5s`
+  5. press `Start`
+  6. wait `2s`
+- `parallel` capture helper:
+  - copies the active ParaLLEl core options file into a temp capture dir
+  - drives the button path with the virtual pad
+  - sends RetroArch `SCREENSHOT`
+- `GLideN64` capture helper:
+  - stages the real RetroArch `Mupen64Plus-Next.opt`
+  - stages `PAPER MARIO_HIRESTEXTURES.hts` at `system/Mupen64plus/cache`
+  - drives the same button path and sends RetroArch `SCREENSHOT`
+- Preserved GLide oracle:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
+- Most recent validated oracle screenshot:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5/Paper Mario (USA)-260306-151242.png`
+- Save-state caution:
+  - do not use save states from `/home/auro/code/paper_mario`
+  - they were created from a modified ROM and a different emulator

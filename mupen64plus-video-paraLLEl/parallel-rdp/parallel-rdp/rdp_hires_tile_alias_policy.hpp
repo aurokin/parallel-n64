@@ -62,16 +62,6 @@ inline int find_hires_alias_source_tile(unsigned dst_tile,
 			return int(i);
 	}
 
-	for (unsigned i = 0; i < NumTiles; i++)
-	{
-		if (i == dst_tile)
-			continue;
-		if (!hires_tile_state_is_bindable(tile_states[i]))
-			continue;
-		if (should_alias_hires_load_binding(tile_infos[i].meta, dst_meta))
-			return int(i);
-	}
-
 	return -1;
 }
 

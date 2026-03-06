@@ -136,7 +136,7 @@ static void test_find_hires_alias_source_tile_contract()
 	states[7] = make_bindable_state(42);
 	tiles[0].meta = make_meta(0x200, 0x20, TextureFormat::RGBA, TextureSize::Bpp16, 3);
 	source = find_hires_alias_source_tile(0, tiles, states);
-	check(source == 7, "target tile should fall back to shared-offset load alias source");
+	check(source == -1, "descriptor-only tile updates should not reuse shared-offset alias bindings");
 
 	tiles[0].meta = make_meta(0x208, 0x40, TextureFormat::CI, TextureSize::Bpp8, 0);
 	source = find_hires_alias_source_tile(0, tiles, states);

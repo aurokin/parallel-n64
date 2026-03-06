@@ -64,4 +64,5 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - `run-build.sh` auto-cleans when effective build flags change; set `RUN_BUILD_AUTO_CLEAN=0` to disable.
 - `run-n64.sh` runtime launch contract behavior is locked by `emu.unit.run_n64_contract`.
 - HIRES mini-pack tooling contract is covered by `hires.texture_minipack_tool` (`tools/hires_minipack.py` end-to-end generation + provider decode).
+- HIRES work must preserve native behavior when HIRES is disabled; any disabled-path regression is a blocker.
 - The former non-HIRES emulator test-roadmap plan (`EMULATOR_TEST_TASKS.md`) was closed and retired on 2026-03-05 after `T0`..`T10` completion.

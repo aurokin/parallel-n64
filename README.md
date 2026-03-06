@@ -29,7 +29,7 @@ Local helpers:
 * `python3 tools/virtual_gamepad.py send tap start` - send a button tap to the virtual gamepad
 
 Task trackers:
-* `docs/HIRES_TEXTURE_TASKS.md` - hi-res texture replacement roadmap
+* `docs/HIRES_TEXTURE_TASKS.md` - hi-res texture replacement status, invariants, and remaining work
 * `docs/EMU_TESTING.md` - tiered emulator test commands and triage workflow
 
 Archive notes:

@@ -7,6 +7,13 @@
 - CI policy: local-only for now.
 - Local cache artifacts (`*.htc`, `*.hts`) stay ignored by git.
 
+## Core Invariants
+- When HIRES is off, native rendering behavior must remain unchanged.
+- HIRES-off mode must bypass replacement-provider lookup, registry upload/binding, and shader replacement sampling.
+- HIRES-off mode must not mutate TMEM behavior, combiner behavior, blender behavior, or VI behavior.
+- When HIRES is on, replacement happens only at texel fetch output before combiner/blender.
+- Replacement logic must stay runtime-bypassable behind a cheap predicate.
+
 ## Vulkan Capability Contract
 HIRES replacement requires all of the following:
 
@@ -43,6 +50,7 @@ If any requirement is missing:
   - `lookups=13031 hits=13031 misses=0`
   - `bound_hits=13031 unbound_hits=0`
   - `provider=on`
+- HIRES-off behavior remains an explicit invariant, not an optimization target.
 
 ## Stable Implementation Notes
 
@@ -98,6 +106,11 @@ Expected smoke characteristics on the current Paper Mario state:
 - provider remains `on`
 - `unbound_hits=0`
 - current baseline is `lookups=13031 hits=13031 misses=0`
+
+Disabled-path expectation:
+- with HIRES off, replacement activity must be fully bypassed
+- native rendering path must remain behaviorally unchanged
+- any regression seen with HIRES off is a blocker for further HIRES work
 
 ## Local Tools
 - Mini-pack generator: `tools/hires_minipack.py`

@@ -31,6 +31,8 @@ Notes:
     HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=1
   - Automatically runs `make clean` when effective build flags change.
     Set `RUN_BUILD_AUTO_CLEAN=0` to disable this behavior.
+  - Automatically regenerates `parallel-rdp/shaders/slangmosh.hpp` when shader
+    inputs change. Override the packer with `SLANGMOSH=/path/to/slangmosh`.
   - Additional make args can be passed after `--`.
 EOF
 }

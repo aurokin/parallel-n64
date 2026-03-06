@@ -249,8 +249,13 @@ If embedding paraLLEl-RDP in an emulator project, it is helpful to pre-compile a
 Build slangmosh from Granite, and then run:
 
 ```
-slangmosh parallel-rdp/shaders/slangmosh.json --output slangmosh.hpp --vk11 --strip -O --namespace RDP
+slangmosh parallel-rdp/shaders/slangmosh.json -O --strip --output slangmosh.hpp
 ```
+
+In this fork, the top-level build also regenerates `parallel-rdp/shaders/slangmosh.hpp`
+automatically when shader inputs change. The build resolves `slangmosh` from
+`SLANGMOSH=/path/to/slangmosh`, `PATH`, or the local upstream build at
+`~/code/mupen/parallel-rdp-upstream/build/Granite/slangmosh/slangmosh`.
 
 ### Generating a standalone code base for emulator integration
 

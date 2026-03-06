@@ -866,6 +866,17 @@ endif
 
 include Makefile.common
 
+.DEFAULT_GOAL := all
+
+PARALLEL_RDP_SHADER_REGEN := $(ROOT_DIR)/tools/regen-parallel-rdp-shaders.sh
+PARALLEL_RDP_SHADER_DIR := $(ROOT_DIR)/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/shaders
+PARALLEL_RDP_SHADER_HEADER := $(PARALLEL_RDP_SHADER_DIR)/slangmosh.hpp
+PARALLEL_RDP_SHADER_INPUTS := $(filter-out $(PARALLEL_RDP_SHADER_HEADER),$(wildcard $(PARALLEL_RDP_SHADER_DIR)/*))
+PARALLEL_RDP_SHADER_OBJECTS := \
+	$(ROOT_DIR)/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_device.o \
+	$(ROOT_DIR)/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_renderer.o \
+	$(ROOT_DIR)/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/video_interface.o
+
 ifeq ($(HAVE_NEON), 1)
    COREFLAGS += -DHAVE_NEON
 endif
@@ -1030,6 +1041,13 @@ ASFLAGS     := $(ASFLAGS) $(CFLAGS) $(CPUFLAGS)
 OBJECTS     += $(SOURCES_CXX:.cpp=.o) $(SOURCES_C:.c=.o) $(SOURCES_ASM:.S=.o)
 CXXFLAGS    += $(CPUOPTS) $(COREFLAGS) $(INCFLAGS) $(INCFLAGS_PLATFORM) $(fpic) $(PLATCFLAGS) $(CPUFLAGS) $(GLFLAGS) $(DYNAFLAGS)
 CFLAGS      += $(CPUOPTS) $(COREFLAGS) $(INCFLAGS) $(INCFLAGS_PLATFORM) $(fpic) $(PLATCFLAGS) $(CPUFLAGS) $(GLFLAGS) $(DYNAFLAGS)
+
+ifeq ($(HAVE_PARALLEL),1)
+$(PARALLEL_RDP_SHADER_HEADER): $(PARALLEL_RDP_SHADER_INPUTS) $(PARALLEL_RDP_SHADER_REGEN)
+	$(PARALLEL_RDP_SHADER_REGEN)
+
+$(PARALLEL_RDP_SHADER_OBJECTS): $(PARALLEL_RDP_SHADER_HEADER)
+endif
 
 ifeq ($(findstring Haiku,$(UNAME)),)
 ifeq (,$(findstring msvc,$(platform)))

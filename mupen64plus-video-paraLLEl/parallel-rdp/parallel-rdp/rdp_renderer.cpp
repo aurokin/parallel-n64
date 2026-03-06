@@ -25,6 +25,7 @@
 #include "rdp_hires_ci_palette_policy.hpp"
 #include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_lookup_policy.hpp"
+#include "rdp_hires_sampling_policy.hpp"
 #include "rdp_hires_shader_policy.hpp"
 #include "rdp_hires_bindless_view_policy.hpp"
 #include "rdp_hires_state_policy.hpp"
@@ -3833,19 +3834,44 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			if (hit)
 				resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
 
+			// Preserve key dimensions for replacement sampling whenever available.
+			// Falling back to tile-span/mask heuristics can undershoot orig dims and introduce banding.
+			const uint32_t sampling_orig_w = key_width_pixels != 0 ?
+					key_width_pixels :
+					detail::select_hires_sampling_orig_dim(
+							0,
+							tiles[tile].size.slo,
+							tiles[tile].size.shi,
+							tiles[tile].meta.mask_s);
+			const uint32_t sampling_orig_h = key_height_pixels != 0 ?
+					key_height_pixels :
+					detail::select_hires_sampling_orig_dim(
+							0,
+							tiles[tile].size.tlo,
+							tiles[tile].size.thi,
+							tiles[tile].meta.mask_t);
+
 			auto &repl_state = replacement_tiles[tile_index];
 			detail::write_hires_lookup_tile_state(
 					repl_state,
 					hit,
 					checksum64,
 					formatsize,
-					key_width_pixels,
-					key_height_pixels,
+					sampling_orig_w,
+					sampling_orig_h,
 					repl_meta.vk_image_index,
 					repl_meta.repl_w,
 					repl_meta.repl_h,
 					repl_meta.has_mips);
-			detail::apply_hires_tile_replacement_binding(tiles[tile], repl_state);
+			detail::propagate_hires_alias_group_binding(tile_index, tiles, replacement_tiles);
+
+			for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
+			{
+				if (alias_tile != tile_index &&
+				    !detail::should_alias_hires_tile_binding(tiles[tile_index].meta, tiles[alias_tile].meta))
+					continue;
+				detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
+			}
 
 			const bool descriptor_bound = detail::did_hires_lookup_bind_descriptor(hit, repl_meta.vk_image_index);
 			detail::record_hires_lookup_binding_result(
@@ -3859,23 +3885,25 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			if (hires_debug)
 			{
-				LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u wh=%ux%u repl=%ux%u key=%016llx fs=%u hit=%d desc=%u mips=%d srgb=%d.\n",
-				     hit ? "hit" : "miss",
-				     load_mode_to_string(info.mode),
-				     src_base_addr & 0x00ffffffu,
-				     tile,
-				     unsigned(meta.fmt),
-				     unsigned(meta.size),
-				     key_width_pixels,
-				     key_height_pixels,
-				     repl_meta.repl_w,
-				     repl_meta.repl_h,
-				     static_cast<unsigned long long>(checksum64),
-				     unsigned(formatsize),
-				     hit ? 1 : 0,
-				     repl_meta.vk_image_index,
-				     repl_meta.has_mips ? 1 : 0,
-				     repl_meta.srgb ? 1 : 0);
+				LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u wh=%ux%u samp=%ux%u repl=%ux%u key=%016llx fs=%u hit=%d desc=%u mips=%d srgb=%d.\n",
+					hit ? "hit" : "miss",
+					load_mode_to_string(info.mode),
+					src_base_addr & 0x00ffffffu,
+					tile,
+					unsigned(meta.fmt),
+					unsigned(meta.size),
+					key_width_pixels,
+					key_height_pixels,
+					sampling_orig_w,
+					sampling_orig_h,
+					repl_meta.repl_w,
+					repl_meta.repl_h,
+					static_cast<unsigned long long>(checksum64),
+					unsigned(formatsize),
+					hit ? 1 : 0,
+					repl_meta.vk_image_index,
+					repl_meta.has_mips ? 1 : 0,
+					repl_meta.srgb ? 1 : 0);
 			}
 		}
 		else if (!is_tlut_mode)

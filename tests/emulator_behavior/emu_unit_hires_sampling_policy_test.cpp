@@ -74,6 +74,30 @@ static void test_copy_mode_pack_contract()
 	      "red channel packing should preserve top 5 bits");
 }
 
+static void test_sampling_orig_dimension_policy_contract()
+{
+	check(derive_hires_tile_span_texels(0, (31u << 2)) == 32u,
+	      "tile span should decode 10.2 range into texel count");
+	check(derive_hires_tile_span_texels(0, 0) == 1u,
+	      "single-texel tile span should evaluate to one texel");
+	check(derive_hires_mask_span_texels(0) == 0u,
+	      "zero mask should not constrain sampling span");
+	check(derive_hires_mask_span_texels(5) == 32u,
+	      "mask span should be 2^mask");
+	check(derive_hires_mask_span_texels(15) == 2048u,
+	      "mask span should clamp to 2^11");
+
+	check(select_hires_sampling_orig_dim(128u, 0u, (127u << 2), 0u) == 128u,
+	      "key dimensions should remain when tile and mask do not constrain");
+	check(select_hires_sampling_orig_dim(128u, 0u, (31u << 2), 0u) == 32u,
+	      "tile span should constrain oversized key dimensions");
+	check(select_hires_sampling_orig_dim(128u, 0u, (127u << 2), 5u) == 32u,
+	      "mask span should constrain oversized key dimensions");
+	check(select_hires_sampling_orig_dim(0u, 0u, (63u << 2), 0u) == 64u,
+	      "tile span should seed sampling dimensions when key dimensions are missing");
+	check(select_hires_sampling_orig_dim(0u, 0u, 0u, 0u) == 1u,
+	      "sampling dimensions should never collapse to zero");
+}
 }
 
 int main()
@@ -81,6 +105,7 @@ int main()
 	test_filter_mode_sanitization_contract();
 	test_srgb_mode_resolution_contract();
 	test_copy_mode_pack_contract();
+	test_sampling_orig_dimension_policy_contract();
 	std::cout << "emu_unit_hires_sampling_policy_test: PASS" << std::endl;
 	return 0;
 }

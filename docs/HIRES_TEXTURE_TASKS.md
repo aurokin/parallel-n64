@@ -53,6 +53,12 @@ Expected fallback behavior:
   - `./run-tests.sh --profile hires-readiness`
   - `./run-n64-smoke-state.sh -- --verbose` (summary: `lookups=3430 hits=3115 misses=315 provider=on`, screenshot: `Paper Mario (USA)-260305-210003.png`)
 - `M7` closure is complete locally (8-case policy smoke matrix + unit/build gates; no reflection errors/segfaults; enabled cases maintained `provider=on`, `unbound_hits=0`).
+- 4x HIRES line-breakup regression is resolved:
+  - Root cause: replacement sampling consumed upscaled raster coordinates directly, which distorted replacement UV mapping when `parallel-rdp-upscaling > 1`.
+  - Fix: normalize replacement `st_fp5` coordinates by `SCALING_FACTOR` in both copy and non-copy shader replacement paths (`texture.h`) and regenerate baked shader bank (`shaders/slangmosh.hpp`).
+  - Verification: `hires on + upscaling 4x` smoke no longer shows horizontal banding in title-scene replacement textures.
+- Non-HIRES parity remains intact after fixes:
+  - `hires off` current core vs reference core screenshot compare remains pixel-identical (`RMSE 0`).
 - `M5` is closed:
   - Vulkan program-loading API now accepts optional precomputed reflection layouts (`request_shader` / `request_program` overloads with `ResourceLayout` pointers).
   - `ResourceLayout::unserialize()` now supports slangmosh v6 serialized layouts (`GRA6`, 348-byte payload) and maps them into this fork's legacy `8 sets x 16 bindings` layout contract with validation guards.
@@ -299,3 +305,11 @@ I will post updates in this format as work progresses:
   - Added/expanded local unit coverage:
     - `emu.unit.hires_sampling_policy` (copy-mode packing contract),
     - `emu.unit.hires_tile_alias_policy`.
+- 2026-03-06: Fixed HIRES 4x sampling-coordinate regression causing horizontal line breakup in replacement textures:
+  - Normalized replacement sampling coordinates by `SCALING_FACTOR` in shader replacement fetch paths (`sample_texture_copy` and `sample_texture` in `shaders/texture.h`).
+  - Regenerated baked shader bank (`parallel-rdp/parallel-rdp/shaders/slangmosh.hpp`) with local `slangmosh` toolchain.
+  - Revalidated local gates:
+    - `./run-build.sh`
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-n64-smoke-state.sh -- --verbose` (`hires on + 4x`: banding gone)
+    - `hires off` A/B current vs reference compare (`RMSE 0`).

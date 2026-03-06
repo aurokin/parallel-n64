@@ -154,6 +154,35 @@ static void test_invalidate_hires_alias_group_contract()
 	      "non-matching alias state should remain intact");
 }
 
+static void test_propagate_hires_alias_group_binding_contract()
+{
+	constexpr unsigned NumTiles = 8;
+	TileInfo tiles[NumTiles] = {};
+	ReplacementTileState states[NumTiles] = {};
+
+	tiles[7].meta = make_meta(0x280, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+	states[7] = make_bindable_state(55);
+
+	tiles[0].meta = make_meta(0x280, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+	tiles[1].meta = make_meta(0x280, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+	tiles[2].meta = make_meta(0x284, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+
+	propagate_hires_alias_group_binding(7, tiles, states);
+
+	check(states[0].vk_image_index == 55 && states[0].hit,
+	      "matching alias tile should inherit owner replacement state");
+	check(states[1].vk_image_index == 55 && states[1].hit,
+	      "all matching alias tiles should inherit owner replacement state");
+	check(states[2].vk_image_index == hires_invalid_descriptor_index() && !states[2].hit,
+	      "non-alias tile should remain unchanged");
+
+	states[7].hit = false;
+	states[0] = {};
+	propagate_hires_alias_group_binding(7, tiles, states);
+	check(states[0].vk_image_index == hires_invalid_descriptor_index() && !states[0].hit,
+	      "unbound owner state should not be propagated");
+}
+
 }
 
 int main()
@@ -162,6 +191,7 @@ int main()
 	test_find_hires_alias_source_tile_contract();
 	test_hires_tile_state_is_bindable_contract();
 	test_invalidate_hires_alias_group_contract();
+	test_propagate_hires_alias_group_binding_contract();
 
 	std::cout << "emu_unit_hires_tile_alias_policy_test: PASS" << std::endl;
 	return 0;

@@ -62,5 +62,23 @@ inline void invalidate_hires_alias_group(unsigned owner_tile,
 			tile_states[i] = {};
 	}
 }
+
+template <typename TileInfoType, typename ReplacementTileStateType, size_t NumTiles>
+inline void propagate_hires_alias_group_binding(unsigned owner_tile,
+                                                const TileInfoType (&tile_infos)[NumTiles],
+                                                ReplacementTileStateType (&tile_states)[NumTiles])
+{
+	if (!hires_tile_state_is_bindable(tile_states[owner_tile]))
+		return;
+
+	const auto &owner_meta = tile_infos[owner_tile].meta;
+	for (unsigned i = 0; i < NumTiles; i++)
+	{
+		if (i == owner_tile)
+			continue;
+		if (should_alias_hires_tile_binding(owner_meta, tile_infos[i].meta))
+			tile_states[i] = tile_states[owner_tile];
+	}
+}
 }
 }

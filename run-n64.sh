@@ -15,8 +15,44 @@ explicit_core=""
 rom_path=""
 declare -a passthrough_args=()
 
+start_maximize_helper() {
+  local maximize="${RUN_N64_MAXIMIZE:-1}"
+  if [[ "$maximize" == "0" ]]; then
+    return
+  fi
+
+  if ! command -v xdotool >/dev/null 2>&1; then
+    return
+  fi
+
+  local target_pid="$$"
+  (
+    local tries=60
+    local window_ids=""
+    while (( tries > 0 )); do
+      window_ids="$(xdotool search --onlyvisible --pid "$target_pid" --name "RetroArch" 2>/dev/null || true)"
+      if [[ -n "$window_ids" ]]; then
+        break
+      fi
+      sleep 0.1
+      (( tries -= 1 ))
+    done
+
+    if [[ -z "$window_ids" ]]; then
+      exit 0
+    fi
+
+    while read -r wid; do
+      [[ -z "$wid" ]] && continue
+      xdotool windowactivate "$wid" >/dev/null 2>&1 || true
+      xdotool windowstate --add MAXIMIZED_VERT "$wid" >/dev/null 2>&1 || true
+      xdotool windowstate --add MAXIMIZED_HORZ "$wid" >/dev/null 2>&1 || true
+    done <<< "$window_ids"
+  ) >/dev/null 2>&1 &
+}
+
 usage() {
-  cat <<'EOF'
+  cat <<'EOF_HELP'
 Usage:
   run-n64.sh [options] [ROM_PATH] [-- RETROARCH_ARGS...]
 
@@ -32,7 +68,9 @@ Options:
 Behavior:
   - Default core: newest non-reference parallel_n64_libretro*.so under this repo/builds.
   - If ROM_PATH is omitted, defaults to "Paper Mario (USA).zip" in ROM dir.
-EOF
+  - Attempts to maximize RetroArch window via `xdotool` when available.
+    Set RUN_N64_MAXIMIZE=0 to disable.
+EOF_HELP
 }
 
 list_non_reference_cores() {
@@ -163,4 +201,5 @@ fi
 cmd+=("${passthrough_args[@]}")
 
 echo "Using core: $core_path"
+start_maximize_helper
 exec "${cmd[@]}"

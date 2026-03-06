@@ -120,6 +120,7 @@ write_smoke_input_override() {
   smoke_input_cfg="$(mktemp /tmp/parallel-n64-smoke-input.XXXX.cfg)"
   cat >"$smoke_input_cfg" <<'EOF_INPUT'
 input_autodetect_enable = "false"
+pause_nonactive = "false"
 input_player1_joypad_index = "0"
 input_player1_device_reservation_type = "0"
 input_player1_reserved_device = "parallel-n64 Virtual Pad"
@@ -140,6 +141,24 @@ input_player1_down_btn = "14"
 input_player1_left_btn = "15"
 input_player1_right_btn = "16"
 EOF_INPUT
+}
+
+focus_retroarch_window() {
+  if ! command -v xdotool >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local window_ids=""
+  window_ids="$(xdotool search --onlyvisible --name "RetroArch" 2>/dev/null || true)"
+  if [[ -z "$window_ids" ]]; then
+    return 0
+  fi
+
+  while read -r wid; do
+    [[ -z "$wid" ]] && continue
+    xdotool windowactivate "$wid" >/dev/null 2>&1 || true
+    return 0
+  done <<< "$window_ids"
 }
 
 append_runner_passthrough() {
@@ -312,6 +331,8 @@ run_pid="$!"
     if ! kill -0 "$run_pid" 2>/dev/null; then
       exit 0
     fi
+
+    focus_retroarch_window
 
     for button in "${buttons[@]}"; do
       if send_button_tap "$button"; then

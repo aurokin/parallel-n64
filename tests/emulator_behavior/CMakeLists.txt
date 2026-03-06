@@ -507,6 +507,16 @@ add_test(
 )
 
 add_test(
+  NAME emu.unit.run_paper_mario_hires_capture_contract
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_run_paper_mario_hires_capture_contract.sh"
+)
+
+add_test(
+  NAME emu.unit.run_paper_mario_gliden64_capture_contract
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_run_paper_mario_gliden64_capture_contract.sh"
+)
+
+add_test(
   NAME emu.unit.virtual_gamepad_tool_contract
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_virtual_gamepad_tool_contract.sh"
 )

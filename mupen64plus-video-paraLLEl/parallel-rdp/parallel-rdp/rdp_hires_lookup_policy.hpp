@@ -59,6 +59,57 @@ inline uint32_t compute_hires_key_base_addr(uint32_t tex_addr,
 	return tex_addr + (pixel_offset << (size_bits - 1u));
 }
 
+inline uint32_t compute_hires_block_probe_base_addr(uint32_t tex_addr,
+                                                    uint32_t probe_width,
+                                                    uint32_t probe_start_x,
+                                                    uint32_t probe_start_y,
+                                                    TextureSize probe_size)
+{
+	return compute_hires_key_base_addr(
+			tex_addr,
+			probe_width,
+			probe_start_x,
+			probe_start_y,
+			probe_size,
+			false);
+}
+
+inline uint32_t compute_hires_texture_row_bytes(uint32_t width_pixels,
+                                                TextureSize size)
+{
+	switch (size)
+	{
+	case TextureSize::Bpp4:
+		return (width_pixels + 1u) >> 1u;
+	case TextureSize::Bpp8:
+		return width_pixels;
+	case TextureSize::Bpp16:
+		return width_pixels << 1u;
+	case TextureSize::Bpp32:
+		return width_pixels << 2u;
+	default:
+		return 0;
+	}
+}
+
+inline uint32_t compute_hires_texture_total_bytes(uint32_t width_pixels,
+                                                  uint32_t height_pixels,
+                                                  TextureSize size)
+{
+	return compute_hires_texture_row_bytes(width_pixels, size) * height_pixels;
+}
+
+inline uint32_t compute_hires_block_reinterpret_height(uint32_t total_bytes,
+                                                       uint32_t width_pixels,
+                                                       TextureSize size)
+{
+	const uint32_t row_bytes = compute_hires_texture_row_bytes(width_pixels, size);
+	if (row_bytes == 0 || total_bytes == 0 || (total_bytes % row_bytes) != 0)
+		return 0;
+
+	return total_bytes / row_bytes;
+}
+
 inline uint32_t derive_hires_tile_lookup_dim(uint32_t raw_dim,
                                              uint8_t tile_mask,
                                              uint32_t max_dim)

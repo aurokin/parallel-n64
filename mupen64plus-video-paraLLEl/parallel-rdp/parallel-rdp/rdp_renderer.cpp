@@ -3753,8 +3753,9 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 	}
 	if (rdram_view_ok)
 	{
-		const uint32_t bpp_bytes = 1u << (unsigned(info.size) - 1);
-		const uint32_t row_stride_bytes = upload.vram_width * bpp_bytes;
+		const uint32_t row_stride_bytes = detail::compute_hires_texture_row_bytes(
+				upload.vram_width,
+				info.size);
 		const uint32_t src_base_addr = detail::compute_hires_key_base_addr(
 				info.tex_addr,
 				info.tex_width,
@@ -3765,7 +3766,10 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 		if (detail::should_update_tlut_shadow(rdram_view_ok, is_tlut_mode))
 		{
-			const uint32_t bytes = key_width_pixels * key_height_pixels * bpp_bytes;
+			const uint32_t bytes = detail::compute_hires_texture_total_bytes(
+					key_width_pixels,
+					key_height_pixels,
+					info.size);
 				// GLideN64 TexFilterPalette compatibility:
 				// TLUT shadow source is taken from texture-image base address, not uls/ult-adjusted address.
 				const uint32_t tlut_src_base_addr = info.tex_addr;
@@ -4038,90 +4042,123 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						if (probe_width_index > 0 && candidate_probe_w == probe_width_candidates[0])
 							continue;
 
-						const uint32_t candidate_texture_crc = rice_crc32_wrapped(
-								cpu_rdram,
-								rdram_size,
+						const uint32_t candidate_probe_start_x = probe_size.slo >> 2;
+						const uint32_t candidate_probe_start_y = probe_size.tlo >> 2;
+						const uint32_t candidate_probe_base_addrs[] = {
 								src_base_addr,
-								candidate_probe_w,
-								probe_h,
-								uint32_t(probe_meta.size),
-								probe_row_stride);
-						uint64_t candidate_checksum64 = detail::compose_hires_checksum64(candidate_texture_crc, 0);
-						bool candidate_hit = false;
-
-						if (probe_ci_candidates)
+								detail::compute_hires_block_probe_base_addr(
+										src_base_addr,
+										candidate_probe_w,
+										candidate_probe_start_x,
+										candidate_probe_start_y,
+										probe_meta.size)
+						};
+						for (unsigned probe_base_index = 0; probe_base_index < 2 && !probe_hit; probe_base_index++)
 						{
-							auto palette_crc_candidates = detail::compute_hires_ci_palette_crc_candidates(
-									probe_meta.size,
-									probe_meta.palette,
+							const uint32_t candidate_probe_base_addr = candidate_probe_base_addrs[probe_base_index];
+							if (probe_base_index > 0 && candidate_probe_base_addr == candidate_probe_base_addrs[0])
+								continue;
+
+							const uint32_t candidate_texture_crc = rice_crc32_wrapped(
 									cpu_rdram,
 									rdram_size,
-									src_base_addr,
+									candidate_probe_base_addr,
 									candidate_probe_w,
 									probe_h,
-									probe_row_stride,
-									tlut_shadow,
-									sizeof(tlut_shadow),
-									tlut_shadow_valid);
+									uint32_t(probe_meta.size),
+									probe_row_stride);
+							uint64_t candidate_checksum64 = detail::compose_hires_checksum64(candidate_texture_crc, 0);
+							bool candidate_hit = false;
 
-							for (uint32_t i = 0; i < palette_crc_candidates.count && !candidate_hit; i++)
+							if (probe_ci_candidates)
 							{
-								candidate_checksum64 = detail::compose_hires_checksum64(
-										candidate_texture_crc,
-										palette_crc_candidates.values[i]);
+								auto palette_crc_candidates = detail::compute_hires_ci_palette_crc_candidates(
+										probe_meta.size,
+										probe_meta.palette,
+										cpu_rdram,
+										rdram_size,
+										candidate_probe_base_addr,
+										candidate_probe_w,
+										probe_h,
+										probe_row_stride,
+										tlut_shadow,
+										sizeof(tlut_shadow),
+										tlut_shadow_valid);
+
+								for (uint32_t i = 0; i < palette_crc_candidates.count && !candidate_hit; i++)
+								{
+									candidate_checksum64 = detail::compose_hires_checksum64(
+											candidate_texture_crc,
+											palette_crc_candidates.values[i]);
+									candidate_hit = replacement_provider->lookup(
+											candidate_checksum64,
+											probe_formatsize,
+											&probe_repl_meta);
+								}
+							}
+							else
+							{
 								candidate_hit = replacement_provider->lookup(
 										candidate_checksum64,
 										probe_formatsize,
 										&probe_repl_meta);
 							}
-						}
-						else
-						{
-							candidate_hit = replacement_provider->lookup(
-									candidate_checksum64,
-									probe_formatsize,
-									&probe_repl_meta);
-						}
 
-						if (!candidate_hit && probe_meta.fmt == TextureFormat::CI)
-						{
-							uint64_t ci_fallback_checksum64 = 0;
-							if (replacement_provider->lookup_ci_low32_unique(
-									candidate_texture_crc,
-									probe_formatsize,
-									&probe_repl_meta,
-									&ci_fallback_checksum64))
+							if (!candidate_hit && probe_meta.fmt == TextureFormat::CI)
 							{
-								candidate_checksum64 = ci_fallback_checksum64;
-								candidate_hit = true;
-							}
-							else if (replacement_provider->lookup_ci_low32_any(
-									 candidate_texture_crc,
-									 probe_formatsize,
-									 hires_ci_palette_hint,
-									 &probe_repl_meta,
-									 &ci_fallback_checksum64))
-							{
-								candidate_checksum64 = ci_fallback_checksum64;
-								candidate_hit = true;
-								if (hires_debug)
+								uint64_t ci_fallback_checksum64 = 0;
+								if (replacement_provider->lookup_ci_low32_unique(
+										candidate_texture_crc,
+										probe_formatsize,
+										&probe_repl_meta,
+										&ci_fallback_checksum64))
 								{
-									LOGI("Hi-res keying CI ambiguous block fallback: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
-									     candidate_texture_crc,
-									     unsigned(probe_formatsize),
-									     hires_ci_palette_hint,
-									     static_cast<unsigned long long>(candidate_checksum64));
+									candidate_checksum64 = ci_fallback_checksum64;
+									candidate_hit = true;
+								}
+								else if (replacement_provider->lookup_ci_low32_any(
+										 candidate_texture_crc,
+										 probe_formatsize,
+										 hires_ci_palette_hint,
+										 &probe_repl_meta,
+										 &ci_fallback_checksum64))
+								{
+									candidate_checksum64 = ci_fallback_checksum64;
+									candidate_hit = true;
+									if (hires_debug)
+									{
+										LOGI("Hi-res keying CI ambiguous block fallback: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
+										     candidate_texture_crc,
+										     unsigned(probe_formatsize),
+										     hires_ci_palette_hint,
+										     static_cast<unsigned long long>(candidate_checksum64));
+									}
 								}
 							}
+
+							if (!candidate_hit)
+								continue;
+
+							probe_hit = true;
+							probe_w_used = candidate_probe_w;
+							probe_texture_crc = candidate_texture_crc;
+							probe_checksum64 = candidate_checksum64;
+
+							if (hires_debug && probe_base_index > 0)
+							{
+								LOGI("Hi-res keying block-tile offset fallback: load_tile=%u probe_tile=%u base=0x%06x start=%ux%u wh=%ux%u stride=%u key=%016llx fs=%u.\n",
+								     unsigned(tile),
+								     probe_tile,
+								     candidate_probe_base_addr & 0x00ffffffu,
+								     candidate_probe_start_x,
+								     candidate_probe_start_y,
+								     candidate_probe_w,
+								     probe_h,
+								     probe_row_stride,
+								     static_cast<unsigned long long>(candidate_checksum64),
+								     unsigned(probe_formatsize));
+							}
 						}
-
-						if (!candidate_hit)
-							continue;
-
-						probe_hit = true;
-						probe_w_used = candidate_probe_w;
-						probe_texture_crc = candidate_texture_crc;
-						probe_checksum64 = candidate_checksum64;
 					}
 
 					if (!probe_hit)
@@ -4153,6 +4190,62 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				}
 			}
 
+			if (!hit && info.mode == UploadMode::Block)
+			{
+				const uint32_t total_bytes = detail::compute_hires_texture_total_bytes(
+						key_width_pixels,
+						key_height_pixels,
+						info.size);
+				for (uint32_t candidate_width = key_width_pixels >> 1u;
+				     candidate_width > 0 && !hit;
+				     candidate_width >>= 1u)
+				{
+					const uint32_t candidate_height = detail::compute_hires_block_reinterpret_height(
+							total_bytes,
+							candidate_width,
+							info.size);
+					if (candidate_height == 0)
+						continue;
+
+					const uint32_t candidate_row_stride_bytes = detail::compute_hires_texture_row_bytes(
+							candidate_width,
+							info.size);
+					const uint32_t candidate_texture_crc = rice_crc32_wrapped(
+							cpu_rdram,
+							rdram_size,
+							src_base_addr,
+							candidate_width,
+							candidate_height,
+							uint32_t(info.size),
+							candidate_row_stride_bytes);
+
+					if (!try_lookup_for_texture_crc(
+							candidate_texture_crc,
+							candidate_width,
+							candidate_height,
+							candidate_row_stride_bytes))
+						continue;
+
+					hit = true;
+					texture_crc = candidate_texture_crc;
+					lookup_width_pixels = candidate_width;
+					lookup_height_pixels = candidate_height;
+
+					if (hires_debug)
+					{
+						LOGI("Hi-res keying block-shape fallback hit: addr=0x%06x wh=%ux%u stride=%u key=%016llx fs=%u repl=%ux%u.\n",
+						     src_base_addr & 0x00ffffffu,
+						     candidate_width,
+						     candidate_height,
+						     candidate_row_stride_bytes,
+						     static_cast<unsigned long long>(checksum64),
+						     unsigned(formatsize),
+						     repl_meta.repl_w,
+						     repl_meta.repl_h);
+					}
+				}
+			}
+
 			if (hit)
 			{
 				const uint32_t palette_crc = uint32_t((checksum64 >> 32) & 0xffffffffu);
@@ -4161,22 +4254,18 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
 			}
 
-			// Preserve key dimensions for replacement sampling whenever available.
-			// Falling back to tile-span/mask heuristics can undershoot orig dims and introduce banding.
-			const uint32_t sampling_orig_w = lookup_width_pixels != 0 ?
-					lookup_width_pixels :
-					detail::select_hires_sampling_orig_dim(
-							0,
-							tiles[tile].size.slo,
-							tiles[tile].size.shi,
-							tiles[tile].meta.mask_s);
-			const uint32_t sampling_orig_h = lookup_height_pixels != 0 ?
-					lookup_height_pixels :
-					detail::select_hires_sampling_orig_dim(
-							0,
-							tiles[tile].size.tlo,
-							tiles[tile].size.thi,
-							tiles[tile].meta.mask_t);
+			// Use the lookup dimensions as the upper bound, but still tighten against the
+			// tile span and mask that the draw actually samples from.
+			const uint32_t sampling_orig_w = detail::select_hires_sampling_orig_dim(
+					lookup_width_pixels,
+					tiles[tile].size.slo,
+					tiles[tile].size.shi,
+					tiles[tile].meta.mask_s);
+			const uint32_t sampling_orig_h = detail::select_hires_sampling_orig_dim(
+					lookup_height_pixels,
+					tiles[tile].size.tlo,
+					tiles[tile].size.thi,
+					tiles[tile].meta.mask_t);
 
 			auto &repl_state = replacement_tiles[lookup_tile_index];
 			detail::write_hires_lookup_tile_state(

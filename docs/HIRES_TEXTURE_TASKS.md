@@ -1,369 +1,113 @@
 # Hi-Res Texture Task Tracker
 
-## Decisions
+## Scope
 - Target: latest hardware only.
-- GPU requirement: descriptor indexing path only.
-- Fallback behavior: auto-disable feature when required GPU features are missing.
-- Local texture cache artifacts (`*.htc`, `*.hts`) are ignored in git.
-- Conformance hash minipack work is deferred until separate fixture details are finalized.
-- CI policy for this track is local-only for now (no remote GitHub CI gating additions).
-- A local mini-pack generator is available for key-driven cache fixtures (`tools/hires_minipack.py`).
+- GPU path: descriptor indexing only.
+- Fallback: auto-disable when required Vulkan capabilities are unavailable, with a logged reason.
+- CI policy: local-only for now.
+- Local cache artifacts (`*.htc`, `*.hts`) stay ignored by git.
 
-## Vulkan Capability Contract (Descriptor Indexing Path)
-HIRES replacement may run only when all required descriptor-indexing capabilities are available:
+## Vulkan Capability Contract
+HIRES replacement requires all of the following:
 
-- `supports_descriptor_indexing` (core/extension support reported by Vulkan context).
-- `VkPhysicalDeviceDescriptorIndexingFeaturesEXT` flags:
-  - `runtimeDescriptorArray`
-  - `shaderSampledImageArrayNonUniformIndexing`
-  - `descriptorBindingVariableDescriptorCount`
-  - `descriptorBindingPartiallyBound`
-  - `descriptorBindingSampledImageUpdateAfterBind`
-- `VkPhysicalDeviceDescriptorIndexingPropertiesEXT` limit:
-  - `maxDescriptorSetUpdateAfterBindSampledImages >= 4096`
+- `supports_descriptor_indexing`
+- `runtimeDescriptorArray`
+- `shaderSampledImageArrayNonUniformIndexing`
+- `descriptorBindingVariableDescriptorCount`
+- `descriptorBindingPartiallyBound`
+- `descriptorBindingSampledImageUpdateAfterBind`
+- `maxDescriptorSetUpdateAfterBindSampledImages >= 4096`
 
-Expected fallback behavior:
-
-- If any required capability is missing, HIRES auto-disables at runtime.
-- A concrete disable reason is logged.
-- Renderer/provider attachment and lookup work stays disabled.
+If any requirement is missing:
+- HIRES disables at runtime.
+- The disable reason is logged.
+- Provider/registry work stays off.
 
 ## Milestones
-- [x] M0: Repo hygiene for local packs (`.gitignore` update).
-- [x] M1: Core options and runtime plumbing (`hires_*` toggles + path).
-- [x] M2: Replacement provider module (`.htc` + `.hts` parse + decode).
-- [x] M3: Keying replication + logging harness (`checksum64`, `formatsize`, match logs).
-- [x] M4: GPU registry (bindless descriptor pool + lazy upload).
-- [x] M5: Shader texel-stage late swap (before combiner).
-- [x] M6: CI/TLUT correctness for palette-influenced keys.
-- [x] M7: Mips/LOD/filtering + memory budget controls.
-- [ ] M8: Validation + performance pass + docs.
+- [x] M0: Repo hygiene for local packs.
+- [x] M1: Core options and runtime plumbing.
+- [x] M2: Replacement provider (`.htc` + `.hts` parse/decode).
+- [x] M3: Keying replication + logging harness.
+- [x] M4: GPU registry with bindless descriptor uploads.
+- [x] M5: Texel-stage replacement swap before combiner.
+- [x] M6: CI/TLUT keying correctness.
+- [x] M7: Filtering, LOD, and budget controls.
+- [ ] M8: Validation, performance characterization, and final rollout docs.
 
 ## Current Status
-- Feature milestone state: `M0`..`M7` complete; `M8` pending.
-- Local readiness gate remains: `./run-tests.sh --profile hires-readiness`.
-- Runtime black-texture regression is resolved:
-  - Root cause: bindless uploads attempted explicit `set_texture_unorm`/`set_texture_srgb` on immutable replacement images that did not expose alternate unorm/srgb views.
-  - Fix: bindless upload path now chooses `set_texture()` fallback when alternate views are unavailable, and only uses explicit unorm/srgb setters when those views exist.
-- Replacement coverage hardening added during closeout:
-  - Copy-mode texture path now samples replacement texels and repacks to R5G5B5A1 for framebuffer-copy compatibility.
-  - Tile alias policy now reuses/invalidates replacement bindings across tiles with matching TMEM descriptor fields.
-- Latest local validation checkpoint:
-  - `./run-build.sh`
-  - `./run-tests.sh --profile hires-readiness`
-  - `./run-n64-smoke-state.sh -- --verbose` (summary: `lookups=3430 hits=3115 misses=315 provider=on`, screenshot: `Paper Mario (USA)-260305-210003.png`)
-- `M7` closure is complete locally (8-case policy smoke matrix + unit/build gates; no reflection errors/segfaults; enabled cases maintained `provider=on`, `unbound_hits=0`).
-- 4x HIRES line-breakup regression is resolved:
-  - Root cause: replacement sampling consumed upscaled raster coordinates directly, which distorted replacement UV mapping when `parallel-rdp-upscaling > 1`.
-  - Fix: normalize replacement `st_fp5` coordinates by `SCALING_FACTOR` in both copy and non-copy shader replacement paths (`texture.h`) and regenerate baked shader bank (`shaders/slangmosh.hpp`).
-  - Verification: `hires on + upscaling 4x` smoke no longer shows horizontal banding in title-scene replacement textures.
-- Non-HIRES parity remains intact after fixes:
-  - `hires off` current core vs reference core screenshot compare remains pixel-identical (`RMSE 0`).
-- `M5` is closed:
-  - Vulkan program-loading API now accepts optional precomputed reflection layouts (`request_shader` / `request_program` overloads with `ResourceLayout` pointers).
-  - `ResourceLayout::unserialize()` now supports slangmosh v6 serialized layouts (`GRA6`, 348-byte payload) and maps them into this fork's legacy `8 sets x 16 bindings` layout contract with validation guards.
-  - Added missing shader include dependency `shaders/debug_channel.h` and regenerated baked `shaders/slangmosh.hpp`; baked bank now includes `HIRES_REPLACEMENT` permutations for `ubershader` and `rasterizer`.
-  - Updated shader-bank integration to pass serialized reflection layouts during baked-program loads.
-  - Added local unit coverage for layout policy parsing/validation (`emu.unit.hires_slangmosh_layout_policy`).
-- `M6` is closed:
-  - TLUT shadow updates apply at TMEM-relative offsets (base `0x800`) with clipping, so partial/banked palette loads preserve unrelated shadow regions.
-  - CI palette CRC candidate keying now tries a deduplicated candidate set (`primary`, `min2`, `full-bank`) before miss classification.
-  - CI-only strict low32 fallback now resolves replacements when the low32 texture CRC is unique for a given `formatsize`, while rejecting ambiguous matches.
-  - Added/expanded local unit coverage:
-    - `emu.unit.hires_tlut_shadow_policy`
-    - `emu.unit.hires_ci_palette_policy`
-    - `hires.texture_replacement_provider` (CI low32 unique fallback cases)
-- Post-`M6` compatibility tuning (active):
-  - Added CI ambiguous low32 fallback with palette-hint preference:
-    - on CI misses where exact `(palette_crc, texture_crc)` lookup fails and low32 has multiple pack variants, lookup now prefers entries matching the most recently successful CI palette CRC, then falls back to latest low32 variant.
-  - Added block-probe width-from-row-stride fallback for LOAD_BLOCK keying:
-    - when block fallback uses a row stride that implies a narrower effective row than tile-mask width, lookup now also probes that stride-derived width.
-    - this resolves legacy pack keys that are encoded against stride-constrained widths (e.g. `4x32` instead of `16x32`) while keeping texel-stage replacement path unchanged.
-  - Added shared-offset load alias fallback and propagation for replacement tile bindings:
-    - `find_hires_alias_source_tile()` now falls back from strict descriptor match to shared TMEM-offset source matching.
-    - `propagate_hires_alias_group_binding()` now mirrors replacement state across shared-offset tiles, not just exact descriptor aliases.
-    - this addresses `LOAD_* via tile7 -> sample via tile0` remap sequences where texel0 draws previously kept native textures.
-  - Added provider unit coverage for the ambiguous fallback contract:
-    - preferred palette match wins when available;
-    - otherwise newest low32 candidate is selected deterministically.
-  - Added tile-alias policy unit coverage for shared-offset fallback/propagation:
-    - `emu.unit.hires_tile_alias_policy`.
-  - Latest local debug smoke (`PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose`):
-    - `lookups=11725 hits=11655 misses=70 provider=on`
-    - remaining misses are a single repeated key (`00000000ab53409b fs=514`).
-    - texel0-only draw mismatch audit improved from `9476` (`repl1-only`) to `70`.
-- Local validation for `M6` close:
-  - `./run-build.sh`
-  - `./run-tests.sh --profile hires-readiness`
-  - `./run-tests.sh --profile emu-required`
-  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (summary: `lookups=31902 hits=18520 misses=13382 provider=on`)
-- `M7` implementation history (slice 1):
-  - Added local-only hi-res budget control plumbing via core option `parallel-n64-parallel-rdp-hirestex-budget-mb` (`0` = unlimited).
-  - Plumbed budget into renderer registry policy (`budget_bytes`) during hi-res configure/init; eviction remains disabled in this slice.
-  - Added descriptor-binding observability split in summary logs: `bound_hits` vs `unbound_hits` in addition to `hits`/`misses`.
-  - Added/expanded local unit coverage:
-    - `emu.unit.hires_lookup_policy` (descriptor-bound outcome accounting)
-    - `emu.unit.parallel_option_wiring` (`parallel_set_hires_budget_mb`)
-    - `emu.unit.plugin_contract` stub sync for new option setter
-- `M7` slice 2 (budget enforcement) is now in:
-  - Implemented renderer-side LRU eviction when budget is enabled, including repeated eviction passes until the incoming upload fits.
-  - Added a fallback descriptor image for evicted handles so descriptor slots remain valid after residency drops.
-  - Enabled eviction from runtime configure path whenever `budget_mb > 0`.
-  - Extended summary observability with `evictions`, `rejects`, and resident/budget byte counters.
-  - Expanded unit coverage in `emu.unit.hires_registry_policy` for oversized-texture reject and budget-shrink eviction decisions.
-- `M7` slice 3 (sampling/upload policy wiring) is now in:
-  - Added explicit hi-res sampling policy helpers (`filter` + `srgb` mode sanitization and behavior decisions).
-  - Wired runtime `hires_filter` / `hires_srgb` through configure path into renderer policy state.
-  - Upload path now applies policy outcomes:
-    - `trilinear` -> mipmapped replacement image uploads,
-    - `srgb on|auto` -> SRGB replacement uploads and SRGB descriptor view binding.
-  - Added local unit coverage `emu.unit.hires_sampling_policy` and included it in hires-readiness profile execution.
-- Next execution target: start `M8` validation/performance/docs pass (extended conformance + perf characterization + rollout notes).
+- `M0` through `M7` are implemented locally.
+- Current local readiness gate: `./run-tests.sh --profile hires-readiness`.
+- Current full local gate: `./run-tests.sh`.
+- Current runtime smoke target: `./run-n64-smoke-state.sh -- --verbose`.
+- Latest Paper Mario state smoke is clean:
+  - `lookups=13031 hits=13031 misses=0`
+  - `bound_hits=13031 unbound_hits=0`
+  - `provider=on`
 
-## Status Update Format
-I will post updates in this format as work progresses:
-- `Phase`: current milestone ID.
-- `Done`: what was completed since the last update.
-- `Changed`: exact files touched.
-- `Validated`: build/tests/manual checks run.
-- `Next`: immediate next implementation step.
+## Stable Implementation Notes
 
-## Local Mini-Pack Tool
-- Script: `tools/hires_minipack.py`
-- Commands:
-  - Generate from key CSV:
-    - `python3 tools/hires_minipack.py from-keys --keys keys.csv --out-dir ./cache_minipack --name MINIPACK --emit hts,htc --scale 4 --compress none`
-  - Validate generated cache files:
-    - `python3 tools/hires_minipack.py validate --path ./cache_minipack`
-- CSV columns:
-  - Required: `checksum64`, `formatsize`
-  - Optional: `orig_w`, `orig_h`, `repl_w`, `repl_h`
-- Output:
-  - Emits `.hts`/`.htc` files matching current `ReplacementProvider` parse contracts.
-  - Writes `<name>_manifest.json` with key and synthetic texture metadata.
+### M4 Registry
+- Replacement uploads are lazy.
+- Descriptor indexing is the only supported runtime path.
+- Descriptor residency is tracked with local counters and optional budget enforcement.
 
-## Change Log
-- 2026-03-06: Removed no-effect probe/debug leftovers from HIRES keying experiments:
-  - Deleted block-miss diagnostic probe branch (`ProbeCandidate`, `alt-hit`, `block probe meta`) from `rdp_renderer.cpp`.
-  - Removed transient shader-define debug trace from `rdp_device.cpp`.
-  - Revalidated local gates:
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-build.sh`
-    - `PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose` (`lookups=11539 hits=11470 misses=69 provider=on`).
-- 2026-03-06: Added shared-offset tile alias fallback/propagation for load-to-sample remaps:
-  - Root cause: frequent `LOAD_*` uploads through tile 7 followed by sampling through tile 0/1 with different descriptor fields; strict alias matching left many texel0 draws unbound.
-  - Implemented shared-offset fallback in `find_hires_alias_source_tile()` and shared-offset propagation in `propagate_hires_alias_group_binding()`.
-  - Expanded `emu.unit.hires_tile_alias_policy` coverage for:
-    - shared-offset alias source selection with descriptor mismatch,
-    - shared-offset propagation contract.
-  - Local validation:
-    - `./run-tests.sh -R '^(emu\\.unit\\.hires_tile_alias_policy|emu\\.unit\\.hires_lookup_policy|hires\\.texture_replacement_provider)$'`
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-build.sh`
-    - `PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose` (`lookups=11725 hits=11655 misses=70`; remaining miss key `ab53409b fs=514`).
-- 2026-03-06: Added block width-from-row-stride fallback in LOAD_BLOCK probe keying:
-  - Rooted from local brute diagnosis on persistent miss key `de3dac2a` (`addr=0x0745e0`) where matching pack key resolved at `wh=4x32 stride=8`.
-  - Implemented `compute_hires_width_from_row_stride()` policy helper and integrated probe-width fallback in renderer block-tile lookup.
-  - Added local unit coverage in `emu.unit.hires_lookup_policy` for row-stride-to-width mapping.
-  - Local validation:
-    - `./run-tests.sh -R '^(emu\\.unit\\.hires_lookup_policy|hires\\.texture_replacement_provider|hires\\.texture_keying)$'`
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-build.sh`
-    - `PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose` (`lookups=12199 hits=12126 misses=73`; remaining miss key `ab53409b fs=514`).
-- 2026-03-06: Added CI ambiguous low32 fallback tuning:
-  - Implemented `ReplacementProvider::lookup_ci_low32_any` (preferred palette CRC match, deterministic newest-entry fallback).
-  - Wired renderer CI miss path to use the new fallback after strict unique lookup fails, and carry forward a runtime CI palette hint from successful matches.
-  - Expanded `hires.texture_replacement_provider` unit coverage for preferred-palette and deterministic fallback behavior.
-  - Local validation:
-    - `./run-tests.sh -R '^(hires\\.texture_replacement_provider|hires\\.texture_replacement_provider_parser_edge|hires\\.texture_keying|emu\\.unit\\.hires_ci_palette_policy|emu\\.unit\\.hires_tlut_shadow_policy)$'`
-    - `./run-build.sh`
-    - `PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose` (`lookups=13017 hits=12705 misses=312`).
-- 2026-03-04: Created tracker and aligned scope to latest-hardware-only descriptor-indexing path.
-- 2026-03-04: Added ignore rules for local hires cache artifacts in `.gitignore`.
-- 2026-03-04: Added M1 plumbing for hi-res options (`enabled`, `filter`, `srgb`, cache path) from libretro options to paraLLEl runtime globals.
-- 2026-03-04: Began M2 by reverse-checking `.hts` layout from the Paper Mario pack (header + `storagePos`, indexed `key -> offset|formatsize`, per-entry payload with dimensions/metadata + zlib blob).
-- 2026-03-04: Completed M2 standalone loader in paraLLEl-RDP (`texture_replacement.*`) with `.hts` index parsing, `.htc` gzip-record parsing, `(checksum64, formatsize)` lookup (with wildcard fallback), zlib blob handling, and decode to canonical RGBA8.
-- 2026-03-04: Added non-Windows `-lz` link flag for paraLLEl builds to satisfy loader zlib usage.
-- 2026-03-04: Validated M2 on local `PAPER MARIO_HIRESTEXTURES.hts` (loaded 15159 entries; lookup + RGBA8 decode succeeded on sampled key).
-- 2026-03-04: Started M3 integration: wired cache provider into `CommandProcessor`, added renderer-side TLUT shadowing, `formatsize` keying, per-tile replacement key state, and debug logging/counters for key hit/miss tracing.
-- 2026-03-04: M3 build validation passed (`make HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=1`) and default local smoke test passed.
-- 2026-03-04: Forcing `parallel-n64-gfxplugin = "parallel"` currently triggers an early runtime core dump in local smoke runs before keying logs can be validated; key matching validation remains pending until this runtime path is stable.
-- 2026-03-04: Stabilized forced `parallel` startup path by guarding `plugin_start_gfx()` against null function pointers and defaulting to a valid compiled GFX plugin when an unavailable/stale plugin selection is requested.
-- 2026-03-04: Revalidated M1/M2 under forced `parallel` + `parallel` RSP:
-  - hi-res `disabled`: 20s smoke passed (`lookups=0 hits=0 misses=0 provider=off`).
-  - hi-res `enabled` with Paper Mario pack: 20s smoke passed with cache load and live matches (`15159` entries loaded; `lookups=31902 hits=18376 misses=13526 provider=on`).
-- 2026-03-04: Added local hi-res texture unit tests and runner:
-  - `tests/hires_textures/hires_keying_test.cpp` validates `formatsize`, wrapped reads, CRC behavior, and CI max-index helpers.
-  - `tests/hires_textures/hires_replacement_provider_test.cpp` validates `.htc` + `.hts` cache load, lookup, wildcard formatsize fallback, and RGBA8 decode using generated fixtures.
-  - Run commands:
-    - `./run-tests.sh`
-    - `cmake -S . -B build/ctest`
-    - `cmake --build build/ctest --parallel`
-    - `ctest --test-dir build/ctest --output-on-failure`
-- 2026-03-04: Revalidated after keying helper refactor and tests:
-  - `make HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=1` passes.
-  - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` with forced `parallel` + hi-res `enabled` passes (`lookups=31902 hits=18376 misses=13526 provider=on`).
-- 2026-03-04: Marked M3 complete after runtime hit/miss validation and local unit coverage for keying and replacement provider decode paths.
-- 2026-03-04: Promoted local M3 tests to first-class CMake/CTest targets for the fork (`cmake -S . -B build/ctest` + `ctest --test-dir build/ctest`).
-- 2026-03-04: Added `run-build.sh` helper for consistent local core builds with this fork's defaults (`HAVE_PARALLEL=1`, `HAVE_PARALLEL_RSP=1`).
-- 2026-03-05: Put hi-res implementation phases on hold while a separate non-hires emulator behavior test program was established (later closed/retired on 2026-03-05).
-- 2026-03-05: Deferred minipack hash conformance fixture work pending additional requirements; continuing unit-test-first readiness work for M4/M5.
-- 2026-03-05: Locked local-only CI policy for emulator/hires test gates (no remote CI additions at this stage).
-- 2026-03-05: Added local mini-pack generator tooling for key-driven fixture creation:
-  - Added `tools/hires_minipack.py` with:
-    - `from-keys` generation path for `.hts` and `.htc`,
-    - synthetic deterministic RGBA8 payload generation (with optional zlib payload compression),
-    - `validate` command for `.hts`/`.htc` structural integrity checks.
-  - Added `tests/hires_textures/hires_minipack_tool_test.cpp` + `hires.texture_minipack_tool` to lock generator-provider compatibility.
-- 2026-03-05: Synced tracker after emulator-test-plan closure:
-  - Confirmed this HIRES plan remains active with `M4`..`M8` still open.
-  - Added explicit pre-`M4` readiness status so implemented scaffolding is visible without overstating milestone completion.
-- 2026-03-05: Started `M4` runtime GPU-registry implementation pass:
-  - Added renderer-side HIRES registry state with descriptor-capacity initialization (`4096`) via bindless sampled-image pool.
-  - Added lazy decode/upload path on lookup hits (`ReplacementProvider::decode_rgba8` -> Vulkan image -> bindless descriptor write).
-  - Extended replacement tile state to capture `vk_image_index` and replacement dimensions for upcoming shader-stage consumption.
-  - Expanded policy/helper coverage:
-    - `rdp_hires_key_state_policy` now writes descriptor + replacement dimensions;
-    - `rdp_hires_registry_policy` adds tested formatsize-match helper for exact/wildcard behavior.
-  - Local validation:
-    - `./run-tests.sh --profile hires-readiness` (pass),
-    - `./run-build.sh` (pass),
-    - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (pass, forced timeout exit).
-- 2026-03-05: Resolved descriptor-indexing auto-disable root cause:
-  - Root cause: `parallel_create_device()` forced `CONTEXT_CREATION_DISABLE_BINDLESS_BIT`, preventing descriptor-indexing enablement.
-  - Fix: switched to policy default creation flags (`0`) so bindless/descriptor indexing can be negotiated on capable hardware.
-  - Added local regression unit coverage in `emu.unit.rdp_init_policy`.
-  - Revalidated runtime on RADV:
-    - Vulkan init now enables `VK_EXT_descriptor_indexing`,
-    - HIRES path reports enabled and loads cache (`15159` entries),
-    - 20s smoke run ends cleanly with keying summary (`lookups=31902 hits=18376 misses=13526 provider=on`).
-- 2026-03-05: Began `M5` texel-stage shader swap integration:
-  - added `rdp_hires_shader_policy.hpp` and new `emu.unit.hires_shader_policy` coverage;
-  - extended tile host/shader data structures with replacement metadata (`orig/replacement dims + descriptor index`);
-  - wired renderer bindless set-3 binding and `HIRES_REPLACEMENT` define resolution in rasterizer/ubershader paths;
-  - validated local gates:
-    - `./run-build.sh` (pass),
-    - `./run-tests.sh --profile hires-readiness` (pass),
-    - 20s Paper Mario smoke with debug keying (`provider=on`, live hit/miss stream).
-  - noted open blocker: embedded shader bank regeneration mismatch (new `slangmosh` output vs current repo Vulkan API), so default baked-shader path still needs a compatible regeneration step before `M5` can be closed.
-- 2026-03-05: Updated Vulkan baked-shader loading API for modern slangmosh output:
-  - Added `ResourceLayout` overload plumbing through `vulkan/device.*` + `vulkan/shader.*`.
-  - Added `vulkan/resource_layout_policy.hpp` and compatibility parsing for serialized slangmosh v6 (`GRA6`, 348-byte reflection payload).
-  - Added `shaders/debug_channel.h` so debug shader variants preprocess cleanly during header generation.
-- 2026-03-05: Regenerated baked shader bank (`parallel-rdp/parallel-rdp/shaders/slangmosh.hpp`) with `HIRES_REPLACEMENT` variants for `ubershader` and `rasterizer`, and updated shader-bank integration to pass reflection layouts during baked loads.
-- 2026-03-05: Added local coverage for reflection policy helpers (`emu.unit.hires_slangmosh_layout_policy`) and revalidated M5 closeout with local gates:
-  - `./run-build.sh`
-  - `./run-tests.sh --profile hires-readiness`
-  - `./run-tests.sh --profile emu-required`
-  - 20s Paper Mario smoke (`provider=on`, live descriptor hits/misses, clean unload).
-- 2026-03-05: Revalidated `M5` with non-debug runtime smoke for deterministic summary output:
-  - `timeout --signal=INT --kill-after=5 10s ./run-n64.sh -- --verbose`
-  - summary: `lookups=2299 hits=2299 misses=0 provider=on` (Paper Mario, hi-res enabled).
-- 2026-03-05: Started `M6` CI/TLUT hardening with TMEM-aware TLUT shadow updates:
-  - Added `parallel-rdp/parallel-rdp/rdp_hires_tlut_shadow_policy.hpp` and switched renderer TLUT shadow writes to use TMEM-relative clipping (`0x800` TLUT base) instead of always writing from shadow byte `0`.
-  - Preserved partial TLUT updates across banks and added debug logging fields (`copied`, `tmem`, `shadow_ofs`) for runtime verification.
-  - Added unit coverage `emu.unit.hires_tlut_shadow_policy` for full, partial, clipped, out-of-range, and invalid-input update contracts.
-  - Revalidated local gates:
-    - `./run-build.sh`
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-tests.sh --profile emu-required`
-    - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (`lookups=32048 hits=18442 misses=13606 provider=on`).
-- 2026-03-05: Closed `M6` CI/TLUT keying parity pass:
-  - Added CI palette CRC candidate generation (`primary`, `min2`, `full-bank`, deduplicated) and renderer-side candidate probing for CI lookups.
-  - Added strict CI low32 unique fallback lookup in `ReplacementProvider` to recover valid matches when palette high32 does not align, without permitting ambiguous matches.
-  - Expanded tests:
-    - `emu.unit.hires_ci_palette_policy` (candidate-set and dedupe contracts),
-    - `hires.texture_replacement_provider` (CI low32 unique/ambiguous fallback contracts).
-  - Revalidated local gates:
-    - `./run-build.sh`
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-tests.sh --profile emu-required`
-    - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (`lookups=31902 hits=18520 misses=13382 provider=on`).
+### M5 Sampling Path
+- Replacement sampling happens at the texel stage, before combiner/blender.
+- Copy-mode replacement sampling repacks back to R5G5B5A1 for framebuffer-copy compatibility.
+- Upscaling-aware replacement sampling is normalized by `SCALING_FACTOR` so 4x output does not distort replacement UVs.
 
-- 2026-03-05: Started `M7` slice 1 (budget controls + observability):
-  - Added core option plumbing for hi-res budget (`parallel-n64-parallel-rdp-hirestex-budget-mb`) through libretro -> parallel frontend -> RDP runtime globals.
-  - Extended hi-res configure path to pass budget bytes into renderer registry runtime policy.
-  - Extended hi-res summary metrics with descriptor-bind outcomes (`bound_hits`, `unbound_hits`) to distinguish key matches from actually bound replacements.
-  - Added unit coverage updates in `emu.unit.hires_lookup_policy`, `emu.unit.parallel_option_wiring`, and `emu.unit.plugin_contract`.
-  - Revalidated with `./run-build.sh`, focused unit set, and 30s smoke (`bound_hits` observed, `unbound_hits=0`).
+### M6 Keying
+- `(checksum64, formatsize)` lookup is active.
+- CI palette CRC candidates are deduplicated and tried before miss classification.
+- CI low32 fallback supports:
+  - strict unique match
+  - preferred palette-hint match
+  - deterministic newest-entry fallback when ambiguity remains
+- TLUT shadow updates are TMEM-relative and clipped, preserving unrelated palette regions.
 
-- 2026-03-05: Continued `M7` with budget-enforcement slice:
-  - Added renderer-side LRU eviction path (with repeated evictions) when resident bytes exceed configured hi-res budget.
-  - Added per-registry fallback image binding for evicted descriptor slots to keep bindless descriptors valid.
-  - Enabled eviction automatically from runtime configure when `parallel-n64-parallel-rdp-hirestex-budget-mb > 0`.
-  - Extended summary metrics with budget observability (`evictions`, `rejects`, `resident_bytes`, `budget_bytes`).
-  - Expanded `emu.unit.hires_registry_policy` budget-decision coverage for oversize rejection and budget-shrink eviction.
-  - Revalidated locally with:
-    - `./run-tests.sh -R '^emu\.unit\.(hires_registry_policy|hires_lookup_policy|hires_runtime_policy|parallel_option_wiring|plugin_contract)$'`
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-build.sh`
-    - `timeout --signal=KILL 40s ./run-n64-smoke-start.sh -- --verbose`
-    - 30s smoke with temporary `budget_mb=128` (`evictions=2`, `rejects=0`, `resident_bytes=132587920`, `budget_bytes=134217728`).
+### M6/M7 Coverage Hardening
+- LOAD_BLOCK keying includes:
+  - row-stride-aware width fallback
+  - block-tile offset fallback
+  - block-shape reinterpret fallback
+- Replacement tile bindings are propagated across valid alias groups, but stale shared-offset source reuse is explicitly rejected.
+- Budget enforcement supports eviction and oversized-upload rejection accounting.
 
-- 2026-03-05: Continued `M7` with sampling/upload policy slice:
-  - Added `rdp_hires_sampling_policy.hpp` to centralize filter/sRGB mode sanitization and upload behavior decisions.
-  - Extended configure plumbing (`rdp.cpp` -> `CommandProcessor::configure_hires_replacement`) to pass filter/sRGB modes into renderer state.
-  - Extended renderer upload behavior:
-    - trilinear mode requests mipmapped immutable image uploads,
-    - sRGB mode controls replacement upload format (`VK_FORMAT_R8G8B8A8_SRGB` vs `UNORM`) and descriptor view binding.
-  - Added unit test `emu.unit.hires_sampling_policy` and CTest registration.
-  - Revalidated locally with:
-    - `./run-tests.sh -R '^emu\.unit\.hires_(sampling_policy|registry_policy|lookup_policy|runtime_policy)$'`
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-build.sh`
-    - `timeout --signal=KILL 40s ./run-n64-smoke-start.sh -- --verbose`
-    - 30s smoke with temporary `filter=trilinear`, `srgb=on`, `budget_mb=128` (`evictions=2`, `rejects=0`).
+## Recent Fixes That Must Stay
+- Bindless upload view selection now falls back to `set_texture()` when explicit unorm/srgb views are unavailable. This fixed black replacement textures.
+- Tile alias reuse no longer inherits stale replacement bindings across descriptor-only updates. This fixed the corrupted Paper Mario file-select scene.
+- Block lookup helpers now cover legacy pack encodings that key against narrower effective row widths or rebased block offsets.
 
-- 2026-03-05: Continued `M7` with shader LOD + descriptor packing slice:
-  - Added packed hi-res descriptor semantics (`index + mip-available bit`) in runtime/shader policy helpers.
-  - Extended replacement tile state and binding path to preserve `has_mips` through to shader-visible metadata.
-  - Updated shader replacement sampling path to:
-    - decode packed descriptor index/mip flag,
-    - derive replacement mip level from `lod_frac`,
-    - sample replacement texels from the selected mip level.
-  - Expanded unit coverage:
-    - `emu.unit.hires_runtime_policy` (descriptor pack/unpack + mip bit semantics),
-    - `emu.unit.hires_key_state_policy` (`has_mips` propagation contract),
-    - `emu.unit.hires_shader_policy` (packed descriptor + mip-flag binding behavior).
-- 2026-03-05: Resolved baked-shader regeneration compatibility with latest local `slangmosh` output:
-  - Root cause: regenerated `slangmosh.hpp` emitted `GRA4` reflection payloads; parser previously accepted only `GRA6`.
-  - Added explicit `GRA4` compatibility parsing and conversion into the fork's canonical reflection mapping in `vulkan/resource_layout_policy.hpp`.
-  - Added `emu.unit.hires_slangmosh_layout_policy` coverage for both `GRA6` and `GRA4` payload contracts (including v4->v6 conversion behavior).
-  - Revalidated local gates after regeneration + compatibility fix:
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-build.sh`
-    - `./run-n64-smoke-start.sh` (30s smoke with input automation; clean exit, no reflection/segfault regression; summary: `lookups=73913 hits=45139 misses=28774 bound_hits=45139 unbound_hits=0 evictions=0 rejects=0`).
-- 2026-03-05: Closed `M7` after full local smoke matrix validation across policy combinations:
-  - Matrix cases executed (30s each, local-only):
-    - `hires=disabled` baseline (`linear`, `srgb=auto`, `budget=0`),
-    - `hires=enabled` with filters `linear|nearest|trilinear` under `srgb=auto`, `budget=0`,
-    - `hires=enabled` with `filter=linear` under `srgb=on|off`, `budget=0`,
-    - budget stress: `budget=128` for `linear/auto` and `trilinear/on`.
-  - Closure invariants satisfied:
-    - all runs exited cleanly (`rc=0`),
-    - no reflection-format regressions (`Cannot map slangmosh reflection`/`Unsupported reflection payload` absent),
-    - no segfaults,
-    - with hires enabled: `provider=on` and `unbound_hits=0` in all cases,
-    - with tight budget: eviction path exercised (`evictions=2`, `rejects=0`, resident bytes under budget cap).
-- 2026-03-06: Resolved runtime black-texture regression while HIRES was enabled:
-  - Root cause: bindless descriptor upload used explicit unorm/srgb view setters even when immutable replacement images only exposed default views, resulting in invalid/null effective descriptor views.
-  - Added bindless view selection policy (`rdp_hires_bindless_view_policy`) with explicit fallback to default image view binding.
-  - Added local unit coverage `emu.unit.hires_bindless_view_policy`.
-  - Revalidated with:
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-build.sh`
-    - `./run-n64-smoke-state.sh -- --verbose` (Paper Mario screenshot confirms visible enhanced textures).
-- 2026-03-06: Closed replacement-path parity gaps found during runtime verification:
-  - Added HIRES replacement sampling for copy-mode path in shader (`texture.h`) with RGBA5551 packing parity helper.
-  - Added tile alias policy (`rdp_hires_tile_alias_policy`) so replacement bindings track shared TMEM tile descriptors and invalidate coherently on reload.
-  - Added/expanded local unit coverage:
-    - `emu.unit.hires_sampling_policy` (copy-mode packing contract),
-    - `emu.unit.hires_tile_alias_policy`.
-- 2026-03-06: Fixed HIRES 4x sampling-coordinate regression causing horizontal line breakup in replacement textures:
-  - Normalized replacement sampling coordinates by `SCALING_FACTOR` in shader replacement fetch paths (`sample_texture_copy` and `sample_texture` in `shaders/texture.h`).
-  - Regenerated baked shader bank (`parallel-rdp/parallel-rdp/shaders/slangmosh.hpp`) with local `slangmosh` toolchain.
-  - Revalidated local gates:
-    - `./run-build.sh`
-    - `./run-tests.sh --profile hires-readiness`
-    - `./run-n64-smoke-state.sh -- --verbose` (`hires on + 4x`: banding gone)
-    - `hires off` A/B current vs reference compare (`RMSE 0`).
+## Probes Removed
+These were explored and then intentionally removed because they did not improve the validated Paper Mario scene:
+- host-visible TMEM recovery request during RDP init
+- TLUT shadow rebuild from mapped TMEM
+- extra CI ambiguous-candidate and TMEM-shadow debug logging
+- experimental wrap/clamp sampling probe that did not change output
+
+## Local Validation
+Run these locally before and after HIRES changes:
+
+1. `./run-build.sh`
+2. `./run-tests.sh`
+3. `./run-tests.sh --profile hires-readiness`
+4. `./run-n64-smoke-state.sh -- --verbose`
+
+Expected smoke characteristics on the current Paper Mario state:
+- cache loads from RetroArch system directory
+- provider remains `on`
+- `unbound_hits=0`
+- current baseline is `lookups=13031 hits=13031 misses=0`
+
+## Local Tools
+- Mini-pack generator: `tools/hires_minipack.py`
+- Generate from keys:
+  - `python3 tools/hires_minipack.py from-keys --keys keys.csv --out-dir ./cache_minipack --name MINIPACK --emit hts,htc --scale 4 --compress none`
+- Validate generated pack:
+  - `python3 tools/hires_minipack.py validate --path ./cache_minipack`
+
+## Remaining M8 Work
+- Extend conformance coverage beyond the current Paper Mario smoke scene.
+- Characterize performance and residency behavior under realistic pack pressure.
+- Document rollout expectations and known hardware requirements.
+- Revisit minipack hash conformance once fixture details are finalized.

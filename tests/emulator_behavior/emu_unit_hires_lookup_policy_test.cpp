@@ -100,6 +100,35 @@ static void test_hires_key_base_addr_contract()
 				TextureSize::Bpp4,
 				false) == 0x1044u,
 	      "4bpp non-block key base address mismatch");
+
+	check(compute_hires_block_probe_base_addr(
+				tex_addr,
+				16u,
+				key_start_x,
+				key_start_y,
+				TextureSize::Bpp4) == 0x1014u,
+	      "block probe base address should rebase against the sampled sub-rectangle");
+}
+
+static void test_hires_texture_byte_layout_contract()
+{
+	check(compute_hires_texture_row_bytes(7, TextureSize::Bpp4) == 4,
+	      "4bpp row byte computation should round up odd widths");
+	check(compute_hires_texture_row_bytes(8, TextureSize::Bpp8) == 8,
+	      "8bpp row byte computation mismatch");
+	check(compute_hires_texture_row_bytes(4, TextureSize::Bpp16) == 8,
+	      "16bpp row byte computation mismatch");
+	check(compute_hires_texture_row_bytes(4, TextureSize::Bpp32) == 16,
+	      "32bpp row byte computation mismatch");
+
+	check(compute_hires_texture_total_bytes(64, 1, TextureSize::Bpp16) == 128,
+	      "texture byte size mismatch for 64x1 16bpp block");
+	check(compute_hires_block_reinterpret_height(128, 32, TextureSize::Bpp16) == 2,
+	      "block reinterpret height mismatch for 32x2 16bpp");
+	check(compute_hires_block_reinterpret_height(128, 4, TextureSize::Bpp16) == 16,
+	      "block reinterpret height mismatch for 4x16 16bpp");
+	check(compute_hires_block_reinterpret_height(128, 7, TextureSize::Bpp16) == 0,
+	      "block reinterpret height should reject incompatible row sizes");
 }
 
 static void test_hires_tile_lookup_dim_contract()
@@ -227,6 +256,7 @@ int main()
 	test_hires_lookup_fast_path_gate();
 	test_ci_palette_candidate_gate_contract();
 	test_hires_key_base_addr_contract();
+	test_hires_texture_byte_layout_contract();
 	test_hires_tile_lookup_dim_contract();
 	test_hires_block_dxt_policy_contract();
 	test_lookup_counter_updates();

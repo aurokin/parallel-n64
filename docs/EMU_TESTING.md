@@ -22,8 +22,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-tests.sh --profile hires-readiness`
 - Quick HIRES visual smoke (state-load screenshot capture):
   - `./run-n64-smoke-state.sh -- --verbose`
-- Quick 8x integer-scale run:
-  - `./run-n64-8x.sh -- --verbose`
+- Quick runtime smoke:
+  - `./run-n64.sh -- --verbose`
 
 ## Profiles
 

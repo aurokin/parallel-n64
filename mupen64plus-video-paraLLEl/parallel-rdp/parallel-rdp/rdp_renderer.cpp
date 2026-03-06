@@ -4434,7 +4434,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					repl_meta.repl_w,
 					repl_meta.repl_h,
 					repl_meta.has_mips,
-					info.mode != UploadMode::Block);
+					true);
 			detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
 
 			for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)

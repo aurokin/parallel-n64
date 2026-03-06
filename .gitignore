@@ -39,3 +39,6 @@ tests/rdp_dumps/local/*.rdp
 
 # Local shader-bank regeneration helper artifact
 mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/shaders/slangmosh.local.json
+
+# Python cache artifacts
+__pycache__/

@@ -46,6 +46,7 @@ bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, in
 bool hires_textures = false;
 unsigned hires_filter = 1;
 unsigned hires_srgb = 0;
+unsigned hires_budget_mb = 0;
 string hires_cache_path;
 
 void process_commands()
@@ -243,11 +244,15 @@ bool init()
 	if (hires_capabilities_ok)
 	{
 		log_cb(RETRO_LOG_INFO,
-		       "Hi-res textures enabled (path=%s, filter=%u, srgb_mode=%u).\n",
-		       hires_cache_path.c_str(), hires_filter, hires_srgb);
+		       "Hi-res textures enabled (path=%s, filter=%u, srgb_mode=%u, budget_mb=%u).\n",
+		       hires_cache_path.c_str(), hires_filter, hires_srgb, hires_budget_mb);
 	}
 
-	frontend->configure_hires_replacement(hires_capabilities_ok, hires_cache_path.c_str());
+	frontend->configure_hires_replacement(
+			hires_capabilities_ok,
+			hires_cache_path.c_str(),
+			size_t(hires_budget_mb) * 1024ull * 1024ull,
+			false);
 
 	timeline_value = 0;
 	pending_timeline_value = 0;

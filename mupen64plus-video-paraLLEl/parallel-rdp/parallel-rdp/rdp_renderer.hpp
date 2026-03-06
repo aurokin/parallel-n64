@@ -106,6 +106,7 @@ public:
 	void load_tile(uint32_t tile, const LoadTileInfo &info);
 	void load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint32_t tmem_offset);
 	void set_replacement_provider(const ReplacementProvider *provider);
+	void set_hires_budget(size_t budget_bytes, bool eviction_enabled);
 	void set_hires_debug(bool enable);
 	void log_hires_summary() const;
 
@@ -231,6 +232,8 @@ private:
 	uint64_t hires_lookup_total = 0;
 	uint64_t hires_lookup_hits = 0;
 	uint64_t hires_lookup_misses = 0;
+	uint64_t hires_descriptor_bound_hits = 0;
+	uint64_t hires_descriptor_unbound_hits = 0;
 
 	struct HiresRegistryEntry
 	{
@@ -258,6 +261,8 @@ private:
 		std::unordered_map<uint64_t, std::vector<HiresRegistryEntry>> entries_by_checksum;
 	};
 	HiresRegistryState hires_registry = {};
+	size_t hires_budget_bytes = 0;
+	bool hires_eviction_enabled = false;
 
 	void reset_hires_registry();
 	bool ensure_hires_registry();

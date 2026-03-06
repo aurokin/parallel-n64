@@ -407,6 +407,8 @@ static void setup_variables(void)
          "(ParaLLEl-RDP) Hi-res texture filtering; linear|nearest|trilinear" },
       { "parallel-n64-parallel-rdp-hirestex-srgb",
          "(ParaLLEl-RDP) Hi-res texture color space; auto|on|off" },
+      { "parallel-n64-parallel-rdp-hirestex-budget-mb",
+         "(ParaLLEl-RDP) Hi-res texture cache budget (MB); 0|128|256|512|1024|2048|4096" },
 #endif
       { "parallel-n64-send_allist_to_hle_rsp",
          "Send audio lists to HLE RSP; disabled|enabled" },
@@ -1271,6 +1273,13 @@ void update_variables(bool startup)
    }
    else
        parallel_set_hires_srgb(0);
+
+   var.key = "parallel-n64-parallel-rdp-hirestex-budget-mb";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+       parallel_set_hires_budget_mb((unsigned)strtoul(var.value, NULL, 10));
+   else
+       parallel_set_hires_budget_mb(0);
 
    {
       const char *system_dir = ".";

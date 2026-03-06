@@ -226,6 +226,11 @@ void parallel_set_hires_srgb(unsigned mode)
 	RDP::hires_srgb = mode;
 }
 
+void parallel_set_hires_budget_mb(unsigned mb)
+{
+	RDP::hires_budget_mb = mb;
+}
+
 void parallel_set_hires_cache_path(const char *path)
 {
 	RDP::hires_cache_path = path ? path : "";

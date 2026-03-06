@@ -678,6 +678,8 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 		reset_hires_registry();
 	detail::reset_hires_tracking_state(
 			replacement_tiles, tlut_shadow_valid, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
+	hires_descriptor_bound_hits = 0;
+	hires_descriptor_unbound_hits = 0;
 
 	for (auto &tile : tiles)
 		detail::clear_hires_tile_replacement_binding(tile);
@@ -690,6 +692,14 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 			hires_registry.ready);
 }
 
+void Renderer::set_hires_budget(size_t budget_bytes, bool eviction_enabled)
+{
+	hires_budget_bytes = budget_bytes;
+	hires_eviction_enabled = eviction_enabled && budget_bytes > 0;
+	hires_registry.budget_bytes = hires_budget_bytes;
+	hires_registry.eviction_enabled = hires_eviction_enabled;
+}
+
 void Renderer::set_hires_debug(bool enable)
 {
 	hires_debug = enable;
@@ -700,10 +710,12 @@ void Renderer::log_hires_summary() const
 	if (!replacement_provider && !hires_debug)
 		return;
 
-	LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu provider=%s.\n",
+	LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu bound_hits=%llu unbound_hits=%llu provider=%s.\n",
 	     static_cast<unsigned long long>(hires_lookup_total),
 	     static_cast<unsigned long long>(hires_lookup_hits),
 	     static_cast<unsigned long long>(hires_lookup_misses),
+	     static_cast<unsigned long long>(hires_descriptor_bound_hits),
+	     static_cast<unsigned long long>(hires_descriptor_unbound_hits),
 	     replacement_provider ? "on" : "off");
 }
 
@@ -746,6 +758,8 @@ bool Renderer::ensure_hires_registry()
 	hires_registry.capacity = HIRES_DESCRIPTOR_CAPACITY;
 	hires_registry.next_descriptor = 0;
 	hires_registry.tick = 0;
+	hires_registry.budget_bytes = hires_budget_bytes;
+	hires_registry.eviction_enabled = hires_eviction_enabled;
 	hires_shader_path_enabled = detail::should_enable_hires_shader_path(
 			replacement_provider != nullptr,
 			hires_registry.ready);
@@ -3603,7 +3617,15 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					repl_meta.repl_h);
 			detail::apply_hires_tile_replacement_binding(tiles[tile], repl_state);
 
-			detail::record_hires_lookup_result(hit, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
+			const bool descriptor_bound = detail::did_hires_lookup_bind_descriptor(hit, repl_meta.vk_image_index);
+			detail::record_hires_lookup_binding_result(
+					hit,
+					descriptor_bound,
+					hires_lookup_total,
+					hires_lookup_hits,
+					hires_lookup_misses,
+					hires_descriptor_bound_hits,
+					hires_descriptor_unbound_hits);
 
 			if (hires_debug)
 			{

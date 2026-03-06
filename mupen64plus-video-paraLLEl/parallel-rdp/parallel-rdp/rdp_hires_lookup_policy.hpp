@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "rdp_hires_runtime_policy.hpp"
 
 namespace RDP
 {
@@ -40,6 +41,31 @@ inline void record_hires_lookup_result(bool hit,
 		lookup_hits++;
 	else
 		lookup_misses++;
+}
+
+inline bool did_hires_lookup_bind_descriptor(bool provider_hit, uint32_t descriptor_index)
+{
+	return provider_hit && hires_descriptor_index_valid(descriptor_index);
+}
+
+inline void record_hires_lookup_binding_result(bool provider_hit,
+                                               bool descriptor_bound,
+                                               uint64_t &lookup_total,
+                                               uint64_t &provider_hits,
+                                               uint64_t &provider_misses,
+                                               uint64_t &descriptor_bound_hits,
+                                               uint64_t &descriptor_unbound_hits)
+{
+	lookup_total++;
+	if (provider_hit)
+		provider_hits++;
+	else
+		provider_misses++;
+
+	if (descriptor_bound)
+		descriptor_bound_hits++;
+	else if (provider_hit)
+		descriptor_unbound_hits++;
 }
 }
 }

@@ -40,7 +40,7 @@ Expected fallback behavior:
 - [ ] M8: Validation + performance pass + docs.
 
 ## Current Status
-- Feature milestone state: `M0`..`M6` complete; `M7`..`M8` pending.
+- Feature milestone state: `M0`..`M6` complete; `M7` in progress; `M8` pending.
 - Local readiness gate remains: `./run-tests.sh --profile hires-readiness`.
 - `M5` is closed:
   - Vulkan program-loading API now accepts optional precomputed reflection layouts (`request_shader` / `request_program` overloads with `ResourceLayout` pointers).
@@ -61,7 +61,15 @@ Expected fallback behavior:
   - `./run-tests.sh --profile hires-readiness`
   - `./run-tests.sh --profile emu-required`
   - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (summary: `lookups=31902 hits=18520 misses=13382 provider=on`)
-- Next execution target: start `M7` (mips/LOD/filtering + memory budget controls).
+- `M7` has started (slice 1):
+  - Added local-only hi-res budget control plumbing via core option `parallel-n64-parallel-rdp-hirestex-budget-mb` (`0` = unlimited).
+  - Plumbed budget into renderer registry policy (`budget_bytes`) during hi-res configure/init; eviction remains disabled in this slice.
+  - Added descriptor-binding observability split in summary logs: `bound_hits` vs `unbound_hits` in addition to `hits`/`misses`.
+  - Added/expanded local unit coverage:
+    - `emu.unit.hires_lookup_policy` (descriptor-bound outcome accounting)
+    - `emu.unit.parallel_option_wiring` (`parallel_set_hires_budget_mb`)
+    - `emu.unit.plugin_contract` stub sync for new option setter
+- Next execution target: continue `M7` with replacement filtering/mips/LOD behavior wiring and follow-up tests.
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -187,3 +195,10 @@ I will post updates in this format as work progresses:
     - `./run-tests.sh --profile hires-readiness`
     - `./run-tests.sh --profile emu-required`
     - `timeout --signal=INT --kill-after=5 20s ./run-n64.sh -- --verbose` (`lookups=31902 hits=18520 misses=13382 provider=on`).
+
+- 2026-03-05: Started `M7` slice 1 (budget controls + observability):
+  - Added core option plumbing for hi-res budget (`parallel-n64-parallel-rdp-hirestex-budget-mb`) through libretro -> parallel frontend -> RDP runtime globals.
+  - Extended hi-res configure path to pass budget bytes into renderer registry runtime policy.
+  - Extended hi-res summary metrics with descriptor-bind outcomes (`bound_hits`, `unbound_hits`) to distinguish key matches from actually bound replacements.
+  - Added unit coverage updates in `emu.unit.hires_lookup_policy`, `emu.unit.parallel_option_wiring`, and `emu.unit.plugin_contract`.
+  - Revalidated with `./run-build.sh`, focused unit set, and 30s smoke (`bound_hits` observed, `unbound_hits=0`).

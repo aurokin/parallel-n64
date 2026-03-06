@@ -28,6 +28,7 @@ extern bool native_tex_rect;
 extern bool hires_textures;
 extern unsigned hires_filter;
 extern unsigned hires_srgb;
+extern unsigned hires_budget_mb;
 extern std::string hires_cache_path;
 
 bool init();
@@ -68,6 +69,7 @@ static void reset_rdp_state()
 	RDP::hires_textures = false;
 	RDP::hires_filter = 1;
 	RDP::hires_srgb = 0;
+	RDP::hires_budget_mb = 0;
 	RDP::hires_cache_path.clear();
 	RDP::overscan = 0;
 }
@@ -90,6 +92,7 @@ static void test_setter_to_global_wiring()
 	parallel_set_hires_textures(true);
 	parallel_set_hires_filter(2);
 	parallel_set_hires_srgb(1);
+	parallel_set_hires_budget_mb(256);
 	parallel_set_hires_cache_path("/tmp/hires-cache");
 	parallel_set_overscan_crop(24);
 
@@ -107,6 +110,7 @@ static void test_setter_to_global_wiring()
 	check(RDP::hires_textures, "parallel_set_hires_textures wiring mismatch");
 	check(RDP::hires_filter == 2u, "parallel_set_hires_filter wiring mismatch");
 	check(RDP::hires_srgb == 1u, "parallel_set_hires_srgb wiring mismatch");
+	check(RDP::hires_budget_mb == 256u, "parallel_set_hires_budget_mb wiring mismatch");
 	check(RDP::hires_cache_path == "/tmp/hires-cache", "parallel_set_hires_cache_path wiring mismatch");
 	check(RDP::overscan == 24u, "parallel_set_overscan_crop wiring mismatch");
 
@@ -136,6 +140,7 @@ bool native_tex_rect = true;
 bool hires_textures = false;
 unsigned hires_filter = 1;
 unsigned hires_srgb = 0;
+unsigned hires_budget_mb = 0;
 std::string hires_cache_path;
 
 bool init() { return true; }

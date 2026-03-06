@@ -28,6 +28,7 @@ extern bool native_tex_rect;
 extern bool hires_textures;
 extern unsigned hires_filter;
 extern unsigned hires_srgb;
+extern unsigned hires_budget_mb;
 extern std::string hires_cache_path;
 
 bool init();
@@ -224,6 +225,7 @@ bool native_tex_rect = true;
 bool hires_textures = false;
 unsigned hires_filter = 1;
 unsigned hires_srgb = 0;
+unsigned hires_budget_mb = 0;
 std::string hires_cache_path;
 
 bool init()

@@ -143,6 +143,13 @@ I will post updates in this format as work progresses:
   - Writes `<name>_manifest.json` with key and synthetic texture metadata.
 
 ## Change Log
+- 2026-03-06: Removed no-effect probe/debug leftovers from HIRES keying experiments:
+  - Deleted block-miss diagnostic probe branch (`ProbeCandidate`, `alt-hit`, `block probe meta`) from `rdp_renderer.cpp`.
+  - Removed transient shader-define debug trace from `rdp_device.cpp`.
+  - Revalidated local gates:
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-build.sh`
+    - `PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose` (`lookups=11539 hits=11470 misses=69 provider=on`).
 - 2026-03-06: Added shared-offset tile alias fallback/propagation for load-to-sample remaps:
   - Root cause: frequent `LOAD_*` uploads through tile 7 followed by sampling through tile 0/1 with different descriptor fields; strict alias matching left many texel0 draws unbound.
   - Implemented shared-offset fallback in `find_hires_alias_source_tile()` and shared-offset propagation in `propagate_hires_alias_group_binding()`.

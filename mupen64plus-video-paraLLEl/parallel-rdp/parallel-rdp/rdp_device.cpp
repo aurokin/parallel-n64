@@ -811,8 +811,6 @@ void CommandProcessor::configure_hires_replacement(bool enable, const char *cach
 					false,
 					hires_shader_define_before,
 					hires_shader_define_after);
-		if (getenv("PARALLEL_RDP_HIRES_DEBUG"))
-			LOGI("Hi-res shader define state: before=%d after=%d rebuild=%d\n", int(hires_shader_define_before), int(hires_shader_define_after), int(should_rebuild));
 		if (should_rebuild)
 			rebuild_shader_bank();
 	};

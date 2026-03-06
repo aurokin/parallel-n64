@@ -239,6 +239,11 @@ private:
 	uint64_t hires_descriptor_unbound_hits = 0;
 	uint64_t hires_budget_evictions = 0;
 	uint64_t hires_budget_rejections = 0;
+	uint64_t hires_draw_calls_total = 0;
+	uint64_t hires_draw_calls_with_replacement = 0;
+	uint64_t hires_shader_dispatch_total = 0;
+	uint64_t hires_shader_dispatch_with_define = 0;
+	uint64_t hires_shader_dispatch_with_bindless = 0;
 
 	struct HiresRegistryEntry
 	{

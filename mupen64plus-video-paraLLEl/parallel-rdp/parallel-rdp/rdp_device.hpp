@@ -175,6 +175,9 @@ private:
 	void clear_tmem();
 	void clear_buffer(Vulkan::Buffer &buffer, uint32_t value);
 	void init_renderer();
+#ifndef PARALLEL_RDP_SHADER_DIR
+	void rebuild_shader_bank();
+#endif
 
 #define OP(x) void op_##x(const uint32_t *words)
 	OP(fill_triangle); OP(fill_z_buffer_triangle); OP(texture_triangle); OP(texture_z_buffer_triangle);

@@ -20,6 +20,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-tests.sh --profile emu-tsan`
 - HIRES-readiness safety gate (local):
   - `./run-tests.sh --profile hires-readiness`
+- Quick HIRES visual smoke (state-load screenshot capture):
+  - `./run-n64-smoke-state.sh -- --verbose`
 
 ## Profiles
 

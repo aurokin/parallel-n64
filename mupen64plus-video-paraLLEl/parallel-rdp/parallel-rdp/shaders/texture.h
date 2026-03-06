@@ -55,8 +55,10 @@ bool tile_uses_hires_replacement(TileInfo tile)
 {
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 	return tile.repl_desc_index != HIRES_INVALID_DESC_INDEX &&
-	       tile.repl_orig_w > U16_C(0) && tile.repl_orig_h > U16_C(0) &&
-	       tile.repl_w > U16_C(0) && tile.repl_h > U16_C(0);
+	       tile.repl_orig_w != 0u &&
+	       tile.repl_orig_h != 0u &&
+	       tile.repl_w != 0u &&
+	       tile.repl_h != 0u;
 #else
 	return false;
 #endif
@@ -510,6 +512,23 @@ int sample_texture_copy(TileInfo tile, uint tmem_instance, ivec2 st, int s_offse
 	st.y = shift_coord(st.y, int(tile.tlo), int(tile.shift_t));
 	st >>= 5;
 
+	if (tile_uses_hires_replacement(tile))
+	{
+		int s = texel_mask_s(tile, st.x + s_offset);
+		int t = texel_mask_t(tile, st.y);
+		int hires_lod = compute_hires_replacement_lod(tile, I16_C(0));
+		i16x4 repl_texel = sample_hires_replacement_texel(tile, ivec2(s, t), hires_lod);
+		uvec4 repl = uvec4(clamp(ivec4(repl_texel), ivec4(0), ivec4(255)));
+		if (global_constants.fb_info.fb_size == 1)
+			return int(repl.x);
+
+		uint packed = ((repl.x & 0xf8u) << 8u) |
+		             ((repl.y & 0xf8u) << 3u) |
+		             ((repl.z & 0xf8u) >> 2u) |
+		             ((repl.w != 0u) ? 1u : 0u);
+		return int(packed);
+	}
+
 	int samp;
 	if (global_constants.fb_info.fb_size == 0)
 	{
@@ -576,7 +595,6 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 	bool yuv = tile.fmt == TEXTURE_FORMAT_YUV;
 	ivec2 base_st = sum_frac >= 0x20 ? ivec2(s1, t1) : ivec2(s0, t0);
 	bool replacement_active = tile_uses_hires_replacement(tile);
-
 	if (replacement_active)
 	{
 		yuv = false;

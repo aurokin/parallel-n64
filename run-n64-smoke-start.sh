@@ -40,6 +40,7 @@ Behavior:
   - Launches ./run-n64.sh with provided args.
   - Injects a temporary RetroArch input override for the virtual pad.
   - After --start-delay, sends each --buttons entry every --interval seconds.
+  - Never sends LOAD_STATE/SAVE_STATE network commands (input automation only).
   - Runs for --post-delay seconds total after first input tick, then sends SIGINT.
   - Stops virtual gamepad daemon automatically on exit.
 

@@ -42,6 +42,16 @@ Expected fallback behavior:
 ## Current Status
 - Feature milestone state: `M0`..`M7` complete; `M8` pending.
 - Local readiness gate remains: `./run-tests.sh --profile hires-readiness`.
+- Runtime black-texture regression is resolved:
+  - Root cause: bindless uploads attempted explicit `set_texture_unorm`/`set_texture_srgb` on immutable replacement images that did not expose alternate unorm/srgb views.
+  - Fix: bindless upload path now chooses `set_texture()` fallback when alternate views are unavailable, and only uses explicit unorm/srgb setters when those views exist.
+- Replacement coverage hardening added during closeout:
+  - Copy-mode texture path now samples replacement texels and repacks to R5G5B5A1 for framebuffer-copy compatibility.
+  - Tile alias policy now reuses/invalidates replacement bindings across tiles with matching TMEM descriptor fields.
+- Latest local validation checkpoint:
+  - `./run-build.sh`
+  - `./run-tests.sh --profile hires-readiness`
+  - `./run-n64-smoke-state.sh -- --verbose` (summary: `lookups=3430 hits=3115 misses=315 provider=on`, screenshot: `Paper Mario (USA)-260305-210003.png`)
 - `M7` closure is complete locally (8-case policy smoke matrix + unit/build gates; no reflection errors/segfaults; enabled cases maintained `provider=on`, `unbound_hits=0`).
 - `M5` is closed:
   - Vulkan program-loading API now accepts optional precomputed reflection layouts (`request_shader` / `request_program` overloads with `ResourceLayout` pointers).
@@ -275,3 +285,17 @@ I will post updates in this format as work progresses:
     - no segfaults,
     - with hires enabled: `provider=on` and `unbound_hits=0` in all cases,
     - with tight budget: eviction path exercised (`evictions=2`, `rejects=0`, resident bytes under budget cap).
+- 2026-03-06: Resolved runtime black-texture regression while HIRES was enabled:
+  - Root cause: bindless descriptor upload used explicit unorm/srgb view setters even when immutable replacement images only exposed default views, resulting in invalid/null effective descriptor views.
+  - Added bindless view selection policy (`rdp_hires_bindless_view_policy`) with explicit fallback to default image view binding.
+  - Added local unit coverage `emu.unit.hires_bindless_view_policy`.
+  - Revalidated with:
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-build.sh`
+    - `./run-n64-smoke-state.sh -- --verbose` (Paper Mario screenshot confirms visible enhanced textures).
+- 2026-03-06: Closed replacement-path parity gaps found during runtime verification:
+  - Added HIRES replacement sampling for copy-mode path in shader (`texture.h`) with RGBA5551 packing parity helper.
+  - Added tile alias policy (`rdp_hires_tile_alias_policy`) so replacement bindings track shared TMEM tile descriptors and invalidate coherently on reload.
+  - Added/expanded local unit coverage:
+    - `emu.unit.hires_sampling_policy` (copy-mode packing contract),
+    - `emu.unit.hires_tile_alias_policy`.

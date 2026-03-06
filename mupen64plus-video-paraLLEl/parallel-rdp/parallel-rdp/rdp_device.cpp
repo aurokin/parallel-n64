@@ -23,6 +23,7 @@
 #include "rdp_device.hpp"
 #include "rdp_common.hpp"
 #include "rdp_hires_runtime_policy.hpp"
+#include "rdp_hires_shader_policy.hpp"
 #include "rdp_memory_path_policy.hpp"
 #include "rdp_other_modes_policy.hpp"
 #include "rdp_rect_setup_policy.hpp"
@@ -207,6 +208,13 @@ void CommandProcessor::init_renderer()
 	vi.set_renderer(&renderer);
 
 #ifndef PARALLEL_RDP_SHADER_DIR
+	rebuild_shader_bank();
+#endif
+}
+
+#ifndef PARALLEL_RDP_SHADER_DIR
+void CommandProcessor::rebuild_shader_bank()
+{
 	Vulkan::ResourceLayout shader_layout = {};
 	shader_bank.reset(new ShaderBank(device, shader_layout, [&](const char *name, const char *define) -> int {
 		if (strncmp(name, "vi_", 3) == 0)
@@ -216,8 +224,8 @@ void CommandProcessor::init_renderer()
 	}));
 	renderer.set_shader_bank(shader_bank.get());
 	vi.set_shader_bank(shader_bank.get());
-#endif
 }
+#endif
 
 bool CommandProcessor::device_is_supported() const
 {
@@ -792,6 +800,24 @@ void CommandProcessor::set_quirks(const Quirks &quirks_)
 
 void CommandProcessor::configure_hires_replacement(bool enable, const char *cache_path, size_t budget_bytes, bool eviction_enabled, unsigned filter_mode, unsigned srgb_mode)
 {
+#ifndef PARALLEL_RDP_SHADER_DIR
+	const bool hires_shader_define_before =
+			renderer.resolve_shader_define("rasterizer", "HIRES_REPLACEMENT") != 0;
+	const auto maybe_rebuild_shader_bank = [&]() {
+		const bool hires_shader_define_after =
+				renderer.resolve_shader_define("rasterizer", "HIRES_REPLACEMENT") != 0;
+		const bool should_rebuild = detail::should_rebuild_hires_shader_bank(
+					shader_bank.get() != nullptr,
+					false,
+					hires_shader_define_before,
+					hires_shader_define_after);
+		if (getenv("PARALLEL_RDP_HIRES_DEBUG"))
+			LOGI("Hi-res shader define state: before=%d after=%d rebuild=%d\n", int(hires_shader_define_before), int(hires_shader_define_after), int(should_rebuild));
+		if (should_rebuild)
+			rebuild_shader_bank();
+	};
+#endif
+
 	replacement_provider.clear();
 	replacement_provider.set_enabled(enable);
 	renderer.set_replacement_provider(nullptr);
@@ -800,11 +826,19 @@ void CommandProcessor::configure_hires_replacement(bool enable, const char *cach
 
 	auto outcome = detail::classify_hires_configure_outcome(enable, cache_path, false);
 	if (outcome == detail::HiresConfigureOutcome::Disabled)
+	{
+#ifndef PARALLEL_RDP_SHADER_DIR
+		maybe_rebuild_shader_bank();
+#endif
 		return;
+	}
 
 	if (outcome == detail::HiresConfigureOutcome::MissingPath)
 	{
 		LOGW("Hi-res replacement enabled, but cache path is empty.\n");
+#ifndef PARALLEL_RDP_SHADER_DIR
+		maybe_rebuild_shader_bank();
+#endif
 		return;
 	}
 
@@ -813,6 +847,9 @@ void CommandProcessor::configure_hires_replacement(bool enable, const char *cach
 	if (outcome == detail::HiresConfigureOutcome::LoadFailed)
 	{
 		LOGW("Hi-res replacement cache load failed for path: %s\n", cache_path);
+#ifndef PARALLEL_RDP_SHADER_DIR
+		maybe_rebuild_shader_bank();
+#endif
 		return;
 	}
 
@@ -820,6 +857,10 @@ void CommandProcessor::configure_hires_replacement(bool enable, const char *cach
 	     replacement_provider.entry_count(), cache_path);
 	if (detail::should_attach_hires_provider(outcome))
 		renderer.set_replacement_provider(&replacement_provider);
+
+#ifndef PARALLEL_RDP_SHADER_DIR
+	maybe_rebuild_shader_bank();
+#endif
 }
 
 void CommandProcessor::set_vi_register(VIRegister reg, uint32_t value)

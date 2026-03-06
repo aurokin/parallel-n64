@@ -135,6 +135,20 @@ static void test_shader_enable_and_bind_gate_contract()
 	check(!should_bind_hires_descriptor_set(true, false), "bindless descriptor set should not bind without pool");
 	check(should_bind_hires_descriptor_set(true, true), "bindless descriptor set should bind when shader path is enabled and pool exists");
 }
+
+static void test_hires_shader_bank_rebuild_gate_contract()
+{
+	check(!should_rebuild_hires_shader_bank(false, false, false, true),
+	      "shader bank rebuild should not happen without an initialized bank");
+	check(!should_rebuild_hires_shader_bank(true, true, false, true),
+	      "runtime shader dir path should not require shader bank rebuild");
+	check(!should_rebuild_hires_shader_bank(true, false, false, false),
+	      "shader bank rebuild should not happen when define state is unchanged");
+	check(should_rebuild_hires_shader_bank(true, false, false, true),
+	      "shader bank rebuild should happen when hires define toggles on");
+	check(should_rebuild_hires_shader_bank(true, false, true, false),
+	      "shader bank rebuild should happen when hires define toggles off");
+}
 }
 
 int main()
@@ -144,6 +158,7 @@ int main()
 	test_apply_hires_tile_replacement_binding_invalid_contract();
 	test_apply_hires_tile_replacement_binding_no_mips_contract();
 	test_shader_enable_and_bind_gate_contract();
+	test_hires_shader_bank_rebuild_gate_contract();
 
 	std::cout << "emu_unit_hires_shader_policy_test: PASS" << std::endl;
 	return 0;

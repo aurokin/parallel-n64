@@ -26,7 +26,9 @@
 #include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_lookup_policy.hpp"
 #include "rdp_hires_shader_policy.hpp"
+#include "rdp_hires_bindless_view_policy.hpp"
 #include "rdp_hires_state_policy.hpp"
+#include "rdp_hires_tile_alias_policy.hpp"
 #include "rdp_hires_tlut_shadow_policy.hpp"
 #include "texture_replacement.hpp"
 #include "texture_keying.hpp"
@@ -682,6 +684,11 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_descriptor_unbound_hits = 0;
 	hires_budget_evictions = 0;
 	hires_budget_rejections = 0;
+	hires_draw_calls_total = 0;
+	hires_draw_calls_with_replacement = 0;
+	hires_shader_dispatch_total = 0;
+	hires_shader_dispatch_with_define = 0;
+	hires_shader_dispatch_with_bindless = 0;
 
 	for (auto &tile : tiles)
 		detail::clear_hires_tile_replacement_binding(tile);
@@ -721,7 +728,7 @@ void Renderer::log_hires_summary() const
 	if (!replacement_provider && !hires_debug)
 		return;
 
-	LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu bound_hits=%llu unbound_hits=%llu evictions=%llu rejects=%llu resident_bytes=%llu budget_bytes=%llu provider=%s.\n",
+	LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu bound_hits=%llu unbound_hits=%llu evictions=%llu rejects=%llu resident_bytes=%llu budget_bytes=%llu draw_calls=%llu draw_with_replacement=%llu shader_dispatch=%llu shader_define=%llu shader_bindless=%llu provider=%s.\n",
 	     static_cast<unsigned long long>(hires_lookup_total),
 	     static_cast<unsigned long long>(hires_lookup_hits),
 	     static_cast<unsigned long long>(hires_lookup_misses),
@@ -731,6 +738,11 @@ void Renderer::log_hires_summary() const
 	     static_cast<unsigned long long>(hires_budget_rejections),
 	     static_cast<unsigned long long>(hires_registry.resident_bytes),
 	     static_cast<unsigned long long>(hires_registry.budget_bytes),
+	     static_cast<unsigned long long>(hires_draw_calls_total),
+	     static_cast<unsigned long long>(hires_draw_calls_with_replacement),
+	     static_cast<unsigned long long>(hires_shader_dispatch_total),
+	     static_cast<unsigned long long>(hires_shader_dispatch_with_define),
+	     static_cast<unsigned long long>(hires_shader_dispatch_with_bindless),
 	     replacement_provider ? "on" : "off");
 }
 
@@ -986,10 +998,22 @@ bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t f
 		return false;
 	}
 
-	if (use_srgb)
-		hires_registry.bindless_pool->set_texture_srgb(entry->descriptor_index, image->get_view());
-	else
-		hires_registry.bindless_pool->set_texture_unorm(entry->descriptor_index, image->get_view());
+	const auto &uploaded_view = image->get_view();
+	const bool has_unorm_view = uploaded_view.get_unorm_view() != VK_NULL_HANDLE;
+	const bool has_srgb_view = uploaded_view.get_srgb_view() != VK_NULL_HANDLE;
+	switch (detail::select_hires_bindless_view_mode(use_srgb, has_unorm_view, has_srgb_view))
+	{
+	case detail::HiresBindlessViewMode::SrgbView:
+		hires_registry.bindless_pool->set_texture_srgb(entry->descriptor_index, uploaded_view);
+		break;
+	case detail::HiresBindlessViewMode::UnormView:
+		hires_registry.bindless_pool->set_texture_unorm(entry->descriptor_index, uploaded_view);
+		break;
+	case detail::HiresBindlessViewMode::DefaultView:
+	default:
+		hires_registry.bindless_pool->set_texture(entry->descriptor_index, uploaded_view);
+		break;
+	}
 
 	if (entry->resident_bytes <= hires_registry.resident_bytes)
 		hires_registry.resident_bytes -= entry->resident_bytes;
@@ -1755,6 +1779,59 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	deduce_static_texture_state(setup.tile & 7, setup.tile >> 3);
 	deduce_noise_state();
 
+	bool draw_has_replacement = false;
+	for (const auto &tile_info : tiles)
+	{
+		const auto &repl = tile_info.replacement;
+		if (detail::hires_descriptor_index_valid(repl.repl_desc_index) &&
+		    repl.repl_orig_w != 0 && repl.repl_orig_h != 0 &&
+		    repl.repl_w != 0 && repl.repl_h != 0)
+		{
+			draw_has_replacement = true;
+			break;
+		}
+	}
+	hires_draw_calls_total++;
+	if (draw_has_replacement)
+		hires_draw_calls_with_replacement++;
+
+	if (hires_debug && hires_draw_calls_total <= 300000)
+	{
+		const auto raster_flags = stream.static_raster_state.flags;
+		const bool copy_mode = (raster_flags & RASTERIZATION_COPY_BIT) != 0;
+		const bool uses_texel0 = (raster_flags & RASTERIZATION_USES_TEXEL0_BIT) != 0;
+		const bool uses_texel1 = (raster_flags & RASTERIZATION_USES_TEXEL1_BIT) != 0;
+		const bool uses_pipelined_texel1 = (raster_flags & RASTERIZATION_USES_PIPELINED_TEXEL1_BIT) != 0;
+		if (copy_mode || uses_texel0 || uses_texel1 || uses_pipelined_texel1)
+		{
+			const unsigned tile0 = setup.tile & 7u;
+			const unsigned tile1 = (tile0 + 1u) & 7u;
+			const auto &repl0 = tiles[tile0].replacement;
+			const auto &repl1 = tiles[tile1].replacement;
+			LOGI("Hi-res draw state: call=%llu setup_tile=%u tile0=%u tile1=%u max_lod=%u flags=0x%08x copy=%d tex0=%d tex1=%d pipe1=%d repl0_desc=%u repl0_orig=%ux%u repl0=%ux%u repl1_desc=%u repl1_orig=%ux%u repl1=%ux%u.\n",
+			     static_cast<unsigned long long>(hires_draw_calls_total),
+			     unsigned(setup.tile),
+			     tile0,
+			     tile1,
+			     unsigned(setup.tile >> 3u),
+			     unsigned(raster_flags),
+			     copy_mode ? 1 : 0,
+			     uses_texel0 ? 1 : 0,
+			     uses_texel1 ? 1 : 0,
+			     uses_pipelined_texel1 ? 1 : 0,
+			     unsigned(repl0.repl_desc_index),
+			     unsigned(repl0.repl_orig_w),
+			     unsigned(repl0.repl_orig_h),
+			     unsigned(repl0.repl_w),
+			     unsigned(repl0.repl_h),
+			     unsigned(repl1.repl_desc_index),
+			     unsigned(repl1.repl_orig_w),
+			     unsigned(repl1.repl_orig_h),
+			     unsigned(repl1.repl_w),
+			     unsigned(repl1.repl_h));
+		}
+	}
+
 	InstanceIndices indices = {};
 	indices.static_index = stream.static_raster_state_cache.add(normalize_static_state(stream.static_raster_state));
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);
@@ -2022,6 +2099,12 @@ void Renderer::submit_rasterization(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &
 	global_fb_info->base_primitive_index = base_primitive_index;
 
 	const bool use_hires_shader = hires_shader_path_enabled;
+	const bool bind_hires_descriptor_set = detail::should_bind_hires_descriptor_set(use_hires_shader, hires_registry.bindless_pool.get() != nullptr);
+	hires_shader_dispatch_total++;
+	if (use_hires_shader)
+		hires_shader_dispatch_with_define++;
+	if (bind_hires_descriptor_set)
+		hires_shader_dispatch_with_bindless++;
 #ifdef PARALLEL_RDP_SHADER_DIR
 	cmd.set_program("rdp://rasterizer.comp", {
 		{ "DEBUG_ENABLE", debug_channel ? 1 : 0 },
@@ -2032,7 +2115,7 @@ void Renderer::submit_rasterization(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &
 	cmd.set_program(shader_bank->rasterizer);
 #endif
 
-	if (detail::should_bind_hires_descriptor_set(use_hires_shader, hires_registry.bindless_pool.get() != nullptr))
+	if (bind_hires_descriptor_set)
 		cmd.set_bindless(3, hires_registry.bindless_pool->get_descriptor_set());
 
 	cmd.set_specialization_constant(0, ImplementationConstants::TileWidth);
@@ -2365,6 +2448,12 @@ void Renderer::submit_depth_blend(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &tm
 	cmd.push_constants(&push, 0, sizeof(push));
 
 	const bool use_hires_shader = caps.ubershader && hires_shader_path_enabled;
+	const bool bind_hires_descriptor_set = detail::should_bind_hires_descriptor_set(use_hires_shader, hires_registry.bindless_pool.get() != nullptr);
+	hires_shader_dispatch_total++;
+	if (use_hires_shader)
+		hires_shader_dispatch_with_define++;
+	if (bind_hires_descriptor_set)
+		hires_shader_dispatch_with_bindless++;
 	if (caps.ubershader)
 	{
 #ifdef PARALLEL_RDP_SHADER_DIR
@@ -2389,7 +2478,7 @@ void Renderer::submit_depth_blend(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &tm
 #endif
 	}
 
-	if (detail::should_bind_hires_descriptor_set(use_hires_shader, hires_registry.bindless_pool.get() != nullptr))
+	if (bind_hires_descriptor_set)
 		cmd.set_bindless(3, hires_registry.bindless_pool->get_descriptor_set());
 
 	Vulkan::QueryPoolHandle start_ts, end_ts;
@@ -3182,6 +3271,17 @@ void Renderer::ensure_command_buffer()
 void Renderer::set_tile(uint32_t tile, const TileMeta &meta)
 {
 	tiles[tile].meta = meta;
+
+	int alias_source = detail::find_hires_alias_source_tile(tile, tiles, replacement_tiles);
+	if (alias_source >= 0)
+	{
+		replacement_tiles[tile] = replacement_tiles[unsigned(alias_source)];
+		detail::apply_hires_tile_replacement_binding(tiles[tile], replacement_tiles[tile]);
+		return;
+	}
+
+	replacement_tiles[tile] = {};
+	detail::clear_hires_tile_replacement_binding(tiles[tile]);
 }
 
 void Renderer::set_tile_size(uint32_t tile, uint32_t slo, uint32_t shi, uint32_t tlo, uint32_t thi)
@@ -3636,6 +3736,18 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 	const bool rdram_view_ok = detail::hires_rdram_view_valid(cpu_rdram, rdram_size);
 	const bool is_tlut_mode = info.mode == UploadMode::TLUT;
+	const unsigned tile_index = tile & (Limits::MaxNumTiles - 1);
+	if (!is_tlut_mode)
+	{
+		detail::invalidate_hires_alias_group(tile_index, tiles, replacement_tiles);
+		for (unsigned i = 0; i < Limits::MaxNumTiles; i++)
+		{
+			if (i == tile_index)
+				continue;
+			if (detail::should_alias_hires_tile_binding(tiles[i].meta, tiles[tile_index].meta))
+				detail::clear_hires_tile_replacement_binding(tiles[i]);
+		}
+	}
 	if (rdram_view_ok)
 	{
 		const uint32_t bpp_bytes = 1u << (unsigned(info.size) - 1);
@@ -3721,7 +3833,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			if (hit)
 				resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
 
-			auto &repl_state = replacement_tiles[tile & (Limits::MaxNumTiles - 1)];
+			auto &repl_state = replacement_tiles[tile_index];
 			detail::write_hires_lookup_tile_state(
 					repl_state,
 					hit,
@@ -3747,7 +3859,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			if (hires_debug)
 			{
-				LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u wh=%ux%u key=%016llx fs=%u hit=%d desc=%u.\n",
+				LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u wh=%ux%u repl=%ux%u key=%016llx fs=%u hit=%d desc=%u mips=%d srgb=%d.\n",
 				     hit ? "hit" : "miss",
 				     load_mode_to_string(info.mode),
 				     src_base_addr & 0x00ffffffu,
@@ -3756,10 +3868,14 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				     unsigned(meta.size),
 				     key_width_pixels,
 				     key_height_pixels,
+				     repl_meta.repl_w,
+				     repl_meta.repl_h,
 				     static_cast<unsigned long long>(checksum64),
 				     unsigned(formatsize),
 				     hit ? 1 : 0,
-				     repl_meta.vk_image_index);
+				     repl_meta.vk_image_index,
+				     repl_meta.has_mips ? 1 : 0,
+				     repl_meta.srgb ? 1 : 0);
 			}
 		}
 		else if (!is_tlut_mode)

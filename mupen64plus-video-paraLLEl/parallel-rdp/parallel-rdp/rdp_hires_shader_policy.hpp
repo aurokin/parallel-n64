@@ -20,6 +20,16 @@ inline bool should_bind_hires_descriptor_set(bool hires_shader_path_enabled,
 	return hires_shader_path_enabled && has_bindless_pool;
 }
 
+inline bool should_rebuild_hires_shader_bank(bool has_shader_bank,
+                                             bool runtime_shader_dir_enabled,
+                                             bool previous_hires_shader_define,
+                                             bool next_hires_shader_define)
+{
+	return has_shader_bank &&
+	       !runtime_shader_dir_enabled &&
+	       (previous_hires_shader_define != next_hires_shader_define);
+}
+
 template <typename TileInfoType>
 inline void clear_hires_tile_replacement_binding(TileInfoType &tile)
 {

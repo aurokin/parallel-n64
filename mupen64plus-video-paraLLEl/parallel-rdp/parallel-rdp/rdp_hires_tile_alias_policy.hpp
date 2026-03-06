@@ -1,0 +1,66 @@
+#pragma once
+
+#include "rdp_common.hpp"
+#include "rdp_hires_runtime_policy.hpp"
+
+#include <cstddef>
+
+namespace RDP
+{
+namespace detail
+{
+inline bool should_alias_hires_tile_binding(const TileMeta &source_meta,
+                                            const TileMeta &target_meta)
+{
+	return source_meta.offset == target_meta.offset &&
+	       source_meta.stride == target_meta.stride &&
+	       source_meta.fmt == target_meta.fmt &&
+	       source_meta.size == target_meta.size &&
+	       source_meta.palette == target_meta.palette;
+}
+
+template <typename ReplacementTileStateType>
+inline bool hires_tile_state_is_bindable(const ReplacementTileStateType &state)
+{
+	return state.valid &&
+	       state.hit &&
+	       hires_descriptor_index_valid(state.vk_image_index) &&
+	       state.orig_w > 0 && state.orig_h > 0 &&
+	       state.repl_w > 0 && state.repl_h > 0;
+}
+
+template <typename TileInfoType, typename ReplacementTileStateType, size_t NumTiles>
+inline int find_hires_alias_source_tile(unsigned dst_tile,
+                                        const TileInfoType (&tile_infos)[NumTiles],
+                                        const ReplacementTileStateType (&tile_states)[NumTiles])
+{
+	const auto &dst_meta = tile_infos[dst_tile].meta;
+	for (unsigned i = 0; i < NumTiles; i++)
+	{
+		if (i == dst_tile)
+			continue;
+		if (!hires_tile_state_is_bindable(tile_states[i]))
+			continue;
+		if (should_alias_hires_tile_binding(tile_infos[i].meta, dst_meta))
+			return int(i);
+	}
+
+	return -1;
+}
+
+template <typename TileInfoType, typename ReplacementTileStateType, size_t NumTiles>
+inline void invalidate_hires_alias_group(unsigned owner_tile,
+                                         const TileInfoType (&tile_infos)[NumTiles],
+                                         ReplacementTileStateType (&tile_states)[NumTiles])
+{
+	const auto &owner_meta = tile_infos[owner_tile].meta;
+	for (unsigned i = 0; i < NumTiles; i++)
+	{
+		if (i == owner_tile)
+			continue;
+		if (should_alias_hires_tile_binding(tile_infos[i].meta, owner_meta))
+			tile_states[i] = {};
+	}
+}
+}
+}

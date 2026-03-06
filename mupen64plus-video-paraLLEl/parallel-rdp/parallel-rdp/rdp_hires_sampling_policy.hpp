@@ -64,5 +64,15 @@ inline bool resolve_hires_upload_srgb(HiresSrgbMode mode, bool replacement_srgb)
 		return replacement_srgb;
 	}
 }
+
+inline uint16_t pack_hires_copy_rgba5551(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+	const uint16_t alpha_bit = (a != 0) ? 1u : 0u;
+	return static_cast<uint16_t>(
+			((uint16_t(r) & 0xf8u) << 8u) |
+			((uint16_t(g) & 0xf8u) << 3u) |
+			((uint16_t(b) & 0xf8u) >> 2u) |
+			alpha_bit);
+}
 }
 }

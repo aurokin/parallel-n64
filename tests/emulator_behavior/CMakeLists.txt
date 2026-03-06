@@ -247,6 +247,15 @@ target_include_directories(emu_unit_hires_sampling_policy_test PRIVATE
 target_compile_features(emu_unit_hires_sampling_policy_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.hires_sampling_policy COMMAND emu_unit_hires_sampling_policy_test)
 
+add_executable(emu_unit_hires_bindless_view_policy_test
+  emu_unit_hires_bindless_view_policy_test.cpp
+)
+target_include_directories(emu_unit_hires_bindless_view_policy_test PRIVATE
+  "${CMAKE_SOURCE_DIR}"
+)
+target_compile_features(emu_unit_hires_bindless_view_policy_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.hires_bindless_view_policy COMMAND emu_unit_hires_bindless_view_policy_test)
+
 add_executable(emu_unit_hires_shader_policy_test
   emu_unit_hires_shader_policy_test.cpp
 )
@@ -255,6 +264,15 @@ target_include_directories(emu_unit_hires_shader_policy_test PRIVATE
 )
 target_compile_features(emu_unit_hires_shader_policy_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.hires_shader_policy COMMAND emu_unit_hires_shader_policy_test)
+
+add_executable(emu_unit_hires_tile_alias_policy_test
+  emu_unit_hires_tile_alias_policy_test.cpp
+)
+target_include_directories(emu_unit_hires_tile_alias_policy_test PRIVATE
+  "${CMAKE_SOURCE_DIR}"
+)
+target_compile_features(emu_unit_hires_tile_alias_policy_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.hires_tile_alias_policy COMMAND emu_unit_hires_tile_alias_policy_test)
 
 add_executable(emu_unit_rdp_scanout_coherency_policy_test
   emu_unit_rdp_scanout_coherency_policy_test.cpp

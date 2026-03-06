@@ -55,12 +55,32 @@ static void test_srgb_mode_resolution_contract()
 	check(!resolve_hires_upload_srgb(HiresSrgbMode::Auto, false),
 	      "srgb auto should honor replacement srgb=false");
 }
+
+static void test_copy_mode_pack_contract()
+{
+	const uint16_t packed_opaque = pack_hires_copy_rgba5551(0xff, 0x80, 0x00, 0xff);
+	check((packed_opaque & 1u) == 1u,
+	      "opaque alpha should keep alpha bit set in RGBA5551 pack");
+
+	const uint16_t packed_low_alpha = pack_hires_copy_rgba5551(0x20, 0x40, 0x60, 1);
+	check((packed_low_alpha & 1u) == 1u,
+	      "non-zero alpha should keep alpha bit set in RGBA5551 pack");
+
+	const uint16_t packed_zero_alpha = pack_hires_copy_rgba5551(0x20, 0x40, 0x60, 0);
+	check((packed_zero_alpha & 1u) == 0u,
+	      "zero alpha should clear alpha bit in RGBA5551 pack");
+
+	check((packed_low_alpha >> 11) == ((0x20 & 0xf8u) >> 3),
+	      "red channel packing should preserve top 5 bits");
+}
+
 }
 
 int main()
 {
 	test_filter_mode_sanitization_contract();
 	test_srgb_mode_resolution_contract();
+	test_copy_mode_pack_contract();
 	std::cout << "emu_unit_hires_sampling_policy_test: PASS" << std::endl;
 	return 0;
 }

@@ -790,12 +790,13 @@ void CommandProcessor::set_quirks(const Quirks &quirks_)
 	enqueue_command(2, words);
 }
 
-void CommandProcessor::configure_hires_replacement(bool enable, const char *cache_path, size_t budget_bytes, bool eviction_enabled)
+void CommandProcessor::configure_hires_replacement(bool enable, const char *cache_path, size_t budget_bytes, bool eviction_enabled, unsigned filter_mode, unsigned srgb_mode)
 {
 	replacement_provider.clear();
 	replacement_provider.set_enabled(enable);
 	renderer.set_replacement_provider(nullptr);
 	renderer.set_hires_budget(budget_bytes, eviction_enabled);
+	renderer.set_hires_sampling(filter_mode, srgb_mode);
 
 	auto outcome = detail::classify_hires_configure_outcome(enable, cache_path, false);
 	if (outcome == detail::HiresConfigureOutcome::Disabled)

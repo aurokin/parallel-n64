@@ -75,7 +75,14 @@ Expected fallback behavior:
   - Enabled eviction from runtime configure path whenever `budget_mb > 0`.
   - Extended summary observability with `evictions`, `rejects`, and resident/budget byte counters.
   - Expanded unit coverage in `emu.unit.hires_registry_policy` for oversized-texture reject and budget-shrink eviction decisions.
-- Next execution target: continue `M7` with replacement filtering/sRGB and mips/LOD behavior wiring, plus follow-up tests.
+- `M7` slice 3 (sampling/upload policy wiring) is now in:
+  - Added explicit hi-res sampling policy helpers (`filter` + `srgb` mode sanitization and behavior decisions).
+  - Wired runtime `hires_filter` / `hires_srgb` through configure path into renderer policy state.
+  - Upload path now applies policy outcomes:
+    - `trilinear` -> mipmapped replacement image uploads,
+    - `srgb on|auto` -> SRGB replacement uploads and SRGB descriptor view binding.
+  - Added local unit coverage `emu.unit.hires_sampling_policy` and included it in hires-readiness profile execution.
+- Next execution target: continue `M7` with explicit LOD/sample selection behavior in shader path and targeted tests.
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -221,3 +228,18 @@ I will post updates in this format as work progresses:
     - `./run-build.sh`
     - `timeout --signal=KILL 40s ./run-n64-smoke-start.sh -- --verbose`
     - 30s smoke with temporary `budget_mb=128` (`evictions=2`, `rejects=0`, `resident_bytes=132587920`, `budget_bytes=134217728`).
+
+- 2026-03-05: Continued `M7` with sampling/upload policy slice:
+  - Added `rdp_hires_sampling_policy.hpp` to centralize filter/sRGB mode sanitization and upload behavior decisions.
+  - Extended configure plumbing (`rdp.cpp` -> `CommandProcessor::configure_hires_replacement`) to pass filter/sRGB modes into renderer state.
+  - Extended renderer upload behavior:
+    - trilinear mode requests mipmapped immutable image uploads,
+    - sRGB mode controls replacement upload format (`VK_FORMAT_R8G8B8A8_SRGB` vs `UNORM`) and descriptor view binding.
+  - Added unit test `emu.unit.hires_sampling_policy` and CTest registration.
+  - Revalidated locally with:
+    - `./run-tests.sh -R '^emu\.unit\.hires_(sampling_policy|registry_policy|lookup_policy|runtime_policy)$'`
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-build.sh`
+    - `timeout --signal=KILL 40s ./run-n64-smoke-start.sh -- --verbose`
+    - 30s smoke with temporary `filter=trilinear`, `srgb=on`, `budget_mb=128` (`evictions=2`, `rejects=0`).
+

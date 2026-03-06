@@ -26,6 +26,7 @@
 #include "device.hpp"
 #include "rdp_common.hpp"
 #include "rdp_hires_registry_policy.hpp"
+#include "rdp_hires_sampling_policy.hpp"
 #include "worker_thread.hpp"
 #include <unordered_map>
 #include <unordered_set>
@@ -107,6 +108,7 @@ public:
 	void load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint32_t tmem_offset);
 	void set_replacement_provider(const ReplacementProvider *provider);
 	void set_hires_budget(size_t budget_bytes, bool eviction_enabled);
+	void set_hires_sampling(unsigned filter_mode, unsigned srgb_mode);
 	void set_hires_debug(bool enable);
 	void log_hires_summary() const;
 
@@ -247,6 +249,8 @@ private:
 		uint64_t last_used_tick = 0;
 		size_t resident_bytes = 0;
 		bool pinned = false;
+		bool has_mips = false;
+		bool srgb = false;
 		Vulkan::ImageHandle image;
 	};
 
@@ -266,6 +270,8 @@ private:
 	HiresRegistryState hires_registry = {};
 	size_t hires_budget_bytes = 0;
 	bool hires_eviction_enabled = false;
+	detail::HiresFilterMode hires_filter_mode = detail::HiresFilterMode::Linear;
+	detail::HiresSrgbMode hires_srgb_mode = detail::HiresSrgbMode::Auto;
 
 	void reset_hires_registry();
 	bool ensure_hires_registry();

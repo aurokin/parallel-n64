@@ -253,7 +253,9 @@ bool init()
 			hires_capabilities_ok,
 			hires_cache_path.c_str(),
 			size_t(hires_budget_mb) * 1024ull * 1024ull,
-			hires_budget_mb > 0);
+			hires_budget_mb > 0,
+			hires_filter,
+			hires_srgb);
 
 	timeline_value = 0;
 	pending_timeline_value = 0;

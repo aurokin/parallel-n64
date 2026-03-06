@@ -705,6 +705,12 @@ void Renderer::set_hires_budget(size_t budget_bytes, bool eviction_enabled)
 		evict_hires_registry_entries(0, nullptr);
 }
 
+void Renderer::set_hires_sampling(unsigned filter_mode, unsigned srgb_mode)
+{
+	hires_filter_mode = detail::sanitize_hires_filter_mode(filter_mode);
+	hires_srgb_mode = detail::sanitize_hires_srgb_mode(srgb_mode);
+}
+
 void Renderer::set_hires_debug(bool enable)
 {
 	hires_debug = enable;
@@ -850,6 +856,8 @@ bool Renderer::evict_hires_registry_entries(size_t incoming_bytes, const HiresRe
 		victim->image.reset();
 		victim->repl_w = 0;
 		victim->repl_h = 0;
+		victim->has_mips = false;
+		victim->srgb = false;
 		victim->resident_bytes = 0;
 		victim->state = detail::advance_hires_registry_state(
 				victim->state,
@@ -863,6 +871,8 @@ bool Renderer::evict_hires_registry_entries(size_t incoming_bytes, const HiresRe
 bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta)
 {
 	meta.vk_image_index = detail::hires_registry_invalid_handle();
+	meta.has_mips = false;
+	meta.srgb = false;
 
 	if (!replacement_provider || !ensure_hires_registry())
 		return false;
@@ -883,6 +893,8 @@ bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t f
 		meta.vk_image_index = entry->descriptor_index;
 		meta.repl_w = entry->repl_w;
 		meta.repl_h = entry->repl_h;
+		meta.has_mips = entry->has_mips;
+		meta.srgb = entry->srgb;
 		return true;
 	}
 
@@ -955,11 +967,15 @@ bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t f
 	initial.row_length = replacement.meta.repl_w;
 	initial.image_height = replacement.meta.repl_h;
 
+	const bool use_mips = detail::hires_filter_uses_mipmaps(hires_filter_mode);
+	const bool use_srgb = detail::resolve_hires_upload_srgb(hires_srgb_mode, replacement.meta.srgb);
+	const VkFormat replacement_format = use_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
+
 	auto image_info = Vulkan::ImageCreateInfo::immutable_2d_image(
 			replacement.meta.repl_w,
 			replacement.meta.repl_h,
-			VK_FORMAT_R8G8B8A8_UNORM,
-			false);
+			replacement_format,
+			use_mips);
 
 	auto image = device->create_image(image_info, &initial);
 	if (!image)
@@ -970,7 +986,10 @@ bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t f
 		return false;
 	}
 
-	hires_registry.bindless_pool->set_texture(entry->descriptor_index, image->get_view());
+	if (use_srgb)
+		hires_registry.bindless_pool->set_texture_srgb(entry->descriptor_index, image->get_view());
+	else
+		hires_registry.bindless_pool->set_texture_unorm(entry->descriptor_index, image->get_view());
 
 	if (entry->resident_bytes <= hires_registry.resident_bytes)
 		hires_registry.resident_bytes -= entry->resident_bytes;
@@ -978,6 +997,8 @@ bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t f
 	entry->image = std::move(image);
 	entry->repl_w = replacement.meta.repl_w;
 	entry->repl_h = replacement.meta.repl_h;
+	entry->has_mips = use_mips;
+	entry->srgb = use_srgb;
 	entry->resident_bytes = replacement.rgba8.size();
 	hires_registry.resident_bytes += entry->resident_bytes;
 	entry->state = detail::advance_hires_registry_state(
@@ -987,6 +1008,8 @@ bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t f
 	meta.vk_image_index = entry->descriptor_index;
 	meta.repl_w = entry->repl_w;
 	meta.repl_h = entry->repl_h;
+	meta.has_mips = entry->has_mips;
+	meta.srgb = entry->srgb;
 	return true;
 }
 

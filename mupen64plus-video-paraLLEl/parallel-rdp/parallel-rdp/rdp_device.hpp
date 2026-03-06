@@ -136,7 +136,7 @@ public:
 	void enqueue_command_direct(unsigned num_words, const uint32_t *words);
 
 	void set_quirks(const Quirks &quirks);
-	void configure_hires_replacement(bool enable, const char *cache_path, size_t budget_bytes = 0, bool eviction_enabled = false);
+	void configure_hires_replacement(bool enable, const char *cache_path, size_t budget_bytes = 0, bool eviction_enabled = false, unsigned filter_mode = 1, unsigned srgb_mode = 0);
 
 	// Interact with memory.
 	void *begin_read_rdram();

@@ -104,5 +104,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - Most recent validated oracle screenshot:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5/Paper Mario (USA)-260306-151242.png`
 - Save-state caution:
+  - prefer save states when they match the same ROM image and the same core path under test; they are the fastest way to iterate on a stable scene
+  - do not cross save states between different cores, different ROM variants, or different emulator workflows
   - do not use save states from `/home/auro/code/paper_mario`
   - they were created from a modified ROM and a different emulator

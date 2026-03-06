@@ -66,5 +66,7 @@ Co-Authored-By: Codex <noreply@openai.com>
   - press `Start`
   - wait `2s`
 - Save-state warning:
+  - prefer save states for fast iteration when they were created from the same ROM image and the same core path you are validating
+  - do not cross save states between different cores, different ROM revisions, or different texture-pack workflows
   - avoid save states from `/home/auro/code/paper_mario`
   - they were made from a modified ROM and a different emulator

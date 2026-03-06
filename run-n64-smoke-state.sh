@@ -4,13 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$SCRIPT_DIR/run-n64.sh"
 
-load_delay="0.5"
+load_delay="2.2"
 pause_delay="0.2"
-shot_delay="0.5"
+shot_delay="1.2"
 close_delay="0.2"
 netcmd_port="55355"
 state_cmd="LOAD_STATE"
-send_pause="1"
+send_pause="0"
 
 declare -a runner_args=()
 run_pid=""
@@ -21,18 +21,20 @@ Usage:
   run-n64-smoke-state.sh [options] [RUN_N64_ARGS...]
 
 Options:
-  --load-delay SEC       Delay before sending state command (default: 0.5)
+  --load-delay SEC       Delay before sending state command (default: 2.2)
   --pause-delay SEC      Delay after state load before PAUSE_TOGGLE (default: 0.2)
-  --shot-delay SEC       Delay after PAUSE_TOGGLE before SCREENSHOT (default: 0.5)
+  --shot-delay SEC       Delay after PAUSE_TOGGLE before SCREENSHOT (default: 1.2)
   --close-delay SEC      Delay after SCREENSHOT before close (default: 0.2)
-  --no-pause             Skip PAUSE_TOGGLE step before screenshot
+  --pause                Send PAUSE_TOGGLE step before screenshot
+  --no-pause             Skip PAUSE_TOGGLE step before screenshot (default)
   --port PORT            RetroArch network command UDP port (default: 55355)
   --state-cmd CMD        Command to send for state load (default: LOAD_STATE)
   -h, --help             Show this help
 
 Examples:
   ./run-n64-smoke-state.sh -- --verbose
-  ./run-n64-smoke-state.sh --load-delay 0.5 --pause-delay 0.2 --shot-delay 0.5 --close-delay 0.2 -- --verbose
+  ./run-n64-smoke-state.sh --load-delay 2.2 --shot-delay 1.2 --close-delay 0.2 -- --verbose
+  ./run-n64-smoke-state.sh --pause --pause-delay 1.0 --shot-delay 0.2 -- --verbose
 EOF_USAGE
 }
 
@@ -83,6 +85,9 @@ while (($#)); do
       ;;
     --no-pause)
       send_pause="0"
+      ;;
+    --pause)
+      send_pause="1"
       ;;
     --port)
       shift

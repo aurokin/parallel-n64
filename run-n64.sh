@@ -13,6 +13,7 @@ retroarch_bin="${RETROARCH_BIN:-$DEFAULT_RETROARCH}"
 rom_dir="${ROM_DIR:-$DEFAULT_ROM_DIR}"
 explicit_core=""
 rom_path=""
+force_fullscreen="${RUN_N64_FULLSCREEN:-1}"
 declare -a passthrough_args=()
 
 start_maximize_helper() {
@@ -62,14 +63,17 @@ Options:
   --retroarch PATH    Use an explicit RetroArch binary path
   --rom-dir PATH      ROM base directory for relative ROM paths (default: /home/auro/code/n64_roms)
   --menu              Launch RetroArch menu without content
+  --no-fullscreen     Do not force RetroArch fullscreen (`-f`)
   --list-cores        Print discovered non-reference core builds
   -h, --help          Show this help
 
 Behavior:
   - Default core: newest non-reference parallel_n64_libretro*.so under this repo/builds.
   - If ROM_PATH is omitted, defaults to "Paper Mario (USA).zip" in ROM dir.
-  - Attempts to maximize RetroArch window via `xdotool` when available.
-    Set RUN_N64_MAXIMIZE=0 to disable.
+  - Launches RetroArch fullscreen by default for consistent screenshot geometry.
+    Set RUN_N64_FULLSCREEN=0 or pass --no-fullscreen to disable.
+  - When not fullscreen, attempts to maximize via `xdotool` when available.
+    Set RUN_N64_MAXIMIZE=0 to disable maximize helper.
 EOF_HELP
 }
 
@@ -129,6 +133,9 @@ while (($#)); do
     --menu)
       menu_mode=1
       ;;
+    --no-fullscreen)
+      force_fullscreen=0
+      ;;
     --list-cores)
       list_non_reference_cores
       exit 0
@@ -186,6 +193,10 @@ fi
 declare -a cmd
 cmd=("$retroarch_bin" -L "$core_path")
 
+if [[ "$force_fullscreen" != "0" ]]; then
+  cmd+=(-f)
+fi
+
 if (( menu_mode )); then
   cmd+=(--menu)
 fi
@@ -201,5 +212,7 @@ fi
 cmd+=("${passthrough_args[@]}")
 
 echo "Using core: $core_path"
-start_maximize_helper
+if [[ "$force_fullscreen" == "0" ]]; then
+  start_maximize_helper
+fi
 exec "${cmd[@]}"

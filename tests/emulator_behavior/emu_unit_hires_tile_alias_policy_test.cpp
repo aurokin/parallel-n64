@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <algorithm>
 
 using namespace RDP;
 using namespace RDP::detail;
@@ -12,6 +13,7 @@ namespace
 struct TileInfo
 {
 	TileMeta meta = {};
+	TileSize size = {};
 	struct
 	{
 		uint16_t repl_orig_w = 0;
@@ -34,6 +36,7 @@ struct ReplacementTileState
 	bool valid = false;
 	bool hit = false;
 	bool has_mips = false;
+	bool allow_tile_sampling_expansion = true;
 };
 
 static void check(bool condition, const char *message)
@@ -111,6 +114,21 @@ static void test_should_alias_hires_load_binding_contract()
 	      "load alias should reject different TMEM offsets");
 }
 
+static void test_should_apply_hires_propagated_binding_contract()
+{
+	auto exact_meta = make_meta(0x180, 0x40, TextureFormat::CI, TextureSize::Bpp8, 3);
+	auto exact_match = make_meta(0x180, 0x40, TextureFormat::CI, TextureSize::Bpp8, 3);
+	auto load_alias_match = make_meta(0x180, 0x20, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+	auto different_offset = make_meta(0x184, 0x40, TextureFormat::CI, TextureSize::Bpp8, 3);
+
+	check(should_apply_hires_propagated_binding(exact_meta, exact_match),
+	      "exact TMEM descriptor aliases should receive propagated bindings");
+	check(should_apply_hires_propagated_binding(exact_meta, load_alias_match),
+	      "shared-offset load aliases should receive propagated bindings");
+	check(!should_apply_hires_propagated_binding(exact_meta, different_offset),
+	      "different-offset tiles should not receive propagated bindings");
+}
+
 static void test_find_hires_alias_source_tile_contract()
 {
 	constexpr unsigned NumTiles = 8;
@@ -136,7 +154,7 @@ static void test_find_hires_alias_source_tile_contract()
 	states[7] = make_bindable_state(42);
 	tiles[0].meta = make_meta(0x200, 0x20, TextureFormat::RGBA, TextureSize::Bpp16, 3);
 	source = find_hires_alias_source_tile(0, tiles, states);
-	check(source == -1, "descriptor-only tile updates should not reuse shared-offset alias bindings");
+	check(source == 7, "shared-offset load aliases should reuse source replacement bindings");
 
 	tiles[0].meta = make_meta(0x208, 0x40, TextureFormat::CI, TextureSize::Bpp8, 0);
 	source = find_hires_alias_source_tile(0, tiles, states);
@@ -219,6 +237,14 @@ static void test_propagate_hires_alias_group_binding_contract()
 	tiles[1].meta = make_meta(0x280, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
 	tiles[2].meta = make_meta(0x284, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
 	tiles[3].meta = make_meta(0x280, 0x10, TextureFormat::CI, TextureSize::Bpp8, 4);
+	tiles[3].size.slo = 0;
+	tiles[3].size.shi = 31u << 2;
+	tiles[3].size.tlo = 0;
+	tiles[3].size.thi = 15u << 2;
+	tiles[3].meta.mask_s = 5;
+	tiles[3].meta.mask_t = 4;
+	states[7].orig_w = 8;
+	states[7].orig_h = 16;
 
 	propagate_hires_alias_group_binding(7, tiles, states);
 
@@ -228,6 +254,8 @@ static void test_propagate_hires_alias_group_binding_contract()
 	      "all matching alias tiles should inherit owner replacement state");
 	check(states[3].vk_image_index == 55 && states[3].hit,
 	      "shared-offset tile should inherit owner replacement state via load alias fallback");
+	check(states[3].orig_w == 32 && states[3].orig_h == 16,
+	      "load-alias propagation should promote orig dims to the sampled tile domain when it exceeds the load key");
 	check(states[2].vk_image_index == hires_invalid_descriptor_index() && !states[2].hit,
 	      "non-alias tile should remain unchanged");
 
@@ -238,6 +266,34 @@ static void test_propagate_hires_alias_group_binding_contract()
 	      "unbound owner state should not be propagated");
 }
 
+static void test_propagate_hires_alias_group_binding_can_lock_load_alias_dimensions_contract()
+{
+	constexpr unsigned NumTiles = 8;
+	TileInfo tiles[NumTiles] = {};
+	ReplacementTileState states[NumTiles] = {};
+
+	tiles[7].meta = make_meta(0x280, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+	states[7] = make_bindable_state(55);
+	states[7].orig_w = 8;
+	states[7].orig_h = 16;
+	states[7].allow_tile_sampling_expansion = false;
+
+	tiles[3].meta = make_meta(0x280, 0x10, TextureFormat::CI, TextureSize::Bpp8, 4);
+	tiles[3].size.slo = 0;
+	tiles[3].size.shi = 31u << 2;
+	tiles[3].size.tlo = 0;
+	tiles[3].size.thi = 15u << 2;
+	tiles[3].meta.mask_s = 5;
+	tiles[3].meta.mask_t = 4;
+
+	propagate_hires_alias_group_binding(7, tiles, states);
+
+	check(states[3].vk_image_index == 55 && states[3].hit,
+	      "shared-offset tile should still inherit replacement state when dimensions are locked");
+	check(states[3].orig_w == 8 && states[3].orig_h == 16,
+	      "load-alias propagation should preserve lookup dimensions when expansion is disabled");
+}
+
 }
 
 int main()
@@ -245,11 +301,13 @@ int main()
 	test_should_alias_hires_tile_binding_contract();
 	test_should_invalidate_hires_binding_on_load_contract();
 	test_should_alias_hires_load_binding_contract();
+	test_should_apply_hires_propagated_binding_contract();
 	test_find_hires_alias_source_tile_contract();
 	test_hires_tile_state_is_bindable_contract();
 	test_invalidate_hires_alias_group_contract();
 	test_invalidate_hires_load_binding_group_contract();
 	test_propagate_hires_alias_group_binding_contract();
+	test_propagate_hires_alias_group_binding_can_lock_load_alias_dimensions_contract();
 
 	std::cout << "emu_unit_hires_tile_alias_policy_test: PASS" << std::endl;
 	return 0;

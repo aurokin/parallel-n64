@@ -7,6 +7,22 @@ using namespace RDP::detail;
 
 namespace
 {
+struct TileInfo
+{
+	struct
+	{
+		uint8_t mask_s = 0;
+		uint8_t mask_t = 0;
+	} meta = {};
+	struct
+	{
+		uint32_t slo = 0;
+		uint32_t shi = 0;
+		uint32_t tlo = 0;
+		uint32_t thi = 0;
+	} size = {};
+};
+
 static void check(bool condition, const char *message)
 {
 	if (!condition)
@@ -97,6 +113,29 @@ static void test_sampling_orig_dimension_policy_contract()
 	      "tile span should seed sampling dimensions when key dimensions are missing");
 	check(select_hires_sampling_orig_dim(0u, 0u, 0u, 0u) == 1u,
 	      "sampling dimensions should never collapse to zero");
+
+	TileInfo load_tile = {};
+	load_tile.size.slo = 0u;
+	load_tile.size.shi = (3u << 2);
+	load_tile.size.tlo = 0u;
+	load_tile.size.thi = (31u << 2);
+
+	TileInfo probe_tile = {};
+	probe_tile.meta.mask_s = 4u;
+	probe_tile.meta.mask_t = 5u;
+	probe_tile.size.slo = 0u;
+	probe_tile.size.shi = (15u << 2);
+	probe_tile.size.tlo = 0u;
+	probe_tile.size.thi = (31u << 2);
+
+	check(select_hires_sampling_orig_width_for_tile(4u, load_tile) == 4u,
+	      "load-tile helper should preserve narrow upload width when no larger sample domain exists");
+	check(select_hires_sampling_orig_width_for_tile(4u, probe_tile) == 4u,
+	      "probe tile helper should not expand past the keyed width on width-constrained uploads");
+	check(select_hires_sampling_orig_height_for_tile(32u, probe_tile) == 32u,
+	      "probe tile helper should preserve keyed height when the sampled height matches");
+	check(select_hires_sampling_orig_width_for_tile(8u, TileInfo{ {5u, 4u}, {0u, (31u << 2), 0u, (15u << 2)} }) == 8u,
+	      "masked probe helper should preserve keyed width for 8x16 uploads sampled through 32x16 tiles");
 }
 }
 

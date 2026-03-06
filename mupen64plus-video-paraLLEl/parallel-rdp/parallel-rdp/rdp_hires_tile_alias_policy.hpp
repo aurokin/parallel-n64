@@ -1,7 +1,9 @@
 #pragma once
 
 #include "rdp_common.hpp"
+#include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_runtime_policy.hpp"
+#include "rdp_hires_sampling_policy.hpp"
 
 #include <cstddef>
 
@@ -36,6 +38,13 @@ inline bool should_alias_hires_load_binding(const TileMeta &source_meta,
 	return source_meta.offset == target_meta.offset;
 }
 
+inline bool should_apply_hires_propagated_binding(const TileMeta &source_meta,
+                                                  const TileMeta &target_meta)
+{
+	return should_alias_hires_tile_binding(source_meta, target_meta) ||
+	       should_alias_hires_load_binding(source_meta, target_meta);
+}
+
 template <typename ReplacementTileStateType>
 inline bool hires_tile_state_is_bindable(const ReplacementTileStateType &state)
 {
@@ -58,7 +67,7 @@ inline int find_hires_alias_source_tile(unsigned dst_tile,
 			continue;
 		if (!hires_tile_state_is_bindable(tile_states[i]))
 			continue;
-		if (should_alias_hires_tile_binding(tile_infos[i].meta, dst_meta))
+		if (should_apply_hires_propagated_binding(tile_infos[i].meta, dst_meta))
 			return int(i);
 	}
 
@@ -108,9 +117,21 @@ inline void propagate_hires_alias_group_binding(unsigned owner_tile,
 	{
 		if (i == owner_tile)
 			continue;
-		if (should_alias_hires_tile_binding(owner_meta, tile_infos[i].meta) ||
-		    should_alias_hires_load_binding(owner_meta, tile_infos[i].meta))
+		if (should_apply_hires_propagated_binding(owner_meta, tile_infos[i].meta))
+		{
 			tile_states[i] = tile_states[owner_tile];
+			if (tile_states[i].allow_tile_sampling_expansion &&
+			    !should_alias_hires_tile_binding(owner_meta, tile_infos[i].meta) &&
+			    should_alias_hires_load_binding(owner_meta, tile_infos[i].meta))
+			{
+				tile_states[i].orig_w = clamp_hires_dimension_u16(std::max<uint32_t>(
+						tile_states[i].orig_w,
+						select_hires_sampling_orig_width_for_tile(0u, tile_infos[i])));
+				tile_states[i].orig_h = clamp_hires_dimension_u16(std::max<uint32_t>(
+						tile_states[i].orig_h,
+						select_hires_sampling_orig_height_for_tile(0u, tile_infos[i])));
+			}
+		}
 	}
 }
 }

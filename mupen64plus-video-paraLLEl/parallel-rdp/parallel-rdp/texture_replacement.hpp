@@ -37,7 +37,8 @@ public:
 	                        uint16_t formatsize,
 	                        uint32_t preferred_palette_crc,
 	                        ReplacementMeta *out,
-	                        uint64_t *resolved_checksum64 = nullptr) const;
+	                        uint64_t *resolved_checksum64 = nullptr,
+	                        bool *matched_preferred_palette = nullptr) const;
 	bool decode_rgba8(uint64_t checksum64, uint16_t formatsize, ReplacementImage *out) const;
 	void trim_to_budget(size_t bytes);
 	void clear();

@@ -228,6 +228,7 @@ private:
 		bool valid = false;
 		bool hit = false;
 		bool has_mips = false;
+		bool allow_tile_sampling_expansion = true;
 	};
 	ReplacementTileState replacement_tiles[Limits::MaxNumTiles] = {};
 	uint8_t tlut_shadow[1024] = {};

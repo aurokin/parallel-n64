@@ -192,6 +192,7 @@ int main()
 	      "unique low32 fallback dimensions mismatch");
 
 	ReplacementMeta low32_ambiguous_meta = {};
+	bool matched_preferred_palette = false;
 	check(!provider.lookup_ci_low32_unique(uint32_t(ambiguous_low32_key_a & 0xffffffffu), formatsize,
 	                                       &low32_ambiguous_meta, &resolved_checksum64),
 	      "ambiguous low32 fallback should not resolve");
@@ -199,18 +200,24 @@ int main()
 	                                   formatsize,
 	                                   uint32_t((ambiguous_low32_key_a >> 32) & 0xffffffffu),
 	                                   &low32_ambiguous_meta,
-	                                   &resolved_checksum64),
+	                                   &resolved_checksum64,
+	                                   &matched_preferred_palette),
 	      "ambiguous low32 fallback with preferred palette should resolve");
 	check(resolved_checksum64 == ambiguous_low32_key_a,
 	      "ambiguous low32 fallback should honor preferred palette match");
+	check(matched_preferred_palette,
+	      "ambiguous low32 fallback should report preferred palette match");
 	check(provider.lookup_ci_low32_any(uint32_t(ambiguous_low32_key_a & 0xffffffffu),
 	                                   formatsize,
 	                                   0x44444444u,
 	                                   &low32_ambiguous_meta,
-	                                   &resolved_checksum64),
+	                                   &resolved_checksum64,
+	                                   &matched_preferred_palette),
 	      "ambiguous low32 fallback should resolve newest entry when preferred palette misses");
 	check(resolved_checksum64 == ambiguous_low32_key_b,
 	      "ambiguous low32 fallback newest-entry selection mismatch");
+	check(!matched_preferred_palette,
+	      "ambiguous low32 fallback should report when preferred palette misses");
 
 	const size_t expected_size = size_t(image.meta.repl_w) * size_t(image.meta.repl_h) * 4u;
 	check(image.rgba8.size() == expected_size, "decoded image does not match RGBA8 size");

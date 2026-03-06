@@ -106,5 +106,27 @@ inline uint32_t select_hires_sampling_orig_dim(uint32_t key_dim,
 
 	return dim != 0 ? dim : 1u;
 }
+
+template <typename TileInfoType>
+inline uint32_t select_hires_sampling_orig_width_for_tile(uint32_t key_dim,
+                                                          const TileInfoType &tile)
+{
+	return select_hires_sampling_orig_dim(
+			key_dim,
+			tile.size.slo,
+			tile.size.shi,
+			tile.meta.mask_s);
+}
+
+template <typename TileInfoType>
+inline uint32_t select_hires_sampling_orig_height_for_tile(uint32_t key_dim,
+                                                           const TileInfoType &tile)
+{
+	return select_hires_sampling_orig_dim(
+			key_dim,
+			tile.size.tlo,
+			tile.size.thi,
+			tile.meta.mask_t);
+}
 }
 }

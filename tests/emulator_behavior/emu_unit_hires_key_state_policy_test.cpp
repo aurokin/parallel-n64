@@ -20,6 +20,7 @@ struct TileState
 	uint16_t repl_h = 0;
 	uint32_t vk_image_index = 0xffffffffu;
 	bool has_mips = false;
+	bool allow_tile_sampling_expansion = true;
 };
 
 static void check(bool condition, const char *message)
@@ -75,6 +76,7 @@ static void test_write_hires_lookup_tile_state_contract()
 	check(state.repl_w == 2048, "tile replacement width mismatch");
 	check(state.repl_h == 0xffff, "tile replacement height should clamp to u16 max");
 	check(state.has_mips, "tile replacement mip flag mismatch");
+	check(state.allow_tile_sampling_expansion, "tile sampling expansion should default to enabled");
 }
 
 static void test_write_hires_lookup_tile_state_overwrites_previous_values()
@@ -106,6 +108,27 @@ static void test_write_hires_lookup_tile_state_overwrites_previous_values()
 	check(state.vk_image_index == 0xffffffffu, "tile descriptor index should default to invalid sentinel");
 	check(state.repl_w == 0 && state.repl_h == 0, "tile replacement dimensions should default to zero");
 	check(!state.has_mips, "tile replacement mip flag should default to false");
+	check(state.allow_tile_sampling_expansion, "tile sampling expansion should default to enabled on overwrite");
+}
+
+static void test_write_hires_lookup_tile_state_can_disable_tile_sampling_expansion()
+{
+	TileState state = {};
+
+	write_hires_lookup_tile_state(state,
+	                              true,
+	                              0x2233445566778899ull,
+	                              0x0401,
+	                              8,
+	                              16,
+	                              5,
+	                              128,
+	                              256,
+	                              false,
+	                              false);
+
+	check(!state.allow_tile_sampling_expansion,
+	      "tile state should preserve explicit requests to lock lookup dimensions");
 }
 }
 
@@ -115,6 +138,7 @@ int main()
 	test_clamp_hires_dimension_u16_contract();
 	test_write_hires_lookup_tile_state_contract();
 	test_write_hires_lookup_tile_state_overwrites_previous_values();
+	test_write_hires_lookup_tile_state_can_disable_tile_sampling_expansion();
 
 	std::cout << "emu_unit_hires_key_state_policy_test: PASS" << std::endl;
 	return 0;

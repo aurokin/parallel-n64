@@ -272,7 +272,8 @@ bool ReplacementProvider::lookup_ci_low32_any(uint32_t checksum_low32,
                                               uint16_t formatsize,
                                               uint32_t preferred_palette_crc,
                                               ReplacementMeta *out,
-                                              uint64_t *resolved_checksum64) const
+                                              uint64_t *resolved_checksum64,
+                                              bool *matched_preferred_palette) const
 {
 	if (!enabled_ || !out)
 		return false;
@@ -298,11 +299,14 @@ bool ReplacementProvider::lookup_ci_low32_any(uint32_t checksum_low32,
 	};
 
 	const Entry *entry = nullptr;
+	bool matched_preferred = false;
 	if (preferred_palette_crc != 0)
 	{
 		entry = pick_candidate(formatsize, preferred_palette_crc);
 		if (!entry)
 			entry = pick_candidate(0, preferred_palette_crc);
+		if (entry)
+			matched_preferred = true;
 	}
 
 	if (!entry)
@@ -321,6 +325,8 @@ bool ReplacementProvider::lookup_ci_low32_any(uint32_t checksum_low32,
 	out->srgb = false;
 	if (resolved_checksum64)
 		*resolved_checksum64 = entry->checksum64;
+	if (matched_preferred_palette)
+		*matched_preferred_palette = matched_preferred;
 	return true;
 }
 

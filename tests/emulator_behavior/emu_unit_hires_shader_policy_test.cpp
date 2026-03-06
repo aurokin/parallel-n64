@@ -12,6 +12,18 @@ struct TileInfo
 {
 	struct
 	{
+		uint32_t slo = 0;
+		uint32_t shi = 0;
+		uint32_t tlo = 0;
+		uint32_t thi = 0;
+	} size;
+	struct
+	{
+		uint8_t mask_s = 0;
+		uint8_t mask_t = 0;
+	} meta;
+	struct
+	{
 		uint16_t repl_orig_w = 0;
 		uint16_t repl_orig_h = 0;
 		uint16_t repl_w = 0;
@@ -29,6 +41,7 @@ struct ReplacementTileState
 	uint16_t repl_h = 0;
 	uint32_t vk_image_index = hires_invalid_descriptor_index();
 	bool has_mips = false;
+	bool allow_tile_sampling_expansion = true;
 };
 
 static void check(bool condition, const char *message)
@@ -125,6 +138,89 @@ static void test_apply_hires_tile_replacement_binding_no_mips_contract()
 	      "packed descriptor should not set mip flag when mips are disabled");
 }
 
+static void test_apply_hires_tile_replacement_binding_uses_tile_sampling_domain_contract()
+{
+	TileInfo tile = {};
+	tile.size.shi = (16u - 1u) << 2u;
+	tile.size.thi = (32u - 1u) << 2u;
+	tile.meta.mask_s = 4;
+	tile.meta.mask_t = 5;
+
+	ReplacementTileState state = {};
+	state.hit = true;
+	state.orig_w = 4;
+	state.orig_h = 32;
+	state.repl_w = 1024;
+	state.repl_h = 2048;
+	state.vk_image_index = 37;
+
+	apply_hires_tile_replacement_binding(tile, state);
+
+	check(tile.replacement.repl_orig_w == 16 && tile.replacement.repl_orig_h == 32,
+	      "bind-time domain should follow the live tile sample span when it is known");
+}
+
+static void test_apply_hires_tile_replacement_binding_respects_subset_tile_sampling_domain_contract()
+{
+	TileInfo tile = {};
+	tile.size.shi = (8u - 1u) << 2u;
+	tile.size.thi = (16u - 1u) << 2u;
+
+	ReplacementTileState state = {};
+	state.hit = true;
+	state.orig_w = 32;
+	state.orig_h = 64;
+	state.repl_w = 512;
+	state.repl_h = 1024;
+	state.vk_image_index = 11;
+
+	apply_hires_tile_replacement_binding(tile, state);
+
+	check(tile.replacement.repl_orig_w == 8 && tile.replacement.repl_orig_h == 16,
+	      "bind-time domain should shrink to the live tile sample span when it is narrower");
+}
+
+static void test_apply_hires_tile_replacement_binding_falls_back_without_tile_sampling_domain_contract()
+{
+	TileInfo tile = {};
+
+	ReplacementTileState state = {};
+	state.hit = true;
+	state.orig_w = 32;
+	state.orig_h = 64;
+	state.repl_w = 128;
+	state.repl_h = 256;
+	state.vk_image_index = 19;
+
+	apply_hires_tile_replacement_binding(tile, state);
+
+	check(tile.replacement.repl_orig_w == 32 && tile.replacement.repl_orig_h == 64,
+	      "bind-time domain should fall back to lookup dimensions when tile sampling is not known yet");
+}
+
+static void test_apply_hires_tile_replacement_binding_can_lock_lookup_dimensions_contract()
+{
+	TileInfo tile = {};
+	tile.size.shi = (16u - 1u) << 2u;
+	tile.size.thi = (32u - 1u) << 2u;
+	tile.meta.mask_s = 4;
+	tile.meta.mask_t = 5;
+
+	ReplacementTileState state = {};
+	state.hit = true;
+	state.orig_w = 4;
+	state.orig_h = 32;
+	state.repl_w = 1024;
+	state.repl_h = 2048;
+	state.vk_image_index = 23;
+	state.allow_tile_sampling_expansion = false;
+
+	apply_hires_tile_replacement_binding(tile, state);
+
+	check(tile.replacement.repl_orig_w == 4 && tile.replacement.repl_orig_h == 32,
+	      "bind-time domain should stay locked to lookup dimensions when expansion is disabled");
+}
+
 static void test_shader_enable_and_bind_gate_contract()
 {
 	check(!should_enable_hires_shader_path(false, false), "shader path should be disabled with no provider");
@@ -157,6 +253,10 @@ int main()
 	test_apply_hires_tile_replacement_binding_hit_contract();
 	test_apply_hires_tile_replacement_binding_invalid_contract();
 	test_apply_hires_tile_replacement_binding_no_mips_contract();
+	test_apply_hires_tile_replacement_binding_uses_tile_sampling_domain_contract();
+	test_apply_hires_tile_replacement_binding_respects_subset_tile_sampling_domain_contract();
+	test_apply_hires_tile_replacement_binding_falls_back_without_tile_sampling_domain_contract();
+	test_apply_hires_tile_replacement_binding_can_lock_lookup_dimensions_contract();
 	test_shader_enable_and_bind_gate_contract();
 	test_hires_shader_bank_rebuild_gate_contract();
 

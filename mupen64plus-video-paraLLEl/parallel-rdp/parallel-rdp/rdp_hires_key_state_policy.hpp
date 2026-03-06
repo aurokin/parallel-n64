@@ -27,7 +27,8 @@ inline void write_hires_lookup_tile_state(TileState &state,
                                           uint32_t vk_image_index = 0xffffffffu,
                                           uint32_t repl_w = 0,
                                           uint32_t repl_h = 0,
-                                          bool has_mips = false)
+                                          bool has_mips = false,
+                                          bool allow_tile_sampling_expansion = true)
 {
 	state.valid = true;
 	state.hit = hit;
@@ -39,6 +40,7 @@ inline void write_hires_lookup_tile_state(TileState &state,
 	state.repl_w = clamp_hires_dimension_u16(repl_w);
 	state.repl_h = clamp_hires_dimension_u16(repl_h);
 	state.has_mips = has_mips;
+	state.allow_tile_sampling_expansion = allow_tile_sampling_expansion;
 }
 }
 }

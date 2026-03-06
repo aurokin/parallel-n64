@@ -54,6 +54,19 @@ namespace
 {
 constexpr uint32_t HIRES_DESCRIPTOR_CAPACITY = 4096u;
 
+static void zero_transparent_replacement_rgb(std::vector<uint8_t> &rgba8)
+{
+	for (size_t i = 0; i + 3 < rgba8.size(); i += 4)
+	{
+		if (rgba8[i + 3] == 0)
+		{
+			rgba8[i + 0] = 0;
+			rgba8[i + 1] = 0;
+			rgba8[i + 2] = 0;
+		}
+	}
+}
+
 static const char *load_mode_to_string(UploadMode mode)
 {
 	switch (mode)
@@ -952,6 +965,11 @@ bool Renderer::resolve_hires_registry_descriptor(uint64_t checksum64, uint16_t f
 		return false;
 	}
 
+	// Replacement packs often leave arbitrary RGB in fully transparent texels.
+	// The N64 combiner can still observe texel RGB even when alpha is zero, so
+	// sanitize those pixels before upload to avoid leaking garbage color.
+	zero_transparent_replacement_rgb(replacement.rgba8);
+
 	const bool has_evictable_candidate = find_hires_registry_eviction_candidate(entry) != nullptr;
 	const auto budget_decision = detail::decide_hires_registry_budget(
 			hires_registry.resident_bytes,
@@ -1349,6 +1367,62 @@ static std::pair<int, int> interpolate_x(const TriangleSetup &setup, int y, bool
 	}
 
 	return { xleft, xright };
+}
+
+struct DebugPrimitiveBounds
+{
+	int x0 = 0;
+	int y0 = 0;
+	int x1 = 0;
+	int y1 = 0;
+	bool valid = false;
+};
+
+static DebugPrimitiveBounds compute_debug_primitive_bounds(const TriangleSetup &setup,
+                                                           const ScissorState &scissor,
+                                                           int scaling)
+{
+	DebugPrimitiveBounds bounds = {};
+
+	int start_y = setup.yh & ~(SUBPIXELS_Y - 1);
+	int end_y = (setup.yl - 1) | (SUBPIXELS_Y - 1);
+
+	start_y = std::max(int(scissor.ylo), start_y);
+	end_y = std::min(int(scissor.yhi) - 1, end_y);
+	start_y *= scaling;
+	end_y *= scaling;
+
+	if (end_y < start_y)
+		return bounds;
+
+	bool flip = (setup.flags & TRIANGLE_SETUP_FLIP_BIT) != 0;
+	auto upper = interpolate_x(setup, start_y, flip, scaling);
+	auto lower = interpolate_x(setup, end_y, flip, scaling);
+	auto mid = upper;
+	auto mid1 = upper;
+
+	int ym = scaling * setup.ym;
+	if (ym > start_y && ym < end_y)
+	{
+		mid = interpolate_x(setup, ym, flip, scaling);
+		mid1 = interpolate_x(setup, ym - 1, flip, scaling);
+	}
+
+	int start_x = std::min(std::min(upper.first, lower.first), std::min(mid.first, mid1.first));
+	int end_x = std::max(std::max(upper.second, lower.second), std::max(mid.second, mid1.second));
+
+	start_x = std::max(int(scissor.xlo) * scaling, start_x);
+	end_x = std::min(int(scissor.xhi) * scaling - 1, end_x);
+
+	if (end_x < start_x)
+		return bounds;
+
+	bounds.x0 = start_x;
+	bounds.y0 = start_y;
+	bounds.x1 = end_x;
+	bounds.y1 = end_y;
+	bounds.valid = true;
+	return bounds;
 }
 
 unsigned Renderer::compute_conservative_max_num_tiles(const TriangleSetup &setup) const
@@ -1811,7 +1885,14 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			const unsigned tile1 = (tile0 + 1u) & 7u;
 			const auto &repl0 = tiles[tile0].replacement;
 			const auto &repl1 = tiles[tile1].replacement;
-			LOGI("Hi-res draw state: call=%llu setup_tile=%u tile0=%u tile1=%u max_lod=%u flags=0x%08x copy=%d tex0=%d tex1=%d pipe1=%d repl0_desc=%u repl0_orig=%ux%u repl0=%ux%u repl1_desc=%u repl1_orig=%ux%u repl1=%ux%u.\n",
+			const auto &tile0_info = tiles[tile0];
+			const auto &tile1_info = tiles[tile1];
+			const auto prim_bounds = compute_debug_primitive_bounds(setup, stream.scissor_state, int(caps.upscaling));
+			LOGI("Hi-res draw state: call=%llu setup_tile=%u tile0=%u tile1=%u max_lod=%u flags=0x%08x copy=%d tex0=%d tex1=%d pipe1=%d "
+			     "screen={valid=%d x=%d..%d y=%d..%d} st={s=%d t=%d dsdx=%d dtdy=%d dsde=%d dtde=%d} "
+			     "tile0_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
+			     "tile1_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
+			     "repl0_desc=%u repl0_orig=%ux%u repl0=%ux%u repl1_desc=%u repl1_orig=%ux%u repl1=%ux%u.\n",
 			     static_cast<unsigned long long>(hires_draw_calls_total),
 			     unsigned(setup.tile),
 			     tile0,
@@ -1822,6 +1903,45 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     uses_texel0 ? 1 : 0,
 			     uses_texel1 ? 1 : 0,
 			     uses_pipelined_texel1 ? 1 : 0,
+			     prim_bounds.valid ? 1 : 0,
+			     prim_bounds.x0,
+			     prim_bounds.x1,
+			     prim_bounds.y0,
+			     prim_bounds.y1,
+			     attr.s >> 16,
+			     attr.t >> 16,
+			     attr.dsdx >> 11,
+			     attr.dtdy >> 11,
+			     attr.dsde >> 11,
+			     attr.dtde >> 11,
+			     unsigned(tile0_info.meta.offset),
+			     unsigned(tile0_info.meta.stride),
+			     unsigned(tile0_info.meta.fmt),
+			     unsigned(tile0_info.meta.size),
+			     unsigned(tile0_info.meta.palette),
+			     unsigned(tile0_info.meta.flags),
+			     unsigned(tile0_info.meta.mask_s),
+			     unsigned(tile0_info.meta.mask_t),
+			     unsigned(tile0_info.meta.shift_s),
+			     unsigned(tile0_info.meta.shift_t),
+			     unsigned(tile0_info.size.slo >> 2),
+			     unsigned(tile0_info.size.tlo >> 2),
+			     unsigned(tile0_info.size.shi >> 2),
+			     unsigned(tile0_info.size.thi >> 2),
+			     unsigned(tile1_info.meta.offset),
+			     unsigned(tile1_info.meta.stride),
+			     unsigned(tile1_info.meta.fmt),
+			     unsigned(tile1_info.meta.size),
+			     unsigned(tile1_info.meta.palette),
+			     unsigned(tile1_info.meta.flags),
+			     unsigned(tile1_info.meta.mask_s),
+			     unsigned(tile1_info.meta.mask_t),
+			     unsigned(tile1_info.meta.shift_s),
+			     unsigned(tile1_info.meta.shift_t),
+			     unsigned(tile1_info.size.slo >> 2),
+			     unsigned(tile1_info.size.tlo >> 2),
+			     unsigned(tile1_info.size.shi >> 2),
+			     unsigned(tile1_info.size.thi >> 2),
 			     unsigned(repl0.repl_desc_index),
 			     unsigned(repl0.repl_orig_w),
 			     unsigned(repl0.repl_orig_h),
@@ -1832,6 +1952,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     unsigned(repl1.repl_orig_h),
 			     unsigned(repl1.repl_w),
 			     unsigned(repl1.repl_h));
+
 		}
 	}
 
@@ -3293,6 +3414,19 @@ void Renderer::set_tile_size(uint32_t tile, uint32_t slo, uint32_t shi, uint32_t
 	tiles[tile].size.shi = shi;
 	tiles[tile].size.tlo = tlo;
 	tiles[tile].size.thi = thi;
+
+	if (detail::hires_tile_state_is_bindable(replacement_tiles[tile]))
+	{
+		detail::apply_hires_tile_replacement_binding(tiles[tile], replacement_tiles[tile]);
+		return;
+	}
+
+	int alias_source = detail::find_hires_alias_source_tile(tile, tiles, replacement_tiles);
+	if (alias_source >= 0)
+	{
+		replacement_tiles[tile] = replacement_tiles[unsigned(alias_source)];
+		detail::apply_hires_tile_replacement_binding(tiles[tile], replacement_tiles[tile]);
+	}
 }
 
 void Renderer::notify_idle_command_thread()
@@ -3820,7 +3954,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			auto try_lookup_for_texture_crc = [&](uint32_t candidate_texture_crc,
 			                                     uint32_t candidate_width_pixels,
 			                                     uint32_t candidate_height_pixels,
-			                                     uint32_t candidate_row_stride_bytes) {
+			                                     uint32_t candidate_row_stride_bytes,
+			                                     bool allow_ci_ambiguous_without_palette_match) {
 				bool candidate_hit = false;
 				checksum64 = detail::compose_hires_checksum64(candidate_texture_crc, 0);
 
@@ -3855,6 +3990,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				if (!candidate_hit && meta.fmt == TextureFormat::CI)
 				{
 					uint64_t ci_fallback_checksum64 = 0;
+					bool ci_fallback_matched_preferred_palette = false;
 					if (replacement_provider->lookup_ci_low32_unique(candidate_texture_crc, formatsize, &repl_meta, &ci_fallback_checksum64))
 					{
 						checksum64 = ci_fallback_checksum64;
@@ -3865,17 +4001,35 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							formatsize,
 							hires_ci_palette_hint,
 							&repl_meta,
-							&ci_fallback_checksum64))
+							&ci_fallback_checksum64,
+							&ci_fallback_matched_preferred_palette))
 					{
-						checksum64 = ci_fallback_checksum64;
-						candidate_hit = true;
-						if (hires_debug)
+						if (!allow_ci_ambiguous_without_palette_match &&
+						    hires_ci_palette_hint != 0 &&
+						    !ci_fallback_matched_preferred_palette)
 						{
-							LOGI("Hi-res keying CI ambiguous fallback: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
-							     candidate_texture_crc,
-							     unsigned(formatsize),
-							     hires_ci_palette_hint,
-							     static_cast<unsigned long long>(checksum64));
+							if (hires_debug)
+							{
+								LOGI("Hi-res keying CI ambiguous fallback rejected: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
+								     candidate_texture_crc,
+								     unsigned(formatsize),
+								     hires_ci_palette_hint,
+								     static_cast<unsigned long long>(ci_fallback_checksum64));
+							}
+						}
+						else
+						{
+							checksum64 = ci_fallback_checksum64;
+							candidate_hit = true;
+							if (hires_debug)
+							{
+								LOGI("Hi-res keying CI ambiguous fallback: tex_crc=%08x fs=%u hint=%08x matched=%d -> key=%016llx.\n",
+								     candidate_texture_crc,
+								     unsigned(formatsize),
+								     hires_ci_palette_hint,
+								     ci_fallback_matched_preferred_palette ? 1 : 0,
+								     static_cast<unsigned long long>(checksum64));
+							}
 						}
 					}
 				}
@@ -3887,7 +4041,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					texture_crc,
 					key_width_pixels,
 					key_height_pixels,
-					row_stride_bytes);
+					row_stride_bytes,
+					true);
 
 			uint32_t lookup_width_pixels = key_width_pixels;
 			uint32_t lookup_height_pixels = key_height_pixels;
@@ -3919,7 +4074,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							masked_texture_crc,
 							masked_width_pixels,
 							masked_height_pixels,
-							row_stride_bytes))
+							row_stride_bytes,
+							true))
 					{
 						hit = true;
 						texture_crc = masked_texture_crc;
@@ -3959,7 +4115,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							alt_texture_crc,
 							lookup_width_pixels,
 							lookup_height_pixels,
-							tile_row_stride_bytes))
+							tile_row_stride_bytes,
+							true))
 					{
 						hit = true;
 						texture_crc = alt_texture_crc;
@@ -4223,7 +4380,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							candidate_texture_crc,
 							candidate_width,
 							candidate_height,
-							candidate_row_stride_bytes))
+							candidate_row_stride_bytes,
+							false))
 						continue;
 
 					hit = true;
@@ -4256,16 +4414,13 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			// Use the lookup dimensions as the upper bound, but still tighten against the
 			// tile span and mask that the draw actually samples from.
-			const uint32_t sampling_orig_w = detail::select_hires_sampling_orig_dim(
+			const auto &lookup_tile = tiles[lookup_tile_index];
+			const uint32_t sampling_orig_w = detail::select_hires_sampling_orig_width_for_tile(
 					lookup_width_pixels,
-					tiles[tile].size.slo,
-					tiles[tile].size.shi,
-					tiles[tile].meta.mask_s);
-			const uint32_t sampling_orig_h = detail::select_hires_sampling_orig_dim(
+					lookup_tile);
+			const uint32_t sampling_orig_h = detail::select_hires_sampling_orig_height_for_tile(
 					lookup_height_pixels,
-					tiles[tile].size.tlo,
-					tiles[tile].size.thi,
-					tiles[tile].meta.mask_t);
+					lookup_tile);
 
 			auto &repl_state = replacement_tiles[lookup_tile_index];
 			detail::write_hires_lookup_tile_state(
@@ -4278,13 +4433,14 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					repl_meta.vk_image_index,
 					repl_meta.repl_w,
 					repl_meta.repl_h,
-					repl_meta.has_mips);
+					repl_meta.has_mips,
+					info.mode != UploadMode::Block);
 			detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
 
 			for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
 			{
 				if (alias_tile != lookup_tile_index &&
-				    !detail::should_alias_hires_tile_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
+				    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
 					continue;
 				detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
 			}

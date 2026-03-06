@@ -96,7 +96,8 @@ Disabled-path expectation:
   6. wait `2s`
 - Prefer save states when they were created from the same ROM image and the same core path you are debugging.
 - Matching save states are the fastest way to iterate on a fixed scene.
-- Do not cross save states between different cores, different ROM revisions, or different emulator workflows.
+- Same-core save states are valid across HIRES-on and HIRES-off runs.
+- Do not cross save states between different cores or different ROM revisions.
 - Do not use save states from `/home/auro/code/paper_mario`.
 - Those save states were produced from a modified ROM and a different emulator.
 - Use the preserved GLide oracle before re-running GLide unless the scene or workflow changes materially.

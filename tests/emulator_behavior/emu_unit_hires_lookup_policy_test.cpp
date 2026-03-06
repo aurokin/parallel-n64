@@ -143,6 +143,15 @@ static void test_hires_block_dxt_policy_contract()
 	      "block row stride mismatch for dxt=0x800");
 	check(compute_hires_block_row_stride_bytes(1024, 64, 16, TextureSize::Bpp4, 32) == 16,
 	      "block row stride mismatch for dxt=1024");
+
+	check(compute_hires_width_from_row_stride(8, TextureSize::Bpp4) == 16,
+	      "row-stride to width mismatch for 4bpp");
+	check(compute_hires_width_from_row_stride(8, TextureSize::Bpp8) == 8,
+	      "row-stride to width mismatch for 8bpp");
+	check(compute_hires_width_from_row_stride(8, TextureSize::Bpp16) == 4,
+	      "row-stride to width mismatch for 16bpp");
+	check(compute_hires_width_from_row_stride(8, TextureSize::Bpp32) == 2,
+	      "row-stride to width mismatch for 32bpp");
 }
 
 static void test_lookup_counter_updates()

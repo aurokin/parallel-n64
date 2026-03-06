@@ -76,12 +76,15 @@ Expected fallback behavior:
 - Post-`M6` compatibility tuning (active):
   - Added CI ambiguous low32 fallback with palette-hint preference:
     - on CI misses where exact `(palette_crc, texture_crc)` lookup fails and low32 has multiple pack variants, lookup now prefers entries matching the most recently successful CI palette CRC, then falls back to latest low32 variant.
+  - Added block-probe width-from-row-stride fallback for LOAD_BLOCK keying:
+    - when block fallback uses a row stride that implies a narrower effective row than tile-mask width, lookup now also probes that stride-derived width.
+    - this resolves legacy pack keys that are encoded against stride-constrained widths (e.g. `4x32` instead of `16x32`) while keeping texel-stage replacement path unchanged.
   - Added provider unit coverage for the ambiguous fallback contract:
     - preferred palette match wins when available;
     - otherwise newest low32 candidate is selected deterministically.
   - Latest local debug smoke (`PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose`):
-    - `lookups=13017 hits=12705 misses=312 provider=on`
-    - remaining misses are 4 repeated keys with no low32 candidates present in the pack (`fs=514/516` block paths).
+    - `lookups=12199 hits=12126 misses=73 provider=on`
+    - remaining misses are a single repeated key (`00000000ab53409b fs=514`); all other previously repeated block miss keys were resolved by fallback keying updates.
 - Local validation for `M6` close:
   - `./run-build.sh`
   - `./run-tests.sh --profile hires-readiness`
@@ -133,6 +136,15 @@ I will post updates in this format as work progresses:
   - Writes `<name>_manifest.json` with key and synthetic texture metadata.
 
 ## Change Log
+- 2026-03-06: Added block width-from-row-stride fallback in LOAD_BLOCK probe keying:
+  - Rooted from local brute diagnosis on persistent miss key `de3dac2a` (`addr=0x0745e0`) where matching pack key resolved at `wh=4x32 stride=8`.
+  - Implemented `compute_hires_width_from_row_stride()` policy helper and integrated probe-width fallback in renderer block-tile lookup.
+  - Added local unit coverage in `emu.unit.hires_lookup_policy` for row-stride-to-width mapping.
+  - Local validation:
+    - `./run-tests.sh -R '^(emu\\.unit\\.hires_lookup_policy|hires\\.texture_replacement_provider|hires\\.texture_keying)$'`
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-build.sh`
+    - `PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose` (`lookups=12199 hits=12126 misses=73`; remaining miss key `ab53409b fs=514`).
 - 2026-03-06: Added CI ambiguous low32 fallback tuning:
   - Implemented `ReplacementProvider::lookup_ci_low32_any` (preferred palette CRC match, deterministic newest-entry fallback).
   - Wired renderer CI miss path to use the new fallback after strict unique lookup fails, and carry forward a runtime CI palette hint from successful matches.

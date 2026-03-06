@@ -142,6 +142,27 @@ inline uint32_t compute_hires_block_row_stride_bytes(uint32_t dxt,
 	return stride_words << 3;
 }
 
+inline uint32_t compute_hires_width_from_row_stride(uint32_t row_stride_bytes,
+                                                    TextureSize size)
+{
+	if (row_stride_bytes == 0)
+		return 0;
+
+	switch (size)
+	{
+	case TextureSize::Bpp4:
+		return row_stride_bytes << 1u;
+	case TextureSize::Bpp8:
+		return row_stride_bytes;
+	case TextureSize::Bpp16:
+		return std::max(1u, row_stride_bytes >> 1u);
+	case TextureSize::Bpp32:
+		return std::max(1u, row_stride_bytes >> 2u);
+	default:
+		return 0;
+	}
+}
+
 inline void record_hires_lookup_result(bool hit,
                                        uint64_t &lookup_total,
                                        uint64_t &lookup_hits,

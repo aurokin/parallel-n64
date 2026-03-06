@@ -99,6 +99,18 @@ static void test_should_invalidate_hires_binding_on_load_contract()
 	      "load invalidation should ignore tiles with different TMEM offsets");
 }
 
+static void test_should_alias_hires_load_binding_contract()
+{
+	auto load_meta = make_meta(0x220, 0x00, TextureFormat::CI, TextureSize::Bpp16, 0);
+	auto sample_meta_same_offset = make_meta(0x220, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+	auto sample_meta_other_offset = make_meta(0x224, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+
+	check(should_alias_hires_load_binding(load_meta, sample_meta_same_offset),
+	      "load alias should match shared TMEM offset regardless of descriptor fields");
+	check(!should_alias_hires_load_binding(load_meta, sample_meta_other_offset),
+	      "load alias should reject different TMEM offsets");
+}
+
 static void test_find_hires_alias_source_tile_contract()
 {
 	constexpr unsigned NumTiles = 8;
@@ -122,9 +134,13 @@ static void test_find_hires_alias_source_tile_contract()
 	check(source == -1, "source tile without valid descriptor should not alias");
 
 	states[7] = make_bindable_state(42);
-	tiles[0].meta = make_meta(0x204, 0x40, TextureFormat::CI, TextureSize::Bpp8, 0);
+	tiles[0].meta = make_meta(0x200, 0x20, TextureFormat::RGBA, TextureSize::Bpp16, 3);
 	source = find_hires_alias_source_tile(0, tiles, states);
-	check(source == -1, "target tile with different descriptor fields should not alias");
+	check(source == 7, "target tile should fall back to shared-offset load alias source");
+
+	tiles[0].meta = make_meta(0x208, 0x40, TextureFormat::CI, TextureSize::Bpp8, 0);
+	source = find_hires_alias_source_tile(0, tiles, states);
+	check(source == -1, "different-offset tile should not alias any source");
 }
 
 static void test_hires_tile_state_is_bindable_contract()
@@ -202,6 +218,7 @@ static void test_propagate_hires_alias_group_binding_contract()
 	tiles[0].meta = make_meta(0x280, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
 	tiles[1].meta = make_meta(0x280, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
 	tiles[2].meta = make_meta(0x284, 0x40, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+	tiles[3].meta = make_meta(0x280, 0x10, TextureFormat::CI, TextureSize::Bpp8, 4);
 
 	propagate_hires_alias_group_binding(7, tiles, states);
 
@@ -209,6 +226,8 @@ static void test_propagate_hires_alias_group_binding_contract()
 	      "matching alias tile should inherit owner replacement state");
 	check(states[1].vk_image_index == 55 && states[1].hit,
 	      "all matching alias tiles should inherit owner replacement state");
+	check(states[3].vk_image_index == 55 && states[3].hit,
+	      "shared-offset tile should inherit owner replacement state via load alias fallback");
 	check(states[2].vk_image_index == hires_invalid_descriptor_index() && !states[2].hit,
 	      "non-alias tile should remain unchanged");
 
@@ -225,6 +244,7 @@ int main()
 {
 	test_should_alias_hires_tile_binding_contract();
 	test_should_invalidate_hires_binding_on_load_contract();
+	test_should_alias_hires_load_binding_contract();
 	test_find_hires_alias_source_tile_contract();
 	test_hires_tile_state_is_bindable_contract();
 	test_invalidate_hires_alias_group_contract();

@@ -27,6 +27,15 @@ inline bool should_invalidate_hires_binding_on_load(const TileMeta &source_meta,
 	return source_meta.offset == target_meta.offset;
 }
 
+inline bool should_alias_hires_load_binding(const TileMeta &source_meta,
+                                            const TileMeta &target_meta)
+{
+	// LOAD_BLOCK/LOAD_TILE commonly upload through one tile descriptor (often tile 7)
+	// before sampling through another descriptor that points at the same TMEM base.
+	// Allow offset-based aliasing so replacements follow this remap path.
+	return source_meta.offset == target_meta.offset;
+}
+
 template <typename ReplacementTileStateType>
 inline bool hires_tile_state_is_bindable(const ReplacementTileStateType &state)
 {
@@ -50,6 +59,16 @@ inline int find_hires_alias_source_tile(unsigned dst_tile,
 		if (!hires_tile_state_is_bindable(tile_states[i]))
 			continue;
 		if (should_alias_hires_tile_binding(tile_infos[i].meta, dst_meta))
+			return int(i);
+	}
+
+	for (unsigned i = 0; i < NumTiles; i++)
+	{
+		if (i == dst_tile)
+			continue;
+		if (!hires_tile_state_is_bindable(tile_states[i]))
+			continue;
+		if (should_alias_hires_load_binding(tile_infos[i].meta, dst_meta))
 			return int(i);
 	}
 
@@ -99,7 +118,8 @@ inline void propagate_hires_alias_group_binding(unsigned owner_tile,
 	{
 		if (i == owner_tile)
 			continue;
-		if (should_alias_hires_tile_binding(owner_meta, tile_infos[i].meta))
+		if (should_alias_hires_tile_binding(owner_meta, tile_infos[i].meta) ||
+		    should_alias_hires_load_binding(owner_meta, tile_infos[i].meta))
 			tile_states[i] = tile_states[owner_tile];
 	}
 }

@@ -79,12 +79,19 @@ Expected fallback behavior:
   - Added block-probe width-from-row-stride fallback for LOAD_BLOCK keying:
     - when block fallback uses a row stride that implies a narrower effective row than tile-mask width, lookup now also probes that stride-derived width.
     - this resolves legacy pack keys that are encoded against stride-constrained widths (e.g. `4x32` instead of `16x32`) while keeping texel-stage replacement path unchanged.
+  - Added shared-offset load alias fallback and propagation for replacement tile bindings:
+    - `find_hires_alias_source_tile()` now falls back from strict descriptor match to shared TMEM-offset source matching.
+    - `propagate_hires_alias_group_binding()` now mirrors replacement state across shared-offset tiles, not just exact descriptor aliases.
+    - this addresses `LOAD_* via tile7 -> sample via tile0` remap sequences where texel0 draws previously kept native textures.
   - Added provider unit coverage for the ambiguous fallback contract:
     - preferred palette match wins when available;
     - otherwise newest low32 candidate is selected deterministically.
+  - Added tile-alias policy unit coverage for shared-offset fallback/propagation:
+    - `emu.unit.hires_tile_alias_policy`.
   - Latest local debug smoke (`PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose`):
-    - `lookups=12199 hits=12126 misses=73 provider=on`
-    - remaining misses are a single repeated key (`00000000ab53409b fs=514`); all other previously repeated block miss keys were resolved by fallback keying updates.
+    - `lookups=11725 hits=11655 misses=70 provider=on`
+    - remaining misses are a single repeated key (`00000000ab53409b fs=514`).
+    - texel0-only draw mismatch audit improved from `9476` (`repl1-only`) to `70`.
 - Local validation for `M6` close:
   - `./run-build.sh`
   - `./run-tests.sh --profile hires-readiness`
@@ -136,6 +143,17 @@ I will post updates in this format as work progresses:
   - Writes `<name>_manifest.json` with key and synthetic texture metadata.
 
 ## Change Log
+- 2026-03-06: Added shared-offset tile alias fallback/propagation for load-to-sample remaps:
+  - Root cause: frequent `LOAD_*` uploads through tile 7 followed by sampling through tile 0/1 with different descriptor fields; strict alias matching left many texel0 draws unbound.
+  - Implemented shared-offset fallback in `find_hires_alias_source_tile()` and shared-offset propagation in `propagate_hires_alias_group_binding()`.
+  - Expanded `emu.unit.hires_tile_alias_policy` coverage for:
+    - shared-offset alias source selection with descriptor mismatch,
+    - shared-offset propagation contract.
+  - Local validation:
+    - `./run-tests.sh -R '^(emu\\.unit\\.hires_tile_alias_policy|emu\\.unit\\.hires_lookup_policy|hires\\.texture_replacement_provider)$'`
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-build.sh`
+    - `PARALLEL_RDP_HIRES_DEBUG=1 ./run-n64-smoke-state.sh -- --verbose` (`lookups=11725 hits=11655 misses=70`; remaining miss key `ab53409b fs=514`).
 - 2026-03-06: Added block width-from-row-stride fallback in LOAD_BLOCK probe keying:
   - Rooted from local brute diagnosis on persistent miss key `de3dac2a` (`addr=0x0745e0`) where matching pack key resolved at `wh=4x32 stride=8`.
   - Implemented `compute_hires_width_from_row_stride()` policy helper and integrated probe-width fallback in renderer block-tile lookup.

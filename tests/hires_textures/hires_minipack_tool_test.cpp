@@ -67,9 +67,9 @@ int main()
 	{
 		std::ofstream fp(keys_csv);
 		check(fp.good(), "failed to create keys.csv fixture");
-		fp << "checksum64,formatsize,orig_w,orig_h\n";
-		fp << "0x1122334455667788,0x0032,8,8\n";
-		fp << "0x8877665544332211,0x0000,4,2\n";
+		fp << "checksum64,formatsize,orig_w,orig_h,desc\n";
+		fp << "0x1122334455667788,0x0032,8,8,37\n";
+		fp << "0x8877665544332211,0x0000,4,2,53\n";
 	}
 
 	const std::string gen_cmd =
@@ -93,6 +93,7 @@ int main()
 	}(manifest_path);
 	check(manifest.find("\"entry_count\": 2") != std::string::npos, "manifest entry_count mismatch");
 	check(manifest.find("0x1122334455667788") != std::string::npos, "manifest missing key checksum");
+	check(manifest.find("\"label\": \"37\"") != std::string::npos, "manifest missing desc-derived label");
 
 	ReplacementProvider provider;
 	provider.set_enabled(true);

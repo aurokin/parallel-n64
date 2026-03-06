@@ -20,6 +20,19 @@ GL_RGBA8 = 0x8058
 GL_RGBA = 0x1908
 GL_UNSIGNED_BYTE = 0x1401
 
+_LABEL_GLYPHS = {
+    "0": ("111", "101", "101", "101", "111"),
+    "1": ("010", "110", "010", "010", "111"),
+    "2": ("111", "001", "111", "100", "111"),
+    "3": ("111", "001", "111", "001", "111"),
+    "4": ("101", "101", "111", "001", "001"),
+    "5": ("111", "100", "111", "001", "111"),
+    "6": ("111", "100", "111", "101", "111"),
+    "7": ("111", "001", "010", "010", "010"),
+    "8": ("111", "101", "111", "101", "111"),
+    "9": ("111", "101", "111", "001", "111"),
+}
+
 
 def _parse_u64(value: str) -> int:
     text = value.strip()
@@ -66,7 +79,61 @@ def _stable_rgb(checksum64: int, formatsize: int) -> tuple[int, int, int]:
     return r, g, b
 
 
-def _pattern_rgba(width: int, height: int, rgb: tuple[int, int, int]) -> bytes:
+def _draw_rect(pixels: bytearray, width: int, height: int, x0: int, y0: int, rect_w: int, rect_h: int, rgba: tuple[int, int, int, int]) -> None:
+    x_start = max(x0, 0)
+    y_start = max(y0, 0)
+    x_end = min(x0 + rect_w, width)
+    y_end = min(y0 + rect_h, height)
+    if x_start >= x_end or y_start >= y_end:
+        return
+
+    for y in range(y_start, y_end):
+        row_base = y * width * 4
+        for x in range(x_start, x_end):
+            i = row_base + x * 4
+            pixels[i + 0] = rgba[0]
+            pixels[i + 1] = rgba[1]
+            pixels[i + 2] = rgba[2]
+            pixels[i + 3] = rgba[3]
+
+
+def _overlay_label(pixels: bytearray, width: int, height: int, label: str, rgb: tuple[int, int, int]) -> None:
+    glyphs = [_LABEL_GLYPHS[ch] for ch in label if ch in _LABEL_GLYPHS]
+    if not glyphs:
+        return
+
+    glyph_height = len(glyphs[0])
+    glyph_width = len(glyphs[0][0])
+    spacing = 1
+    total_units_w = len(glyphs) * glyph_width + (len(glyphs) - 1) * spacing
+    scale = min(width // max(total_units_w + 4, 1), height // (glyph_height + 4), 48)
+    scale = max(scale, 1)
+
+    label_w = total_units_w * scale
+    label_h = glyph_height * scale
+    origin_x = (width - label_w) // 2
+    origin_y = (height - label_h) // 2
+
+    backdrop = (max(rgb[0] // 5, 16), max(rgb[1] // 5, 16), max(rgb[2] // 5, 16), 255)
+    ink = (255 - rgb[0] // 3, 255 - rgb[1] // 3, 255 - rgb[2] // 3, 255)
+    shadow = (16, 16, 16, 255)
+    margin = max(scale, 2)
+    _draw_rect(pixels, width, height, origin_x - margin, origin_y - margin, label_w + margin * 2, label_h + margin * 2, backdrop)
+
+    cursor_x = origin_x
+    for glyph in glyphs:
+        for gy, row in enumerate(glyph):
+            for gx, bit in enumerate(row):
+                if bit != "1":
+                    continue
+                px = cursor_x + gx * scale
+                py = origin_y + gy * scale
+                _draw_rect(pixels, width, height, px + max(scale // 4, 1), py + max(scale // 4, 1), scale, scale, shadow)
+                _draw_rect(pixels, width, height, px, py, scale, scale, ink)
+        cursor_x += (glyph_width + spacing) * scale
+
+
+def _pattern_rgba(width: int, height: int, rgb: tuple[int, int, int], label: str = "") -> bytes:
     r, g, b = rgb
     border = (255 - r, 255 - g, 255 - b)
     accent = (255, g, b)
@@ -93,6 +160,9 @@ def _pattern_rgba(width: int, height: int, rgb: tuple[int, int, int]) -> bytes:
             pixels[i + 2] = pb
             pixels[i + 3] = 255
 
+    if label:
+        _overlay_label(pixels, width, height, label, rgb)
+
     return bytes(pixels)
 
 
@@ -105,6 +175,7 @@ class MiniPackEntry:
     repl_w: int
     repl_h: int
     color: tuple[int, int, int]
+    label: str
     rgba8: bytes
 
 
@@ -138,7 +209,8 @@ def _read_key_rows(keys_path: Path, scale: int, default_w: int, default_h: int) 
                 raise ValueError(f"{keys_path}:{row_index}: replacement dimensions must be > 0")
 
             color = _stable_rgb(checksum64, formatsize)
-            rgba8 = _pattern_rgba(repl_w, repl_h, color)
+            label = (row.get("label", "") or row.get("desc", "")).strip()
+            rgba8 = _pattern_rgba(repl_w, repl_h, color, label)
             entries.append(
                 MiniPackEntry(
                     checksum64=checksum64 & 0xFFFFFFFFFFFFFFFF,
@@ -148,6 +220,7 @@ def _read_key_rows(keys_path: Path, scale: int, default_w: int, default_h: int) 
                     repl_w=repl_w,
                     repl_h=repl_h,
                     color=color,
+                    label=label,
                     rgba8=rgba8,
                 )
             )
@@ -364,6 +437,7 @@ def _run_from_keys(args: argparse.Namespace) -> int:
                 "format": "GL_RGBA8",
                 "compressed": args.compress == "zlib",
                 "color": [entry.color[0], entry.color[1], entry.color[2], 255],
+                "label": entry.label,
             }
             for entry in entries
         ],

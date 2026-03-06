@@ -1,7 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include "rdp_common.hpp"
 #include "rdp_hires_runtime_policy.hpp"
 
 namespace RDP
@@ -29,6 +31,115 @@ inline bool should_run_hires_lookup(bool rdram_view_ok,
 	       !is_tlut_mode &&
 	       key_width_pixels > 0 &&
 	       key_height_pixels > 0;
+}
+
+inline bool should_try_hires_ci_palette_candidates(TextureFormat fmt,
+                                                   TextureSize size,
+                                                   bool tlut_shadow_valid)
+{
+	return tlut_shadow_valid &&
+	       fmt == TextureFormat::CI &&
+	       (size == TextureSize::Bpp4 || size == TextureSize::Bpp8);
+}
+
+inline uint32_t compute_hires_key_base_addr(uint32_t tex_addr,
+                                            uint32_t tex_width,
+                                            uint32_t key_start_x,
+                                            uint32_t key_start_y,
+                                            TextureSize size,
+                                            bool is_load_block_mode)
+{
+	if (is_load_block_mode)
+		return tex_addr;
+
+	const uint32_t pixel_offset = tex_width * key_start_y + key_start_x;
+	const uint32_t size_bits = unsigned(size);
+	if (size_bits == 0)
+		return tex_addr + (pixel_offset >> 1);
+	return tex_addr + (pixel_offset << (size_bits - 1u));
+}
+
+inline uint32_t derive_hires_tile_lookup_dim(uint32_t raw_dim,
+                                             uint8_t tile_mask,
+                                             uint32_t max_dim)
+{
+	uint32_t dim = raw_dim;
+	if (tile_mask != 0)
+	{
+		const uint32_t mask_dim = 1u << std::min<unsigned>(tile_mask, 10u);
+		dim = std::min(dim, mask_dim);
+	}
+	if (max_dim != 0)
+		dim = std::min(dim, max_dim);
+	return dim;
+}
+
+inline uint32_t hires_calculate_dxt(uint32_t txl2words)
+{
+	if (txl2words == 0)
+		return 1;
+	return (2048u + txl2words - 1u) / txl2words;
+}
+
+inline uint32_t hires_txl2words(uint32_t width_pixels, TextureSize size)
+{
+	switch (size)
+	{
+	case TextureSize::Bpp4:
+		return std::max(1u, width_pixels / 16u);
+	case TextureSize::Bpp8:
+		return std::max(1u, width_pixels / 8u);
+	case TextureSize::Bpp16:
+		return std::max(1u, width_pixels / 4u);
+	case TextureSize::Bpp32:
+		return std::max(1u, width_pixels / 2u);
+	default:
+		return 1u;
+	}
+}
+
+inline uint32_t hires_reverse_dxt(uint32_t dxt,
+                                  uint32_t load_width_pixels,
+                                  uint32_t target_width_pixels,
+                                  TextureSize target_size)
+{
+	if (dxt == 0x800u)
+		return 1u;
+	if (dxt <= 1u)
+		return dxt;
+
+	uint32_t low = 2047u / dxt;
+	if (hires_calculate_dxt(low) > dxt)
+		low++;
+	const uint32_t high = 2047u / (dxt - 1u);
+	if (low == high)
+		return low;
+
+	const uint32_t target_words = hires_txl2words(target_width_pixels, target_size);
+	for (uint32_t i = low; i <= high; i++)
+	{
+		if (target_words == i)
+			return i;
+	}
+
+	(void)load_width_pixels;
+	return (low + high) / 2u;
+}
+
+inline uint32_t compute_hires_block_row_stride_bytes(uint32_t dxt,
+                                                     uint32_t load_width_pixels,
+                                                     uint32_t target_width_pixels,
+                                                     TextureSize target_size,
+                                                     uint32_t stride_from_tile_bytes)
+{
+	if (dxt == 0)
+		return stride_from_tile_bytes;
+
+	uint32_t stride_words = dxt;
+	if (dxt > 1u)
+		stride_words = hires_reverse_dxt(dxt, load_width_pixels, target_width_pixels, target_size);
+
+	return stride_words << 3;
 }
 
 inline void record_hires_lookup_result(bool hit,

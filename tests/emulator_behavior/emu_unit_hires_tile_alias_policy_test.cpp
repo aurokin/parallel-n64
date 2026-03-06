@@ -87,6 +87,18 @@ static void test_should_alias_hires_tile_binding_contract()
 	check(!should_alias_hires_tile_binding(a, b), "palette mismatch should not alias");
 }
 
+static void test_should_invalidate_hires_binding_on_load_contract()
+{
+	auto load_meta = make_meta(0x1c0, 0x40, TextureFormat::CI, TextureSize::Bpp8, 0);
+	auto same_offset_diff_desc = make_meta(0x1c0, 0x20, TextureFormat::RGBA, TextureSize::Bpp16, 3);
+	auto different_offset = make_meta(0x1c4, 0x40, TextureFormat::CI, TextureSize::Bpp8, 0);
+
+	check(should_invalidate_hires_binding_on_load(load_meta, same_offset_diff_desc),
+	      "load invalidation should trigger on shared TMEM offset regardless of descriptor fields");
+	check(!should_invalidate_hires_binding_on_load(load_meta, different_offset),
+	      "load invalidation should ignore tiles with different TMEM offsets");
+}
+
 static void test_find_hires_alias_source_tile_contract()
 {
 	constexpr unsigned NumTiles = 8;
@@ -154,6 +166,30 @@ static void test_invalidate_hires_alias_group_contract()
 	      "non-matching alias state should remain intact");
 }
 
+static void test_invalidate_hires_load_binding_group_contract()
+{
+	constexpr unsigned NumTiles = 8;
+	TileInfo tiles[NumTiles] = {};
+	ReplacementTileState states[NumTiles] = {};
+
+	tiles[7].meta = make_meta(0x300, 0x20, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+	states[7] = make_bindable_state(27);
+
+	tiles[0].meta = make_meta(0x300, 0x40, TextureFormat::CI, TextureSize::Bpp8, 4);
+	states[0] = make_bindable_state(28);
+
+	tiles[3].meta = make_meta(0x304, 0x20, TextureFormat::RGBA, TextureSize::Bpp16, 0);
+	states[3] = make_bindable_state(29);
+
+	invalidate_hires_load_binding_group(7, tiles, states);
+
+	check(states[7].hit, "owner tile state should be preserved during load invalidation");
+	check(!states[0].valid && !states[0].hit,
+	      "shared-offset tile should be invalidated even when descriptor fields differ");
+	check(states[3].valid && states[3].hit,
+	      "different-offset tile should remain intact after load invalidation");
+}
+
 static void test_propagate_hires_alias_group_binding_contract()
 {
 	constexpr unsigned NumTiles = 8;
@@ -188,9 +224,11 @@ static void test_propagate_hires_alias_group_binding_contract()
 int main()
 {
 	test_should_alias_hires_tile_binding_contract();
+	test_should_invalidate_hires_binding_on_load_contract();
 	test_find_hires_alias_source_tile_contract();
 	test_hires_tile_state_is_bindable_contract();
 	test_invalidate_hires_alias_group_contract();
+	test_invalidate_hires_load_binding_group_contract();
 	test_propagate_hires_alias_group_binding_contract();
 
 	std::cout << "emu_unit_hires_tile_alias_policy_test: PASS" << std::endl;

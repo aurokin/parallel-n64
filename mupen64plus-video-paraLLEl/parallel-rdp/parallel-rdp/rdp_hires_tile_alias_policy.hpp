@@ -19,6 +19,14 @@ inline bool should_alias_hires_tile_binding(const TileMeta &source_meta,
 	       source_meta.palette == target_meta.palette;
 }
 
+inline bool should_invalidate_hires_binding_on_load(const TileMeta &source_meta,
+                                                    const TileMeta &target_meta)
+{
+	// Any load into the same TMEM base can invalidate previous replacement bindings,
+	// even if descriptor fields (size/format/palette) changed in-between uploads.
+	return source_meta.offset == target_meta.offset;
+}
+
 template <typename ReplacementTileStateType>
 inline bool hires_tile_state_is_bindable(const ReplacementTileStateType &state)
 {
@@ -59,6 +67,21 @@ inline void invalidate_hires_alias_group(unsigned owner_tile,
 		if (i == owner_tile)
 			continue;
 		if (should_alias_hires_tile_binding(tile_infos[i].meta, owner_meta))
+			tile_states[i] = {};
+	}
+}
+
+template <typename TileInfoType, typename ReplacementTileStateType, size_t NumTiles>
+inline void invalidate_hires_load_binding_group(unsigned owner_tile,
+                                                const TileInfoType (&tile_infos)[NumTiles],
+                                                ReplacementTileStateType (&tile_states)[NumTiles])
+{
+	const auto &owner_meta = tile_infos[owner_tile].meta;
+	for (unsigned i = 0; i < NumTiles; i++)
+	{
+		if (i == owner_tile)
+			continue;
+		if (should_invalidate_hires_binding_on_load(tile_infos[i].meta, owner_meta))
 			tile_states[i] = {};
 	}
 }

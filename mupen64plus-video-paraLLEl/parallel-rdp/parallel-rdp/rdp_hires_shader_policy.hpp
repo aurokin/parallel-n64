@@ -43,7 +43,7 @@ inline void apply_hires_tile_replacement_binding(TileInfoType &tile,
 		tile.replacement.repl_orig_h = state.orig_h;
 		tile.replacement.repl_w = state.repl_w;
 		tile.replacement.repl_h = state.repl_h;
-		tile.replacement.repl_desc_index = state.vk_image_index;
+		tile.replacement.repl_desc_index = pack_hires_shader_descriptor_index(state.vk_image_index, state.has_mips);
 	}
 	else
 		clear_hires_tile_replacement_binding(tile);

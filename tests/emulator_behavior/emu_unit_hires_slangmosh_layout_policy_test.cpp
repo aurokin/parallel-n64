@@ -18,14 +18,14 @@ static void check(bool condition, const char *message)
 	}
 }
 
-static void test_parse_slangmosh_resource_layout_v6_success()
+static SlangmoshResourceLayoutV6 make_layout_payload_v6()
 {
-	std::vector<uint8_t> payload(slangmosh_resource_layout_v6_serialized_size());
-	std::memcpy(payload.data(), slangmosh_reflection_magic_v6, sizeof(slangmosh_reflection_magic_v6));
-
 	SlangmoshResourceLayoutV6 encoded = {};
 	encoded.sets[0].sampled_image_mask = 0x0003u;
 	encoded.sets[0].uniform_buffer_mask = 0x0010u;
+	encoded.sets[0].rtas_mask = 0x0004u;
+	encoded.sets[0].sampled_texel_buffer_mask = 0x0020u;
+	encoded.sets[0].storage_texel_buffer_mask = 0x0040u;
 	encoded.sets[0].array_size[0] = 1;
 	encoded.sets[0].array_size[1] = 2;
 	encoded.input_mask = 0x5u;
@@ -33,21 +33,86 @@ static void test_parse_slangmosh_resource_layout_v6_success()
 	encoded.push_constant_size = 64u;
 	encoded.spec_constant_mask = 0x3u;
 	encoded.bindless_set_mask = 0x1u;
+	return encoded;
+}
+
+static SlangmoshResourceLayoutV4 make_layout_payload_v4()
+{
+	SlangmoshResourceLayoutV4 encoded = {};
+	encoded.sets[0].sampled_image_mask = 0x0003u;
+	encoded.sets[0].uniform_buffer_mask = 0x0010u;
+	encoded.sets[0].sampled_texel_buffer_mask = 0x0020u;
+	encoded.sets[0].storage_texel_buffer_mask = 0x0040u;
+	encoded.sets[0].array_size[0] = 1;
+	encoded.sets[0].array_size[1] = 2;
+	encoded.input_mask = 0x5u;
+	encoded.output_mask = 0x2u;
+	encoded.push_constant_size = 64u;
+	encoded.spec_constant_mask = 0x3u;
+	encoded.bindless_set_mask = 0x1u;
+	return encoded;
+}
+
+static void fill_payload_v6(std::vector<uint8_t> &payload,
+                            const SlangmoshResourceLayoutV6 &encoded)
+{
+	payload.resize(slangmosh_resource_layout_v6_serialized_size());
+	std::memcpy(payload.data(), slangmosh_reflection_magic_v6, sizeof(slangmosh_reflection_magic_v6));
 	std::memcpy(payload.data() + sizeof(slangmosh_reflection_magic_v6), &encoded, sizeof(encoded));
+}
+
+static void fill_payload_v4(std::vector<uint8_t> &payload,
+                            const SlangmoshResourceLayoutV4 &encoded)
+{
+	payload.resize(slangmosh_resource_layout_v6_serialized_size());
+	std::memcpy(payload.data(), slangmosh_reflection_magic_v4, sizeof(slangmosh_reflection_magic_v4));
+	std::memcpy(payload.data() + sizeof(slangmosh_reflection_magic_v4), &encoded, sizeof(encoded));
+}
+
+static void assert_v6_layout_common_matches(const SlangmoshResourceLayoutV6 &parsed)
+{
+	check(parsed.sets[0].sampled_image_mask == 0x0003u,
+	      "parsed sampled-image mask mismatch");
+	check(parsed.sets[0].uniform_buffer_mask == 0x0010u,
+	      "parsed uniform-buffer mask mismatch");
+	check(parsed.sets[0].sampled_texel_buffer_mask == 0x0020u,
+	      "parsed sampled-texel-buffer mask mismatch");
+	check(parsed.sets[0].storage_texel_buffer_mask == 0x0040u,
+	      "parsed storage-texel-buffer mask mismatch");
+	check(parsed.sets[0].array_size[1] == 2u,
+	      "parsed array-size mismatch");
+	check(parsed.push_constant_size == 64u,
+	      "parsed push-constant size mismatch");
+	check(parsed.bindless_set_mask == 0x1u,
+	      "parsed bindless set mask mismatch");
+}
+
+static void test_parse_slangmosh_resource_layout_v6_success()
+{
+	const SlangmoshResourceLayoutV6 encoded = make_layout_payload_v6();
+	std::vector<uint8_t> payload;
+	fill_payload_v6(payload, encoded);
 
 	SlangmoshResourceLayoutV6 parsed = {};
 	check(parse_slangmosh_resource_layout_v6(payload.data(), payload.size(), &parsed),
 	      "v6 reflection payload should parse");
-	check(parsed.sets[0].sampled_image_mask == encoded.sets[0].sampled_image_mask,
-	      "parsed sampled-image mask mismatch");
-	check(parsed.sets[0].uniform_buffer_mask == encoded.sets[0].uniform_buffer_mask,
-	      "parsed uniform-buffer mask mismatch");
-	check(parsed.sets[0].array_size[1] == encoded.sets[0].array_size[1],
-	      "parsed array-size mismatch");
-	check(parsed.push_constant_size == encoded.push_constant_size,
-	      "parsed push-constant size mismatch");
-	check(parsed.bindless_set_mask == encoded.bindless_set_mask,
-	      "parsed bindless set mask mismatch");
+	assert_v6_layout_common_matches(parsed);
+	check(parsed.sets[0].rtas_mask == 0x0004u,
+	      "v6 parse should preserve rtas mask");
+}
+
+static void test_parse_slangmosh_resource_layout_v4_success()
+{
+	const SlangmoshResourceLayoutV4 encoded = make_layout_payload_v4();
+	std::vector<uint8_t> payload;
+	fill_payload_v4(payload, encoded);
+
+	SlangmoshResourceLayoutV6 parsed = {};
+	check(parse_slangmosh_resource_layout_v6(payload.data(), payload.size(), &parsed),
+	      "v4 reflection payload should parse via compatibility path");
+	assert_v6_layout_common_matches(parsed);
+	check(parsed.sets[0].rtas_mask == 0u,
+	      "v4 compatibility parse should zero rtas mask");
 }
 
 static void test_parse_slangmosh_resource_layout_v6_rejects_invalid_inputs()
@@ -111,6 +176,7 @@ static void test_set_uses_unsupported_features_contract()
 int main()
 {
 	test_parse_slangmosh_resource_layout_v6_success();
+	test_parse_slangmosh_resource_layout_v4_success();
 	test_parse_slangmosh_resource_layout_v6_rejects_invalid_inputs();
 	test_binding_mask_helpers();
 	test_set_uses_high_bindings_contract();

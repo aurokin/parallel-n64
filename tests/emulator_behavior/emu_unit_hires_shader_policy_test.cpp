@@ -28,6 +28,7 @@ struct ReplacementTileState
 	uint16_t repl_w = 0;
 	uint16_t repl_h = 0;
 	uint32_t vk_image_index = hires_invalid_descriptor_index();
+	bool has_mips = false;
 };
 
 static void check(bool condition, const char *message)
@@ -68,6 +69,7 @@ static void test_apply_hires_tile_replacement_binding_hit_contract()
 	state.repl_w = 128;
 	state.repl_h = 256;
 	state.vk_image_index = 15;
+	state.has_mips = true;
 
 	apply_hires_tile_replacement_binding(tile, state);
 
@@ -75,8 +77,10 @@ static void test_apply_hires_tile_replacement_binding_hit_contract()
 	      "apply-hit should copy original dimensions");
 	check(tile.replacement.repl_w == 128 && tile.replacement.repl_h == 256,
 	      "apply-hit should copy replacement dimensions");
-	check(tile.replacement.repl_desc_index == 15,
-	      "apply-hit should copy descriptor index");
+	check(unpack_hires_shader_descriptor_index(tile.replacement.repl_desc_index) == 15,
+	      "apply-hit should preserve descriptor index in packed value");
+	check(hires_shader_descriptor_has_mips(tile.replacement.repl_desc_index),
+	      "apply-hit should preserve mip flag in packed descriptor");
 }
 
 static void test_apply_hires_tile_replacement_binding_invalid_contract()
@@ -95,10 +99,30 @@ static void test_apply_hires_tile_replacement_binding_invalid_contract()
 	      "invalid descriptor should clear replacement binding");
 
 	state.vk_image_index = 22;
+	state.has_mips = true;
 	state.repl_w = 0;
 	apply_hires_tile_replacement_binding(tile, state);
 	check(tile.replacement.repl_desc_index == hires_invalid_descriptor_index(),
 	      "zero replacement dimensions should clear replacement binding");
+}
+
+static void test_apply_hires_tile_replacement_binding_no_mips_contract()
+{
+	TileInfo tile = {};
+	ReplacementTileState state = {};
+	state.hit = true;
+	state.orig_w = 16;
+	state.orig_h = 16;
+	state.repl_w = 64;
+	state.repl_h = 64;
+	state.vk_image_index = 9;
+	state.has_mips = false;
+
+	apply_hires_tile_replacement_binding(tile, state);
+	check(unpack_hires_shader_descriptor_index(tile.replacement.repl_desc_index) == 9,
+	      "descriptor index should remain addressable when mips are disabled");
+	check(!hires_shader_descriptor_has_mips(tile.replacement.repl_desc_index),
+	      "packed descriptor should not set mip flag when mips are disabled");
 }
 
 static void test_shader_enable_and_bind_gate_contract()
@@ -118,6 +142,7 @@ int main()
 	test_clear_hires_tile_replacement_binding_contract();
 	test_apply_hires_tile_replacement_binding_hit_contract();
 	test_apply_hires_tile_replacement_binding_invalid_contract();
+	test_apply_hires_tile_replacement_binding_no_mips_contract();
 	test_shader_enable_and_bind_gate_contract();
 
 	std::cout << "emu_unit_hires_shader_policy_test: PASS" << std::endl;

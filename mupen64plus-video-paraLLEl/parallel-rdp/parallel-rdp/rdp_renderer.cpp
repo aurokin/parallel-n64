@@ -3731,7 +3731,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					key_height_pixels,
 					repl_meta.vk_image_index,
 					repl_meta.repl_w,
-					repl_meta.repl_h);
+					repl_meta.repl_h,
+					repl_meta.has_mips);
 			detail::apply_hires_tile_replacement_binding(tiles[tile], repl_state);
 
 			const bool descriptor_bound = detail::did_hires_lookup_bind_descriptor(hit, repl_meta.vk_image_index);

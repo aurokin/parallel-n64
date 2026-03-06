@@ -82,7 +82,7 @@ Expected fallback behavior:
     - `trilinear` -> mipmapped replacement image uploads,
     - `srgb on|auto` -> SRGB replacement uploads and SRGB descriptor view binding.
   - Added local unit coverage `emu.unit.hires_sampling_policy` and included it in hires-readiness profile execution.
-- Next execution target: continue `M7` with explicit LOD/sample selection behavior in shader path and targeted tests.
+- Next execution target: finish `M7` closure criteria (extended smoke/stability/policy checks), then move into `M8` validation/performance/docs pass.
 
 ## Status Update Format
 I will post updates in this format as work progresses:
@@ -243,3 +243,22 @@ I will post updates in this format as work progresses:
     - `timeout --signal=KILL 40s ./run-n64-smoke-start.sh -- --verbose`
     - 30s smoke with temporary `filter=trilinear`, `srgb=on`, `budget_mb=128` (`evictions=2`, `rejects=0`).
 
+- 2026-03-05: Continued `M7` with shader LOD + descriptor packing slice:
+  - Added packed hi-res descriptor semantics (`index + mip-available bit`) in runtime/shader policy helpers.
+  - Extended replacement tile state and binding path to preserve `has_mips` through to shader-visible metadata.
+  - Updated shader replacement sampling path to:
+    - decode packed descriptor index/mip flag,
+    - derive replacement mip level from `lod_frac`,
+    - sample replacement texels from the selected mip level.
+  - Expanded unit coverage:
+    - `emu.unit.hires_runtime_policy` (descriptor pack/unpack + mip bit semantics),
+    - `emu.unit.hires_key_state_policy` (`has_mips` propagation contract),
+    - `emu.unit.hires_shader_policy` (packed descriptor + mip-flag binding behavior).
+- 2026-03-05: Resolved baked-shader regeneration compatibility with latest local `slangmosh` output:
+  - Root cause: regenerated `slangmosh.hpp` emitted `GRA4` reflection payloads; parser previously accepted only `GRA6`.
+  - Added explicit `GRA4` compatibility parsing and conversion into the fork's canonical reflection mapping in `vulkan/resource_layout_policy.hpp`.
+  - Added `emu.unit.hires_slangmosh_layout_policy` coverage for both `GRA6` and `GRA4` payload contracts (including v4->v6 conversion behavior).
+  - Revalidated local gates after regeneration + compatibility fix:
+    - `./run-tests.sh --profile hires-readiness`
+    - `./run-build.sh`
+    - `./run-n64-smoke-start.sh` (30s smoke with input automation; clean exit, no reflection/segfault regression; summary: `lookups=73913 hits=45139 misses=28774 bound_hits=45139 unbound_hits=0 evictions=0 rejects=0`).

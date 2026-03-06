@@ -72,6 +72,25 @@ static void test_descriptor_index_sentinel_contract()
 	check(hires_descriptor_index_valid(0u), "descriptor index zero should be considered valid");
 	check(hires_descriptor_index_valid(17u), "descriptor index 17 should be considered valid");
 
+	check(hires_shader_descriptor_mipmap_bit() == (1u << 30),
+	      "shader descriptor mipmap bit mismatch");
+	check(hires_shader_descriptor_index_mask() == ((1u << 30) - 1u),
+	      "shader descriptor index mask mismatch");
+
+	const uint32_t packed_nomips = pack_hires_shader_descriptor_index(17u, false);
+	check(unpack_hires_shader_descriptor_index(packed_nomips) == 17u,
+	      "packed descriptor should preserve index when mips are disabled");
+	check(!hires_shader_descriptor_has_mips(packed_nomips),
+	      "packed descriptor should not report mip flag when disabled");
+
+	const uint32_t packed_mips = pack_hires_shader_descriptor_index(17u, true);
+	check(unpack_hires_shader_descriptor_index(packed_mips) == 17u,
+	      "packed descriptor should preserve index when mips are enabled");
+	check(hires_shader_descriptor_has_mips(packed_mips),
+	      "packed descriptor should report mip flag when enabled");
+	check(pack_hires_shader_descriptor_index(hires_invalid_descriptor_index(), true) == hires_invalid_descriptor_index(),
+	      "invalid descriptor should remain invalid when packed");
+
 	const RDP::ReplacementMeta meta = {};
 	check(meta.vk_image_index == hires_invalid_descriptor_index(),
 	      "ReplacementMeta default descriptor index should match invalid sentinel");

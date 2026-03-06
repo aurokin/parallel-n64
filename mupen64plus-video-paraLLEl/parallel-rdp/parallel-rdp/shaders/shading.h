@@ -204,7 +204,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	uint max_level = uint(setup_tile) >> 3u;
 	int min_lod = derived.min_lod;
 
-	i16 lod_frac;
+	i16 lod_frac = i16(0);
 	if (uses_lod)
 	{
 		compute_lod_2cycle(tile0, tile1, lod_frac, max_level, min_lod, st, st_dx, st_dy, perspective_overflow,
@@ -224,7 +224,8 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 			tile_info0.size = u8(TEX_SIZE);
 		}
 #endif
-		texel0 = sample_texture(tile_info0, tmem_instance_index, st, tlut, tlut_type, sample_quad, mid_texel, false, i16x4(0));
+		texel0 = sample_texture(tile_info0, tmem_instance_index, st, tlut, tlut_type, sample_quad, mid_texel, false,
+			                        lod_frac, i16x4(0));
 		if (!sample_quad && !bilerp0)
 			texel0 = texture_convert_factors(texel0, derived.factors);
 	}
@@ -272,7 +273,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 			}
 #endif
 			texel1 = sample_texture(tile_info1, tmem_instance_index, st, tlut, tlut_type, sample_quad, mid_texel,
-			                        convert_one, texel0);
+			                        convert_one, lod_frac, texel0);
 
 			if (!sample_quad && !tlut && !bilerp1)
 				texel1 = texture_convert_factors(texel1, derived.factors);

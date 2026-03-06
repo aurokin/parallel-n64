@@ -50,5 +50,34 @@ inline bool hires_descriptor_index_valid(uint32_t index)
 {
 	return index != hires_invalid_descriptor_index();
 }
+
+inline constexpr uint32_t hires_shader_descriptor_mipmap_bit()
+{
+	return 1u << 30;
+}
+
+inline constexpr uint32_t hires_shader_descriptor_index_mask()
+{
+	return hires_shader_descriptor_mipmap_bit() - 1u;
+}
+
+inline uint32_t pack_hires_shader_descriptor_index(uint32_t descriptor_index, bool has_mips)
+{
+	if (!hires_descriptor_index_valid(descriptor_index))
+		return hires_invalid_descriptor_index();
+
+	const uint32_t packed_index = descriptor_index & hires_shader_descriptor_index_mask();
+	return has_mips ? (packed_index | hires_shader_descriptor_mipmap_bit()) : packed_index;
+}
+
+inline uint32_t unpack_hires_shader_descriptor_index(uint32_t packed_index)
+{
+	return packed_index & hires_shader_descriptor_index_mask();
+}
+
+inline bool hires_shader_descriptor_has_mips(uint32_t packed_index)
+{
+	return (packed_index & hires_shader_descriptor_mipmap_bit()) != 0;
+}
 }
 }

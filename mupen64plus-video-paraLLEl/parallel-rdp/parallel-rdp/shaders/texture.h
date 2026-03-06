@@ -38,6 +38,18 @@ const int TEXTURE_FORMAT_IA = 3;
 const int TEXTURE_FORMAT_I = 4;
 
 const uint HIRES_INVALID_DESC_INDEX = 0xffffffffu;
+const uint HIRES_DESC_MIPMAP_BIT = 1u << 30;
+const uint HIRES_DESC_INDEX_MASK = HIRES_DESC_MIPMAP_BIT - 1u;
+
+uint hires_descriptor_index(TileInfo tile)
+{
+	return tile.repl_desc_index & HIRES_DESC_INDEX_MASK;
+}
+
+bool hires_descriptor_has_mips(TileInfo tile)
+{
+	return (tile.repl_desc_index & HIRES_DESC_MIPMAP_BIT) != 0u;
+}
 
 bool tile_uses_hires_replacement(TileInfo tile)
 {
@@ -50,14 +62,26 @@ bool tile_uses_hires_replacement(TileInfo tile)
 #endif
 }
 
-i16x4 sample_hires_replacement_texel(TileInfo tile, ivec2 st)
+int compute_hires_replacement_lod(TileInfo tile, i16 lod_frac)
+{
+	if (!hires_descriptor_has_mips(tile))
+		return 0;
+
+	int lod_level = (int(lod_frac) + 0x10) >> 5;
+	int max_dim = max(int(tile.repl_w), int(tile.repl_h));
+	int max_level = max(findMSB(max_dim), 0);
+	return clamp(lod_level, 0, max_level);
+}
+
+i16x4 sample_hires_replacement_texel(TileInfo tile, ivec2 st, int lod_level)
 {
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 	ivec2 orig_dims = max(ivec2(tile.repl_orig_w, tile.repl_orig_h), ivec2(1));
 	ivec2 repl_dims = max(ivec2(tile.repl_w, tile.repl_h), ivec2(1));
+	ivec2 repl_level_dims = max(repl_dims >> lod_level, ivec2(1));
 	vec2 uv = (vec2(st) + vec2(0.5)) / vec2(orig_dims);
-	ivec2 repl_coord = ivec2(clamp(uv * vec2(repl_dims), vec2(0.0), vec2(repl_dims - 1)));
-	vec4 repl = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], repl_coord, 0);
+	ivec2 repl_coord = ivec2(clamp(uv * vec2(repl_level_dims), vec2(0.0), vec2(repl_level_dims - 1)));
+	vec4 repl = texelFetch(uHiresTextures[nonuniformEXT(hires_descriptor_index(tile))], repl_coord, lod_level);
 	ivec4 expanded = ivec4(clamp(repl * vec4(255.0) + vec4(0.5), vec4(0.0), vec4(255.0)));
 	return i16x4(expanded);
 #else
@@ -519,7 +543,7 @@ i16x2 bilinear_3tap(i16x2 t00, i16x2 t10, i16x2 t01, i16x2 t11, ivec2 frac)
 }
 
 i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, bool tlut_type, bool sample_quad, bool mid_texel, bool convert_one,
-                     i16x4 prev_cycle)
+                     i16 lod_frac, i16x4 prev_cycle)
 {
 	st.x = clamp_and_shift_coord((tile.flags & TILE_INFO_CLAMP_S_BIT) != 0, st.x, int(tile.slo), int(tile.shi), int(tile.shift_s));
 	st.y = clamp_and_shift_coord((tile.flags & TILE_INFO_CLAMP_T_BIT) != 0, st.y, int(tile.tlo), int(tile.thi), int(tile.shift_t));
@@ -556,14 +580,15 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 	if (replacement_active)
 	{
 		yuv = false;
-		t_base = sample_hires_replacement_texel(tile, base_st);
+		int hires_lod = compute_hires_replacement_lod(tile, lod_frac);
+		t_base = sample_hires_replacement_texel(tile, base_st, hires_lod);
 		if (sample_quad)
 		{
-			t10 = sample_hires_replacement_texel(tile, ivec2(s1, t0));
-			t01 = sample_hires_replacement_texel(tile, ivec2(s0, t1));
+			t10 = sample_hires_replacement_texel(tile, ivec2(s1, t0), hires_lod);
+			t01 = sample_hires_replacement_texel(tile, ivec2(s0, t1), hires_lod);
 		}
 		if (mid_texel)
-			t11 = sample_hires_replacement_texel(tile, ivec2(s1, t1));
+			t11 = sample_hires_replacement_texel(tile, ivec2(s1, t1), hires_lod);
 	}
 	else if (tlut)
 	{

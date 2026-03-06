@@ -227,6 +227,7 @@ private:
 		uint32_t vk_image_index = 0xffffffffu;
 		bool valid = false;
 		bool hit = false;
+		bool has_mips = false;
 	};
 	ReplacementTileState replacement_tiles[Limits::MaxNumTiles] = {};
 	uint8_t tlut_shadow[512] = {};

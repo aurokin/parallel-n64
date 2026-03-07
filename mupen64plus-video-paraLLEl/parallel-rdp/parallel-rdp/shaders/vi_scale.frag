@@ -40,6 +40,8 @@ layout(push_constant, std430) uniform Registers
     int x_add;
     int y_add;
     int frame_count;
+    int phase3_x_bias;
+    int phase3_y_bias;
 
     int serrate_shift;
     int serrate_mask;
@@ -131,6 +133,11 @@ void main()
     {
         int phase = coord.y & 3;
         int phase_adjust = phase == 0 ? 0 : (phase == 1 ? 2 : (phase == 2 ? 7 : 18));
+        if (phase == 3 && (y >> 10) < 640)
+        {
+            x += registers.phase3_x_bias;
+            y += registers.phase3_y_bias;
+        }
         y += (registers.y_add * phase_adjust) >> 5;
         int quarter_x = max(registers.x_add >> 2, 1);
         int upper_y = max((registers.y_add * 8) >> 4, 1);

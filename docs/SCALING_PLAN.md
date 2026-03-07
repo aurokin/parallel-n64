@@ -41,18 +41,18 @@ The helper currently relies on an explicit temp `core-options.cfg` inside its is
 - The current best experimental path combines the existing non-linear row-phase-aware VI reconstruction with source-domain X/Y step biases in `scale_stage()`.
 - That path now has two meaningful parts:
   - `vi_scale.frag` keeps the tuned `0/2/7/18` row-phase schedule, the upward-skewed `upper 8/16`, `lower 7/16` 4-tap footprint, and the localized `y_frac` remap for phases `1/2` when the source row is in the upper band.
-  - `scale_stage()` now also applies tested experimental source-domain biases through `vi_scale_sampling_policy`, currently `x_add -= 17`, `y_add -= 30`, and `y_base += 736` for the validated 4x path.
-  - local experimentation can override all four source-domain values at runtime with `PARALLEL_VI_SOURCE_{X,Y}_{ADD,BASE}_BIAS`, which is useful for narrow sweeps without rebuilding.
-  - the current committed baseline from those sweeps is `x_add -= 17`, `y_add -= 30`, `y_base += 736`, which improved the saved Paper Mario oracle to `full 18.8888 / left 19.5793 / right 30.3244 / top 18.6316 / bottom 21.2062 / file2_new 2.9931`.
+  - `scale_stage()` now also applies tested experimental source-domain biases through `vi_scale_sampling_policy`, currently `x_add -= 17`, `y_add -= 30`, `y_base += 736`, and a phase-3-only source Y bias of `+512` for the validated 4x path.
+  - local experimentation can override the global source-domain values at runtime with `PARALLEL_VI_SOURCE_{X,Y}_{ADD,BASE}_BIAS`, and can override the phase-3 seam probe with `PARALLEL_VI_PHASE3_Y_BIAS` / `PARALLEL_VI_PHASE3_X_BIAS`.
+  - the current committed baseline from those sweeps is `x_add -= 17`, `y_add -= 30`, `y_base += 736`, `phase3_y += 512`, which improved the saved Paper Mario oracle to `full 18.5555 / left 17.7173 / right 30.3204 / top 17.9895 / bottom 21.2062 / file2_new 2.9931`.
 - That row-phase adjustment materially reduces the remaining 4x cadence artifact in the `scale` dump:
   - previous committed experimental path: `mod4 spread 5.7583`, `mod8 spread 6.5015`, `mod12 spread 6.4761`
   - prior committed row-phase path: `mod4 0.5964`, `mod8 1.3461`, `mod12 1.9907`
   - prior best row-phase-only path: `mod4 0.4867`, `mod8 1.1960`, `mod12 1.7706`
   - current combined path: `mod4 0.5443`, `mod8 1.2770`, `mod12 1.8259`
 - Latest Paper Mario oracle comparison for the current experimental path:
-  - representative stable run: `full 20.0056`, `left 19.4502`, `right 30.7216`, `top 22.6831`, `bottom 21.4701`, `file2_new 2.9931`
+  - clean committed run: `full 18.5555`, `left 17.7173`, `right 30.3204`, `top 17.9895`, `bottom 21.2062`, `file2_new 2.9931`
   - repeated same-code captures still show a small left-side variance, which moves the `left` crop and `full` metric slightly while leaving `right`, `top`, `bottom`, and `file2_new` unchanged
-- Practical read on the latest improvement: this is the second, much larger source-domain breakthrough. Small reconstruction tweaks helped, but the dominant win came from biasing the source steps fed into the VI scale shader on the experimental 4x path. That strongly suggests the remaining split is driven far more by source-domain sampling cadence and mapping than by the final interpolation kernel alone.
+- Practical read on the latest improvement: source-domain mapping is still the dominant lane. The newest win came from a phase-specific source Y bias on phase `3`, which directly shrinks the cadence-locked seam without disturbing the bottom band. That strongly suggests the remaining split is driven more by per-phase source mapping than by the final interpolation kernel alone.
 - Practical read: the current combined path is a better visual/oracle baseline even though the raw cadence metric is slightly worse than the prior row-phase-only variant. Keep both facts in mind before optimizing only against the row spread numbers.
 - The plugin-level `interlacing` toggle was previously not threaded into `ScanoutOptions` at all. That is now fixed: it maps to weave/persistence mode (`blend_previous_frame = true`, `upscale_deinterlacing = false`) when enabled.
 - On the current Paper Mario save-state scene, forcing that interlacing path changes only a narrow left-side region and does not materially move the main oracle regions, so it is not the dominant source of the horizontal split artifact here.

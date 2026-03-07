@@ -125,13 +125,13 @@ void main()
     if (EXPERIMENTAL_RECONSTRUCTION)
     {
         int quarter_x = max(registers.x_add >> 2, 1);
-        int quarter_y = max(registers.y_add >> 2, 1);
+        int three_eighth_y = max((registers.y_add * 3) >> 3, 1);
         int three_quarter_x = max((registers.x_add * 3) >> 2, 1);
         uvec3 accum = uvec3(0);
-        accum += sample_divot_output(x + quarter_x, y - quarter_y);
-        accum += sample_divot_output(x + three_quarter_x, y - quarter_y);
-        accum += sample_divot_output(x + quarter_x, y + quarter_y);
-        accum += sample_divot_output(x + three_quarter_x, y + quarter_y);
+        accum += sample_divot_output(x + quarter_x, y - three_eighth_y);
+        accum += sample_divot_output(x + three_quarter_x, y - three_eighth_y);
+        accum += sample_divot_output(x + quarter_x, y + three_eighth_y);
+        accum += sample_divot_output(x + three_quarter_x, y + three_eighth_y);
         c00 = (accum + 2u) >> 2u;
     }
     else

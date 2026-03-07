@@ -31,6 +31,7 @@ For current `parallel` iteration, use:
 - `./run-paper-mario-scaling-compare.sh --tag <tag>`
 
 This keeps scaling work on the same-core save-state path instead of the slower, less stable button-path capture.
+Run captures sequentially; the helpers reuse RetroArch netcmd defaults and are not designed for concurrent launches.
 
 ## Architectural Direction
 

@@ -57,7 +57,8 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off
-  - stages a temp ParaLLEl core-options file at the real home path for the run because RetroArch/core option roots are not reliable here
+  - uses an isolated XDG root with a temp per-core ParaLLEl `.opt`
+  - do not mix RetroArch `global_core_options = true` with per-core `.opt` files for these helpers
 - Parallel scaling compare:
   - `./run-paper-mario-scaling-compare.sh --tag <tag>`
 - GLide oracle capture:
@@ -77,6 +78,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Scaling-phase capture note:
   - prefer `./run-paper-mario-scaling-capture.sh` for current `parallel` scaling work
   - do not spend time re-establishing button-path parity for `parallel` unless the state path becomes invalid
+  - run captures sequentially; the helpers share RetroArch netcmd defaults and are not meant for parallel launches
 - Save-state warning:
   - prefer save states for fast iteration when they were created from the same ROM image and the same core path you are validating
   - same-core save states are valid across HIRES-on and HIRES-off runs

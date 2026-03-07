@@ -37,8 +37,6 @@ xdg_root=""
 retroarch_cfg=""
 log_file=""
 core_options_file=""
-home_core_options_file="$DEFAULT_CORE_OPTIONS_FILE"
-home_core_options_backup=""
 stamp_file=""
 run_pid=""
 window_override_width=""
@@ -81,7 +79,7 @@ Options:
 
 Behavior:
   - Uses an isolated RetroArch config root under the capture directory.
-  - Points RetroArch core_options_path at a temp ParaLLEl options file for repeatability.
+  - Uses a temp per-core ParaLLEl options file inside that isolated XDG root.
   - buttons mode uses run-n64-smoke-start.sh for deterministic Paper Mario input:
     boot, wait 20s, press start, wait 5s, press start, wait 2s.
   - state mode uses run-n64-smoke-state.sh to load the current same-core save state.
@@ -178,8 +176,8 @@ write_temp_retroarch_cfg() {
   mkdir -p "$(dirname "$retroarch_cfg")"
   cp "$DEFAULT_RETROARCH_CFG" "$retroarch_cfg"
   ensure_retroarch_setting "$retroarch_cfg" "config_save_on_exit" "false"
-  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "true"
-  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" "$xdg_root/retroarch/config"
+  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" ""
   ensure_retroarch_setting "$retroarch_cfg" "screenshot_directory" "$capture_dir"
   ensure_retroarch_setting "$retroarch_cfg" "screenshots_in_content_dir" "false"
   ensure_retroarch_setting "$retroarch_cfg" "sort_screenshots_by_content_enable" "false"
@@ -204,25 +202,6 @@ write_temp_retroarch_cfg() {
   fi
 }
 
-stage_home_core_options() {
-  mkdir -p "$(dirname "$home_core_options_file")"
-
-  if [[ -e "$home_core_options_file" || -L "$home_core_options_file" ]]; then
-    home_core_options_backup="$(mktemp /tmp/parallel-n64-paper-mario-coreopts.XXXXXX)"
-    mv "$home_core_options_file" "$home_core_options_backup"
-  fi
-
-  cp "$core_options_file" "$home_core_options_file"
-}
-
-restore_home_core_options() {
-  rm -f "$home_core_options_file" || true
-
-  if [[ -n "$home_core_options_backup" && -e "$home_core_options_backup" ]]; then
-    mv "$home_core_options_backup" "$home_core_options_file"
-  fi
-}
-
 cleanup() {
   if [[ -n "$run_pid" ]] && kill -0 "$run_pid" 2>/dev/null; then
     kill -INT "$run_pid" >/dev/null 2>&1 || true
@@ -231,8 +210,6 @@ cleanup() {
       kill -KILL "$run_pid" >/dev/null 2>&1 || true
     fi
   fi
-
-  restore_home_core_options
 
   if [[ -n "$stamp_file" && -f "$stamp_file" ]]; then
     rm -f "$stamp_file" || true
@@ -453,7 +430,6 @@ mkdir -p "$(dirname "$core_options_file")"
 cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"
 apply_core_option_overrides
 write_temp_retroarch_cfg
-stage_home_core_options
 stamp_file="$(mktemp /tmp/parallel-n64-paper-mario-shot-stamp.XXXX)"
 
 trap cleanup EXIT
@@ -493,7 +469,6 @@ echo "Capture dir: $capture_dir"
 echo "Temp XDG root: $xdg_root"
 echo "Log file: $log_file"
 echo "Temp core options: $core_options_file"
-echo "Home core options override: $home_core_options_file"
 echo "RetroArch config: $retroarch_cfg"
 if [[ "$smoke_mode" == "buttons" ]]; then
   echo "Smoke mode: buttons"

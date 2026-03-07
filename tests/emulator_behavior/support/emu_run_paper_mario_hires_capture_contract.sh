@@ -70,11 +70,8 @@ require_pattern 'cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"' \
   "temp core options copy missing"
 require_pattern 'apply_core_option_overrides' "core option override application missing"
 require_pattern 'write_temp_retroarch_cfg()' "temp RetroArch config writer missing"
-require_pattern 'stage_home_core_options()' "home core options staging missing"
-require_pattern 'restore_home_core_options()' "home core options restore missing"
-require_pattern 'home_core_options_backup="$(mktemp /tmp/parallel-n64-paper-mario-coreopts.XXXXXX)"' \
-  "home core options backup missing"
-require_pattern 'core_options_path" "$xdg_root/retroarch/config"' "core options path override missing"
+require_pattern 'global_core_options" "false"' "RetroArch config must keep per-core options mode"
+require_pattern 'core_options_path" ""' "RetroArch config must clear explicit core options path"
 require_pattern 'screenshot_directory" "$capture_dir"' "RetroArch config missing screenshot directory override"
 require_pattern 'network_cmd_enable" "true"' "RetroArch config missing network command enable"
 require_pattern 'video_window_custom_size_enable" "true"' "RetroArch config missing window size override"
@@ -93,8 +90,6 @@ require_pattern 'smoke_cmd+=("--shot-delay" "$state_shot_delay")' "state shot de
 require_pattern 'echo "Smoke mode: state"' "state mode logging missing"
 require_pattern 'echo "Smoke mode: buttons"' "buttons mode logging missing"
 require_pattern 'smoke_cmd+=(-- --config "$retroarch_cfg")' "RetroArch config forwarding missing"
-require_pattern 'echo "Home core options override: $home_core_options_file"' \
-  "home core options logging missing"
 require_pattern 'find "$DEFAULT_SCREENSHOT_DIR" -maxdepth 1 -type f -name '\''*.png'\'' -newer "$stamp_file"' \
   "default screenshot fallback missing"
 

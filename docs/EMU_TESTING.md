@@ -98,7 +98,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   6. wait `2s`
 - `parallel` capture helper:
   - builds an isolated RetroArch config root under the capture dir
-  - stages a temp ParaLLEl core options file and temporarily installs it at the real home core-options path for the run
+  - keeps a temp per-core ParaLLEl `.opt` inside that isolated XDG root
+  - keeps RetroArch in per-core options mode; do not switch these helpers to `global_core_options = true`
   - drives the button path with the virtual pad
   - captures a RetroArch screenshot into the temp capture dir
 - `parallel` scaling helper:
@@ -111,7 +112,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - aligns the capture to the preserved GLide scaling oracle
   - writes summary metrics and visual diffs under `/tmp/parallel-n64-paper-mario-scaling-compare/<tag-or-capture-name>`
 - `GLideN64` capture helper:
-  - stages the real RetroArch `Mupen64Plus-Next.opt`
+  - keeps a temp per-core `Mupen64Plus-Next.opt` inside the isolated XDG root
   - with `--hires-on`, stages `PAPER MARIO_HIRESTEXTURES.hts` at `system/Mupen64plus/cache`
   - with `--hires-off`, skips hi-res pack staging for native-scaling captures
   - drives the same button path and captures a RetroArch screenshot
@@ -132,6 +133,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - Current scaling-phase capture policy:
   - use `./run-paper-mario-scaling-capture.sh` for `parallel`
   - keep the preserved GLide button-path screenshot as the oracle
+  - run capture helpers sequentially; they reuse the same RetroArch netcmd port by default
 - Save-state caution:
   - prefer save states when they match the same ROM image and the same core path under test; they are the fastest way to iterate on a stable scene
   - same-core save states are valid across HIRES-on and HIRES-off runs

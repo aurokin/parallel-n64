@@ -10,7 +10,6 @@ DEFAULT_ROM_NAME="Paper Mario (USA).zip"
 DEFAULT_RETROARCH_CFG="$HOME/.config/retroarch/retroarch.cfg"
 DEFAULT_SYSTEM_DIR="$HOME/.config/retroarch/system"
 DEFAULT_SCREENSHOT_DIR="$HOME/.config/retroarch/screenshots"
-DEFAULT_HOME_CORE_OPTIONS="$HOME/.config/retroarch/config/Mupen64Plus-Next/Mupen64Plus-Next.opt"
 
 start_delay=20
 post_delay=10
@@ -43,8 +42,6 @@ stamp_file=""
 run_pid=""
 vpad_pid=""
 vpad_log=""
-home_core_options_file="$DEFAULT_HOME_CORE_OPTIONS"
-home_core_options_backup=""
 gliden64_cache_dir=""
 gliden64_cache_path=""
 gliden64_cache_backup=""
@@ -80,7 +77,7 @@ Options:
   -h, --help              Show this help
 
 Behavior:
-  - Uses an isolated XDG config root for RetroArch config, but stages the real home Mupen64Plus-Next options file because this core ignores temp core-options roots.
+  - Uses an isolated XDG config root for RetroArch config and per-core options.
   - Always enables GLideN64 4x native resolution.
   - `--hires-on` enables hi-res textures and stages GLideN64's hi-res storage file under system/Mupen64plus/cache/.
   - `--hires-off` disables hi-res texture replacement and skips pack staging.
@@ -276,8 +273,8 @@ write_temp_retroarch_cfg() {
   mkdir -p "$(dirname "$retroarch_cfg")"
   cp "$retroarch_cfg_src" "$retroarch_cfg"
   ensure_retroarch_setting "$retroarch_cfg" "config_save_on_exit" "false"
-  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "true"
-  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" "$xdg_root/retroarch/config"
+  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" ""
   ensure_retroarch_setting "$retroarch_cfg" "input_autodetect_enable" "false"
   ensure_retroarch_setting "$retroarch_cfg" "pause_nonactive" "false"
   ensure_retroarch_setting "$retroarch_cfg" "input_player1_joypad_index" "0"
@@ -332,25 +329,6 @@ mupen64plus-GLideN64IniBehaviour = "late"
 EOF_OPT
 }
 
-stage_home_core_options() {
-  mkdir -p "$(dirname "$home_core_options_file")"
-
-  if [[ -e "$home_core_options_file" || -L "$home_core_options_file" ]]; then
-    home_core_options_backup="$(mktemp /tmp/parallel-n64-gliden64-coreopts.XXXXXX)"
-    mv "$home_core_options_file" "$home_core_options_backup"
-  fi
-
-  cp "$core_options_file" "$home_core_options_file"
-}
-
-restore_home_core_options() {
-  rm -f "$home_core_options_file" || true
-
-  if [[ -n "$home_core_options_backup" && -e "$home_core_options_backup" ]]; then
-    mv "$home_core_options_backup" "$home_core_options_file"
-  fi
-}
-
 stage_gliden64_hires_cache() {
   mkdir -p "$gliden64_cache_dir"
 
@@ -380,7 +358,6 @@ cleanup() {
   fi
 
   stop_vpad_daemon
-  restore_home_core_options
   restore_gliden64_hires_cache
 
   if [[ -n "$stamp_file" && -f "$stamp_file" ]]; then
@@ -575,7 +552,6 @@ stamp_file="$(mktemp /tmp/parallel-n64-gliden64-shot-stamp.XXXX)"
 
 write_temp_retroarch_cfg
 write_gliden64_core_options
-stage_home_core_options
 if [[ "$hires_mode" == "on" ]]; then
   stage_gliden64_hires_cache
 fi
@@ -604,7 +580,6 @@ echo "Capture dir: $capture_dir"
 echo "Log file: $log_file"
 echo "Temp XDG root: $xdg_root"
 echo "Core options: $core_options_file"
-echo "Home core options override: $home_core_options_file"
 echo "GLide hires mode: $hires_mode"
 if [[ "$hires_mode" == "on" ]]; then
   echo "GLide hires storage: enabled"

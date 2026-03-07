@@ -124,6 +124,8 @@ void main()
 
     if (EXPERIMENTAL_RECONSTRUCTION)
     {
+        int phase = coord.y & 3;
+        y += (registers.y_add * phase) >> 3;
         int quarter_x = max(registers.x_add >> 2, 1);
         int three_eighth_y = max((registers.y_add * 3) >> 3, 1);
         int three_quarter_x = max((registers.x_add * 3) >> 2, 1);

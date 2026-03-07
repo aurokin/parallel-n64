@@ -125,7 +125,7 @@ void main()
     if (EXPERIMENTAL_RECONSTRUCTION)
     {
         int phase = coord.y & 3;
-        int phase_adjust = phase == 0 ? 0 : (phase == 1 ? 2 : (phase == 2 ? 8 : 18));
+        int phase_adjust = phase == 0 ? 0 : (phase == 1 ? 2 : (phase == 2 ? 7 : 18));
         y += (registers.y_add * phase_adjust) >> 5;
         int quarter_x = max(registers.x_add >> 2, 1);
         int upper_y = max((registers.y_add * 8) >> 4, 1);

@@ -40,6 +40,7 @@ unsigned width, height;
 unsigned overscan;
 unsigned upscaling = 1;
 unsigned downscaling_steps = 0;
+unsigned vi_scaling_mode = VI_SCALING_MODE_ACCURATE;
 bool native_texture_lod = false;
 bool native_tex_rect = true;
 bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
@@ -329,7 +330,8 @@ void complete_frame()
 			gfx_info);
 
 	ScanoutOptions opts = detail::make_scanout_options(
-			vi_aa, vi_scale, dither_filter, divot_filter, gamma_dither, downscaling_steps, overscan);
+			vi_aa, vi_scale, dither_filter, divot_filter, gamma_dither,
+			downscaling_steps, overscan, vi_scaling_mode);
 	auto image = frontend->scanout(opts);
 	unsigned index = vulkan->get_sync_index(vulkan->handle);
 

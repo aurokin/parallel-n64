@@ -12,6 +12,7 @@
 #include "rdp_device.hpp"
 #include "context.hpp"
 #include "device.hpp"
+#include "parallel-rdp/parallel-rdp/vi_scaling_mode.hpp"
 
 namespace RDP
 {
@@ -27,6 +28,7 @@ extern unsigned height;
 extern unsigned upscaling;
 extern unsigned downscaling_steps;
 extern unsigned overscan;
+extern unsigned vi_scaling_mode;
 extern bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
 extern bool native_texture_lod, native_tex_rect;
 extern bool hires_textures;

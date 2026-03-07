@@ -76,7 +76,7 @@ static void test_vi_register_forwarding_table()
 static void test_scanout_options_mapping()
 {
 	const ScanoutOptions opts = detail::make_scanout_options(
-			true, false, true, false, true, 3u, 24u);
+			true, false, true, false, true, 3u, 24u, VI_SCALING_MODE_EXPERIMENTAL);
 
 	check(opts.persist_frame_on_invalid_input, "persist_frame_on_invalid_input should be true");
 	check(opts.vi.aa == true, "vi.aa mismatch");
@@ -86,6 +86,7 @@ static void test_scanout_options_mapping()
 	check(opts.vi.gamma_dither == true, "vi.gamma_dither mismatch");
 	check(opts.downscale_steps == 3u, "downscale_steps mismatch");
 	check(opts.crop_overscan_pixels == 24u, "crop_overscan_pixels mismatch");
+	check(opts.scaling_mode == VI_SCALING_MODE_EXPERIMENTAL, "scaling_mode mismatch");
 }
 }
 

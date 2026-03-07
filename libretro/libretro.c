@@ -397,6 +397,8 @@ static void setup_variables(void)
          "(ParaLLEl-RDP) Upscaling factor (restart); 1x|2x|4x|8x" },
       { "parallel-n64-parallel-rdp-downscaling",
          "(ParaLLEl-RDP) Downsampling; disable|1/2|1/4|1/8" },
+      { "parallel-n64-parallel-rdp-scaling-mode",
+         "(ParaLLEl-RDP) Scaling mode; accurate|experimental" },
       { "parallel-n64-parallel-rdp-native-texture-lod",
          "(ParaLLEl-RDP) Use native texture LOD when upscaling; disabled|enabled" },
       { "parallel-n64-parallel-rdp-native-tex-rect",
@@ -1224,6 +1226,13 @@ void update_variables(bool startup)
    }
    else
        parallel_set_downscaling_steps(0);
+
+   var.key = "parallel-n64-parallel-rdp-scaling-mode";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+       parallel_set_vi_scaling_mode(!strcmp(var.value, "experimental") ? 1 : 0);
+   else
+       parallel_set_vi_scaling_mode(0);
 
    var.key = "parallel-n64-parallel-rdp-native-texture-lod";
    var.value = NULL;

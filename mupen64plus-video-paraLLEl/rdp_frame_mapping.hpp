@@ -44,7 +44,8 @@ inline ScanoutOptions make_scanout_options(bool vi_aa,
                                            bool divot_filter,
                                            bool gamma_dither,
                                            unsigned downscaling_steps,
-                                           unsigned overscan)
+                                           unsigned overscan,
+                                           unsigned scaling_mode = VI_SCALING_MODE_ACCURATE)
 {
 	ScanoutOptions opts = {};
 	opts.persist_frame_on_invalid_input = true;
@@ -55,6 +56,7 @@ inline ScanoutOptions make_scanout_options(bool vi_aa,
 	opts.vi.gamma_dither = gamma_dither;
 	opts.downscale_steps = downscaling_steps;
 	opts.crop_overscan_pixels = overscan;
+	opts.scaling_mode = scaling_mode;
 	return opts;
 }
 }

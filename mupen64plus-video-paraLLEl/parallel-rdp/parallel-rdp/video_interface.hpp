@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include "device.hpp"
 #include "rdp_common.hpp"
+#include "vi_scaling_mode.hpp"
 
 namespace RDP
 {
@@ -32,6 +33,7 @@ struct ScanoutOptions
 {
 	unsigned crop_overscan_pixels = 0;
 	unsigned downscale_steps = 0;
+	unsigned scaling_mode = VI_SCALING_MODE_ACCURATE;
 
 	// Works around certain game bugs. Considered a hack if enabled.
 	bool persist_frame_on_invalid_input = false;

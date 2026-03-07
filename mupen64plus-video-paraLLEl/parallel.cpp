@@ -201,6 +201,11 @@ void parallel_set_downscaling_steps(unsigned steps)
 	RDP::downscaling_steps = steps;
 }
 
+void parallel_set_vi_scaling_mode(unsigned mode)
+{
+	RDP::vi_scaling_mode = mode != 0 ? 1u : 0u;
+}
+
 void parallel_set_native_texture_lod(bool enable)
 {
 	RDP::native_texture_lod = enable;

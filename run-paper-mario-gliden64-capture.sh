@@ -77,7 +77,7 @@ Options:
   -h, --help              Show this help
 
 Behavior:
-  - Uses an isolated XDG config root for RetroArch config and per-core options.
+  - Uses an isolated XDG config root for RetroArch config and a temp global core-options file.
   - Always enables GLideN64 4x native resolution.
   - `--hires-on` enables hi-res textures and stages GLideN64's hi-res storage file under system/Mupen64plus/cache/.
   - `--hires-off` disables hi-res texture replacement and skips pack staging.
@@ -273,8 +273,8 @@ write_temp_retroarch_cfg() {
   mkdir -p "$(dirname "$retroarch_cfg")"
   cp "$retroarch_cfg_src" "$retroarch_cfg"
   ensure_retroarch_setting "$retroarch_cfg" "config_save_on_exit" "false"
-  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "false"
-  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" ""
+  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "true"
+  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" "$core_options_file"
   ensure_retroarch_setting "$retroarch_cfg" "input_autodetect_enable" "false"
   ensure_retroarch_setting "$retroarch_cfg" "pause_nonactive" "false"
   ensure_retroarch_setting "$retroarch_cfg" "input_player1_joypad_index" "0"
@@ -542,7 +542,7 @@ fi
 capture_dir="$capture_root/$tag"
 xdg_root="$capture_dir/xdg"
 retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"
-core_options_file="$xdg_root/retroarch/config/Mupen64Plus-Next/Mupen64Plus-Next.opt"
+core_options_file="$xdg_root/retroarch/core-options.cfg"
 gliden64_cache_dir="$system_dir/Mupen64plus/cache"
 gliden64_cache_path="$gliden64_cache_dir/PAPER MARIO_HIRESTEXTURES.hts"
 gliden64_pack_source="$system_dir/PAPER MARIO_HIRESTEXTURES.hts"

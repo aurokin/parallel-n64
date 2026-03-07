@@ -32,6 +32,7 @@ For current `parallel` iteration, use:
 
 This keeps scaling work on the same-core save-state path instead of the slower, less stable button-path capture.
 Run captures sequentially; the helpers reuse RetroArch netcmd defaults and are not designed for concurrent launches.
+The helper currently relies on an explicit temp `core-options.cfg` inside its isolated XDG root; do not switch it back to mixed per-core option mode unless RetroArch behavior changes and you re-validate that path.
 
 ## Architectural Direction
 

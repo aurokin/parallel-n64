@@ -64,14 +64,14 @@ require_pattern 'screenshot_at=27' "default screenshot timing missing"
 require_pattern 'xdg_root="$capture_dir/xdg"' "temp XDG root missing"
 require_pattern 'retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"' \
   "temp RetroArch config path missing"
-require_pattern 'core_options_file="$xdg_root/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"' \
+require_pattern 'core_options_file="$xdg_root/retroarch/core-options.cfg"' \
   "temp core options path missing"
 require_pattern 'cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"' \
   "temp core options copy missing"
 require_pattern 'apply_core_option_overrides' "core option override application missing"
 require_pattern 'write_temp_retroarch_cfg()' "temp RetroArch config writer missing"
-require_pattern 'global_core_options" "false"' "RetroArch config must keep per-core options mode"
-require_pattern 'core_options_path" ""' "RetroArch config must clear explicit core options path"
+require_pattern 'global_core_options" "true"' "RetroArch config must force explicit global core options mode"
+require_pattern 'core_options_path" "$core_options_file"' "RetroArch config must point at the temp core options file"
 require_pattern 'screenshot_directory" "$capture_dir"' "RetroArch config missing screenshot directory override"
 require_pattern 'network_cmd_enable" "true"' "RetroArch config missing network command enable"
 require_pattern 'video_window_custom_size_enable" "true"' "RetroArch config missing window size override"

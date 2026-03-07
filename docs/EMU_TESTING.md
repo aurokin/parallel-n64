@@ -98,8 +98,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   6. wait `2s`
 - `parallel` capture helper:
   - builds an isolated RetroArch config root under the capture dir
-  - keeps a temp per-core ParaLLEl `.opt` inside that isolated XDG root
-  - keeps RetroArch in per-core options mode; do not switch these helpers to `global_core_options = true`
+  - keeps a temp global `core-options.cfg` inside that isolated XDG root
+  - points RetroArch at that explicit temp options file with `global_core_options = true`
   - drives the button path with the virtual pad
   - captures a RetroArch screenshot into the temp capture dir
 - `parallel` scaling helper:
@@ -112,7 +112,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - aligns the capture to the preserved GLide scaling oracle
   - writes summary metrics and visual diffs under `/tmp/parallel-n64-paper-mario-scaling-compare/<tag-or-capture-name>`
 - `GLideN64` capture helper:
-  - keeps a temp per-core `Mupen64Plus-Next.opt` inside the isolated XDG root
+  - keeps a temp global `core-options.cfg` inside the isolated XDG root
+  - points RetroArch at that explicit temp options file with `global_core_options = true`
   - with `--hires-on`, stages `PAPER MARIO_HIRESTEXTURES.hts` at `system/Mupen64plus/cache`
   - with `--hires-off`, skips hi-res pack staging for native-scaling captures
   - drives the same button path and captures a RetroArch screenshot

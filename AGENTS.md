@@ -57,8 +57,8 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off
-  - uses an isolated XDG root with a temp per-core ParaLLEl `.opt`
-  - do not mix RetroArch `global_core_options = true` with per-core `.opt` files for these helpers
+  - uses an isolated XDG root with an explicit temp `core-options.cfg`
+  - RetroArch should be pointed at that temp file with `global_core_options = true`
 - Parallel scaling compare:
   - `./run-paper-mario-scaling-compare.sh --tag <tag>`
 - GLide oracle capture:

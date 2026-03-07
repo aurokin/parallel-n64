@@ -79,7 +79,7 @@ Options:
 
 Behavior:
   - Uses an isolated RetroArch config root under the capture directory.
-  - Uses a temp per-core ParaLLEl options file inside that isolated XDG root.
+  - Uses a temp global core-options file inside that isolated XDG root.
   - buttons mode uses run-n64-smoke-start.sh for deterministic Paper Mario input:
     boot, wait 20s, press start, wait 5s, press start, wait 2s.
   - state mode uses run-n64-smoke-state.sh to load the current same-core save state.
@@ -176,8 +176,8 @@ write_temp_retroarch_cfg() {
   mkdir -p "$(dirname "$retroarch_cfg")"
   cp "$DEFAULT_RETROARCH_CFG" "$retroarch_cfg"
   ensure_retroarch_setting "$retroarch_cfg" "config_save_on_exit" "false"
-  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "false"
-  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" ""
+  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "true"
+  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" "$core_options_file"
   ensure_retroarch_setting "$retroarch_cfg" "screenshot_directory" "$capture_dir"
   ensure_retroarch_setting "$retroarch_cfg" "screenshots_in_content_dir" "false"
   ensure_retroarch_setting "$retroarch_cfg" "sort_screenshots_by_content_enable" "false"
@@ -425,7 +425,7 @@ mkdir -p "$capture_dir"
 xdg_root="$capture_dir/xdg"
 retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"
 log_file="$capture_dir/run.log"
-core_options_file="$xdg_root/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"
+core_options_file="$xdg_root/retroarch/core-options.cfg"
 mkdir -p "$(dirname "$core_options_file")"
 cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"
 apply_core_option_overrides

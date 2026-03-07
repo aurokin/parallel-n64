@@ -28,6 +28,9 @@ static void test_accurate_mode_keeps_single_sample_path()
 	check(!policy.use_subpixel_reconstruction, "accurate mode should keep the baseline sampling path");
 	check(policy.subpixel_grid == 1u, "accurate mode should keep the single-sample grid");
 	check(policy.source_y_add_bias == 0u, "accurate mode should not bias source y_add");
+	check(policy.source_y_base_bias == 0, "accurate mode should not bias source y base");
+	check(policy.source_x_add_bias == 0u, "accurate mode should not bias source x_add");
+	check(policy.source_x_base_bias == 0, "accurate mode should not bias source x base");
 }
 
 static void test_experimental_mode_is_inert_at_native_scale()
@@ -41,6 +44,9 @@ static void test_experimental_mode_is_inert_at_native_scale()
 	check(!policy.use_subpixel_reconstruction, "experimental mode should stay inert at native scale");
 	check(policy.subpixel_grid == 1u, "native-scale experimental mode should keep the single-sample grid");
 	check(policy.source_y_add_bias == 0u, "native-scale experimental mode should not bias source y_add");
+	check(policy.source_y_base_bias == 0, "native-scale experimental mode should not bias source y base");
+	check(policy.source_x_add_bias == 0u, "native-scale experimental mode should not bias source x_add");
+	check(policy.source_x_base_bias == 0, "native-scale experimental mode should not bias source x base");
 }
 
 static void test_experimental_mode_enables_subpixel_reconstruction_when_upscaled()
@@ -54,6 +60,9 @@ static void test_experimental_mode_enables_subpixel_reconstruction_when_upscaled
 	check(policy.use_subpixel_reconstruction, "experimental mode should enable subpixel reconstruction when upscaled");
 	check(policy.subpixel_grid == 2u, "experimental mode should request a 2x2 subpixel grid");
 	check(policy.source_y_add_bias == 29u, "4x experimental mode should bias source y_add");
+	check(policy.source_y_base_bias == 0, "4x experimental mode should keep zero source y base bias");
+	check(policy.source_x_add_bias == 17u, "4x experimental mode should bias source x_add");
+	check(policy.source_x_base_bias == 0, "4x experimental mode should keep zero source x base bias");
 }
 
 static void test_experimental_mode_respects_disabled_vi_scaling()
@@ -67,6 +76,9 @@ static void test_experimental_mode_respects_disabled_vi_scaling()
 	check(!policy.use_subpixel_reconstruction, "disabled VI scale should bypass experimental sampling");
 	check(policy.subpixel_grid == 1u, "disabled VI scale should keep the single-sample grid");
 	check(policy.source_y_add_bias == 0u, "disabled VI scale should not bias source y_add");
+	check(policy.source_y_base_bias == 0, "disabled VI scale should not bias source y base");
+	check(policy.source_x_add_bias == 0u, "disabled VI scale should not bias source x_add");
+	check(policy.source_x_base_bias == 0, "disabled VI scale should not bias source x base");
 }
 
 static void test_non_4x_experimental_mode_keeps_zero_source_y_add_bias()
@@ -80,6 +92,9 @@ static void test_non_4x_experimental_mode_keeps_zero_source_y_add_bias()
 	check(policy.use_subpixel_reconstruction, "experimental mode should still use subpixel reconstruction at 8x");
 	check(policy.subpixel_grid == 2u, "8x experimental mode should keep the 2x2 subpixel grid");
 	check(policy.source_y_add_bias == 0u, "unvalidated non-4x path should keep zero source y_add bias");
+	check(policy.source_y_base_bias == 0, "unvalidated non-4x path should keep zero source y base bias");
+	check(policy.source_x_add_bias == 0u, "unvalidated non-4x path should keep zero source x_add bias");
+	check(policy.source_x_base_bias == 0, "unvalidated non-4x path should keep zero source x base bias");
 }
 }
 

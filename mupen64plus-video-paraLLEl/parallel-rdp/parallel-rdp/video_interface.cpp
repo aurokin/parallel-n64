@@ -715,8 +715,12 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 	push.x_add = regs.x_add;
 	push.y_add = regs.y_add;
 	push.frame_count = frame_count;
+	if (sampling_policy.source_x_add_bias != 0 && push.x_add > sampling_policy.source_x_add_bias)
+		push.x_add -= sampling_policy.source_x_add_bias;
 	if (sampling_policy.source_y_add_bias != 0 && push.y_add > sampling_policy.source_y_add_bias)
 		push.y_add -= sampling_policy.source_y_add_bias;
+	push.x_offset += sampling_policy.source_x_base_bias;
+	push.y_offset += sampling_policy.source_y_base_bias;
 
 	cmd.set_opaque_state();
 #ifdef PARALLEL_RDP_SHADER_DIR

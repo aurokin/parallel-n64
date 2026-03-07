@@ -38,19 +38,19 @@ The helper currently relies on an explicit temp `core-options.cfg` inside its is
 
 - The experimental VI reconstruction path is real and already improves the saved Paper Mario oracle over accurate mode.
 - The current committed improvements came from subpixel reconstruction and X-axis sample-phase tuning in `vi_scale.frag`.
-- The current best experimental path combines the existing non-linear row-phase-aware VI reconstruction with a source-domain Y-step bias in `scale_stage()`.
+- The current best experimental path combines the existing non-linear row-phase-aware VI reconstruction with source-domain X/Y step biases in `scale_stage()`.
 - That path now has two meaningful parts:
   - `vi_scale.frag` keeps the tuned `0/2/7/18` row-phase schedule, the upward-skewed `upper 8/16`, `lower 7/16` 4-tap footprint, and the localized `y_frac` remap for phases `1/2` when the source row is in the upper band.
-  - `scale_stage()` now also applies a tested experimental source-domain `y_add` bias through `vi_scale_sampling_policy`, currently `29` for the validated 4x path.
+  - `scale_stage()` now also applies tested experimental source-domain step biases through `vi_scale_sampling_policy`, currently `x_add -= 17` and `y_add -= 29` for the validated 4x path.
 - That row-phase adjustment materially reduces the remaining 4x cadence artifact in the `scale` dump:
   - previous committed experimental path: `mod4 spread 5.7583`, `mod8 spread 6.5015`, `mod12 spread 6.4761`
   - prior committed row-phase path: `mod4 0.5964`, `mod8 1.3461`, `mod12 1.9907`
   - prior best row-phase-only path: `mod4 0.4867`, `mod8 1.1960`, `mod12 1.7706`
   - current combined path: `mod4 0.5443`, `mod8 1.2770`, `mod12 1.8259`
 - Latest Paper Mario oracle comparison for the current experimental path:
-  - representative stable run: `full 38.7107`, `left 60.4661`, `right 42.2332`, `top 41.6697`, `bottom 37.0707`, `file2_new 20.1640`
+  - representative stable run: `full 20.0056`, `left 19.4502`, `right 30.7216`, `top 22.6831`, `bottom 21.4701`, `file2_new 2.9931`
   - repeated same-code captures still show a small left-side variance, which moves the `left` crop and `full` metric slightly while leaving `right`, `top`, `bottom`, and `file2_new` unchanged
-- Practical read on the latest improvement: this is the first major source-domain breakthrough. Small reconstruction tweaks helped, but the much larger win came from biasing the Y step fed into the VI scale shader on the experimental 4x path. That strongly suggests the remaining split is driven more by source-domain sampling cadence than by the final interpolation kernel alone.
+- Practical read on the latest improvement: this is the second, much larger source-domain breakthrough. Small reconstruction tweaks helped, but the dominant win came from biasing the source steps fed into the VI scale shader on the experimental 4x path. That strongly suggests the remaining split is driven far more by source-domain sampling cadence and mapping than by the final interpolation kernel alone.
 - Practical read: the current combined path is a better visual/oracle baseline even though the raw cadence metric is slightly worse than the prior row-phase-only variant. Keep both facts in mind before optimizing only against the row spread numbers.
 - The plugin-level `interlacing` toggle was previously not threaded into `ScanoutOptions` at all. That is now fixed: it maps to weave/persistence mode (`blend_previous_frame = true`, `upscale_deinterlacing = false`) when enabled.
 - On the current Paper Mario save-state scene, forcing that interlacing path changes only a narrow left-side region and does not materially move the main oracle regions, so it is not the dominant source of the horizontal split artifact here.

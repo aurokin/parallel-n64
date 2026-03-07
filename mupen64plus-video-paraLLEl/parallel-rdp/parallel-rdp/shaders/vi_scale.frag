@@ -125,16 +125,17 @@ void main()
     if (EXPERIMENTAL_RECONSTRUCTION)
     {
         int phase = coord.y & 3;
-        int phase_adjust = phase == 0 ? 0 : (phase == 1 ? 1 : (phase == 2 ? 7 : 17));
+        int phase_adjust = phase == 0 ? 0 : (phase == 1 ? 2 : (phase == 2 ? 8 : 18));
         y += (registers.y_add * phase_adjust) >> 5;
         int quarter_x = max(registers.x_add >> 2, 1);
-        int three_eighth_y = max((registers.y_add * 3) >> 3, 1);
+        int upper_y = max((registers.y_add * 8) >> 4, 1);
+        int lower_y = max((registers.y_add * 7) >> 4, 1);
         int three_quarter_x = max((registers.x_add * 3) >> 2, 1);
         uvec3 accum = uvec3(0);
-        accum += sample_divot_output(x + quarter_x, y - three_eighth_y);
-        accum += sample_divot_output(x + three_quarter_x, y - three_eighth_y);
-        accum += sample_divot_output(x + quarter_x, y + three_eighth_y);
-        accum += sample_divot_output(x + three_quarter_x, y + three_eighth_y);
+        accum += sample_divot_output(x + quarter_x, y - upper_y);
+        accum += sample_divot_output(x + three_quarter_x, y - upper_y);
+        accum += sample_divot_output(x + quarter_x, y + lower_y);
+        accum += sample_divot_output(x + three_quarter_x, y + lower_y);
         c00 = (accum + 2u) >> 2u;
     }
     else

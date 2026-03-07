@@ -38,15 +38,17 @@ The helper currently relies on an explicit temp `core-options.cfg` inside its is
 
 - The experimental VI reconstruction path is real and already improves the saved Paper Mario oracle over accurate mode.
 - The current committed improvements came from subpixel reconstruction and X-axis sample-phase tuning in `vi_scale.frag`.
-- The current best experimental path also adds a row-phase-aware Y adjustment in `vi_scale.frag` before the 4-tap experimental reconstruction footprint is sampled.
-- That row-phase curve has moved more than once: the initial `0/4/8/12`-style fractional schedule was a real improvement, the prior committed `0/5/10/15`-style schedule improved it again, and the current best schedule is a more aggressive non-linear `0/1/7/17` curve.
+- The current best experimental path combines a non-linear row-phase-aware Y adjustment with an upward-skewed vertical footprint in `vi_scale.frag`.
+- That row-phase curve has moved more than once: the initial `0/4/8/12`-style fractional schedule was a real improvement, the prior committed `0/5/10/15`-style schedule improved it again, the next baseline moved to `0/1/7/17`, and the current best combined path uses `0/2/8/18` with an `upper 8/16`, `lower 7/16` 4-tap footprint.
 - That row-phase adjustment materially reduces the remaining 4x cadence artifact in the `scale` dump:
   - previous committed experimental path: `mod4 spread 5.7583`, `mod8 spread 6.5015`, `mod12 spread 6.4761`
-  - prior committed row-phase path: `mod4 spread 0.5964`, `mod8 spread 1.3461`, `mod12 spread 1.9907`
-  - current row-phase path: `mod4 spread 0.4867`, `mod8 spread 1.1960`, `mod12 spread 1.7706`
+  - prior committed row-phase path: `mod4 0.5964`, `mod8 1.3461`, `mod12 1.9907`
+  - prior best row-phase-only path: `mod4 0.4867`, `mod8 1.1960`, `mod12 1.7706`
+  - current combined path: `mod4 0.5443`, `mod8 1.2770`, `mod12 1.8259`
 - Latest Paper Mario oracle comparison for the current row-phase path:
-  - representative stable run: `full 46.8496`, `left 64.2297`, `right 46.7945`, `top 45.6678`, `bottom 57.2566`, `file2_new 20.7179`
-  - revalidation caveat: a second run on the same code produced an identical image everywhere except a small left-side variance, which moved the left crop and full-frame metrics slightly while leaving `right`, `top`, `bottom`, and `file2_new` unchanged
+  - representative stable run: `full 46.7920`, `left 64.1732`, `right 46.7826`, `top 45.6728`, `bottom 57.1700`, `file2_new 20.7019`
+  - repeated same-code captures still show a small left-side variance, which moves the `left` crop and `full` metric slightly while leaving `right`, `top`, `bottom`, and `file2_new` unchanged
+- Practical read: the current combined path is a better visual/oracle baseline even though the raw cadence metric is slightly worse than the prior row-phase-only variant. Keep both facts in mind before optimizing only against the row spread numbers.
 - There is still more room to improve this VI path, but it did not eliminate the main horizontal seam / banding issue on the file-select scene.
 - Treat VI sample-phase tuning as a proven secondary lever, not the primary remaining blocker.
 - When work resumes, preserve the current experimental path as a better baseline, but focus new effort on the horizontal-line artifact before spending many more cycles on small VI kernel refinements.

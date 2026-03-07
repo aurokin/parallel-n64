@@ -30,6 +30,7 @@ core_options_file=""
 stamp_file=""
 run_pid=""
 declare -a runner_args=()
+declare -a core_option_overrides=()
 
 usage() {
   cat <<'EOF_USAGE'
@@ -49,6 +50,7 @@ Options:
   --max-presses N         Cap total input ticks (default: 2)
   --screenshot-at SEC     Seconds after launch to send SCREENSHOT (default: 27)
   --port PORT             RetroArch network command UDP port (default: 55355)
+  --core-option K=V       Override a ParaLLEl core option in the temp options file
   --debug-hires           Enable PARALLEL_RDP_HIRES_DEBUG=1 for the run
   --no-debug-hires        Disable PARALLEL_RDP_HIRES_DEBUG (default)
   --fullscreen            Force fullscreen launch
@@ -77,6 +79,36 @@ is_positive_int() {
 send_netcmd() {
   local cmd="$1"
   printf '%s\n' "$cmd" | nc -u -w1 127.0.0.1 "$netcmd_port" >/dev/null 2>&1
+}
+
+ensure_core_option() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  mkdir -p "$(dirname "$file")"
+  if [[ ! -f "$file" ]]; then
+    printf '%s = "%s"\n' "$key" "$value" >"$file"
+    return
+  fi
+
+  if rg -q "^${key} = " "$file"; then
+    sed -i "s#^${key} = .*#${key} = \"${value}\"#" "$file"
+  else
+    printf '%s = "%s"\n' "$key" "$value" >>"$file"
+  fi
+}
+
+apply_core_option_overrides() {
+  local override=""
+  local key=""
+  local value=""
+
+  for override in "${core_option_overrides[@]}"; do
+    key="${override%%=*}"
+    value="${override#*=}"
+    ensure_core_option "$core_options_file" "$key" "$value"
+  done
 }
 
 write_capture_appendconfig() {
@@ -158,6 +190,10 @@ while (($#)); do
     --port)
       shift
       netcmd_port="${1:-}"
+      ;;
+    --core-option)
+      shift
+      core_option_overrides+=("${1:-}")
       ;;
     --debug-hires)
       debug_hires="1"
@@ -249,6 +285,7 @@ mkdir -p "$capture_dir"
 log_file="$capture_dir/run.log"
 core_options_file="$capture_dir/ParaLLEl N64.opt"
 cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"
+apply_core_option_overrides
 write_capture_appendconfig
 stamp_file="$(mktemp /tmp/parallel-n64-paper-mario-shot-stamp.XXXX)"
 

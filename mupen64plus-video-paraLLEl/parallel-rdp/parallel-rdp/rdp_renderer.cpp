@@ -3392,6 +3392,356 @@ void Renderer::ensure_command_buffer()
 	}
 }
 
+void Renderer::clear_pending_hires_block_lookups_for_offset(uint32_t tmem_offset)
+{
+	for (auto &pending : pending_block_hires_lookups)
+	{
+		if (pending.valid &&
+		    tiles[pending.load_tile_index & (Limits::MaxNumTiles - 1)].meta.offset == tmem_offset)
+			pending = {};
+	}
+}
+
+void Renderer::store_pending_hires_block_lookup(unsigned tile_index,
+                                                const LoadTileInfo &info,
+                                                uint32_t src_base_addr,
+                                                uint32_t key_width_pixels,
+                                                uint32_t key_height_pixels)
+{
+	auto &pending = pending_block_hires_lookups[tile_index & (Limits::MaxNumTiles - 1)];
+	pending.info = info;
+	pending.src_base_addr = src_base_addr;
+	pending.key_width_pixels = key_width_pixels;
+	pending.key_height_pixels = key_height_pixels;
+	pending.load_tile_index = uint8_t(tile_index & (Limits::MaxNumTiles - 1));
+	pending.valid = true;
+}
+
+bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
+                                             const LoadTileInfo &info,
+                                             uint32_t src_base_addr,
+                                             uint32_t key_width_pixels,
+                                             uint32_t key_height_pixels,
+                                             unsigned &lookup_tile_index,
+                                             uint32_t &lookup_width_pixels,
+                                             uint32_t &lookup_height_pixels,
+                                             uint32_t &texture_crc,
+                                             uint16_t &formatsize,
+                                             uint64_t &checksum64,
+                                             ReplacementMeta &repl_meta)
+{
+	if (!replacement_provider)
+		return false;
+
+	const unsigned bounded_load_tile_index = load_tile_index & (Limits::MaxNumTiles - 1);
+	for (unsigned probe_tile = 0; probe_tile < Limits::MaxNumTiles; probe_tile++)
+	{
+		if (!detail::should_invalidate_hires_binding_on_load(tiles[probe_tile].meta, tiles[bounded_load_tile_index].meta))
+			continue;
+
+		const auto &probe_meta = tiles[probe_tile].meta;
+		const auto &probe_size = tiles[probe_tile].size;
+
+		uint32_t probe_tile_w = (((probe_size.shi >> 2) - (probe_size.slo >> 2)) + 1) & 0x3ffu;
+		uint32_t probe_tile_h = (((probe_size.thi >> 2) - (probe_size.tlo >> 2)) + 1) & 0x3ffu;
+		if (probe_tile_w == 0)
+			probe_tile_w = 1;
+		if (probe_tile_h == 0)
+			probe_tile_h = 1;
+
+		const uint32_t probe_mask_w = probe_meta.mask_s ? (1u << std::min<unsigned>(probe_meta.mask_s, 10u)) : probe_tile_w;
+		const uint32_t probe_mask_h = probe_meta.mask_t ? (1u << std::min<unsigned>(probe_meta.mask_t, 10u)) : probe_tile_h;
+		const bool probe_clamp_s = (probe_meta.flags & TILE_INFO_CLAMP_S_BIT) != 0;
+		const bool probe_clamp_t = (probe_meta.flags & TILE_INFO_CLAMP_T_BIT) != 0;
+		uint32_t probe_w = (probe_clamp_s && probe_tile_w <= 256u) ? std::min(probe_mask_w, probe_tile_w) : probe_mask_w;
+		uint32_t probe_h = ((probe_clamp_t && probe_tile_h <= 256u) || (probe_mask_h > 256u)) ? std::min(probe_mask_h, probe_tile_h) : probe_mask_h;
+		if (probe_w == 0)
+			probe_w = 1;
+		if (probe_h == 0)
+			probe_h = 1;
+
+		const uint32_t probe_stride_tile = (probe_meta.size == TextureSize::Bpp32) ? (probe_meta.stride << 1) : probe_meta.stride;
+		const uint32_t probe_row_stride = detail::compute_hires_block_row_stride_bytes(
+				uint32_t(info.thi),
+				key_width_pixels,
+				probe_w,
+				probe_meta.size,
+				probe_stride_tile);
+		if (probe_row_stride == 0)
+			continue;
+
+		const uint16_t probe_formatsize = formatsize_key(probe_meta.fmt, probe_meta.size);
+		ReplacementMeta probe_repl_meta = {};
+		uint32_t probe_texture_crc = 0;
+		uint64_t probe_checksum64 = 0;
+		uint32_t probe_w_used = probe_w;
+		bool probe_hit = false;
+		const bool probe_ci_candidates = detail::should_try_hires_ci_palette_candidates(
+				probe_meta.fmt,
+				probe_meta.size,
+				tlut_shadow_valid);
+
+		const uint32_t probe_w_from_stride = detail::compute_hires_width_from_row_stride(
+				probe_row_stride,
+				probe_meta.size);
+		const uint32_t probe_width_candidates[] = {
+				probe_w,
+				probe_w_from_stride
+		};
+		for (unsigned probe_width_index = 0; probe_width_index < 2 && !probe_hit; probe_width_index++)
+		{
+			const uint32_t candidate_probe_w = probe_width_candidates[probe_width_index];
+			if (candidate_probe_w == 0)
+				continue;
+			if (probe_width_index > 0 && candidate_probe_w == probe_width_candidates[0])
+				continue;
+
+			const uint32_t candidate_probe_start_x = probe_size.slo >> 2;
+			const uint32_t candidate_probe_start_y = probe_size.tlo >> 2;
+			const uint32_t candidate_probe_base_addrs[] = {
+					src_base_addr,
+					detail::compute_hires_block_probe_base_addr(
+							src_base_addr,
+							candidate_probe_w,
+							candidate_probe_start_x,
+							candidate_probe_start_y,
+							probe_meta.size)
+			};
+			for (unsigned probe_base_index = 0; probe_base_index < 2 && !probe_hit; probe_base_index++)
+			{
+				const uint32_t candidate_probe_base_addr = candidate_probe_base_addrs[probe_base_index];
+				if (probe_base_index > 0 && candidate_probe_base_addr == candidate_probe_base_addrs[0])
+					continue;
+
+				const uint32_t candidate_texture_crc = rice_crc32_wrapped(
+						cpu_rdram,
+						rdram_size,
+						candidate_probe_base_addr,
+						candidate_probe_w,
+						probe_h,
+						uint32_t(probe_meta.size),
+						probe_row_stride);
+				uint64_t candidate_checksum64 = detail::compose_hires_checksum64(candidate_texture_crc, 0);
+				bool candidate_hit = false;
+
+				if (probe_ci_candidates)
+				{
+					auto palette_crc_candidates = detail::compute_hires_ci_palette_crc_candidates(
+							probe_meta.size,
+							probe_meta.palette,
+							cpu_rdram,
+							rdram_size,
+							candidate_probe_base_addr,
+							candidate_probe_w,
+							probe_h,
+							probe_row_stride,
+							tlut_shadow,
+							sizeof(tlut_shadow),
+							tlut_shadow_valid);
+
+					for (uint32_t i = 0; i < palette_crc_candidates.count && !candidate_hit; i++)
+					{
+						candidate_checksum64 = detail::compose_hires_checksum64(
+								candidate_texture_crc,
+								palette_crc_candidates.values[i]);
+						candidate_hit = replacement_provider->lookup(
+								candidate_checksum64,
+								probe_formatsize,
+								&probe_repl_meta);
+					}
+				}
+				else
+				{
+					candidate_hit = replacement_provider->lookup(
+							candidate_checksum64,
+							probe_formatsize,
+							&probe_repl_meta);
+				}
+
+				if (!candidate_hit && probe_meta.fmt == TextureFormat::CI)
+				{
+					uint64_t ci_fallback_checksum64 = 0;
+					if (replacement_provider->lookup_ci_low32_unique(
+							candidate_texture_crc,
+							probe_formatsize,
+							&probe_repl_meta,
+							&ci_fallback_checksum64))
+					{
+						candidate_checksum64 = ci_fallback_checksum64;
+						candidate_hit = true;
+					}
+					else if (replacement_provider->lookup_ci_low32_any(
+							 candidate_texture_crc,
+							 probe_formatsize,
+							 hires_ci_palette_hint,
+							 &probe_repl_meta,
+							 &ci_fallback_checksum64))
+					{
+						candidate_checksum64 = ci_fallback_checksum64;
+						candidate_hit = true;
+						if (hires_debug)
+						{
+							LOGI("Hi-res keying CI ambiguous block fallback: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
+							     candidate_texture_crc,
+							     unsigned(probe_formatsize),
+							     hires_ci_palette_hint,
+							     static_cast<unsigned long long>(candidate_checksum64));
+						}
+					}
+				}
+
+				if (!candidate_hit)
+				{
+					continue;
+				}
+
+				probe_hit = true;
+				probe_w_used = candidate_probe_w;
+				probe_texture_crc = candidate_texture_crc;
+				probe_checksum64 = candidate_checksum64;
+
+				if (hires_debug && probe_base_index > 0)
+				{
+					LOGI("Hi-res keying block-tile offset fallback: load_tile=%u probe_tile=%u base=0x%06x start=%ux%u wh=%ux%u stride=%u key=%016llx fs=%u.\n",
+					     bounded_load_tile_index,
+					     probe_tile,
+					     candidate_probe_base_addr & 0x00ffffffu,
+					     candidate_probe_start_x,
+					     candidate_probe_start_y,
+					     candidate_probe_w,
+					     probe_h,
+					     probe_row_stride,
+					     static_cast<unsigned long long>(candidate_checksum64),
+					     unsigned(probe_formatsize));
+				}
+			}
+		}
+
+		if (!probe_hit)
+			continue;
+
+		lookup_tile_index = probe_tile;
+		lookup_width_pixels = probe_w_used;
+		lookup_height_pixels = probe_h;
+		texture_crc = probe_texture_crc;
+		formatsize = probe_formatsize;
+		checksum64 = probe_checksum64;
+		repl_meta = probe_repl_meta;
+
+		if (hires_debug)
+		{
+			LOGI("Hi-res keying block-tile fallback hit: load_tile=%u probe_tile=%u addr=0x%06x wh=%ux%u stride=%u key=%016llx fs=%u repl=%ux%u.\n",
+			     bounded_load_tile_index,
+			     probe_tile,
+			     src_base_addr & 0x00ffffffu,
+			     probe_w_used,
+			     probe_h,
+			     probe_row_stride,
+			     static_cast<unsigned long long>(probe_checksum64),
+			     unsigned(probe_formatsize),
+			     probe_repl_meta.repl_w,
+			     probe_repl_meta.repl_h);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+void Renderer::retry_pending_hires_block_lookup(unsigned tile_index)
+{
+	const unsigned bounded_tile_index = tile_index & (Limits::MaxNumTiles - 1);
+	if (!detail::hires_rdram_view_valid(cpu_rdram, rdram_size) || !replacement_provider)
+		return;
+
+	const auto &tile_info = tiles[bounded_tile_index];
+	if (tile_info.meta.stride == 0 ||
+	    !detail::hires_tile_binding_has_informative_width(tile_info) ||
+	    !detail::hires_tile_binding_has_informative_height(tile_info))
+		return;
+	if (detail::hires_tile_state_is_bindable(replacement_tiles[bounded_tile_index]))
+		return;
+
+	for (auto &pending : pending_block_hires_lookups)
+	{
+		if (!pending.valid)
+			continue;
+		const unsigned load_tile_index = pending.load_tile_index & (Limits::MaxNumTiles - 1);
+		if (!detail::should_invalidate_hires_binding_on_load(tile_info.meta, tiles[load_tile_index].meta))
+			continue;
+
+		unsigned lookup_tile_index = load_tile_index;
+		uint32_t lookup_width_pixels = pending.key_width_pixels;
+		uint32_t lookup_height_pixels = pending.key_height_pixels;
+		uint32_t texture_crc = 0;
+		uint16_t formatsize = 0;
+		uint64_t checksum64 = 0;
+		ReplacementMeta repl_meta = {};
+		const bool hit = try_hires_block_tile_fallback(
+				load_tile_index,
+				pending.info,
+				pending.src_base_addr,
+				pending.key_width_pixels,
+				pending.key_height_pixels,
+				lookup_tile_index,
+				lookup_width_pixels,
+				lookup_height_pixels,
+				texture_crc,
+				formatsize,
+				checksum64,
+				repl_meta);
+		if (!hit)
+			continue;
+
+		resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
+
+		const auto &lookup_tile = tiles[lookup_tile_index];
+		const uint32_t sampling_orig_w = detail::select_hires_sampling_orig_width_for_tile(
+				lookup_width_pixels,
+				lookup_tile);
+		const uint32_t sampling_orig_h = detail::select_hires_sampling_orig_height_for_tile(
+				lookup_height_pixels,
+				lookup_tile);
+
+		auto &repl_state = replacement_tiles[lookup_tile_index];
+		detail::write_hires_lookup_tile_state(
+				repl_state,
+				true,
+				checksum64,
+				formatsize,
+				sampling_orig_w,
+				sampling_orig_h,
+				repl_meta.vk_image_index,
+				repl_meta.repl_w,
+				repl_meta.repl_h,
+				repl_meta.has_mips,
+				true);
+		detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
+
+		for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
+		{
+			if (alias_tile != lookup_tile_index &&
+			    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
+				continue;
+			detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
+		}
+
+		const bool descriptor_bound = detail::did_hires_lookup_bind_descriptor(true, repl_meta.vk_image_index);
+		detail::record_hires_lookup_binding_result(
+				true,
+				descriptor_bound,
+				hires_lookup_total,
+				hires_lookup_hits,
+				hires_lookup_misses,
+				hires_descriptor_bound_hits,
+				hires_descriptor_unbound_hits);
+
+		pending = {};
+		return;
+	}
+}
+
 void Renderer::set_tile(uint32_t tile, const TileMeta &meta)
 {
 	tiles[tile].meta = meta;
@@ -3426,7 +3776,10 @@ void Renderer::set_tile_size(uint32_t tile, uint32_t slo, uint32_t shi, uint32_t
 	{
 		replacement_tiles[tile] = replacement_tiles[unsigned(alias_source)];
 		detail::apply_hires_tile_replacement_binding(tiles[tile], replacement_tiles[tile]);
+		return;
 	}
+
+	retry_pending_hires_block_lookup(tile);
 }
 
 void Renderer::notify_idle_command_thread()
@@ -3877,6 +4230,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 	if (!is_tlut_mode)
 	{
 		detail::invalidate_hires_load_binding_group(tile_index, tiles, replacement_tiles);
+		clear_pending_hires_block_lookups_for_offset(tiles[tile_index].meta.offset);
 		for (unsigned i = 0; i < Limits::MaxNumTiles; i++)
 		{
 			if (i == tile_index)
@@ -4137,214 +4491,19 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			if (!hit && info.mode == UploadMode::Block)
 			{
-				for (unsigned probe_tile = 0; probe_tile < Limits::MaxNumTiles && !hit; probe_tile++)
-				{
-					if (!detail::should_invalidate_hires_binding_on_load(tiles[probe_tile].meta, tiles[tile_index].meta))
-						continue;
-
-					const auto &probe_meta = tiles[probe_tile].meta;
-					const auto &probe_size = tiles[probe_tile].size;
-
-					uint32_t probe_tile_w = (((probe_size.shi >> 2) - (probe_size.slo >> 2)) + 1) & 0x3ffu;
-					uint32_t probe_tile_h = (((probe_size.thi >> 2) - (probe_size.tlo >> 2)) + 1) & 0x3ffu;
-					if (probe_tile_w == 0)
-						probe_tile_w = 1;
-					if (probe_tile_h == 0)
-						probe_tile_h = 1;
-
-					const uint32_t probe_mask_w = probe_meta.mask_s ? (1u << std::min<unsigned>(probe_meta.mask_s, 10u)) : probe_tile_w;
-					const uint32_t probe_mask_h = probe_meta.mask_t ? (1u << std::min<unsigned>(probe_meta.mask_t, 10u)) : probe_tile_h;
-					const bool probe_clamp_s = (probe_meta.flags & TILE_INFO_CLAMP_S_BIT) != 0;
-					const bool probe_clamp_t = (probe_meta.flags & TILE_INFO_CLAMP_T_BIT) != 0;
-					uint32_t probe_w = (probe_clamp_s && probe_tile_w <= 256u) ? std::min(probe_mask_w, probe_tile_w) : probe_mask_w;
-					uint32_t probe_h = ((probe_clamp_t && probe_tile_h <= 256u) || (probe_mask_h > 256u)) ? std::min(probe_mask_h, probe_tile_h) : probe_mask_h;
-					if (probe_w == 0)
-						probe_w = 1;
-					if (probe_h == 0)
-						probe_h = 1;
-
-					const uint32_t probe_stride_tile = (probe_meta.size == TextureSize::Bpp32) ? (probe_meta.stride << 1) : probe_meta.stride;
-					const uint32_t probe_row_stride = detail::compute_hires_block_row_stride_bytes(
-							uint32_t(info.thi),
-							key_width_pixels,
-							probe_w,
-							probe_meta.size,
-							probe_stride_tile);
-					if (probe_row_stride == 0)
-						continue;
-
-					const uint16_t probe_formatsize = formatsize_key(probe_meta.fmt, probe_meta.size);
-					ReplacementMeta probe_repl_meta = {};
-					uint32_t probe_texture_crc = 0;
-					uint64_t probe_checksum64 = 0;
-					uint32_t probe_w_used = probe_w;
-					bool probe_hit = false;
-					const bool probe_ci_candidates = detail::should_try_hires_ci_palette_candidates(
-							probe_meta.fmt,
-							probe_meta.size,
-							tlut_shadow_valid);
-
-					const uint32_t probe_w_from_stride = detail::compute_hires_width_from_row_stride(
-							probe_row_stride,
-							probe_meta.size);
-					const uint32_t probe_width_candidates[] = {
-							probe_w,
-							probe_w_from_stride
-					};
-					for (unsigned probe_width_index = 0; probe_width_index < 2 && !probe_hit; probe_width_index++)
-					{
-						const uint32_t candidate_probe_w = probe_width_candidates[probe_width_index];
-						if (candidate_probe_w == 0)
-							continue;
-						if (probe_width_index > 0 && candidate_probe_w == probe_width_candidates[0])
-							continue;
-
-						const uint32_t candidate_probe_start_x = probe_size.slo >> 2;
-						const uint32_t candidate_probe_start_y = probe_size.tlo >> 2;
-						const uint32_t candidate_probe_base_addrs[] = {
-								src_base_addr,
-								detail::compute_hires_block_probe_base_addr(
-										src_base_addr,
-										candidate_probe_w,
-										candidate_probe_start_x,
-										candidate_probe_start_y,
-										probe_meta.size)
-						};
-						for (unsigned probe_base_index = 0; probe_base_index < 2 && !probe_hit; probe_base_index++)
-						{
-							const uint32_t candidate_probe_base_addr = candidate_probe_base_addrs[probe_base_index];
-							if (probe_base_index > 0 && candidate_probe_base_addr == candidate_probe_base_addrs[0])
-								continue;
-
-							const uint32_t candidate_texture_crc = rice_crc32_wrapped(
-									cpu_rdram,
-									rdram_size,
-									candidate_probe_base_addr,
-									candidate_probe_w,
-									probe_h,
-									uint32_t(probe_meta.size),
-									probe_row_stride);
-							uint64_t candidate_checksum64 = detail::compose_hires_checksum64(candidate_texture_crc, 0);
-							bool candidate_hit = false;
-
-							if (probe_ci_candidates)
-							{
-								auto palette_crc_candidates = detail::compute_hires_ci_palette_crc_candidates(
-										probe_meta.size,
-										probe_meta.palette,
-										cpu_rdram,
-										rdram_size,
-										candidate_probe_base_addr,
-										candidate_probe_w,
-										probe_h,
-										probe_row_stride,
-										tlut_shadow,
-										sizeof(tlut_shadow),
-										tlut_shadow_valid);
-
-								for (uint32_t i = 0; i < palette_crc_candidates.count && !candidate_hit; i++)
-								{
-									candidate_checksum64 = detail::compose_hires_checksum64(
-											candidate_texture_crc,
-											palette_crc_candidates.values[i]);
-									candidate_hit = replacement_provider->lookup(
-											candidate_checksum64,
-											probe_formatsize,
-											&probe_repl_meta);
-								}
-							}
-							else
-							{
-								candidate_hit = replacement_provider->lookup(
-										candidate_checksum64,
-										probe_formatsize,
-										&probe_repl_meta);
-							}
-
-							if (!candidate_hit && probe_meta.fmt == TextureFormat::CI)
-							{
-								uint64_t ci_fallback_checksum64 = 0;
-								if (replacement_provider->lookup_ci_low32_unique(
-										candidate_texture_crc,
-										probe_formatsize,
-										&probe_repl_meta,
-										&ci_fallback_checksum64))
-								{
-									candidate_checksum64 = ci_fallback_checksum64;
-									candidate_hit = true;
-								}
-								else if (replacement_provider->lookup_ci_low32_any(
-										 candidate_texture_crc,
-										 probe_formatsize,
-										 hires_ci_palette_hint,
-										 &probe_repl_meta,
-										 &ci_fallback_checksum64))
-								{
-									candidate_checksum64 = ci_fallback_checksum64;
-									candidate_hit = true;
-									if (hires_debug)
-									{
-										LOGI("Hi-res keying CI ambiguous block fallback: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
-										     candidate_texture_crc,
-										     unsigned(probe_formatsize),
-										     hires_ci_palette_hint,
-										     static_cast<unsigned long long>(candidate_checksum64));
-									}
-								}
-							}
-
-							if (!candidate_hit)
-								continue;
-
-							probe_hit = true;
-							probe_w_used = candidate_probe_w;
-							probe_texture_crc = candidate_texture_crc;
-							probe_checksum64 = candidate_checksum64;
-
-							if (hires_debug && probe_base_index > 0)
-							{
-								LOGI("Hi-res keying block-tile offset fallback: load_tile=%u probe_tile=%u base=0x%06x start=%ux%u wh=%ux%u stride=%u key=%016llx fs=%u.\n",
-								     unsigned(tile),
-								     probe_tile,
-								     candidate_probe_base_addr & 0x00ffffffu,
-								     candidate_probe_start_x,
-								     candidate_probe_start_y,
-								     candidate_probe_w,
-								     probe_h,
-								     probe_row_stride,
-								     static_cast<unsigned long long>(candidate_checksum64),
-								     unsigned(probe_formatsize));
-							}
-						}
-					}
-
-					if (!probe_hit)
-						continue;
-
-					hit = true;
-					lookup_tile_index = probe_tile;
-					lookup_width_pixels = probe_w_used;
-					lookup_height_pixels = probe_h;
-					texture_crc = probe_texture_crc;
-					formatsize = probe_formatsize;
-					checksum64 = probe_checksum64;
-					repl_meta = probe_repl_meta;
-
-					if (hires_debug)
-					{
-						LOGI("Hi-res keying block-tile fallback hit: load_tile=%u probe_tile=%u addr=0x%06x wh=%ux%u stride=%u key=%016llx fs=%u repl=%ux%u.\n",
-							unsigned(tile),
-							probe_tile,
-							src_base_addr & 0x00ffffffu,
-							probe_w_used,
-							probe_h,
-							probe_row_stride,
-							static_cast<unsigned long long>(probe_checksum64),
-							unsigned(probe_formatsize),
-							probe_repl_meta.repl_w,
-							probe_repl_meta.repl_h);
-					}
-				}
+				hit = try_hires_block_tile_fallback(
+						tile_index,
+						info,
+						src_base_addr,
+						key_width_pixels,
+						key_height_pixels,
+						lookup_tile_index,
+						lookup_width_pixels,
+						lookup_height_pixels,
+						texture_crc,
+						formatsize,
+						checksum64,
+						repl_meta);
 			}
 
 			if (!hit && info.mode == UploadMode::Block)
@@ -4410,6 +4569,15 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				if (palette_crc != 0)
 					hires_ci_palette_hint = palette_crc;
 				resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
+			}
+			else if (info.mode == UploadMode::Block)
+			{
+				store_pending_hires_block_lookup(
+						tile_index,
+						info,
+						src_base_addr,
+						key_width_pixels,
+						key_height_pixels);
 			}
 
 			// Use the lookup dimensions as the upper bound, but still tighten against the

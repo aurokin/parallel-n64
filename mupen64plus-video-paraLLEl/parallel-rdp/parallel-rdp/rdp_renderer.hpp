@@ -178,6 +178,25 @@ private:
 	void init_blender_lut();
 	void init_buffers(const RendererOptions &options);
 	bool init_internal_upscaling_factor(const RendererOptions &options);
+	void clear_pending_hires_block_lookups_for_offset(uint32_t tmem_offset);
+	void store_pending_hires_block_lookup(unsigned tile_index,
+	                                     const LoadTileInfo &info,
+	                                     uint32_t src_base_addr,
+	                                     uint32_t key_width_pixels,
+	                                     uint32_t key_height_pixels);
+	bool try_hires_block_tile_fallback(unsigned load_tile_index,
+	                                   const LoadTileInfo &info,
+	                                   uint32_t src_base_addr,
+	                                   uint32_t key_width_pixels,
+	                                   uint32_t key_height_pixels,
+	                                   unsigned &lookup_tile_index,
+	                                   uint32_t &lookup_width_pixels,
+	                                   uint32_t &lookup_height_pixels,
+	                                   uint32_t &texture_crc,
+	                                   uint16_t &formatsize,
+	                                   uint64_t &checksum64,
+	                                   ReplacementMeta &repl_meta);
+	void retry_pending_hires_block_lookup(unsigned tile_index);
 
 	struct
 	{
@@ -231,6 +250,16 @@ private:
 		bool allow_tile_sampling_expansion = true;
 	};
 	ReplacementTileState replacement_tiles[Limits::MaxNumTiles] = {};
+	struct PendingBlockHiresLookup
+	{
+		LoadTileInfo info = {};
+		uint32_t src_base_addr = 0;
+		uint32_t key_width_pixels = 0;
+		uint32_t key_height_pixels = 0;
+		uint8_t load_tile_index = 0;
+		bool valid = false;
+	};
+	PendingBlockHiresLookup pending_block_hires_lookups[Limits::MaxNumTiles] = {};
 	uint8_t tlut_shadow[1024] = {};
 	bool tlut_shadow_valid = false;
 	uint64_t hires_lookup_total = 0;

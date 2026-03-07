@@ -52,6 +52,8 @@ require_pattern 'DEFAULT_CORE_OPTIONS_FILE="$HOME/.config/retroarch/config/ParaL
   "default core options path missing"
 require_pattern 'DEFAULT_SCREENSHOT_DIR="$HOME/.config/retroarch/screenshots"' \
   "default screenshot path missing"
+require_pattern 'force_fullscreen="${RUN_N64_FULLSCREEN:-0}"' \
+  "default windowed fullscreen policy missing"
 require_pattern 'buttons_csv="start"' "default Paper Mario button sequence missing"
 require_pattern 'max_presses=2' "default max presses missing"
 require_pattern 'screenshot_at=27' "default screenshot timing missing"

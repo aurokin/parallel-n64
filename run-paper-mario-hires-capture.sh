@@ -29,7 +29,7 @@ rom_path="$DEFAULT_ROM_NAME"
 capture_root="${TMPDIR:-/tmp}/parallel-n64-paper-mario-captures"
 tag=""
 debug_hires="0"
-force_fullscreen="${RUN_N64_FULLSCREEN:-1}"
+force_fullscreen="${RUN_N64_FULLSCREEN:-0}"
 
 capture_cfg=""
 capture_dir=""

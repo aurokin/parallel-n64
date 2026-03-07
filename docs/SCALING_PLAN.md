@@ -34,6 +34,14 @@ This keeps scaling work on the same-core save-state path instead of the slower, 
 Run captures sequentially; the helpers reuse RetroArch netcmd defaults and are not designed for concurrent launches.
 The helper currently relies on an explicit temp `core-options.cfg` inside its isolated XDG root; do not switch it back to mixed per-core option mode unless RetroArch behavior changes and you re-validate that path.
 
+## Current Findings
+
+- The experimental VI reconstruction path is real and already improves the saved Paper Mario oracle over accurate mode.
+- The current committed improvements came from subpixel reconstruction and X-axis sample-phase tuning in `vi_scale.frag`.
+- There is still more room to improve this VI path, but it did not eliminate the main horizontal seam / banding issue on the file-select scene.
+- Treat VI sample-phase tuning as a proven secondary lever, not the primary remaining blocker.
+- When work resumes, preserve the current experimental path as a better baseline, but focus new effort on the horizontal-line artifact before spending many more cycles on small VI kernel refinements.
+
 ## Architectural Direction
 
 The preferred design is:

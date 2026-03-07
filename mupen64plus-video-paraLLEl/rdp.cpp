@@ -336,7 +336,7 @@ void complete_frame()
 			gfx_info);
 
 	ScanoutOptions opts = detail::make_scanout_options(
-			vi_aa, vi_scale, dither_filter, divot_filter, gamma_dither,
+			vi_aa, vi_scale, dither_filter, divot_filter, gamma_dither, interlacing,
 			downscaling_steps, overscan, vi_scaling_mode);
 	auto image = frontend->scanout(opts);
 	unsigned index = vulkan->get_sync_index(vulkan->handle);

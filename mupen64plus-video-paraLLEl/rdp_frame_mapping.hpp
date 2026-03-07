@@ -43,12 +43,15 @@ inline ScanoutOptions make_scanout_options(bool vi_aa,
                                            bool dither_filter,
                                            bool divot_filter,
                                            bool gamma_dither,
+                                           bool interlacing,
                                            unsigned downscaling_steps,
                                            unsigned overscan,
                                            unsigned scaling_mode = VI_SCALING_MODE_ACCURATE)
 {
 	ScanoutOptions opts = {};
 	opts.persist_frame_on_invalid_input = true;
+	opts.blend_previous_frame = interlacing;
+	opts.upscale_deinterlacing = !interlacing;
 	opts.vi.aa = vi_aa;
 	opts.vi.scale = vi_scale;
 	opts.vi.dither_filter = dither_filter;

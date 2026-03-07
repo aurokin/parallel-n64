@@ -76,9 +76,11 @@ static void test_vi_register_forwarding_table()
 static void test_scanout_options_mapping()
 {
 	const ScanoutOptions opts = detail::make_scanout_options(
-			true, false, true, false, true, 3u, 24u, VI_SCALING_MODE_EXPERIMENTAL);
+			true, false, true, false, true, true, 3u, 24u, VI_SCALING_MODE_EXPERIMENTAL);
 
 	check(opts.persist_frame_on_invalid_input, "persist_frame_on_invalid_input should be true");
+	check(opts.blend_previous_frame == true, "blend_previous_frame mismatch");
+	check(opts.upscale_deinterlacing == false, "upscale_deinterlacing mismatch");
 	check(opts.vi.aa == true, "vi.aa mismatch");
 	check(opts.vi.scale == false, "vi.scale mismatch");
 	check(opts.vi.dither_filter == true, "vi.dither_filter mismatch");
@@ -87,6 +89,11 @@ static void test_scanout_options_mapping()
 	check(opts.downscale_steps == 3u, "downscale_steps mismatch");
 	check(opts.crop_overscan_pixels == 24u, "crop_overscan_pixels mismatch");
 	check(opts.scaling_mode == VI_SCALING_MODE_EXPERIMENTAL, "scaling_mode mismatch");
+
+	const ScanoutOptions progressive = detail::make_scanout_options(
+			true, true, true, true, true, false, 0u, 0u, VI_SCALING_MODE_ACCURATE);
+	check(progressive.blend_previous_frame == false, "progressive blend_previous_frame mismatch");
+	check(progressive.upscale_deinterlacing == true, "progressive upscale_deinterlacing mismatch");
 }
 }
 

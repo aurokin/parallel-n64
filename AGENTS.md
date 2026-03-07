@@ -88,6 +88,7 @@ Co-Authored-By: Codex <noreply@openai.com>
   - row-periodicity analysis on `scale` dumps is useful here, but it is not the only truth signal: the prior best row-phase-only path measured `mod4 0.4867`, `mod8 1.1960`, `mod12 1.7706`, while the current combined path is slightly worse on that metric (`mod4 0.5443`, `mod8 1.2770`, `mod12 1.8259`) but still better on the saved Paper Mario oracle overall
   - when validating this path, expect a small left-side capture variance on repeated runs from the same save-state; the stable regions to trust most are `right`, `top`, `bottom`, `file2_new`, and the `scale` dump itself
   - current representative stable metrics for that experimental baseline: `full 46.7829`, `left 64.1701`, `right 46.7731`, `top 45.6523`, `bottom 57.1673`, `file2_new 20.7021`
+  - the plugin-level `interlacing` flag is now wired into scanout (`blend_previous_frame = true`, `upscale_deinterlacing = false` when enabled), but on the current Paper Mario save-state it only perturbs the left-side variance region and does not explain the main horizontal split
   - keep that VI path in mind as a secondary improvement area, but prioritize the horizontal-line issue before doing many more tiny VI kernel tweaks
 - Save-state warning:
   - prefer save states for fast iteration when they were created from the same ROM image and the same core path you are validating

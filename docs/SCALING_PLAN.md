@@ -50,6 +50,8 @@ The helper currently relies on an explicit temp `core-options.cfg` inside its is
   - repeated same-code captures still show a small left-side variance, which moves the `left` crop and `full` metric slightly while leaving `right`, `top`, `bottom`, and `file2_new` unchanged
 - Practical read on the latest improvement: the broad frame metrics are still incremental, but the new localized remap is the first deeper interpolation tweak that improves `full`, `left`, `right`, and `file2_new` together while also nudging the upper/mid split bands down.
 - Practical read: the current combined path is a better visual/oracle baseline even though the raw cadence metric is slightly worse than the prior row-phase-only variant. Keep both facts in mind before optimizing only against the row spread numbers.
+- The plugin-level `interlacing` toggle was previously not threaded into `ScanoutOptions` at all. That is now fixed: it maps to weave/persistence mode (`blend_previous_frame = true`, `upscale_deinterlacing = false`) when enabled.
+- On the current Paper Mario save-state scene, forcing that interlacing path changes only a narrow left-side region and does not materially move the main oracle regions, so it is not the dominant source of the horizontal split artifact here.
 - There is still more room to improve this VI path, but it did not eliminate the main horizontal seam / banding issue on the file-select scene.
 - Treat VI sample-phase tuning as a proven secondary lever, not the primary remaining blocker.
 - When work resumes, preserve the current experimental path as a better baseline, but focus new effort on the horizontal-line artifact before spending many more cycles on small VI kernel refinements.

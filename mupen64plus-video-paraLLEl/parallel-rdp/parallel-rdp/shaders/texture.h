@@ -84,6 +84,18 @@ int compute_hires_replacement_lod(TileInfo tile, i16 lod_frac)
 	return clamp(lod_level, 0, max_level);
 }
 
+vec4 normalize_hires_replacement_texel(TileInfo tile, vec4 repl)
+{
+	if (tile.fmt == TEXTURE_FORMAT_I)
+	{
+		// Intensity textures feed the same scalar into RGB and alpha on native hardware.
+		float intensity = dot(repl.rgb, vec3(1.0 / 3.0));
+		repl = vec4(intensity);
+	}
+
+	return repl;
+}
+
 i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 st_fp5, int lod_level, bool linear_filter)
 {
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
@@ -115,6 +127,7 @@ i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 st_fp5, int lod_le
 		repl = texelFetch(uHiresTextures[nonuniformEXT(hires_descriptor_index(tile))], repl_coord, lod_level);
 	}
 
+	repl = normalize_hires_replacement_texel(tile, repl);
 	ivec4 expanded = ivec4(clamp(repl * vec4(255.0) + vec4(0.5), vec4(0.0), vec4(255.0)));
 	return i16x4(expanded);
 #else

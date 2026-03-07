@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdlib>
 #include "vi_scaling_mode.hpp"
 
 namespace RDP::detail
@@ -40,6 +41,15 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 			out.source_x_base_bias = 0;
 		}
 	}
+
+	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_Y_ADD_BIAS"))
+		out.source_y_add_bias = unsigned(std::strtoul(env, nullptr, 0));
+	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_Y_BASE_BIAS"))
+		out.source_y_base_bias = int(std::strtol(env, nullptr, 0));
+	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_X_ADD_BIAS"))
+		out.source_x_add_bias = unsigned(std::strtoul(env, nullptr, 0));
+	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_X_BASE_BIAS"))
+		out.source_x_base_bias = int(std::strtol(env, nullptr, 0));
 
 	return out;
 }

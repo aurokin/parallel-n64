@@ -60,7 +60,7 @@ static void test_experimental_mode_enables_subpixel_reconstruction_when_upscaled
 	check(policy.use_subpixel_reconstruction, "experimental mode should enable subpixel reconstruction when upscaled");
 	check(policy.subpixel_grid == 2u, "experimental mode should request a 2x2 subpixel grid");
 	check(policy.source_y_add_bias == 29u, "4x experimental mode should bias source y_add");
-	check(policy.source_y_base_bias == 0, "4x experimental mode should keep zero source y base bias");
+	check(policy.source_y_base_bias == 0, "4x experimental mode should keep zero source y base bias by default");
 	check(policy.source_x_add_bias == 17u, "4x experimental mode should bias source x_add");
 	check(policy.source_x_base_bias == 0, "4x experimental mode should keep zero source x base bias");
 }
@@ -96,6 +96,30 @@ static void test_non_4x_experimental_mode_keeps_zero_source_y_add_bias()
 	check(policy.source_x_add_bias == 0u, "unvalidated non-4x path should keep zero source x_add bias");
 	check(policy.source_x_base_bias == 0, "unvalidated non-4x path should keep zero source x base bias");
 }
+
+static void test_env_overrides_replace_default_biases()
+{
+	VIScaleSamplingPolicyInput in = {};
+	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
+	in.scaling_factor = 4;
+	in.vi_scale = true;
+
+	setenv("PARALLEL_VI_SOURCE_Y_ADD_BIAS", "31", 1);
+	setenv("PARALLEL_VI_SOURCE_Y_BASE_BIAS", "512", 1);
+	setenv("PARALLEL_VI_SOURCE_X_ADD_BIAS", "19", 1);
+	setenv("PARALLEL_VI_SOURCE_X_BASE_BIAS", "-64", 1);
+
+	auto policy = derive_vi_scale_sampling_policy(in);
+	check(policy.source_y_add_bias == 31u, "env override should replace source y_add bias");
+	check(policy.source_y_base_bias == 512, "env override should replace source y base bias");
+	check(policy.source_x_add_bias == 19u, "env override should replace source x_add bias");
+	check(policy.source_x_base_bias == -64, "env override should replace source x base bias");
+
+	unsetenv("PARALLEL_VI_SOURCE_Y_ADD_BIAS");
+	unsetenv("PARALLEL_VI_SOURCE_Y_BASE_BIAS");
+	unsetenv("PARALLEL_VI_SOURCE_X_ADD_BIAS");
+	unsetenv("PARALLEL_VI_SOURCE_X_BASE_BIAS");
+}
 }
 
 int main()
@@ -105,6 +129,7 @@ int main()
 	test_experimental_mode_enables_subpixel_reconstruction_when_upscaled();
 	test_experimental_mode_respects_disabled_vi_scaling();
 	test_non_4x_experimental_mode_keeps_zero_source_y_add_bias();
+	test_env_overrides_replace_default_biases();
 	std::cout << "emu_unit_vi_scale_sampling_policy_test: PASS" << std::endl;
 	return 0;
 }

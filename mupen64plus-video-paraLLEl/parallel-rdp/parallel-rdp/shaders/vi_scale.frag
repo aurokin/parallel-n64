@@ -75,7 +75,7 @@ uvec3 integer_gamma(uvec3 color)
 layout(constant_id = 2) const bool FETCH_BUG = false;
 layout(constant_id = 3) const bool EXPERIMENTAL_RECONSTRUCTION = false;
 
-uvec3 sample_divot_output(int x, int y)
+uvec3 sample_divot_output(int x, int y, int phase)
 {
     ivec2 base_coord = ivec2(x, y) >> 10;
     uvec3 c00 = texelFetch(uDivotOutput, ivec3(base_coord, 0), 0).rgb;
@@ -94,6 +94,11 @@ uvec3 sample_divot_output(int x, int y)
     {
         uint x_frac = uint((x >> 5) & 31);
         uint y_frac = uint((y >> 5) & 31);
+
+        if (EXPERIMENTAL_RECONSTRUCTION && (phase == 1 || phase == 2) && (y >> 10) < 512)
+        {
+            y_frac = (y_frac * 29u + 16u) >> 5u;
+        }
 
         uvec3 c10 = texelFetchOffset(uDivotOutput, ivec3(base_coord, 0), 0, ivec2(1, 0)).rgb;
         uvec3 c01 = texelFetchOffset(uDivotOutput, ivec3(base_coord, bug_offset), 0, ivec2(0, 1)).rgb;
@@ -132,14 +137,14 @@ void main()
         int lower_y = max((registers.y_add * 7) >> 4, 1);
         int three_quarter_x = max((registers.x_add * 3) >> 2, 1);
         uvec3 accum = uvec3(0);
-        accum += sample_divot_output(x + quarter_x, y - upper_y);
-        accum += sample_divot_output(x + three_quarter_x, y - upper_y);
-        accum += sample_divot_output(x + quarter_x, y + lower_y);
-        accum += sample_divot_output(x + three_quarter_x, y + lower_y);
+        accum += sample_divot_output(x + quarter_x, y - upper_y, phase);
+        accum += sample_divot_output(x + three_quarter_x, y - upper_y, phase);
+        accum += sample_divot_output(x + quarter_x, y + lower_y, phase);
+        accum += sample_divot_output(x + three_quarter_x, y + lower_y, phase);
         c00 = (accum + 2u) >> 2u;
     }
     else
-        c00 = sample_divot_output(x, y);
+        c00 = sample_divot_output(x, y, 0);
 
     if (GAMMA_ENABLE)
         c00 = integer_gamma(c00);

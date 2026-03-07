@@ -114,6 +114,7 @@ private:
 	int filter_debug_channel_y = -1;
 	unsigned stage_dump_mask = 0;
 	std::string stage_dump_dir;
+	std::string stage_dump_trigger_file;
 	bool stage_dumped = false;
 
 	void message(const std::string &tag, uint32_t code,

@@ -42,7 +42,9 @@ The helper currently relies on an explicit temp `core-options.cfg` inside its is
 - Treat VI sample-phase tuning as a proven secondary lever, not the primary remaining blocker.
 - When work resumes, preserve the current experimental path as a better baseline, but focus new effort on the horizontal-line artifact before spending many more cycles on small VI kernel refinements.
 - Use `./run-paper-mario-scaling-capture.sh --tag <tag> --dump-vi-stages aa,divot,scale,final` to localize scanout-stage regressions.
+- The VI dump trigger is aligned to screenshot time, so state-mode dumps represent the loaded Paper Mario save-state scene rather than the launch frame.
 - On the current Paper Mario 4x state workflow, `scale` and `final` are byte-identical, so the remaining horizontal-line artifact is already present by the end of `scale_stage()` in this path.
+- Accurate vs experimental state dumps now diverge almost entirely at `scale/final`, while `aa/divot` remain effectively unchanged, which keeps the main investigation centered on `scale_stage()`.
 
 ## Architectural Direction
 

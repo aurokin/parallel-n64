@@ -33,6 +33,7 @@
 #include <cstring>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #ifndef PARALLEL_RDP_SHADER_DIR
 #include "shaders/slangmosh.hpp"
@@ -212,6 +213,12 @@ void VideoInterface::init_stage_dump_config()
 		stage_dump_dir = dir;
 	else
 		stage_dump_dir = "/tmp/parallel-rdp-vi-dumps";
+
+	const char *trigger_file = getenv("PARALLEL_VI_DUMP_TRIGGER_FILE");
+	if (trigger_file && *trigger_file)
+		stage_dump_trigger_file = trigger_file;
+	else
+		stage_dump_trigger_file.clear();
 }
 
 void VideoInterface::set_vi_register(VIRegister reg, uint32_t value)
@@ -922,7 +929,13 @@ Vulkan::ImageHandle VideoInterface::upscale_deinterlace(Vulkan::CommandBuffer &c
 
 bool VideoInterface::should_dump_stage(unsigned stage_bit) const
 {
-	return (stage_dump_mask & stage_bit) != 0 && !stage_dumped;
+	if ((stage_dump_mask & stage_bit) == 0 || stage_dumped)
+		return false;
+
+	if (!stage_dump_trigger_file.empty() && access(stage_dump_trigger_file.c_str(), F_OK) != 0)
+		return false;
+
+	return true;
 }
 
 void VideoInterface::enqueue_stage_dump(Vulkan::CommandBuffer &cmd,
@@ -993,6 +1006,9 @@ void VideoInterface::flush_stage_dumps(const std::vector<StageDumpReadback> &pen
 
 		device->unmap_host_buffer(*dump.buffer, Vulkan::MEMORY_ACCESS_READ_BIT);
 	}
+
+	if (!stage_dump_trigger_file.empty())
+		unlink(stage_dump_trigger_file.c_str());
 }
 
 Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const ScanoutOptions &options, unsigned scaling_factor)

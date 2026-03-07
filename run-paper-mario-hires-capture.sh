@@ -39,6 +39,7 @@ retroarch_cfg=""
 log_file=""
 core_options_file=""
 stamp_file=""
+dump_vi_trigger_file=""
 run_pid=""
 window_override_width=""
 window_override_height=""
@@ -432,11 +433,13 @@ xdg_root="$capture_dir/xdg"
 retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"
 log_file="$capture_dir/run.log"
 core_options_file="$xdg_root/retroarch/core-options.cfg"
+dump_vi_trigger_file="$capture_dir/vi-stages.trigger"
 mkdir -p "$(dirname "$core_options_file")"
 cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"
 apply_core_option_overrides
 write_temp_retroarch_cfg
 stamp_file="$(mktemp /tmp/parallel-n64-paper-mario-shot-stamp.XXXX)"
+rm -f "$dump_vi_trigger_file"
 
 trap cleanup EXIT
 
@@ -456,6 +459,9 @@ else
   smoke_cmd+=("--shot-delay" "$state_shot_delay")
   smoke_cmd+=("--close-delay" "$state_close_delay")
   smoke_cmd+=("--state-cmd" "$state_cmd")
+  if [[ -n "$dump_vi_stages" ]]; then
+    smoke_cmd+=("--dump-trigger-file" "$dump_vi_trigger_file")
+  fi
   if [[ "$state_pause" == "1" ]]; then
     smoke_cmd+=(--pause)
   else
@@ -498,6 +504,7 @@ fi
   if [[ -n "$dump_vi_stages" ]]; then
     export PARALLEL_VI_DUMP_STAGES="$dump_vi_stages"
     export PARALLEL_VI_DUMP_DIR="$capture_dir/vi-stages"
+    export PARALLEL_VI_DUMP_TRIGGER_FILE="$dump_vi_trigger_file"
   fi
   if [[ "$debug_hires" == "1" ]]; then
     export PARALLEL_RDP_HIRES_DEBUG=1
@@ -509,6 +516,10 @@ run_pid="$!"
 if [[ "$smoke_mode" == "buttons" ]]; then
   sleep "$screenshot_at"
   if kill -0 "$run_pid" 2>/dev/null; then
+    if [[ -n "$dump_vi_stages" ]]; then
+      : >"$dump_vi_trigger_file"
+      sleep 0.2
+    fi
     if send_netcmd "SCREENSHOT"; then
       echo "NetCmd: sent 'SCREENSHOT'"
     else

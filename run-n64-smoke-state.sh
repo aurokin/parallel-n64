@@ -11,6 +11,7 @@ close_delay="0.2"
 netcmd_port="55355"
 state_cmd="LOAD_STATE"
 send_pause="0"
+dump_trigger_file=""
 
 declare -a runner_args=()
 run_pid=""
@@ -29,6 +30,7 @@ Options:
   --no-pause             Skip PAUSE_TOGGLE step before screenshot (default)
   --port PORT            RetroArch network command UDP port (default: 55355)
   --state-cmd CMD        Command to send for state load (default: LOAD_STATE)
+  --dump-trigger-file P  Touch trigger file before SCREENSHOT for deferred capture hooks
   -h, --help             Show this help
 
 Examples:
@@ -96,6 +98,10 @@ while (($#)); do
     --state-cmd)
       shift
       state_cmd="${1:-}"
+      ;;
+    --dump-trigger-file)
+      shift
+      dump_trigger_file="${1:-}"
       ;;
     -h|--help)
       usage
@@ -177,6 +183,12 @@ if [[ "$send_pause" == "1" ]]; then
       echo "NetCmd failed: 'PAUSE_TOGGLE'" >&2
     fi
   fi
+fi
+
+if [[ -n "$dump_trigger_file" ]]; then
+  mkdir -p "$(dirname "$dump_trigger_file")"
+  : >"$dump_trigger_file"
+  echo "Deferred capture trigger: $dump_trigger_file"
 fi
 
 sleep "$shot_delay"

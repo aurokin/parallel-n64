@@ -91,6 +91,18 @@ split_buttons() {
   fi
 }
 
+stop_stale_vpad_daemons() {
+  pkill -f 'tools/virtual_gamepad.py daemon --socket /tmp/parallel-n64-vpad-smoke' >/dev/null 2>&1 || true
+  pkill -f 'tools/virtual_gamepad.py daemon --socket /tmp/parallel-n64-vpad-gliden64' >/dev/null 2>&1 || true
+}
+
+derive_vpad_device_name() {
+  local suffix="${vpad_socket##*/}"
+  suffix="${suffix#parallel-n64-vpad-smoke.}"
+  suffix="${suffix%.sock}"
+  vpad_device_name="parallel-n64 Virtual Pad smoke-${suffix}"
+}
+
 start_vpad_daemon() {
   if [[ ! -x "$VPAD_TOOL" ]]; then
     echo "Virtual gamepad tool is missing or not executable: $VPAD_TOOL" >&2
@@ -98,6 +110,7 @@ start_vpad_daemon() {
   fi
 
   vpad_log="$(mktemp /tmp/parallel-n64-vpad-daemon.XXXX.log)"
+  stop_stale_vpad_daemons
   python3 "$VPAD_TOOL" stop --socket "$vpad_socket" >/dev/null 2>&1 || true
   python3 "$VPAD_TOOL" stop --socket "/tmp/parallel-n64-vpad-gliden64.sock" >/dev/null 2>&1 || true
   rm -f "$vpad_socket"
@@ -314,6 +327,7 @@ fi
 if [[ "$vpad_socket" == "/tmp/parallel-n64-vpad-smoke.sock" ]]; then
   vpad_socket="$(mktemp -u /tmp/parallel-n64-vpad-smoke.XXXX.sock)"
 fi
+derive_vpad_device_name
 
 trap cleanup EXIT
 

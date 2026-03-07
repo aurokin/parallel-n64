@@ -123,6 +123,18 @@ send_netcmd() {
   printf '%s\n' "$cmd" | nc -u -w1 127.0.0.1 "$netcmd_port" >/dev/null 2>&1
 }
 
+stop_stale_vpad_daemons() {
+  pkill -f 'tools/virtual_gamepad.py daemon --socket /tmp/parallel-n64-vpad-smoke' >/dev/null 2>&1 || true
+  pkill -f 'tools/virtual_gamepad.py daemon --socket /tmp/parallel-n64-vpad-gliden64' >/dev/null 2>&1 || true
+}
+
+derive_vpad_device_name() {
+  local suffix="${vpad_socket##*/}"
+  suffix="${suffix#parallel-n64-vpad-gliden64.}"
+  suffix="${suffix%.sock}"
+  vpad_device_name="parallel-n64 Virtual Pad glide-${suffix}"
+}
+
 ensure_retroarch_setting() {
   local file="$1"
   local key="$2"
@@ -197,6 +209,7 @@ focus_retroarch_window() {
 
 start_vpad_daemon() {
   vpad_log="$(mktemp /tmp/parallel-n64-vpad-gliden64.XXXX.log)"
+  stop_stale_vpad_daemons
   python3 "$VPAD_TOOL" stop --socket "$vpad_socket" >/dev/null 2>&1 || true
   python3 "$VPAD_TOOL" stop --socket "/tmp/parallel-n64-vpad-smoke.sock" >/dev/null 2>&1 || true
   rm -f "$vpad_socket"
@@ -543,6 +556,7 @@ fi
 if [[ "$vpad_socket" == "/tmp/parallel-n64-vpad-gliden64.sock" ]]; then
   vpad_socket="$(mktemp -u /tmp/parallel-n64-vpad-gliden64.XXXX.sock)"
 fi
+derive_vpad_device_name
 
 if [[ -z "$tag" ]]; then
   tag="$(date +%Y%m%d-%H%M%S)"

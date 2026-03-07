@@ -40,7 +40,6 @@ public:
 	                        uint64_t *resolved_checksum64 = nullptr,
 	                        bool *matched_preferred_palette = nullptr) const;
 	bool decode_rgba8(uint64_t checksum64, uint16_t formatsize, ReplacementImage *out) const;
-	void trim_to_budget(size_t bytes);
 	void clear();
 	size_t entry_count() const;
 
@@ -57,7 +56,6 @@ private:
 		uint16_t texture_format = 0;
 		uint16_t pixel_type = 0;
 		uint16_t formatsize = 0;
-		bool is_hires = false;
 		bool inline_blob = false;
 		std::vector<uint8_t> blob;
 	};
@@ -76,6 +74,5 @@ private:
 	std::vector<Entry> entries_;
 	std::unordered_map<uint64_t, std::vector<size_t>> checksum_index_;
 	std::unordered_map<uint32_t, std::vector<size_t>> checksum_low32_index_;
-	size_t memory_budget_bytes_ = 0;
 };
 }

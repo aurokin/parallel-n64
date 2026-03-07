@@ -2,6 +2,11 @@
 
 This repo uses tiered, local-only emulator-behavior test gates to separate required checks from heavier optional checks.
 
+## Related Docs
+
+- HIRES behavior and roadmap:
+  - `docs/HIRES_BEHAVIOR.md`
+
 ## Local Commands
 
 - Required gate (PR-safe):
@@ -103,6 +108,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
 - Most recent validated oracle screenshot:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5/Paper Mario (USA)-260306-151242.png`
+- Current divergence to focus on:
+  - `parallel` still differs from the oracle on Paper Mario file-select stage/frame scaling and minification
 - Save-state caution:
   - prefer save states when they match the same ROM image and the same core path under test; they are the fastest way to iterate on a stable scene
   - same-core save states are valid across HIRES-on and HIRES-off runs

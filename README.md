@@ -29,7 +29,7 @@ Local helpers:
 * `python3 tools/virtual_gamepad.py send tap start` - send a button tap to the virtual gamepad
 
 Docs:
-* `docs/HIRES_TEXTURE_TASKS.md` - current HIRES feature state, invariants, broken/incomplete areas
+* `docs/HIRES_BEHAVIOR.md` - current HIRES behavior, supported formats, enablement, invariants, and roadmap
 * `docs/EMU_TESTING.md` - tiered emulator test commands and triage workflow
 * `AGENTS.md` - repo-specific agent instructions and local repo references
 

@@ -47,7 +47,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 
 ## Testing Docs
 - Emulator test tiers: `docs/EMU_TESTING.md`
-- HIRES status and open work: `docs/HIRES_TEXTURE_TASKS.md`
+- HIRES behavior and roadmap: `docs/HIRES_BEHAVIOR.md`
 
 ## Paper Mario HIRES Loop
 - Primary path: `parallel`

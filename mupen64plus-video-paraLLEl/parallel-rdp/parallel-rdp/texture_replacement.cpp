@@ -527,11 +527,6 @@ bool ReplacementProvider::decode_rgba8(uint64_t checksum64, uint16_t formatsize,
 	return true;
 }
 
-void ReplacementProvider::trim_to_budget(size_t bytes)
-{
-	memory_budget_bytes_ = bytes;
-}
-
 bool ReplacementProvider::load_hts(const std::string &path)
 {
 	std::ifstream file(path, std::ifstream::in | std::ifstream::binary);
@@ -620,7 +615,7 @@ bool ReplacementProvider::load_hts(const std::string &path)
 		uint8_t is_hires = 0;
 		if (!read_exact(file, is_hires))
 			continue;
-		entry.is_hires = is_hires != 0;
+		(void)is_hires;
 
 		uint16_t record_formatsize = 0;
 		if (!old_version && !read_exact(file, record_formatsize))
@@ -700,7 +695,7 @@ bool ReplacementProvider::load_htc(const std::string &path)
 			gzclose(fp);
 			return false;
 		}
-		entry.is_hires = is_hires != 0;
+		(void)is_hires;
 
 		if (!old_version)
 		{

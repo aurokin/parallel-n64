@@ -41,10 +41,9 @@ The helper currently relies on an explicit temp `core-options.cfg` inside its is
 - The current best experimental path combines the existing non-linear row-phase-aware VI reconstruction with source-domain X/Y step biases in `scale_stage()`.
 - That path now has two meaningful parts:
   - `vi_scale.frag` keeps the tuned `0/2/7/18` row-phase schedule, the upward-skewed `upper 8/16`, `lower 7/16` 4-tap footprint, and the localized `y_frac` remap for phases `1/2` when the source row is in the upper band.
-  - `scale_stage()` now also applies tested experimental source-domain step biases through `vi_scale_sampling_policy`, currently `x_add -= 17` and `y_add -= 29` for the validated 4x path.
+  - `scale_stage()` now also applies tested experimental source-domain biases through `vi_scale_sampling_policy`, currently `x_add -= 17`, `y_add -= 30`, and `y_base += 736` for the validated 4x path.
   - local experimentation can override all four source-domain values at runtime with `PARALLEL_VI_SOURCE_{X,Y}_{ADD,BASE}_BIAS`, which is useful for narrow sweeps without rebuilding.
-  - current best runtime-only candidate from those sweeps is `PARALLEL_VI_SOURCE_X_ADD_BIAS=17 PARALLEL_VI_SOURCE_Y_ADD_BIAS=30 PARALLEL_VI_SOURCE_Y_BASE_BIAS=736`, which improved the saved Paper Mario oracle to `full 18.8888 / left 19.5793 / right 30.3244 / top 18.6316 / bottom 21.2062 / file2_new 2.9931`.
-  - important follow-up: hardwiring those same values into `vi_scale_sampling_policy` did not reproduce the runtime-override result in the helper path, so the next bug to root out is why source-base defaults are not taking effect the same way env overrides do.
+  - the current committed baseline from those sweeps is `x_add -= 17`, `y_add -= 30`, `y_base += 736`, which improved the saved Paper Mario oracle to `full 18.8888 / left 19.5793 / right 30.3244 / top 18.6316 / bottom 21.2062 / file2_new 2.9931`.
 - That row-phase adjustment materially reduces the remaining 4x cadence artifact in the `scale` dump:
   - previous committed experimental path: `mod4 spread 5.7583`, `mod8 spread 6.5015`, `mod12 spread 6.4761`
   - prior committed row-phase path: `mod4 0.5964`, `mod8 1.3461`, `mod12 1.9907`

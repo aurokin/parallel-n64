@@ -59,8 +59,8 @@ static void test_experimental_mode_enables_subpixel_reconstruction_when_upscaled
 	auto policy = derive_vi_scale_sampling_policy(in);
 	check(policy.use_subpixel_reconstruction, "experimental mode should enable subpixel reconstruction when upscaled");
 	check(policy.subpixel_grid == 2u, "experimental mode should request a 2x2 subpixel grid");
-	check(policy.source_y_add_bias == 29u, "4x experimental mode should bias source y_add");
-	check(policy.source_y_base_bias == 0, "4x experimental mode should keep zero source y base bias by default");
+	check(policy.source_y_add_bias == 30u, "4x experimental mode should bias source y_add");
+	check(policy.source_y_base_bias == 736, "4x experimental mode should bias source y base");
 	check(policy.source_x_add_bias == 17u, "4x experimental mode should bias source x_add");
 	check(policy.source_x_base_bias == 0, "4x experimental mode should keep zero source x base bias");
 }

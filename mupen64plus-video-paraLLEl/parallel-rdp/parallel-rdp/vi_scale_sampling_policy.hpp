@@ -35,8 +35,8 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 		// when the experimental path slightly reduces the Y step fed into the VI scale shader.
 		if (in.scaling_factor == 4)
 		{
-			out.source_y_add_bias = 29;
-			out.source_y_base_bias = 0;
+			out.source_y_add_bias = 30;
+			out.source_y_base_bias = 736;
 			out.source_x_add_bias = 17;
 			out.source_x_base_bias = 0;
 		}

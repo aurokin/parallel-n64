@@ -41,6 +41,8 @@ require_pattern "--no-state-pause        Skip PAUSE_TOGGLE in state mode (defaul
   "usage text missing --no-state-pause"
 require_pattern "--core-option K=V       Override a ParaLLEl core option in the temp options file" \
   "usage text missing --core-option"
+require_pattern "--dump-vi-stages CSV    Dump VI stages once under capture_dir/vi-stages" \
+  "usage text missing --dump-vi-stages"
 require_pattern "--debug-hires           Enable PARALLEL_RDP_HIRES_DEBUG=1 for the run" \
   "usage text missing --debug-hires"
 require_pattern 'SMOKE_START_RUNNER="$SCRIPT_DIR/run-n64-smoke-start.sh"' \
@@ -81,7 +83,10 @@ require_pattern 'send_netcmd "SCREENSHOT"' "RetroArch screenshot command missing
 require_pattern 'export RUN_N64_CORE_OPTIONS_FILE="$core_options_file"' \
   "temp core options env export missing"
 require_pattern 'export XDG_CONFIG_HOME="$xdg_root"' "temp XDG config export missing"
+require_pattern 'export PARALLEL_VI_DUMP_STAGES="$dump_vi_stages"' "VI stage dump env export missing"
+require_pattern 'export PARALLEL_VI_DUMP_DIR="$capture_dir/vi-stages"' "VI stage dump directory export missing"
 require_pattern 'export PARALLEL_RDP_HIRES_DEBUG=1' "hires debug export missing"
+require_pattern 'dump_vi_stages="${1:-}"' "VI stage dump option parsing missing"
 require_pattern 'core_option_overrides+=("${1:-}")' "core option override parsing missing"
 require_pattern 'smoke_cmd+=("--buttons" "$buttons_csv")' "button forwarding missing"
 require_pattern 'smoke_cmd+=("--state-cmd" "$state_cmd")' "state command forwarding missing"

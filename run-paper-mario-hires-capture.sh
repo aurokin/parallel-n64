@@ -30,6 +30,7 @@ rom_path="$DEFAULT_ROM_NAME"
 capture_root="${TMPDIR:-/tmp}/parallel-n64-paper-mario-captures"
 tag=""
 debug_hires="0"
+dump_vi_stages=""
 force_fullscreen="${RUN_N64_FULLSCREEN:-0}"
 
 capture_dir=""
@@ -71,6 +72,7 @@ Options:
   --no-state-pause        Skip PAUSE_TOGGLE in state mode (default)
   --port PORT             RetroArch network command UDP port (default: 55355)
   --core-option K=V       Override a ParaLLEl core option in the temp options file
+  --dump-vi-stages CSV    Dump VI stages once under capture_dir/vi-stages (e.g. aa,divot,scale,downscale,final)
   --debug-hires           Enable PARALLEL_RDP_HIRES_DEBUG=1 for the run
   --no-debug-hires        Disable PARALLEL_RDP_HIRES_DEBUG (default)
   --fullscreen            Force fullscreen launch
@@ -300,6 +302,10 @@ while (($#)); do
       shift
       core_option_overrides+=("${1:-}")
       ;;
+    --dump-vi-stages)
+      shift
+      dump_vi_stages="${1:-}"
+      ;;
     --debug-hires)
       debug_hires="1"
       ;;
@@ -470,6 +476,9 @@ echo "Temp XDG root: $xdg_root"
 echo "Log file: $log_file"
 echo "Temp core options: $core_options_file"
 echo "RetroArch config: $retroarch_cfg"
+if [[ -n "$dump_vi_stages" ]]; then
+  echo "VI stage dumps: $dump_vi_stages -> $capture_dir/vi-stages"
+fi
 if [[ "$smoke_mode" == "buttons" ]]; then
   echo "Smoke mode: buttons"
   echo "Screenshot timing: +${screenshot_at}s"
@@ -486,6 +495,10 @@ fi
   export RUN_N64_MAXIMIZE=1
   export RUN_N64_CORE_OPTIONS_FILE="$core_options_file"
   export XDG_CONFIG_HOME="$xdg_root"
+  if [[ -n "$dump_vi_stages" ]]; then
+    export PARALLEL_VI_DUMP_STAGES="$dump_vi_stages"
+    export PARALLEL_VI_DUMP_DIR="$capture_dir/vi-stages"
+  fi
   if [[ "$debug_hires" == "1" ]]; then
     export PARALLEL_RDP_HIRES_DEBUG=1
   fi

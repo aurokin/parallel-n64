@@ -41,6 +41,8 @@ The helper currently relies on an explicit temp `core-options.cfg` inside its is
 - There is still more room to improve this VI path, but it did not eliminate the main horizontal seam / banding issue on the file-select scene.
 - Treat VI sample-phase tuning as a proven secondary lever, not the primary remaining blocker.
 - When work resumes, preserve the current experimental path as a better baseline, but focus new effort on the horizontal-line artifact before spending many more cycles on small VI kernel refinements.
+- Use `./run-paper-mario-scaling-capture.sh --tag <tag> --dump-vi-stages aa,divot,scale,final` to localize scanout-stage regressions.
+- On the current Paper Mario 4x state workflow, `scale` and `final` are byte-identical, so the remaining horizontal-line artifact is already present by the end of `scale_stage()` in this path.
 
 ## Architectural Direction
 

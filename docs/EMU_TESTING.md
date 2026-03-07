@@ -106,6 +106,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses the same-core save state path for faster, stable scaling iteration
   - forces HIRES off, `4x` upscaling, and `disable` downscaling
+  - pass `--dump-vi-stages aa,divot,scale,final` to emit one-shot VI stage PPMs under `capture_dir/vi-stages`
+  - in the current 4x state path, `scale` and `final` dumps are expected to match when there is no extra downscale or deinterlace work after `scale_stage()`
 - `parallel` scaling compare helper:
   - `./run-paper-mario-scaling-compare.sh --tag <tag>`
   - or `./run-paper-mario-scaling-compare.sh --candidate /path/to/capture.png`

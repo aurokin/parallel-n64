@@ -14,6 +14,8 @@ Usage:
 
 Options:
   --tag NAME   Capture subdirectory name
+  --dump-vi-stages CSV
+               Emit one-shot VI stage dumps under the capture directory
   -h, --help   Show this help
 
 Behavior:

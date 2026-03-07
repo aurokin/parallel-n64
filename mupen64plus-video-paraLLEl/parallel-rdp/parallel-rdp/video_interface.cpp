@@ -27,6 +27,12 @@
 #include "vi_scanout_flow_policy.hpp"
 #include "vi_scale_policy.hpp"
 #include "vi_scale_sampling_policy.hpp"
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #ifndef PARALLEL_RDP_SHADER_DIR
 #include "shaders/slangmosh.hpp"
@@ -34,10 +40,94 @@
 
 namespace RDP
 {
+namespace
+{
+static unsigned parse_stage_dump_mask(const char *env)
+{
+	if (!env || !*env)
+		return 0;
+
+	std::string list = env;
+	unsigned mask = 0;
+	size_t start = 0;
+
+	while (start <= list.size())
+	{
+		size_t end = list.find(',', start);
+		std::string token = list.substr(start, end == std::string::npos ? std::string::npos : end - start);
+
+		if (token == "all")
+			return (1u << 0) | (1u << 1) | (1u << 2) | (1u << 3) | (1u << 4);
+		else if (token == "aa")
+			mask |= 1u << 0;
+		else if (token == "divot")
+			mask |= 1u << 1;
+		else if (token == "scale")
+			mask |= 1u << 2;
+		else if (token == "downscale")
+			mask |= 1u << 3;
+		else if (token == "final")
+			mask |= 1u << 4;
+
+		if (end == std::string::npos)
+			break;
+		start = end + 1;
+	}
+
+	return mask;
+}
+
+static bool ensure_directory_recursive(const std::string &path)
+{
+	if (path.empty())
+		return false;
+
+	std::string current;
+	if (path.front() == '/')
+		current = "/";
+
+	size_t start = path.front() == '/' ? 1u : 0u;
+	while (start <= path.size())
+	{
+		size_t end = path.find('/', start);
+		std::string token = path.substr(start, end == std::string::npos ? std::string::npos : end - start);
+		if (!token.empty())
+		{
+			if (!current.empty() && current.back() != '/')
+				current += '/';
+			current += token;
+			if (mkdir(current.c_str(), 0755) != 0 && errno != EEXIST)
+				return false;
+		}
+
+		if (end == std::string::npos)
+			break;
+		start = end + 1;
+	}
+
+	return true;
+}
+
+static bool write_ppm(const std::string &path, const uint8_t *rgba, unsigned width, unsigned height)
+{
+	FILE *file = fopen(path.c_str(), "wb");
+	if (!file)
+		return false;
+
+	fprintf(file, "P6\n%u %u\n255\n", width, height);
+	for (unsigned i = 0; i < width * height; i++)
+		fwrite(rgba + 4u * i, 1, 3, file);
+
+	fclose(file);
+	return true;
+}
+}
+
 void VideoInterface::set_device(Vulkan::Device *device_)
 {
 	device = device_;
 	init_gamma_table();
+	init_stage_dump_config();
 
 	if (const char *env = getenv("VI_DEBUG"))
 		debug_channel = strtol(env, nullptr, 0) != 0;
@@ -110,6 +200,18 @@ void VideoInterface::init_gamma_table()
 	view.range = sizeof(gamma_table);
 	view.format = VK_FORMAT_R8_UINT;
 	gamma_lut_view = device->create_buffer_view(view);
+}
+
+void VideoInterface::init_stage_dump_config()
+{
+	stage_dump_mask = parse_stage_dump_mask(getenv("PARALLEL_VI_DUMP_STAGES"));
+	stage_dumped = false;
+
+	const char *dir = getenv("PARALLEL_VI_DUMP_DIR");
+	if (dir && *dir)
+		stage_dump_dir = dir;
+	else
+		stage_dump_dir = "/tmp/parallel-rdp-vi-dumps";
 }
 
 void VideoInterface::set_vi_register(VIRegister reg, uint32_t value)
@@ -818,9 +920,85 @@ Vulkan::ImageHandle VideoInterface::upscale_deinterlace(Vulkan::CommandBuffer &c
 	return deinterlaced_image;
 }
 
+bool VideoInterface::should_dump_stage(unsigned stage_bit) const
+{
+	return (stage_dump_mask & stage_bit) != 0 && !stage_dumped;
+}
+
+void VideoInterface::enqueue_stage_dump(Vulkan::CommandBuffer &cmd,
+                                        Vulkan::Image &image,
+                                        VkImageLayout current_layout,
+                                        const char *stage_name,
+                                        std::vector<StageDumpReadback> &pending) const
+{
+	Vulkan::BufferCreateInfo info = {};
+	info.size = image.get_width() * image.get_height() * sizeof(uint32_t);
+	info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	info.domain = Vulkan::BufferDomain::CachedHost;
+	auto readback = device->create_buffer(info);
+
+	if (current_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+	{
+		cmd.image_barrier(image, current_layout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		                  layout_to_stage(current_layout), layout_to_access(current_layout),
+		                  VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+	}
+
+	cmd.copy_image_to_buffer(*readback, image, 0, {}, { image.get_width(), image.get_height(), 1 }, 0, 0,
+	                         { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 });
+	cmd.barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+	            VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_READ_BIT);
+
+	if (current_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+	{
+		cmd.image_barrier(image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, current_layout,
+		                  VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+		                  layout_to_stage(current_layout), layout_to_access(current_layout));
+	}
+
+	StageDumpReadback dump = {};
+	dump.name = stage_name;
+	dump.width = image.get_width();
+	dump.height = image.get_height();
+	dump.buffer = std::move(readback);
+	pending.push_back(std::move(dump));
+}
+
+void VideoInterface::flush_stage_dumps(const std::vector<StageDumpReadback> &pending,
+                                       uint32_t frame_index) const
+{
+	if (pending.empty())
+		return;
+
+	if (!ensure_directory_recursive(stage_dump_dir))
+	{
+		LOGE("Failed to create VI dump directory: %s\n", stage_dump_dir.c_str());
+		return;
+	}
+
+	for (auto &dump : pending)
+	{
+		auto *mapped = static_cast<const uint8_t *>(device->map_host_buffer(*dump.buffer, Vulkan::MEMORY_ACCESS_READ_BIT));
+		if (!mapped)
+		{
+			LOGE("Failed to map VI dump buffer for stage %s.\n", dump.name.c_str());
+			continue;
+		}
+
+		std::string path = stage_dump_dir + "/frame" + std::to_string(frame_index) + "-" + dump.name + ".ppm";
+		if (!write_ppm(path, mapped, dump.width, dump.height))
+			LOGE("Failed to write VI dump %s.\n", path.c_str());
+		else
+			LOGI("VI stage dump: %s\n", path.c_str());
+
+		device->unmap_host_buffer(*dump.buffer, Vulkan::MEMORY_ACCESS_READ_BIT);
+	}
+}
+
 Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const ScanoutOptions &options, unsigned scaling_factor)
 {
 	Vulkan::ImageHandle scanout;
+	std::vector<StageDumpReadback> pending_dumps;
 
 	auto regs = decode_vi_registers();
 
@@ -930,6 +1108,8 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 	Vulkan::ImageHandle aa_image;
 	if (!degenerate)
 		aa_image = aa_fetch_stage(*cmd, *vram_image, regs, scaling_factor);
+	if (aa_image && should_dump_stage(STAGE_DUMP_AA_BIT))
+		enqueue_stage_dump(*cmd, *aa_image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, "aa", pending_dumps);
 
 	// Divot pass
 	Vulkan::ImageHandle divot_image;
@@ -937,12 +1117,16 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 		divot_image = divot_stage(*cmd, *aa_image, regs, scaling_factor);
 	else
 		divot_image = std::move(aa_image);
+	if (divot_image && should_dump_stage(STAGE_DUMP_DIVOT_BIT))
+		enqueue_stage_dump(*cmd, *divot_image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, "divot", pending_dumps);
 
 	// Scale pass
 	auto scale_image = scale_stage(*cmd, *divot_image,
 	                               regs, scaling_factor, degenerate, options);
 
 	auto src_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	if (scale_image && should_dump_stage(STAGE_DUMP_SCALE_BIT))
+		enqueue_stage_dump(*cmd, *scale_image, src_layout, "scale", pending_dumps);
 
 	if (flow_policy.should_downscale)
 	{
@@ -952,6 +1136,8 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 
 		scale_image = downscale_stage(*cmd, *scale_image, scaling_factor, options.downscale_steps);
 		src_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		if (scale_image && should_dump_stage(STAGE_DUMP_DOWNSCALE_BIT))
+			enqueue_stage_dump(*cmd, *scale_image, src_layout, "downscale", pending_dumps);
 	}
 
 	if (flow_policy.should_upscale_deinterlace)
@@ -965,6 +1151,8 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 		                                  flow_policy.post_downscale_scaling_factor, field_state);
 		src_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	}
+	if (scale_image && should_dump_stage(STAGE_DUMP_FINAL_BIT))
+		enqueue_stage_dump(*cmd, *scale_image, src_layout, "final", pending_dumps);
 
 	cmd->image_barrier(*scale_image, src_layout, target_layout,
 	                   layout_to_stage(src_layout), layout_to_access(src_layout),
@@ -973,7 +1161,16 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 	prev_image_layout = target_layout;
 	prev_scanout_image = scale_image;
 
-	device->submit(cmd);
+	if (!pending_dumps.empty())
+	{
+		Vulkan::Fence fence;
+		device->submit(cmd, &fence);
+		fence->wait();
+		flush_stage_dumps(pending_dumps, frame_count);
+		stage_dumped = true;
+	}
+	else
+		device->submit(cmd);
 	scanout = std::move(scale_image);
 	frame_count++;
 	return scanout;

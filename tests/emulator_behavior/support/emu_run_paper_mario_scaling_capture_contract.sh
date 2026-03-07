@@ -21,6 +21,7 @@ require_pattern() {
 
 require_pattern "run-paper-mario-scaling-capture.sh [options] [-- RUNNER_ARGS...]" \
   "usage text missing scaling capture invocation"
+require_pattern "--dump-vi-stages CSV" "scaling capture usage missing VI dump option"
 require_pattern "--smoke-mode state" "scaling capture must force state mode"
 require_pattern "--core-option parallel-n64-parallel-rdp-hirestex=disabled" \
   "scaling capture must force HIRES off"

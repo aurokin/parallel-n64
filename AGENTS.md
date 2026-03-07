@@ -79,6 +79,8 @@ Co-Authored-By: Codex <noreply@openai.com>
   - prefer `./run-paper-mario-scaling-capture.sh` for current `parallel` scaling work
   - do not spend time re-establishing button-path parity for `parallel` unless the state path becomes invalid
   - run captures sequentially; the helpers share RetroArch netcmd defaults and are not meant for parallel launches
+  - use `--dump-vi-stages aa,divot,scale,final` when you need one-shot VI stage dumps under `capture_dir/vi-stages`
+  - on the current 4x state path, identical `scale` and `final` dumps mean the artifact is already present by `scale_stage()`
   - the current experimental VI path already improves the oracle, but it did not solve the main horizontal line / seam artifact
   - keep that VI path in mind as a secondary improvement area, but prioritize the horizontal-line issue before doing many more tiny VI kernel tweaks
 - Save-state warning:

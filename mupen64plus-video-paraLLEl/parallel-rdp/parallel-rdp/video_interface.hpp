@@ -23,6 +23,8 @@
 #pragma once
 
 #include <stdint.h>
+#include <string>
+#include <vector>
 #include "device.hpp"
 #include "rdp_common.hpp"
 #include "vi_scaling_mode.hpp"
@@ -78,6 +80,23 @@ public:
 	void set_shader_bank(const ShaderBank *bank);
 
 private:
+	enum StageDumpBits : unsigned
+	{
+		STAGE_DUMP_AA_BIT = 1u << 0,
+		STAGE_DUMP_DIVOT_BIT = 1u << 1,
+		STAGE_DUMP_SCALE_BIT = 1u << 2,
+		STAGE_DUMP_DOWNSCALE_BIT = 1u << 3,
+		STAGE_DUMP_FINAL_BIT = 1u << 4
+	};
+
+	struct StageDumpReadback
+	{
+		std::string name;
+		unsigned width = 0;
+		unsigned height = 0;
+		Vulkan::BufferHandle buffer;
+	};
+
 	Vulkan::Device *device = nullptr;
 	Renderer *renderer = nullptr;
 	uint32_t vi_registers[unsigned(VIRegister::Count)] = {};
@@ -88,10 +107,14 @@ private:
 	const ShaderBank *shader_bank = nullptr;
 
 	void init_gamma_table();
+	void init_stage_dump_config();
 	bool previous_frame_blank = false;
 	bool debug_channel = false;
 	int filter_debug_channel_x = -1;
 	int filter_debug_channel_y = -1;
+	unsigned stage_dump_mask = 0;
+	std::string stage_dump_dir;
+	bool stage_dumped = false;
 
 	void message(const std::string &tag, uint32_t code,
 	             uint32_t x, uint32_t y, uint32_t z,
@@ -147,6 +170,14 @@ private:
 	Vulkan::ImageHandle upscale_deinterlace(Vulkan::CommandBuffer &cmd,
 	                                        Vulkan::Image &scale_image,
 	                                        unsigned scaling_factor, bool field_select) const;
+	bool should_dump_stage(unsigned stage_bit) const;
+	void enqueue_stage_dump(Vulkan::CommandBuffer &cmd,
+	                        Vulkan::Image &image,
+	                        VkImageLayout current_layout,
+	                        const char *stage_name,
+	                        std::vector<StageDumpReadback> &pending) const;
+	void flush_stage_dumps(const std::vector<StageDumpReadback> &pending,
+	                       uint32_t frame_index) const;
 	static bool need_fetch_bug_emulation(const Registers &reg, unsigned scaling_factor);
 };
 }

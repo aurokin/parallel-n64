@@ -24,6 +24,7 @@
 #include "rdp_renderer.hpp"
 #include "luts.hpp"
 #include "vi_scanout_policy.hpp"
+#include "vi_scanout_flow_policy.hpp"
 #include "vi_scale_policy.hpp"
 
 #ifndef PARALLEL_RDP_SHADER_DIR
@@ -822,41 +823,37 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 		return scanout;
 	}
 
-	if (!options.vi.serrate)
-		regs.status &= ~VI_CONTROL_SERRATE_BIT;
+	detail::VIScanoutFlowPolicyInput flow_input = {};
+	flow_input.status = regs.status;
+	flow_input.vi_aa = options.vi.aa;
+	flow_input.vi_scale = options.vi.scale;
+	flow_input.vi_serrate = options.vi.serrate;
+	flow_input.vi_dither_filter = options.vi.dither_filter;
+	flow_input.vi_divot_filter = options.vi.divot_filter;
+	flow_input.vi_gamma_dither = options.vi.gamma_dither;
+	flow_input.previous_frame_blank = previous_frame_blank;
+	flow_input.persist_frame_on_invalid_input = options.persist_frame_on_invalid_input;
+	flow_input.horizontal_input_valid = regs.h_res > 0 && regs.h_start < VI_SCANOUT_WIDTH;
+	flow_input.upscale_deinterlacing = options.upscale_deinterlacing;
+	flow_input.frame_count = frame_count;
+	flow_input.last_valid_frame_count = last_valid_frame_count;
+	flow_input.scaling_factor = scaling_factor;
+	flow_input.downscale_steps = options.downscale_steps;
 
-	bool status_is_aa = (regs.status & VI_CONTROL_AA_MODE_MASK) < VI_CONTROL_AA_MODE_RESAMP_ONLY_BIT;
-	bool status_is_bilinear = (regs.status & VI_CONTROL_AA_MODE_MASK) < VI_CONTROL_AA_MODE_RESAMP_REPLICATE_BIT;
+	auto flow_policy = detail::derive_vi_scanout_flow_policy(flow_input);
+	regs.status = flow_policy.processing_status;
 
-	status_is_aa = status_is_aa && options.vi.aa;
-	status_is_bilinear = status_is_bilinear && options.vi.scale;
-
-	regs.status &= ~(VI_CONTROL_AA_MODE_MASK | VI_CONTROL_META_AA_BIT | VI_CONTROL_META_SCALE_BIT);
-	if (status_is_aa)
-		regs.status |= VI_CONTROL_META_AA_BIT;
-	if (status_is_bilinear)
-		regs.status |= VI_CONTROL_META_SCALE_BIT;
-
-	if (!options.vi.gamma_dither)
-		regs.status &= ~VI_CONTROL_GAMMA_DITHER_ENABLE_BIT;
-	if (!options.vi.divot_filter)
-		regs.status &= ~VI_CONTROL_DIVOT_ENABLE_BIT;
-	if (!options.vi.dither_filter)
-		regs.status &= ~VI_CONTROL_DITHER_FILTER_ENABLE_BIT;
-
-	bool is_blank = (regs.status & VI_CONTROL_TYPE_RGBA5551_BIT) == 0;
-	if (is_blank && previous_frame_blank)
+	if (flow_policy.skip_repeated_blank_frame)
 	{
 		frame_count++;
 		prev_scanout_image.reset();
 		return scanout;
 	}
 
-	if (is_blank)
+	if (flow_policy.reset_previous_scanout)
 		prev_scanout_image.reset();
 
-	regs.status |= VI_CONTROL_TYPE_RGBA5551_BIT;
-	previous_frame_blank = is_blank;
+	previous_frame_blank = flow_policy.blank_frame;
 
 	bool divot = (regs.status & VI_CONTROL_DIVOT_ENABLE_BIT) != 0;
 
@@ -866,7 +863,7 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 
 		// A dirty hack to make it work for games which strobe the invalid state (but expect the image to persist),
 		// and games which legitimately render invalid frames for long stretches where a black screen is expected.
-		if (options.persist_frame_on_invalid_input && (frame_count - last_valid_frame_count < 4))
+		if (flow_policy.persist_previous_on_invalid_input)
 		{
 			scanout = prev_scanout_image;
 
@@ -940,7 +937,7 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 
 	auto src_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-	if (options.downscale_steps && scaling_factor > 1)
+	if (flow_policy.should_downscale)
 	{
 		cmd->image_barrier(*scale_image, src_layout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 		                   layout_to_stage(src_layout), layout_to_access(src_layout),
@@ -950,8 +947,7 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 		src_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	}
 
-	bool serrate = (regs.status & VI_CONTROL_SERRATE_BIT) != 0;
-	if (serrate && options.upscale_deinterlacing)
+	if (flow_policy.should_upscale_deinterlace)
 	{
 		cmd->image_barrier(*scale_image, src_layout, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		                   layout_to_stage(src_layout), layout_to_access(src_layout),
@@ -959,7 +955,7 @@ Vulkan::ImageHandle VideoInterface::scanout(VkImageLayout target_layout, const S
 
 		bool field_state = regs.v_current_line == 0;
 		scale_image = upscale_deinterlace(*cmd, *scale_image,
-		                                  std::max(1u, scaling_factor >> options.downscale_steps), field_state);
+		                                  flow_policy.post_downscale_scaling_factor, field_state);
 		src_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	}
 

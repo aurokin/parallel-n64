@@ -17,10 +17,10 @@ button_hold_ms=140
 max_presses=2
 buttons_csv="start"
 screenshot_at=27
-state_load_delay="2.2"
+state_load_delay="4.0"
 state_pause_delay="0.2"
 state_shot_delay="1.2"
-state_close_delay="0.2"
+state_close_delay="1.0"
 state_cmd="LOAD_STATE"
 state_pause="0"
 netcmd_port=55355
@@ -37,6 +37,8 @@ log_file=""
 core_options_file=""
 stamp_file=""
 run_pid=""
+window_override_width=""
+window_override_height=""
 declare -a runner_args=()
 declare -a core_option_overrides=()
 
@@ -58,10 +60,10 @@ Options:
   --buttons CSV           Buttons to tap each tick (default: start)
   --max-presses N         Cap total input ticks (default: 2)
   --screenshot-at SEC     Seconds after launch to send SCREENSHOT (default: 27)
-  --state-load-delay SEC  Delay before sending state command in state mode (default: 2.2)
+  --state-load-delay SEC  Delay before sending state command in state mode (default: 4.0)
   --state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)
   --state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)
-  --state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 0.2)
+  --state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 1.0)
   --state-cmd CMD         Command to send for state load in state mode (default: LOAD_STATE)
   --state-pause           Send PAUSE_TOGGLE before screenshot in state mode
   --no-state-pause        Skip PAUSE_TOGGLE in state mode (default)
@@ -128,7 +130,31 @@ apply_core_option_overrides() {
   done
 }
 
+get_desktop_resolution() {
+  if ! command -v xrandr >/dev/null 2>&1; then
+    return 1
+  fi
+
+  local mode=""
+  mode="$(xrandr 2>/dev/null | awk '
+    / connected primary / { print $4; exit }
+    / connected / { print $3; exit }
+  ')"
+
+  if [[ -z "$mode" ]]; then
+    return 1
+  fi
+
+  mode="${mode%%+*}"
+  if [[ ! "$mode" =~ ^[0-9]+x[0-9]+$ ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "$mode"
+}
+
 write_capture_appendconfig() {
+  local resolution=""
   capture_cfg="$(mktemp /tmp/parallel-n64-paper-mario-capture.XXXX.cfg)"
   cat >"$capture_cfg" <<EOF_CFG
 screenshot_directory = "$capture_dir"
@@ -137,7 +163,23 @@ sort_screenshots_by_content_enable = "false"
 auto_screenshot_filename = "true"
 notification_show_screenshot = "false"
 notification_show_screenshot_flash = "0"
+notification_show_save_state = "false"
 EOF_CFG
+
+  if [[ "$force_fullscreen" == "0" && "${RUN_N64_MAXIMIZE:-1}" != "0" ]]; then
+    if resolution="$(get_desktop_resolution)"; then
+      window_override_width="${resolution%x*}"
+      window_override_height="${resolution#*x}"
+      cat >>"$capture_cfg" <<EOF_CFG
+video_window_custom_size_enable = "true"
+video_windowed_position_x = "0"
+video_windowed_position_y = "0"
+video_windowed_position_width = "$window_override_width"
+video_windowed_position_height = "$window_override_height"
+video_window_save_positions = "false"
+EOF_CFG
+    fi
+  fi
 }
 
 cleanup() {
@@ -408,6 +450,9 @@ if [[ "$smoke_mode" == "buttons" ]]; then
 else
   echo "Smoke mode: state"
   echo "State load timing: +${state_load_delay}s, screenshot +${state_shot_delay}s after load/pause"
+fi
+if [[ -n "$window_override_width" && -n "$window_override_height" ]]; then
+  echo "Window override: ${window_override_width}x${window_override_height}"
 fi
 
 (

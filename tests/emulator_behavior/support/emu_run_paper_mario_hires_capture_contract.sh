@@ -25,13 +25,13 @@ require_pattern "--smoke-mode MODE       Capture path: buttons|state (default: b
   "usage text missing --smoke-mode"
 require_pattern "--screenshot-at SEC     Seconds after launch to send SCREENSHOT (default: 27)" \
   "usage text missing --screenshot-at"
-require_pattern "--state-load-delay SEC  Delay before sending state command in state mode (default: 2.2)" \
+require_pattern "--state-load-delay SEC  Delay before sending state command in state mode (default: 4.0)" \
   "usage text missing --state-load-delay"
 require_pattern "--state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)" \
   "usage text missing --state-pause-delay"
 require_pattern "--state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)" \
   "usage text missing --state-shot-delay"
-require_pattern "--state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 0.2)" \
+require_pattern "--state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 1.0)" \
   "usage text missing --state-close-delay"
 require_pattern "--state-cmd CMD         Command to send for state load in state mode (default: LOAD_STATE)" \
   "usage text missing --state-cmd"
@@ -54,6 +54,8 @@ require_pattern 'DEFAULT_SCREENSHOT_DIR="$HOME/.config/retroarch/screenshots"' \
   "default screenshot path missing"
 require_pattern 'force_fullscreen="${RUN_N64_FULLSCREEN:-0}"' \
   "default windowed fullscreen policy missing"
+require_pattern 'mode="$(xrandr 2>/dev/null | awk ' \
+  "desktop resolution helper missing"
 require_pattern 'buttons_csv="start"' "default Paper Mario button sequence missing"
 require_pattern 'max_presses=2' "default max presses missing"
 require_pattern 'screenshot_at=27' "default screenshot timing missing"
@@ -61,6 +63,9 @@ require_pattern 'cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"' \
   "temp core options copy missing"
 require_pattern 'apply_core_option_overrides' "core option override application missing"
 require_pattern 'screenshot_directory = "$capture_dir"' "capture appendconfig missing screenshot directory override"
+require_pattern 'video_window_custom_size_enable = "true"' "capture appendconfig missing window size override"
+require_pattern 'video_windowed_position_width = "$window_override_width"' "window width override missing"
+require_pattern 'video_windowed_position_height = "$window_override_height"' "window height override missing"
 require_pattern 'send_netcmd "SCREENSHOT"' "RetroArch screenshot command missing"
 require_pattern 'export RUN_N64_CORE_OPTIONS_FILE="$core_options_file"' \
   "temp core options env export missing"

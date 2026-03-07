@@ -84,10 +84,10 @@ Co-Authored-By: Codex <noreply@openai.com>
   - on the current 4x state path, identical `scale` and `final` dumps mean the artifact is already present by `scale_stage()`
   - if `accurate` vs `experimental` only diverge at `scale/final` and not `aa/divot`, keep the investigation in `scale_stage()` / `vi_scale.frag`
   - the current experimental VI path already improves the oracle, but it did not solve the main horizontal line / seam artifact
-  - the current best experimental VI path combines a non-linear row-phase-aware Y adjustment (`0/2/7/18`) with an upward-skewed 4-tap vertical footprint (`upper 8/16`, `lower 7/16`) plus a localized `y_frac` remap for phases `1/2` in the upper source band (`y >> 10 < 512`); keep that as the experimental baseline unless a replacement clearly beats it
+  - the current best experimental VI path combines a non-linear row-phase-aware Y adjustment (`0/2/7/18`) with an upward-skewed 4-tap vertical footprint (`upper 8/16`, `lower 7/16`) plus a localized `y_frac` remap for phases `1/2` in the upper source band (`y >> 10 < 640`); keep that as the experimental baseline unless a replacement clearly beats it
   - row-periodicity analysis on `scale` dumps is useful here, but it is not the only truth signal: the prior best row-phase-only path measured `mod4 0.4867`, `mod8 1.1960`, `mod12 1.7706`, while the current combined path is slightly worse on that metric (`mod4 0.5443`, `mod8 1.2770`, `mod12 1.8259`) but still better on the saved Paper Mario oracle overall
   - when validating this path, expect a small left-side capture variance on repeated runs from the same save-state; the stable regions to trust most are `right`, `top`, `bottom`, `file2_new`, and the `scale` dump itself
-  - current representative stable metrics for that experimental baseline: `full 46.7833`, `left 64.1704`, `right 46.7738`, `top 45.6523`, `bottom 57.1673`, `file2_new 20.7021`
+  - current representative stable metrics for that experimental baseline: `full 46.7829`, `left 64.1701`, `right 46.7731`, `top 45.6523`, `bottom 57.1673`, `file2_new 20.7021`
   - keep that VI path in mind as a secondary improvement area, but prioritize the horizontal-line issue before doing many more tiny VI kernel tweaks
 - Save-state warning:
   - prefer save states for fast iteration when they were created from the same ROM image and the same core path you are validating

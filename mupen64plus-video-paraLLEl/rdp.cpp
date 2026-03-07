@@ -4,6 +4,7 @@
 #include "rdp_frame_mapping.hpp"
 #include "rdp_init_policy.hpp"
 #include "rdp_retro_image_mapping.hpp"
+#include "rdp_scaling_quirk_policy.hpp"
 #include "rdp_scanout_fallback.hpp"
 #include "rdp_vulkan_glue.hpp"
 #include "Gfx #1.3.h"
@@ -227,8 +228,13 @@ bool init()
 	}
 
 	RDP::Quirks quirks;
+	detail::ScalingQuirkPolicyInput scaling_quirk_input = {};
+	scaling_quirk_input.vi_scaling_mode = vi_scaling_mode;
+	scaling_quirk_input.upscaling_factor = upscaling;
+	scaling_quirk_input.native_tex_rect = native_tex_rect;
+	auto scaling_quirk_policy = detail::derive_scaling_quirk_policy(scaling_quirk_input);
 	quirks.set_native_texture_lod(native_texture_lod);
-	quirks.set_native_resolution_tex_rect(native_tex_rect);
+	quirks.set_native_resolution_tex_rect(scaling_quirk_policy.effective_native_tex_rect);
 	frontend->set_quirks(quirks);
 
 	hires_cache_path = detail::resolve_hires_cache_path(hires_cache_path, getenv("PARALLEL_RDP_HIRES_CACHE_PATH"));
@@ -377,8 +383,13 @@ void complete_frame()
 	end_ts.reset();
 
 	RDP::Quirks quirks;
+	detail::ScalingQuirkPolicyInput scaling_quirk_input = {};
+	scaling_quirk_input.vi_scaling_mode = vi_scaling_mode;
+	scaling_quirk_input.upscaling_factor = upscaling;
+	scaling_quirk_input.native_tex_rect = native_tex_rect;
+	auto scaling_quirk_policy = detail::derive_scaling_quirk_policy(scaling_quirk_input);
 	quirks.set_native_texture_lod(native_texture_lod);
-	quirks.set_native_resolution_tex_rect(native_tex_rect);
+	quirks.set_native_resolution_tex_rect(scaling_quirk_policy.effective_native_tex_rect);
 	frontend->set_quirks(quirks);
 
 	frontend->begin_frame_context();

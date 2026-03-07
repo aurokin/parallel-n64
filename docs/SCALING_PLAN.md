@@ -28,6 +28,7 @@ Do not re-run GLideN64 unless a major method change requires refreshing the orac
 For current `parallel` iteration, use:
 
 - `./run-paper-mario-scaling-capture.sh --tag <tag>`
+- `./run-paper-mario-scaling-compare.sh --tag <tag>`
 
 This keeps scaling work on the same-core save-state path instead of the slower, less stable button-path capture.
 

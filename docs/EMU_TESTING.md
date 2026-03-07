@@ -104,6 +104,11 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses the same-core save state path for faster, stable scaling iteration
   - forces HIRES off, `4x` upscaling, and `disable` downscaling
+- `parallel` scaling compare helper:
+  - `./run-paper-mario-scaling-compare.sh --tag <tag>`
+  - or `./run-paper-mario-scaling-compare.sh --candidate /path/to/capture.png`
+  - aligns the capture to the preserved GLide scaling oracle
+  - writes summary metrics and visual diffs under `/tmp/parallel-n64-paper-mario-scaling-compare/<tag-or-capture-name>`
 - `GLideN64` capture helper:
   - stages the real RetroArch `Mupen64Plus-Next.opt`
   - with `--hires-on`, stages `PAPER MARIO_HIRESTEXTURES.hts` at `system/Mupen64plus/cache`

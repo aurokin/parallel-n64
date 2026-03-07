@@ -57,6 +57,8 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off
+- Parallel scaling compare:
+  - `./run-paper-mario-scaling-compare.sh --tag <tag>`
 - GLide oracle capture:
   - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
 - Preserved GLide oracle:

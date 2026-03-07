@@ -2,12 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SMOKE_RUNNER="$SCRIPT_DIR/run-n64-smoke-start.sh"
+SMOKE_START_RUNNER="$SCRIPT_DIR/run-n64-smoke-start.sh"
+SMOKE_STATE_RUNNER="$SCRIPT_DIR/run-n64-smoke-state.sh"
 DEFAULT_ROM_DIR="/home/auro/code/n64_roms"
 DEFAULT_ROM_NAME="Paper Mario (USA).zip"
 DEFAULT_CORE_OPTIONS_FILE="$HOME/.config/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"
 DEFAULT_SCREENSHOT_DIR="$HOME/.config/retroarch/screenshots"
 
+smoke_mode="buttons"
 start_delay=20
 post_delay=10
 input_interval=5
@@ -15,6 +17,12 @@ button_hold_ms=140
 max_presses=2
 buttons_csv="start"
 screenshot_at=27
+state_load_delay="2.2"
+state_pause_delay="0.2"
+state_shot_delay="1.2"
+state_close_delay="0.2"
+state_cmd="LOAD_STATE"
+state_pause="0"
 netcmd_port=55355
 rom_dir="$DEFAULT_ROM_DIR"
 rom_path="$DEFAULT_ROM_NAME"
@@ -38,6 +46,7 @@ Usage:
   run-paper-mario-hires-capture.sh [options] [-- RUN_N64_ARGS...]
 
 Options:
+  --smoke-mode MODE       Capture path: buttons|state (default: buttons)
   --tag NAME              Capture subdirectory name (default: timestamp)
   --capture-root PATH     Root directory for screenshots/logs (default: /tmp/parallel-n64-paper-mario-captures)
   --rom PATH              ROM path passed to run-n64.sh (default: Paper Mario (USA).zip)
@@ -49,6 +58,13 @@ Options:
   --buttons CSV           Buttons to tap each tick (default: start)
   --max-presses N         Cap total input ticks (default: 2)
   --screenshot-at SEC     Seconds after launch to send SCREENSHOT (default: 27)
+  --state-load-delay SEC  Delay before sending state command in state mode (default: 2.2)
+  --state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)
+  --state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)
+  --state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 0.2)
+  --state-cmd CMD         Command to send for state load in state mode (default: LOAD_STATE)
+  --state-pause           Send PAUSE_TOGGLE before screenshot in state mode
+  --no-state-pause        Skip PAUSE_TOGGLE in state mode (default)
   --port PORT             RetroArch network command UDP port (default: 55355)
   --core-option K=V       Override a ParaLLEl core option in the temp options file
   --debug-hires           Enable PARALLEL_RDP_HIRES_DEBUG=1 for the run
@@ -62,9 +78,10 @@ Behavior:
     runs against that temp copy for repeatability.
   - Adds a temporary RetroArch appendconfig that points screenshot output at the
     capture directory.
-  - Uses run-n64-smoke-start.sh for deterministic Paper Mario boot/input:
+  - buttons mode uses run-n64-smoke-start.sh for deterministic Paper Mario input:
     boot, wait 20s, press start, wait 5s, press start, wait 2s.
-  - Sends RetroArch's SCREENSHOT network command at --screenshot-at seconds.
+  - state mode uses run-n64-smoke-state.sh to load the current same-core save state.
+  - buttons mode sends RetroArch's SCREENSHOT network command at --screenshot-at seconds.
 EOF_USAGE
 }
 
@@ -143,6 +160,10 @@ cleanup() {
 
 while (($#)); do
   case "$1" in
+    --smoke-mode)
+      shift
+      smoke_mode="${1:-}"
+      ;;
     --tag)
       shift
       tag="${1:-}"
@@ -187,6 +208,32 @@ while (($#)); do
       shift
       screenshot_at="${1:-}"
       ;;
+    --state-load-delay)
+      shift
+      state_load_delay="${1:-}"
+      ;;
+    --state-pause-delay)
+      shift
+      state_pause_delay="${1:-}"
+      ;;
+    --state-shot-delay)
+      shift
+      state_shot_delay="${1:-}"
+      ;;
+    --state-close-delay)
+      shift
+      state_close_delay="${1:-}"
+      ;;
+    --state-cmd)
+      shift
+      state_cmd="${1:-}"
+      ;;
+    --state-pause)
+      state_pause="1"
+      ;;
+    --no-state-pause)
+      state_pause="0"
+      ;;
     --port)
       shift
       netcmd_port="${1:-}"
@@ -225,8 +272,18 @@ while (($#)); do
   shift
 done
 
-if [[ ! -x "$SMOKE_RUNNER" ]]; then
-  echo "run-n64-smoke-start.sh is missing or not executable: $SMOKE_RUNNER" >&2
+if [[ "$smoke_mode" != "buttons" && "$smoke_mode" != "state" ]]; then
+  echo "--smoke-mode must be 'buttons' or 'state': $smoke_mode" >&2
+  exit 1
+fi
+
+if [[ ! -x "$SMOKE_START_RUNNER" ]]; then
+  echo "run-n64-smoke-start.sh is missing or not executable: $SMOKE_START_RUNNER" >&2
+  exit 1
+fi
+
+if [[ ! -x "$SMOKE_STATE_RUNNER" ]]; then
+  echo "run-n64-smoke-state.sh is missing or not executable: $SMOKE_STATE_RUNNER" >&2
   exit 1
 fi
 
@@ -270,6 +327,26 @@ if ! is_nonnegative_number "$screenshot_at"; then
   exit 1
 fi
 
+if ! is_nonnegative_number "$state_load_delay"; then
+  echo "--state-load-delay must be a non-negative number: $state_load_delay" >&2
+  exit 1
+fi
+
+if ! is_nonnegative_number "$state_pause_delay"; then
+  echo "--state-pause-delay must be a non-negative number: $state_pause_delay" >&2
+  exit 1
+fi
+
+if ! is_nonnegative_number "$state_shot_delay"; then
+  echo "--state-shot-delay must be a non-negative number: $state_shot_delay" >&2
+  exit 1
+fi
+
+if ! is_nonnegative_number "$state_close_delay"; then
+  echo "--state-close-delay must be a non-negative number: $state_close_delay" >&2
+  exit 1
+fi
+
 if ! is_positive_int "$netcmd_port"; then
   echo "--port must be a positive integer: $netcmd_port" >&2
   exit 1
@@ -292,13 +369,27 @@ stamp_file="$(mktemp /tmp/parallel-n64-paper-mario-shot-stamp.XXXX)"
 trap cleanup EXIT
 
 declare -a smoke_cmd=()
-smoke_cmd+=("$SMOKE_RUNNER")
-smoke_cmd+=("--start-delay" "$start_delay")
-smoke_cmd+=("--post-delay" "$post_delay")
-smoke_cmd+=("--interval" "$input_interval")
-smoke_cmd+=("--button-hold-ms" "$button_hold_ms")
-smoke_cmd+=("--buttons" "$buttons_csv")
-smoke_cmd+=("--max-presses" "$max_presses")
+if [[ "$smoke_mode" == "buttons" ]]; then
+  smoke_cmd+=("$SMOKE_START_RUNNER")
+  smoke_cmd+=("--start-delay" "$start_delay")
+  smoke_cmd+=("--post-delay" "$post_delay")
+  smoke_cmd+=("--interval" "$input_interval")
+  smoke_cmd+=("--button-hold-ms" "$button_hold_ms")
+  smoke_cmd+=("--buttons" "$buttons_csv")
+  smoke_cmd+=("--max-presses" "$max_presses")
+else
+  smoke_cmd+=("$SMOKE_STATE_RUNNER")
+  smoke_cmd+=("--load-delay" "$state_load_delay")
+  smoke_cmd+=("--pause-delay" "$state_pause_delay")
+  smoke_cmd+=("--shot-delay" "$state_shot_delay")
+  smoke_cmd+=("--close-delay" "$state_close_delay")
+  smoke_cmd+=("--state-cmd" "$state_cmd")
+  if [[ "$state_pause" == "1" ]]; then
+    smoke_cmd+=(--pause)
+  else
+    smoke_cmd+=(--no-pause)
+  fi
+fi
 smoke_cmd+=("--rom-dir" "$rom_dir" "$rom_path")
 if [[ "$force_fullscreen" == "0" ]]; then
   smoke_cmd+=("--no-fullscreen")
@@ -311,7 +402,13 @@ smoke_cmd+=(-- --appendconfig "$capture_cfg")
 echo "Capture dir: $capture_dir"
 echo "Log file: $log_file"
 echo "Temp core options: $core_options_file"
-echo "Screenshot timing: +${screenshot_at}s"
+if [[ "$smoke_mode" == "buttons" ]]; then
+  echo "Smoke mode: buttons"
+  echo "Screenshot timing: +${screenshot_at}s"
+else
+  echo "Smoke mode: state"
+  echo "State load timing: +${state_load_delay}s, screenshot +${state_shot_delay}s after load/pause"
+fi
 
 (
   export RUN_N64_FULLSCREEN="$force_fullscreen"
@@ -324,12 +421,14 @@ echo "Screenshot timing: +${screenshot_at}s"
 ) >"$log_file" 2>&1 &
 run_pid="$!"
 
-sleep "$screenshot_at"
-if kill -0 "$run_pid" 2>/dev/null; then
-  if send_netcmd "SCREENSHOT"; then
-    echo "NetCmd: sent 'SCREENSHOT'"
-  else
-    echo "NetCmd failed: 'SCREENSHOT'" >&2
+if [[ "$smoke_mode" == "buttons" ]]; then
+  sleep "$screenshot_at"
+  if kill -0 "$run_pid" 2>/dev/null; then
+    if send_netcmd "SCREENSHOT"; then
+      echo "NetCmd: sent 'SCREENSHOT'"
+    else
+      echo "NetCmd failed: 'SCREENSHOT'" >&2
+    fi
   fi
 fi
 

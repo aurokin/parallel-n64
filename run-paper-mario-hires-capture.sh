@@ -7,6 +7,7 @@ SMOKE_STATE_RUNNER="$SCRIPT_DIR/run-n64-smoke-state.sh"
 DEFAULT_ROM_DIR="/home/auro/code/n64_roms"
 DEFAULT_ROM_NAME="Paper Mario (USA).zip"
 DEFAULT_CORE_OPTIONS_FILE="$HOME/.config/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"
+DEFAULT_RETROARCH_CFG="$HOME/.config/retroarch/retroarch.cfg"
 DEFAULT_SCREENSHOT_DIR="$HOME/.config/retroarch/screenshots"
 
 smoke_mode="buttons"
@@ -31,10 +32,13 @@ tag=""
 debug_hires="0"
 force_fullscreen="${RUN_N64_FULLSCREEN:-0}"
 
-capture_cfg=""
 capture_dir=""
+xdg_root=""
+retroarch_cfg=""
 log_file=""
 core_options_file=""
+home_core_options_file="$DEFAULT_CORE_OPTIONS_FILE"
+home_core_options_backup=""
 stamp_file=""
 run_pid=""
 window_override_width=""
@@ -76,10 +80,8 @@ Options:
   -h, --help              Show this help
 
 Behavior:
-  - Copies the active ParaLLEl core options file into the capture directory and
-    runs against that temp copy for repeatability.
-  - Adds a temporary RetroArch appendconfig that points screenshot output at the
-    capture directory.
+  - Uses an isolated RetroArch config root under the capture directory.
+  - Points RetroArch core_options_path at a temp ParaLLEl options file for repeatability.
   - buttons mode uses run-n64-smoke-start.sh for deterministic Paper Mario input:
     boot, wait 20s, press start, wait 5s, press start, wait 2s.
   - state mode uses run-n64-smoke-state.sh to load the current same-core save state.
@@ -130,6 +132,24 @@ apply_core_option_overrides() {
   done
 }
 
+ensure_retroarch_setting() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  mkdir -p "$(dirname "$file")"
+  if [[ ! -f "$file" ]]; then
+    printf '%s = "%s"\n' "$key" "$value" >"$file"
+    return
+  fi
+
+  if rg -q "^${key} = " "$file"; then
+    sed -i "s#^${key} = .*#${key} = \"${value}\"#" "$file"
+  else
+    printf '%s = "%s"\n' "$key" "$value" >>"$file"
+  fi
+}
+
 get_desktop_resolution() {
   if ! command -v xrandr >/dev/null 2>&1; then
     return 1
@@ -153,32 +173,53 @@ get_desktop_resolution() {
   printf '%s\n' "$mode"
 }
 
-write_capture_appendconfig() {
+write_temp_retroarch_cfg() {
   local resolution=""
-  capture_cfg="$(mktemp /tmp/parallel-n64-paper-mario-capture.XXXX.cfg)"
-  cat >"$capture_cfg" <<EOF_CFG
-screenshot_directory = "$capture_dir"
-screenshots_in_content_dir = "false"
-sort_screenshots_by_content_enable = "false"
-auto_screenshot_filename = "true"
-notification_show_screenshot = "false"
-notification_show_screenshot_flash = "0"
-notification_show_save_state = "false"
-EOF_CFG
+  mkdir -p "$(dirname "$retroarch_cfg")"
+  cp "$DEFAULT_RETROARCH_CFG" "$retroarch_cfg"
+  ensure_retroarch_setting "$retroarch_cfg" "config_save_on_exit" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "true"
+  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" "$xdg_root/retroarch/config"
+  ensure_retroarch_setting "$retroarch_cfg" "screenshot_directory" "$capture_dir"
+  ensure_retroarch_setting "$retroarch_cfg" "screenshots_in_content_dir" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "sort_screenshots_by_content_enable" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "auto_screenshot_filename" "true"
+  ensure_retroarch_setting "$retroarch_cfg" "notification_show_screenshot" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "notification_show_screenshot_flash" "0"
+  ensure_retroarch_setting "$retroarch_cfg" "notification_show_save_state" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "network_cmd_enable" "true"
+  ensure_retroarch_setting "$retroarch_cfg" "network_cmd_port" "$netcmd_port"
 
   if [[ "$force_fullscreen" == "0" && "${RUN_N64_MAXIMIZE:-1}" != "0" ]]; then
     if resolution="$(get_desktop_resolution)"; then
       window_override_width="${resolution%x*}"
       window_override_height="${resolution#*x}"
-      cat >>"$capture_cfg" <<EOF_CFG
-video_window_custom_size_enable = "true"
-video_windowed_position_x = "0"
-video_windowed_position_y = "0"
-video_windowed_position_width = "$window_override_width"
-video_windowed_position_height = "$window_override_height"
-video_window_save_positions = "false"
-EOF_CFG
+      ensure_retroarch_setting "$retroarch_cfg" "video_window_custom_size_enable" "true"
+      ensure_retroarch_setting "$retroarch_cfg" "video_windowed_position_x" "0"
+      ensure_retroarch_setting "$retroarch_cfg" "video_windowed_position_y" "0"
+      ensure_retroarch_setting "$retroarch_cfg" "video_windowed_position_width" "$window_override_width"
+      ensure_retroarch_setting "$retroarch_cfg" "video_windowed_position_height" "$window_override_height"
+      ensure_retroarch_setting "$retroarch_cfg" "video_window_save_positions" "false"
     fi
+  fi
+}
+
+stage_home_core_options() {
+  mkdir -p "$(dirname "$home_core_options_file")"
+
+  if [[ -e "$home_core_options_file" || -L "$home_core_options_file" ]]; then
+    home_core_options_backup="$(mktemp /tmp/parallel-n64-paper-mario-coreopts.XXXXXX)"
+    mv "$home_core_options_file" "$home_core_options_backup"
+  fi
+
+  cp "$core_options_file" "$home_core_options_file"
+}
+
+restore_home_core_options() {
+  rm -f "$home_core_options_file" || true
+
+  if [[ -n "$home_core_options_backup" && -e "$home_core_options_backup" ]]; then
+    mv "$home_core_options_backup" "$home_core_options_file"
   fi
 }
 
@@ -191,9 +232,7 @@ cleanup() {
     fi
   fi
 
-  if [[ -n "$capture_cfg" && -f "$capture_cfg" ]]; then
-    rm -f "$capture_cfg" || true
-  fi
+  restore_home_core_options
 
   if [[ -n "$stamp_file" && -f "$stamp_file" ]]; then
     rm -f "$stamp_file" || true
@@ -334,6 +373,11 @@ if [[ ! -f "$DEFAULT_CORE_OPTIONS_FILE" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$DEFAULT_RETROARCH_CFG" ]]; then
+  echo "Missing RetroArch config file: $DEFAULT_RETROARCH_CFG" >&2
+  exit 1
+fi
+
 if ! command -v nc >/dev/null 2>&1; then
   echo "nc (netcat) is required for RetroArch network commands." >&2
   exit 1
@@ -401,11 +445,15 @@ fi
 capture_dir="$capture_root/$tag"
 mkdir -p "$capture_dir"
 
+xdg_root="$capture_dir/xdg"
+retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"
 log_file="$capture_dir/run.log"
-core_options_file="$capture_dir/ParaLLEl N64.opt"
+core_options_file="$xdg_root/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"
+mkdir -p "$(dirname "$core_options_file")"
 cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"
 apply_core_option_overrides
-write_capture_appendconfig
+write_temp_retroarch_cfg
+stage_home_core_options
 stamp_file="$(mktemp /tmp/parallel-n64-paper-mario-shot-stamp.XXXX)"
 
 trap cleanup EXIT
@@ -439,11 +487,14 @@ fi
 if ((${#runner_args[@]} > 0)); then
   smoke_cmd+=("${runner_args[@]}")
 fi
-smoke_cmd+=(-- --appendconfig "$capture_cfg")
+smoke_cmd+=(-- --config "$retroarch_cfg")
 
 echo "Capture dir: $capture_dir"
+echo "Temp XDG root: $xdg_root"
 echo "Log file: $log_file"
 echo "Temp core options: $core_options_file"
+echo "Home core options override: $home_core_options_file"
+echo "RetroArch config: $retroarch_cfg"
 if [[ "$smoke_mode" == "buttons" ]]; then
   echo "Smoke mode: buttons"
   echo "Screenshot timing: +${screenshot_at}s"
@@ -459,6 +510,7 @@ fi
   export RUN_N64_FULLSCREEN="$force_fullscreen"
   export RUN_N64_MAXIMIZE=1
   export RUN_N64_CORE_OPTIONS_FILE="$core_options_file"
+  export XDG_CONFIG_HOME="$xdg_root"
   if [[ "$debug_hires" == "1" ]]; then
     export PARALLEL_RDP_HIRES_DEBUG=1
   fi

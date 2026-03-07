@@ -57,6 +57,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off
+  - stages a temp ParaLLEl core-options file at the real home path for the run because RetroArch/core option roots are not reliable here
 - Parallel scaling compare:
   - `./run-paper-mario-scaling-compare.sh --tag <tag>`
 - GLide oracle capture:

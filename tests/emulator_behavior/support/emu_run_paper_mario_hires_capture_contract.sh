@@ -50,6 +50,8 @@ require_pattern 'SMOKE_STATE_RUNNER="$SCRIPT_DIR/run-n64-smoke-state.sh"' \
 require_pattern 'smoke_mode="buttons"' "default smoke mode missing"
 require_pattern 'DEFAULT_CORE_OPTIONS_FILE="$HOME/.config/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"' \
   "default core options path missing"
+require_pattern 'DEFAULT_RETROARCH_CFG="$HOME/.config/retroarch/retroarch.cfg"' \
+  "default RetroArch config path missing"
 require_pattern 'DEFAULT_SCREENSHOT_DIR="$HOME/.config/retroarch/screenshots"' \
   "default screenshot path missing"
 require_pattern 'force_fullscreen="${RUN_N64_FULLSCREEN:-0}"' \
@@ -59,16 +61,29 @@ require_pattern 'mode="$(xrandr 2>/dev/null | awk ' \
 require_pattern 'buttons_csv="start"' "default Paper Mario button sequence missing"
 require_pattern 'max_presses=2' "default max presses missing"
 require_pattern 'screenshot_at=27' "default screenshot timing missing"
+require_pattern 'xdg_root="$capture_dir/xdg"' "temp XDG root missing"
+require_pattern 'retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"' \
+  "temp RetroArch config path missing"
+require_pattern 'core_options_file="$xdg_root/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"' \
+  "temp core options path missing"
 require_pattern 'cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"' \
   "temp core options copy missing"
 require_pattern 'apply_core_option_overrides' "core option override application missing"
-require_pattern 'screenshot_directory = "$capture_dir"' "capture appendconfig missing screenshot directory override"
-require_pattern 'video_window_custom_size_enable = "true"' "capture appendconfig missing window size override"
-require_pattern 'video_windowed_position_width = "$window_override_width"' "window width override missing"
-require_pattern 'video_windowed_position_height = "$window_override_height"' "window height override missing"
+require_pattern 'write_temp_retroarch_cfg()' "temp RetroArch config writer missing"
+require_pattern 'stage_home_core_options()' "home core options staging missing"
+require_pattern 'restore_home_core_options()' "home core options restore missing"
+require_pattern 'home_core_options_backup="$(mktemp /tmp/parallel-n64-paper-mario-coreopts.XXXXXX)"' \
+  "home core options backup missing"
+require_pattern 'core_options_path" "$xdg_root/retroarch/config"' "core options path override missing"
+require_pattern 'screenshot_directory" "$capture_dir"' "RetroArch config missing screenshot directory override"
+require_pattern 'network_cmd_enable" "true"' "RetroArch config missing network command enable"
+require_pattern 'video_window_custom_size_enable" "true"' "RetroArch config missing window size override"
+require_pattern 'video_windowed_position_width" "$window_override_width"' "window width override missing"
+require_pattern 'video_windowed_position_height" "$window_override_height"' "window height override missing"
 require_pattern 'send_netcmd "SCREENSHOT"' "RetroArch screenshot command missing"
 require_pattern 'export RUN_N64_CORE_OPTIONS_FILE="$core_options_file"' \
   "temp core options env export missing"
+require_pattern 'export XDG_CONFIG_HOME="$xdg_root"' "temp XDG config export missing"
 require_pattern 'export PARALLEL_RDP_HIRES_DEBUG=1' "hires debug export missing"
 require_pattern 'core_option_overrides+=("${1:-}")' "core option override parsing missing"
 require_pattern 'smoke_cmd+=("--buttons" "$buttons_csv")' "button forwarding missing"
@@ -77,7 +92,9 @@ require_pattern 'smoke_cmd+=("--load-delay" "$state_load_delay")' "state load de
 require_pattern 'smoke_cmd+=("--shot-delay" "$state_shot_delay")' "state shot delay forwarding missing"
 require_pattern 'echo "Smoke mode: state"' "state mode logging missing"
 require_pattern 'echo "Smoke mode: buttons"' "buttons mode logging missing"
-require_pattern 'smoke_cmd+=(-- --appendconfig "$capture_cfg")' "appendconfig forwarding missing"
+require_pattern 'smoke_cmd+=(-- --config "$retroarch_cfg")' "RetroArch config forwarding missing"
+require_pattern 'echo "Home core options override: $home_core_options_file"' \
+  "home core options logging missing"
 require_pattern 'find "$DEFAULT_SCREENSHOT_DIR" -maxdepth 1 -type f -name '\''*.png'\'' -newer "$stamp_file"' \
   "default screenshot fallback missing"
 

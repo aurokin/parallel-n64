@@ -97,7 +97,8 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   5. press `Start`
   6. wait `2s`
 - `parallel` capture helper:
-  - copies the active ParaLLEl core options file into a temp capture dir
+  - builds an isolated RetroArch config root under the capture dir
+  - stages a temp ParaLLEl core options file and temporarily installs it at the real home core-options path for the run
   - drives the button path with the virtual pad
   - captures a RetroArch screenshot into the temp capture dir
 - `parallel` scaling helper:

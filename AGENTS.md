@@ -85,7 +85,7 @@ Co-Authored-By: Codex <noreply@openai.com>
   - if `accurate` vs `experimental` only diverge at `scale/final` and not `aa/divot`, keep the investigation in `scale_stage()` / `vi_scale.frag`
   - the current experimental VI path already improves the oracle, but it did not solve the main horizontal line / seam artifact
   - the current best experimental VI path includes a row-phase-aware Y adjustment before the 4-tap reconstruction footprint; keep that as the experimental baseline unless a replacement clearly beats it
-  - row-periodicity analysis on `scale` dumps is useful here: the current best path reduced the measured `mod4` spread from `5.7583` to `3.5788`, but the scene still has visible horizontal lines
+  - row-periodicity analysis on `scale` dumps is useful here: the initial row-phase path reduced the measured `mod4` spread from `5.7583` to `3.5788`; the current best path trades a small amount of that cadence metric for a better Paper Mario oracle overall
   - keep that VI path in mind as a secondary improvement area, but prioritize the horizontal-line issue before doing many more tiny VI kernel tweaks
 - Save-state warning:
   - prefer save states for fast iteration when they were created from the same ROM image and the same core path you are validating

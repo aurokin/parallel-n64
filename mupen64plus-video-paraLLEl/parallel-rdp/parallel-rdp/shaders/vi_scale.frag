@@ -92,8 +92,8 @@ uvec3 sample_divot_output(int x, int y)
 
     if (SCALE_AA)
     {
-        int x_frac = (x >> 5) & 31;
-        int y_frac = (y >> 5) & 31;
+        uint x_frac = uint((x >> 5) & 31);
+        uint y_frac = uint((y >> 5) & 31);
 
         uvec3 c10 = texelFetchOffset(uDivotOutput, ivec3(base_coord, 0), 0, ivec2(1, 0)).rgb;
         uvec3 c01 = texelFetchOffset(uDivotOutput, ivec3(base_coord, bug_offset), 0, ivec2(0, 1)).rgb;
@@ -125,7 +125,7 @@ void main()
     if (EXPERIMENTAL_RECONSTRUCTION)
     {
         int phase = coord.y & 3;
-        y += (registers.y_add * phase) >> 3;
+        y += (registers.y_add * phase * 5) >> 5;
         int quarter_x = max(registers.x_add >> 2, 1);
         int three_eighth_y = max((registers.y_add * 3) >> 3, 1);
         int three_quarter_x = max((registers.x_add * 3) >> 2, 1);

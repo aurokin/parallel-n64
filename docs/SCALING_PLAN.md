@@ -39,16 +39,17 @@ The helper currently relies on an explicit temp `core-options.cfg` inside its is
 - The experimental VI reconstruction path is real and already improves the saved Paper Mario oracle over accurate mode.
 - The current committed improvements came from subpixel reconstruction and X-axis sample-phase tuning in `vi_scale.frag`.
 - The current best experimental path also adds a row-phase-aware Y adjustment in `vi_scale.frag` before the 4-tap experimental reconstruction footprint is sampled.
+- That row-phase curve has already moved once: the initial `0/4/8/12`-style fractional schedule was a real improvement, and the current best schedule is slightly stronger, improving the Paper Mario oracle further while keeping the same general approach.
 - That row-phase adjustment materially reduces the remaining 4x cadence artifact in the `scale` dump:
   - previous committed experimental path: `mod4 spread 5.7583`, `mod8 spread 6.5015`, `mod12 spread 6.4761`
   - current row-phase path: `mod4 spread 3.5788`, `mod8 spread 4.5326`, `mod12 spread 4.5518`
 - Latest Paper Mario oracle comparison for the current row-phase path:
-  - `full 46.9277`
-  - `left 64.2701`
-  - `right 46.8548`
-  - `top 46.0981`
-  - `bottom 57.2246`
-  - `file2_new 20.7047`
+  - `full 46.8810`
+  - `left 64.2478`
+  - `right 46.8315`
+  - `top 45.8348`
+  - `bottom 57.2561`
+  - `file2_new 20.7236`
 - There is still more room to improve this VI path, but it did not eliminate the main horizontal seam / banding issue on the file-select scene.
 - Treat VI sample-phase tuning as a proven secondary lever, not the primary remaining blocker.
 - When work resumes, preserve the current experimental path as a better baseline, but focus new effort on the horizontal-line artifact before spending many more cycles on small VI kernel refinements.

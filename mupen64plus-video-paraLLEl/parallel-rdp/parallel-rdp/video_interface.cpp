@@ -26,6 +26,7 @@
 #include "vi_scanout_policy.hpp"
 #include "vi_scanout_flow_policy.hpp"
 #include "vi_scale_policy.hpp"
+#include "vi_scale_sampling_policy.hpp"
 
 #ifndef PARALLEL_RDP_SHADER_DIR
 #include "shaders/slangmosh.hpp"
@@ -529,6 +530,11 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 	scale_policy_input.upscale_deinterlacing = options.upscale_deinterlacing;
 
 	auto scale_policy = detail::derive_vi_scale_policy(scale_policy_input);
+	detail::VIScaleSamplingPolicyInput sampling_policy_input = {};
+	sampling_policy_input.scaling_mode = options.scaling_mode;
+	sampling_policy_input.scaling_factor = scaling_factor;
+	sampling_policy_input.vi_scale = options.vi.scale;
+	auto sampling_policy = detail::derive_vi_scale_sampling_policy(sampling_policy_input);
 	unsigned crop_pixels_x = scale_policy.crop_pixels_x;
 	unsigned crop_pixels_y = scale_policy.crop_pixels_y;
 
@@ -568,13 +574,14 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 
 	cmd.begin_render_pass(rp);
 
-	cmd.set_specialization_constant_mask((1 << 1) | (1 << 2));
+	cmd.set_specialization_constant_mask((1 << 1) | (1 << 2) | (1 << 3));
 	cmd.set_specialization_constant(1,
 	                                regs.status & (VI_CONTROL_GAMMA_ENABLE_BIT |
 	                                               VI_CONTROL_GAMMA_DITHER_ENABLE_BIT |
 	                                               VI_CONTROL_META_SCALE_BIT |
 	                                               VI_CONTROL_META_AA_BIT));
 	cmd.set_specialization_constant(2, uint32_t(fetch_bug));
+	cmd.set_specialization_constant(3, uint32_t(sampling_policy.use_subpixel_reconstruction));
 
 	struct Push
 	{

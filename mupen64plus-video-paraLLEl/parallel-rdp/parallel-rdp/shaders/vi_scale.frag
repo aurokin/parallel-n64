@@ -73,34 +73,20 @@ uvec3 integer_gamma(uvec3 color)
 }
 
 layout(constant_id = 2) const bool FETCH_BUG = false;
+layout(constant_id = 3) const bool EXPERIMENTAL_RECONSTRUCTION = false;
 
-void main()
+uvec3 sample_divot_output(int x, int y)
 {
-    ivec2 coord = ivec2(gl_FragCoord.xy) + ivec2(registers.h_offset, registers.v_offset);
-
-    if ((coord.y & registers.serrate_mask) != registers.serrate_select)
-        discard;
-    coord.y >>= registers.serrate_shift;
-
-    if (GAMMA_DITHER)
-        reseed_noise(coord.x, coord.y, registers.frame_count);
-
-    int x = coord.x * registers.x_add + registers.x_base;
-    int y = coord.y * registers.y_add + registers.y_base;
     ivec2 base_coord = ivec2(x, y) >> 10;
     uvec3 c00 = texelFetch(uDivotOutput, ivec3(base_coord, 0), 0).rgb;
 
     int bug_offset = 0;
     if (FETCH_BUG)
     {
-        // This is super awkward.
-        // Basically there seems to be some kind of issue where if we interpolate in Y,
-        // we're going to get buggy output.
-        // If we hit this case, the next line we filter against will come from the "buggy" array slice.
-        // Why this makes sense, I have no idea.
         int prev_y = (y - registers.y_add) >> 10;
         int next_y = (y + registers.y_add) >> 10;
-        if (coord.y != 0 && base_coord.y == prev_y && base_coord.y != next_y)
+        int coord_y = y >> 10;
+        if (coord_y != 0 && base_coord.y == prev_y && base_coord.y != next_y)
             bug_offset = 1;
     }
 
@@ -117,6 +103,38 @@ void main()
         c10 = vi_lerp(c10, c11, y_frac);
         c00 = vi_lerp(c00, c10, x_frac);
     }
+
+    return c00;
+}
+
+void main()
+{
+    ivec2 coord = ivec2(gl_FragCoord.xy) + ivec2(registers.h_offset, registers.v_offset);
+
+    if ((coord.y & registers.serrate_mask) != registers.serrate_select)
+        discard;
+    coord.y >>= registers.serrate_shift;
+
+    if (GAMMA_DITHER)
+        reseed_noise(coord.x, coord.y, registers.frame_count);
+
+    int x = coord.x * registers.x_add + registers.x_base;
+    int y = coord.y * registers.y_add + registers.y_base;
+    uvec3 c00;
+
+    if (EXPERIMENTAL_RECONSTRUCTION)
+    {
+        int quarter_x = max(registers.x_add >> 2, 1);
+        int quarter_y = max(registers.y_add >> 2, 1);
+        uvec3 accum = uvec3(0);
+        accum += sample_divot_output(x - quarter_x, y - quarter_y);
+        accum += sample_divot_output(x + quarter_x, y - quarter_y);
+        accum += sample_divot_output(x - quarter_x, y + quarter_y);
+        accum += sample_divot_output(x + quarter_x, y + quarter_y);
+        c00 = (accum + 2u) >> 2u;
+    }
+    else
+        c00 = sample_divot_output(x, y);
 
     if (GAMMA_ENABLE)
         c00 = integer_gamma(c00);

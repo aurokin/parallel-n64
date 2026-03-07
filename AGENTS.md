@@ -58,6 +58,8 @@ Co-Authored-By: Codex <noreply@openai.com>
   - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
 - Preserved GLide oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
+- Preserved GLide 4x HIRES-off scaling oracle:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-1`
 - Button-path scene for comparable screenshots:
   - boot
   - wait `20s`

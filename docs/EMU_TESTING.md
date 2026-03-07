@@ -108,6 +108,12 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
 - Most recent validated oracle screenshot:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5/Paper Mario (USA)-260306-151242.png`
+- Preserved GLide 4x HIRES-off scaling oracle:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-1`
+- Matching `parallel` 4x HIRES-off reference:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/reference-parallel-4x-hires-off-1`
+- Full-frame 4x HIRES-off comparison image:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/paper-mario-glide-vs-parallel-4x-hires-off-full.png`
 - Current divergence to focus on:
   - `parallel` still differs from the oracle on Paper Mario file-select stage/frame scaling and minification
 - Save-state caution:

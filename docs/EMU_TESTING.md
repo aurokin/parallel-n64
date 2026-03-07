@@ -102,14 +102,17 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - sends RetroArch `SCREENSHOT`
 - `GLideN64` capture helper:
   - stages the real RetroArch `Mupen64Plus-Next.opt`
-  - stages `PAPER MARIO_HIRESTEXTURES.hts` at `system/Mupen64plus/cache`
+  - with `--hires-on`, stages `PAPER MARIO_HIRESTEXTURES.hts` at `system/Mupen64plus/cache`
+  - with `--hires-off`, skips hi-res pack staging for native-scaling captures
   - drives the same button path and sends RetroArch `SCREENSHOT`
 - Preserved GLide oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
 - Most recent validated oracle screenshot:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5/Paper Mario (USA)-260306-151242.png`
 - Preserved GLide 4x HIRES-off scaling oracle:
-  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-1`
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-2`
+- Validated button-path scaling oracle screenshot:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-2/Paper Mario (USA)-260306-212123.png`
 - Matching `parallel` 4x HIRES-off reference:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/reference-parallel-4x-hires-off-1`
 - Full-frame 4x HIRES-off comparison image:

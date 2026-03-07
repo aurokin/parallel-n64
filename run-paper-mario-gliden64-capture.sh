@@ -31,6 +31,8 @@ system_dir="$DEFAULT_SYSTEM_DIR"
 force_fullscreen="${RUN_N64_FULLSCREEN:-1}"
 enable_maximize="${RUN_N64_MAXIMIZE:-1}"
 vpad_socket="/tmp/parallel-n64-vpad-gliden64.sock"
+hires_mode="on"
+vpad_device_name="parallel-n64 Virtual Pad"
 
 capture_dir=""
 xdg_root=""
@@ -71,14 +73,17 @@ Options:
   --max-presses N         Cap total input ticks (default: 2)
   --screenshot-at SEC     Seconds after launch to send SCREENSHOT (default: 27)
   --port PORT             RetroArch network command UDP port (default: 55355)
+  --hires-on              Enable GLideN64 hi-res textures and staged cache (default)
+  --hires-off             Disable GLideN64 hi-res textures for native-scaling captures
   --fullscreen            Force fullscreen launch (default)
   --no-fullscreen         Disable fullscreen launch
   -h, --help              Show this help
 
 Behavior:
   - Uses an isolated XDG config root for RetroArch config, but stages the real home Mupen64Plus-Next options file because this core ignores temp core-options roots.
-  - Enables GLideN64 hi-res textures, enhanced hi-res storage, texture cache, and 4x native resolution.
-  - Stages GLideN64's hi-res storage file under system/Mupen64plus/cache/.
+  - Always enables GLideN64 4x native resolution.
+  - `--hires-on` enables hi-res textures and stages GLideN64's hi-res storage file under system/Mupen64plus/cache/.
+  - `--hires-off` disables hi-res texture replacement and skips pack staging.
   - Drives Paper Mario with the virtual pad path: boot, wait 20s, press start, wait 5s, press start, wait 2s.
   - Sends RetroArch's SCREENSHOT command at --screenshot-at seconds and stores the result in the capture directory.
 EOF_USAGE
@@ -116,6 +121,24 @@ split_buttons() {
 send_netcmd() {
   local cmd="$1"
   printf '%s\n' "$cmd" | nc -u -w1 127.0.0.1 "$netcmd_port" >/dev/null 2>&1
+}
+
+ensure_retroarch_setting() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  mkdir -p "$(dirname "$file")"
+  if [[ ! -f "$file" ]]; then
+    printf '%s = "%s"\n' "$key" "$value" >"$file"
+    return
+  fi
+
+  if rg -q "^${key} = " "$file"; then
+    sed -i "s#^${key} = .*#${key} = \"${value}\"#" "$file"
+  else
+    printf '%s = "%s"\n' "$key" "$value" >>"$file"
+  fi
 }
 
 start_maximize_helper() {
@@ -174,20 +197,36 @@ focus_retroarch_window() {
 
 start_vpad_daemon() {
   vpad_log="$(mktemp /tmp/parallel-n64-vpad-gliden64.XXXX.log)"
+  python3 "$VPAD_TOOL" stop --socket "$vpad_socket" >/dev/null 2>&1 || true
+  python3 "$VPAD_TOOL" stop --socket "/tmp/parallel-n64-vpad-smoke.sock" >/dev/null 2>&1 || true
   rm -f "$vpad_socket"
 
-  python3 "$VPAD_TOOL" daemon --socket "$vpad_socket" >"$vpad_log" 2>&1 &
+  python3 "$VPAD_TOOL" daemon --socket "$vpad_socket" --name "$vpad_device_name" >"$vpad_log" 2>&1 &
   vpad_pid="$!"
 
   local i
   for i in $(seq 1 40); do
     if [[ -S "$vpad_socket" ]]; then
+      break
+    fi
+    sleep 0.1
+  done
+
+  if [[ ! -S "$vpad_socket" ]]; then
+    echo "Virtual gamepad daemon failed to start (socket not ready): $vpad_socket" >&2
+    echo "Daemon log: $vpad_log" >&2
+    sed -n '1,80p' "$vpad_log" >&2 || true
+    return 1
+  fi
+
+  for i in $(seq 1 40); do
+    if rg -Fq "$vpad_device_name" /proc/bus/input/devices 2>/dev/null; then
       return 0
     fi
     sleep 0.1
   done
 
-  echo "Virtual gamepad daemon failed to start (socket not ready): $vpad_socket" >&2
+  echo "Virtual gamepad device failed to enumerate: $vpad_device_name" >&2
   echo "Daemon log: $vpad_log" >&2
   sed -n '1,80p' "$vpad_log" >&2 || true
   return 1
@@ -223,53 +262,56 @@ stop_vpad_daemon() {
 write_temp_retroarch_cfg() {
   mkdir -p "$(dirname "$retroarch_cfg")"
   cp "$retroarch_cfg_src" "$retroarch_cfg"
-  cat >>"$retroarch_cfg" <<EOF_CFG
-config_save_on_exit = "false"
-global_core_options = "true"
-core_options_path = "$xdg_root/retroarch/config"
-input_autodetect_enable = "false"
-pause_nonactive = "false"
-input_player1_joypad_index = "0"
-input_player1_device_reservation_type = "0"
-input_player1_reserved_device = "parallel-n64 Virtual Pad"
-input_player1_a_btn = "0"
-input_player1_b_btn = "1"
-input_player1_x_btn = "2"
-input_player1_y_btn = "3"
-input_player1_l_btn = "4"
-input_player1_r_btn = "5"
-input_player1_l2_btn = "6"
-input_player1_r2_btn = "7"
-input_player1_select_btn = "8"
-input_player1_start_btn = "9"
-input_player1_l3_btn = "11"
-input_player1_r3_btn = "12"
-input_player1_up_btn = "13"
-input_player1_down_btn = "14"
-input_player1_left_btn = "15"
-input_player1_right_btn = "16"
-screenshot_directory = "$capture_dir"
-screenshots_in_content_dir = "false"
-sort_screenshots_by_content_enable = "false"
-notification_show_screenshot = "false"
-notification_show_screenshot_flash = "0"
-network_cmd_enable = "true"
-network_cmd_port = "$netcmd_port"
-EOF_CFG
+  ensure_retroarch_setting "$retroarch_cfg" "config_save_on_exit" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "global_core_options" "true"
+  ensure_retroarch_setting "$retroarch_cfg" "core_options_path" "$xdg_root/retroarch/config"
+  ensure_retroarch_setting "$retroarch_cfg" "input_autodetect_enable" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "pause_nonactive" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_joypad_index" "0"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_device_reservation_type" "0"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_reserved_device" "$vpad_device_name"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_a_btn" "0"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_b_btn" "1"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_x_btn" "2"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_y_btn" "3"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_l_btn" "4"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_r_btn" "5"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_l2_btn" "6"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_r2_btn" "7"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_select_btn" "8"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_start_btn" "9"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_l3_btn" "11"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_r3_btn" "12"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_up_btn" "13"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_down_btn" "14"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_left_btn" "15"
+  ensure_retroarch_setting "$retroarch_cfg" "input_player1_right_btn" "16"
+  ensure_retroarch_setting "$retroarch_cfg" "screenshot_directory" "$capture_dir"
+  ensure_retroarch_setting "$retroarch_cfg" "screenshots_in_content_dir" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "sort_screenshots_by_content_enable" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "notification_show_screenshot" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "notification_show_screenshot_flash" "0"
+  ensure_retroarch_setting "$retroarch_cfg" "notification_show_save_state" "false"
+  ensure_retroarch_setting "$retroarch_cfg" "network_cmd_enable" "true"
+  ensure_retroarch_setting "$retroarch_cfg" "network_cmd_port" "$netcmd_port"
 }
 
 write_gliden64_core_options() {
   mkdir -p "$(dirname "$core_options_file")"
-  cat >"$core_options_file" <<'EOF_OPT'
+  local hires_enabled="False"
+  if [[ "$hires_mode" == "on" ]]; then
+    hires_enabled="True"
+  fi
+  cat >"$core_options_file" <<EOF_OPT
 mupen64plus-rdp-plugin = "gliden64"
 mupen64plus-aspect = "4:3"
 mupen64plus-EnableNativeResFactor = "4"
 mupen64plus-EnableTextureCache = "True"
-mupen64plus-EnableEnhancedTextureStorage = "True"
-mupen64plus-txHiresEnable = "True"
-mupen64plus-txHiresFullAlphaChannel = "True"
-mupen64plus-EnableHiResAltCRC = "True"
-mupen64plus-EnableEnhancedHighResStorage = "True"
+mupen64plus-EnableEnhancedTextureStorage = "$hires_enabled"
+mupen64plus-txHiresEnable = "$hires_enabled"
+mupen64plus-txHiresFullAlphaChannel = "$hires_enabled"
+mupen64plus-EnableHiResAltCRC = "$hires_enabled"
+mupen64plus-EnableEnhancedHighResStorage = "$hires_enabled"
 mupen64plus-txCacheCompression = "False"
 mupen64plus-MaxHiResTxVramLimit = "0"
 mupen64plus-MaxTxCacheSize = "8000"
@@ -399,6 +441,12 @@ while (($#)); do
       shift
       netcmd_port="${1:-}"
       ;;
+    --hires-on)
+      hires_mode="on"
+      ;;
+    --hires-off)
+      hires_mode="off"
+      ;;
     --fullscreen)
       force_fullscreen="1"
       ;;
@@ -433,7 +481,7 @@ if [[ ! -f "$retroarch_cfg_src" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$system_dir/PAPER MARIO_HIRESTEXTURES.hts" ]]; then
+if [[ "$hires_mode" == "on" && ! -f "$system_dir/PAPER MARIO_HIRESTEXTURES.hts" ]]; then
   echo "Paper Mario hi-res pack not found in system dir: $system_dir" >&2
   exit 1
 fi
@@ -492,6 +540,10 @@ if ! split_buttons "$buttons_csv"; then
   exit 1
 fi
 
+if [[ "$vpad_socket" == "/tmp/parallel-n64-vpad-gliden64.sock" ]]; then
+  vpad_socket="$(mktemp -u /tmp/parallel-n64-vpad-gliden64.XXXX.sock)"
+fi
+
 if [[ -z "$tag" ]]; then
   tag="$(date +%Y%m%d-%H%M%S)"
 fi
@@ -510,7 +562,9 @@ stamp_file="$(mktemp /tmp/parallel-n64-gliden64-shot-stamp.XXXX)"
 write_temp_retroarch_cfg
 write_gliden64_core_options
 stage_home_core_options
-stage_gliden64_hires_cache
+if [[ "$hires_mode" == "on" ]]; then
+  stage_gliden64_hires_cache
+fi
 
 trap cleanup EXIT
 start_vpad_daemon
@@ -537,8 +591,13 @@ echo "Log file: $log_file"
 echo "Temp XDG root: $xdg_root"
 echo "Core options: $core_options_file"
 echo "Home core options override: $home_core_options_file"
-echo "GLide hires storage: enabled"
-echo "GLide hires cache: $gliden64_cache_path -> $(readlink -f "$gliden64_pack_source")"
+echo "GLide hires mode: $hires_mode"
+if [[ "$hires_mode" == "on" ]]; then
+  echo "GLide hires storage: enabled"
+  echo "GLide hires cache: $gliden64_cache_path -> $(readlink -f "$gliden64_pack_source")"
+else
+  echo "GLide hires storage: disabled"
+fi
 echo "GLide native res factor: 4x"
 
 (

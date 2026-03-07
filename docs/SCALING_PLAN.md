@@ -16,7 +16,8 @@ This work is explicitly about the non-HIRES path first. HIRES compatibility must
 ## Current Oracles
 
 - GLideN64 4x HIRES-off oracle:
-  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-1`
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-2`
+  - validated button-path screenshot: `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-2/Paper Mario (USA)-260306-212123.png`
 - Matching `parallel` 4x HIRES-off reference:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/reference-parallel-4x-hires-off-1`
 - Full comparison image:

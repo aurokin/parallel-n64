@@ -12,6 +12,7 @@ button_hold_ms=140
 max_presses=99
 buttons_csv="start,a"
 vpad_socket="/tmp/parallel-n64-vpad-smoke.sock"
+vpad_device_name="parallel-n64 Virtual Pad"
 
 vpad_log=""
 vpad_pid=""
@@ -97,20 +98,36 @@ start_vpad_daemon() {
   fi
 
   vpad_log="$(mktemp /tmp/parallel-n64-vpad-daemon.XXXX.log)"
+  python3 "$VPAD_TOOL" stop --socket "$vpad_socket" >/dev/null 2>&1 || true
+  python3 "$VPAD_TOOL" stop --socket "/tmp/parallel-n64-vpad-gliden64.sock" >/dev/null 2>&1 || true
   rm -f "$vpad_socket"
 
-  python3 "$VPAD_TOOL" daemon --socket "$vpad_socket" >"$vpad_log" 2>&1 &
+  python3 "$VPAD_TOOL" daemon --socket "$vpad_socket" --name "$vpad_device_name" >"$vpad_log" 2>&1 &
   vpad_pid="$!"
 
   local i
   for i in $(seq 1 40); do
     if [[ -S "$vpad_socket" ]]; then
+      break
+    fi
+    sleep 0.1
+  done
+
+  if [[ ! -S "$vpad_socket" ]]; then
+    echo "Virtual gamepad daemon failed to start (socket not ready): $vpad_socket" >&2
+    echo "Daemon log: $vpad_log" >&2
+    sed -n '1,80p' "$vpad_log" >&2 || true
+    return 1
+  fi
+
+  for i in $(seq 1 40); do
+    if rg -Fq "$vpad_device_name" /proc/bus/input/devices 2>/dev/null; then
       return 0
     fi
     sleep 0.1
   done
 
-  echo "Virtual gamepad daemon failed to start (socket not ready): $vpad_socket" >&2
+  echo "Virtual gamepad device failed to enumerate: $vpad_device_name" >&2
   echo "Daemon log: $vpad_log" >&2
   sed -n '1,80p' "$vpad_log" >&2 || true
   return 1
@@ -118,12 +135,12 @@ start_vpad_daemon() {
 
 write_smoke_input_override() {
   smoke_input_cfg="$(mktemp /tmp/parallel-n64-smoke-input.XXXX.cfg)"
-  cat >"$smoke_input_cfg" <<'EOF_INPUT'
+  cat >"$smoke_input_cfg" <<EOF_INPUT
 input_autodetect_enable = "false"
 pause_nonactive = "false"
 input_player1_joypad_index = "0"
 input_player1_device_reservation_type = "0"
-input_player1_reserved_device = "parallel-n64 Virtual Pad"
+input_player1_reserved_device = "$vpad_device_name"
 input_player1_a_btn = "0"
 input_player1_b_btn = "1"
 input_player1_x_btn = "2"
@@ -292,6 +309,10 @@ if ! require_positive_int "$max_presses" "--max-presses"; then
 fi
 if ! split_buttons "$buttons_csv"; then
   exit 1
+fi
+
+if [[ "$vpad_socket" == "/tmp/parallel-n64-vpad-smoke.sock" ]]; then
+  vpad_socket="$(mktemp -u /tmp/parallel-n64-vpad-smoke.XXXX.sock)"
 fi
 
 trap cleanup EXIT

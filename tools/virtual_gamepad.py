@@ -249,8 +249,9 @@ class VirtualGamepad:
 
 
 class Daemon:
-    def __init__(self, socket_path: str) -> None:
+    def __init__(self, socket_path: str, device_name: str) -> None:
         self.socket_path = socket_path
+        self.device_name = device_name
 
     def run(self) -> int:
         if os.path.exists(self.socket_path):
@@ -261,7 +262,7 @@ class Daemon:
         server.listen(8)
         os.chmod(self.socket_path, 0o600)
 
-        pad = VirtualGamepad()
+        pad = VirtualGamepad(self.device_name)
         try:
             pad.create()
             print(f"virtual-pad: ready (socket={self.socket_path}, device='{pad.name}')")
@@ -401,6 +402,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     daemon = sub.add_parser("daemon", help="Start the virtual gamepad daemon.")
     daemon.add_argument("--socket", default=DEFAULT_SOCKET, help=f"UNIX socket path (default: {DEFAULT_SOCKET})")
+    daemon.add_argument("--name", default="parallel-n64 Virtual Pad", help="uinput device name")
 
     send = sub.add_parser("send", help="Send a command to a running daemon.")
     send.add_argument("--socket", default=DEFAULT_SOCKET, help=f"UNIX socket path (default: {DEFAULT_SOCKET})")
@@ -417,7 +419,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.mode == "daemon":
-        return Daemon(args.socket).run()
+        return Daemon(args.socket, args.name).run()
 
     if args.mode == "stop":
         return send_command(args.socket, "quit")

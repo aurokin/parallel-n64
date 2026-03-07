@@ -688,13 +688,35 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 	{
 		yuv = false;
 		int hires_lod = compute_hires_replacement_lod(tile, lod_frac);
-		ivec2 st_repl_fp5 = remap_hires_st_fp5(tile, st_fp5);
-		t_base = sample_hires_replacement_texel_fp5(tile, st_repl_fp5, hires_lod, true);
-
-		// Replacement textures sample in continuous coordinate space.
-		// Keep the rest of the pipeline intact by bypassing legacy RDP 3-point filtering here.
-		sample_quad = false;
-		mid_texel = false;
+		// Preserve the native 3-point neighborhood selection and only swap in the
+		// replacement texels for those taps. Pre-filtering hires content here breaks
+		// stage assets that depend on the original RDP interpolation pattern.
+		t_base = sample_hires_replacement_texel_fp5(
+				tile,
+				remap_hires_st_fp5(tile, base_st << 5),
+				hires_lod,
+				false);
+		if (sample_quad)
+		{
+			t10 = sample_hires_replacement_texel_fp5(
+					tile,
+					remap_hires_st_fp5(tile, ivec2(s1, t0) << 5),
+					hires_lod,
+					false);
+			t01 = sample_hires_replacement_texel_fp5(
+					tile,
+					remap_hires_st_fp5(tile, ivec2(s0, t1) << 5),
+					hires_lod,
+					false);
+		}
+		if (mid_texel)
+		{
+			t11 = sample_hires_replacement_texel_fp5(
+					tile,
+					remap_hires_st_fp5(tile, ivec2(s1, t1) << 5),
+					hires_lod,
+					false);
+		}
 	}
 	else if (tlut)
 	{

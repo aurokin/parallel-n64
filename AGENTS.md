@@ -54,6 +54,9 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Oracle path: `GLideN64`
 - Parallel capture:
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
+- Parallel scaling capture:
+  - `./run-paper-mario-scaling-capture.sh --tag <tag>`
+  - uses same-core state-mode capture with HIRES off
 - GLide oracle capture:
   - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
 - Preserved GLide oracle:
@@ -68,6 +71,9 @@ Co-Authored-By: Codex <noreply@openai.com>
   - wait `5s`
   - press `Start`
   - wait `2s`
+- Scaling-phase capture note:
+  - prefer `./run-paper-mario-scaling-capture.sh` for current `parallel` scaling work
+  - do not spend time re-establishing button-path parity for `parallel` unless the state path becomes invalid
 - Save-state warning:
   - prefer save states for fast iteration when they were created from the same ROM image and the same core path you are validating
   - same-core save states are valid across HIRES-on and HIRES-off runs

@@ -25,6 +25,12 @@ This work is explicitly about the non-HIRES path first. HIRES compatibility must
 
 Do not re-run GLideN64 unless a major method change requires refreshing the oracle.
 
+For current `parallel` iteration, use:
+
+- `./run-paper-mario-scaling-capture.sh --tag <tag>`
+
+This keeps scaling work on the same-core save-state path instead of the slower, less stable button-path capture.
+
 ## Architectural Direction
 
 The preferred design is:

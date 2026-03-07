@@ -99,12 +99,16 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - `parallel` capture helper:
   - copies the active ParaLLEl core options file into a temp capture dir
   - drives the button path with the virtual pad
-  - sends RetroArch `SCREENSHOT`
+  - captures a RetroArch screenshot into the temp capture dir
+- `parallel` scaling helper:
+  - `./run-paper-mario-scaling-capture.sh --tag <tag>`
+  - uses the same-core save state path for faster, stable scaling iteration
+  - forces HIRES off, `4x` upscaling, and `disable` downscaling
 - `GLideN64` capture helper:
   - stages the real RetroArch `Mupen64Plus-Next.opt`
   - with `--hires-on`, stages `PAPER MARIO_HIRESTEXTURES.hts` at `system/Mupen64plus/cache`
   - with `--hires-off`, skips hi-res pack staging for native-scaling captures
-  - drives the same button path and sends RetroArch `SCREENSHOT`
+  - drives the same button path and captures a RetroArch screenshot
 - Preserved GLide oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
 - Most recent validated oracle screenshot:
@@ -119,6 +123,9 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/paper-mario-glide-vs-parallel-4x-hires-off-full.png`
 - Current divergence to focus on:
   - `parallel` still differs from the oracle on Paper Mario file-select stage/frame scaling and minification
+- Current scaling-phase capture policy:
+  - use `./run-paper-mario-scaling-capture.sh` for `parallel`
+  - keep the preserved GLide button-path screenshot as the oracle
 - Save-state caution:
   - prefer save states when they match the same ROM image and the same core path under test; they are the fastest way to iterate on a stable scene
   - same-core save states are valid across HIRES-on and HIRES-off runs

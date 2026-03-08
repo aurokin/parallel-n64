@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+RUNNER="$SCRIPT_DIR/run-n64.sh"
 SMOKE_START_RUNNER="$SCRIPT_DIR/run-n64-smoke-start.sh"
 SMOKE_STATE_RUNNER="$SCRIPT_DIR/run-n64-smoke-state.sh"
 DEFAULT_ROM_DIR="/home/auro/code/n64_roms"
@@ -22,6 +23,7 @@ state_load_delay="4.0"
 state_pause_delay="0.2"
 state_shot_delay="1.2"
 state_close_delay="1.0"
+timed_close_delay="1.0"
 state_cmd="LOAD_STATE"
 state_pause="0"
 netcmd_port=55355
@@ -53,7 +55,7 @@ Usage:
   run-paper-mario-hires-capture.sh [options] [-- RUN_N64_ARGS...]
 
 Options:
-  --smoke-mode MODE       Capture path: buttons|state (default: buttons)
+  --smoke-mode MODE       Capture path: buttons|state|timed (default: buttons)
   --tag NAME              Capture subdirectory name (default: timestamp)
   --capture-root PATH     Root directory for screenshots/logs (default: /tmp/parallel-n64-paper-mario-captures)
   --rom PATH              ROM path passed to run-n64.sh (default: Paper Mario (USA).zip)
@@ -69,6 +71,7 @@ Options:
   --state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)
   --state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)
   --state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 1.0)
+  --timed-close-delay SEC Delay after SCREENSHOT before close in timed mode (default: 1.0)
   --state-cmd CMD         Command to send for state load in state mode (default: LOAD_STATE)
   --state-pause           Send PAUSE_TOGGLE before screenshot in state mode
   --no-state-pause        Skip PAUSE_TOGGLE in state mode (default)
@@ -88,6 +91,7 @@ Behavior:
   - buttons mode uses run-n64-smoke-start.sh for deterministic Paper Mario input:
     boot, wait 20s, press start, wait 5s, press start, wait 2s.
   - state mode uses run-n64-smoke-state.sh to load the current same-core save state.
+  - timed mode launches run-n64.sh directly with no input automation.
   - buttons mode sends RetroArch's SCREENSHOT network command at --screenshot-at seconds.
 EOF_USAGE
 }
@@ -319,6 +323,10 @@ while (($#)); do
       shift
       state_close_delay="${1:-}"
       ;;
+    --timed-close-delay)
+      shift
+      timed_close_delay="${1:-}"
+      ;;
     --state-cmd)
       shift
       state_cmd="${1:-}"
@@ -375,8 +383,13 @@ while (($#)); do
   shift
 done
 
-if [[ "$smoke_mode" != "buttons" && "$smoke_mode" != "state" ]]; then
-  echo "--smoke-mode must be 'buttons' or 'state': $smoke_mode" >&2
+if [[ "$smoke_mode" != "buttons" && "$smoke_mode" != "state" && "$smoke_mode" != "timed" ]]; then
+  echo "--smoke-mode must be 'buttons', 'state', or 'timed': $smoke_mode" >&2
+  exit 1
+fi
+
+if [[ ! -x "$RUNNER" ]]; then
+  echo "run-n64.sh is missing or not executable: $RUNNER" >&2
   exit 1
 fi
 
@@ -455,6 +468,11 @@ if ! is_nonnegative_number "$state_close_delay"; then
   exit 1
 fi
 
+if ! is_nonnegative_number "$timed_close_delay"; then
+  echo "--timed-close-delay must be a non-negative number: $timed_close_delay" >&2
+  exit 1
+fi
+
 if ! is_positive_int "$netcmd_port"; then
   echo "--port must be a positive integer: $netcmd_port" >&2
   exit 1
@@ -491,7 +509,7 @@ if [[ "$smoke_mode" == "buttons" ]]; then
   smoke_cmd+=("--button-hold-ms" "$button_hold_ms")
   smoke_cmd+=("--buttons" "$buttons_csv")
   smoke_cmd+=("--max-presses" "$max_presses")
-else
+elif [[ "$smoke_mode" == "state" ]]; then
   smoke_cmd+=("$SMOKE_STATE_RUNNER")
   smoke_cmd+=("--load-delay" "$state_load_delay")
   smoke_cmd+=("--pause-delay" "$state_pause_delay")
@@ -506,15 +524,27 @@ else
   else
     smoke_cmd+=(--no-pause)
   fi
+else
+  smoke_cmd+=("$RUNNER")
+  smoke_cmd+=("--rom-dir" "$rom_dir" "$rom_path")
+  if [[ "$force_fullscreen" == "0" ]]; then
+    smoke_cmd+=("--no-fullscreen")
+  fi
+  if ((${#runner_args[@]} > 0)); then
+    smoke_cmd+=("${runner_args[@]}")
+  fi
+  smoke_cmd+=(-- --config "$retroarch_cfg")
 fi
-smoke_cmd+=("--rom-dir" "$rom_dir" "$rom_path")
-if [[ "$force_fullscreen" == "0" ]]; then
-  smoke_cmd+=("--no-fullscreen")
+if [[ "$smoke_mode" != "timed" ]]; then
+  smoke_cmd+=("--rom-dir" "$rom_dir" "$rom_path")
+  if [[ "$force_fullscreen" == "0" ]]; then
+    smoke_cmd+=("--no-fullscreen")
+  fi
+  if ((${#runner_args[@]} > 0)); then
+    smoke_cmd+=("${runner_args[@]}")
+  fi
+  smoke_cmd+=(-- --config "$retroarch_cfg")
 fi
-if ((${#runner_args[@]} > 0)); then
-  smoke_cmd+=("${runner_args[@]}")
-fi
-smoke_cmd+=(-- --config "$retroarch_cfg")
 
 echo "Capture dir: $capture_dir"
 echo "Temp XDG root: $xdg_root"
@@ -527,9 +557,12 @@ fi
 if [[ "$smoke_mode" == "buttons" ]]; then
   echo "Smoke mode: buttons"
   echo "Screenshot timing: +${screenshot_at}s"
-else
+elif [[ "$smoke_mode" == "state" ]]; then
   echo "Smoke mode: state"
   echo "State load timing: +${state_load_delay}s, screenshot +${state_shot_delay}s after load/pause"
+else
+  echo "Smoke mode: timed"
+  echo "Timed screenshot: +${screenshot_at}s, close +${timed_close_delay}s after shot"
 fi
 if [[ -n "$window_override_width" && -n "$window_override_height" ]]; then
   echo "Window override: ${window_override_width}x${window_override_height}"
@@ -552,7 +585,7 @@ fi
 ) >"$log_file" 2>&1 &
 run_pid="$!"
 
-if [[ "$smoke_mode" == "buttons" ]]; then
+if [[ "$smoke_mode" == "buttons" || "$smoke_mode" == "timed" ]]; then
   sleep "$screenshot_at"
   if kill -0 "$run_pid" 2>/dev/null; then
     if [[ -n "$dump_vi_stages" ]]; then
@@ -563,6 +596,12 @@ if [[ "$smoke_mode" == "buttons" ]]; then
       echo "NetCmd: sent 'SCREENSHOT'"
     else
       echo "NetCmd failed: 'SCREENSHOT'" >&2
+    fi
+    if [[ "$smoke_mode" == "timed" ]]; then
+      sleep "$timed_close_delay"
+      if kill -0 "$run_pid" 2>/dev/null; then
+        kill -INT "$run_pid" >/dev/null 2>&1 || true
+      fi
     fi
   fi
 fi

@@ -56,6 +56,7 @@ Co-Authored-By: Codex <noreply@openai.com>
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
   - the helper forces `parallel-n64-parallel-rdp-hirestex = enabled` by default; only override that on purpose
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
+  - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off

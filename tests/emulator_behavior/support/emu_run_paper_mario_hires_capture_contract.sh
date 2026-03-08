@@ -21,7 +21,7 @@ require_pattern() {
 
 require_pattern "run-paper-mario-hires-capture.sh [options] [-- RUN_N64_ARGS...]" \
   "usage text missing paper mario capture invocation"
-require_pattern "--smoke-mode MODE       Capture path: buttons|state (default: buttons)" \
+require_pattern "--smoke-mode MODE       Capture path: buttons|state|timed (default: buttons)" \
   "usage text missing --smoke-mode"
 require_pattern "--screenshot-at SEC     Seconds after launch to send SCREENSHOT (default: 27)" \
   "usage text missing --screenshot-at"
@@ -33,6 +33,8 @@ require_pattern "--state-shot-delay SEC  Delay after state load/pause before SCR
   "usage text missing --state-shot-delay"
 require_pattern "--state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 1.0)" \
   "usage text missing --state-close-delay"
+require_pattern "--timed-close-delay SEC Delay after SCREENSHOT before close in timed mode (default: 1.0)" \
+  "usage text missing --timed-close-delay"
 require_pattern "--state-cmd CMD         Command to send for state load in state mode (default: LOAD_STATE)" \
   "usage text missing --state-cmd"
 require_pattern "--state-pause           Send PAUSE_TOGGLE before screenshot in state mode" \
@@ -51,6 +53,8 @@ require_pattern 'SMOKE_START_RUNNER="$SCRIPT_DIR/run-n64-smoke-start.sh"' \
   "missing button smoke runner path"
 require_pattern 'SMOKE_STATE_RUNNER="$SCRIPT_DIR/run-n64-smoke-state.sh"' \
   "missing state smoke runner path"
+require_pattern 'RUNNER="$SCRIPT_DIR/run-n64.sh"' \
+  "missing direct runner path"
 require_pattern 'smoke_mode="buttons"' "default smoke mode missing"
 require_pattern 'DEFAULT_CORE_OPTIONS_FILE="$HOME/.config/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"' \
   "default core options path missing"
@@ -65,6 +69,7 @@ require_pattern 'mode="$(xrandr 2>/dev/null | awk ' \
 require_pattern 'buttons_csv="start"' "default Paper Mario button sequence missing"
 require_pattern 'max_presses=2' "default max presses missing"
 require_pattern 'screenshot_at=27' "default screenshot timing missing"
+require_pattern 'timed_close_delay="1.0"' "default timed close delay missing"
 require_pattern 'xdg_root="$capture_dir/xdg"' "temp XDG root missing"
 require_pattern 'retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"' \
   "temp RetroArch config path missing"
@@ -102,9 +107,14 @@ require_pattern 'smoke_cmd+=("--state-cmd" "$state_cmd")' "state command forward
 require_pattern 'smoke_cmd+=("--load-delay" "$state_load_delay")' "state load delay forwarding missing"
 require_pattern 'smoke_cmd+=("--shot-delay" "$state_shot_delay")' "state shot delay forwarding missing"
 require_pattern 'smoke_cmd+=("--dump-trigger-file" "$dump_vi_trigger_file")' "state dump trigger forwarding missing"
+require_pattern 'smoke_cmd+=("$RUNNER")' "timed mode must launch run-n64.sh directly"
+require_pattern 'echo "Smoke mode: timed"' "timed mode logging missing"
+require_pattern 'echo "Timed screenshot: +${screenshot_at}s, close +${timed_close_delay}s after shot"' "timed mode timing log missing"
 require_pattern 'echo "Smoke mode: state"' "state mode logging missing"
 require_pattern 'echo "Smoke mode: buttons"' "buttons mode logging missing"
 require_pattern 'smoke_cmd+=(-- --config "$retroarch_cfg")' "RetroArch config forwarding missing"
+require_pattern 'if [[ "$smoke_mode" == "buttons" || "$smoke_mode" == "timed" ]]; then' "timed mode must use screenshot timer path"
+require_pattern 'sleep "$timed_close_delay"' "timed mode close delay missing"
 require_pattern 'find "$DEFAULT_SCREENSHOT_DIR" -maxdepth 1 -type f -name '\''*.png'\'' -newer "$stamp_file"' \
   "default screenshot fallback missing"
 

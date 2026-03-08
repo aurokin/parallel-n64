@@ -33,6 +33,9 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
 - Paper Mario no-input timed capture on `parallel`:
   - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
+- Paper Mario HIRES zoom compare on `parallel`:
+  - `./run-paper-mario-hires-zoom-compare.sh`
+  - defaults to the latest `parallel` capture and compares against the saved GLide HIRES no-input 16s oracle
 - Paper Mario button-path oracle capture on `GLideN64`:
   - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
 

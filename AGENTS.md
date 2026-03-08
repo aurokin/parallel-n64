@@ -57,6 +57,11 @@ Co-Authored-By: Codex <noreply@openai.com>
   - the helper forces `parallel-n64-parallel-rdp-hirestex = enabled` by default; only override that on purpose
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
+  - for the current no-input HIRES intro scene, use `--smoke-mode timed --screenshot-at 16`
+- Parallel HIRES zoom compare:
+  - `./run-paper-mario-hires-zoom-compare.sh`
+  - defaults to the latest PNG under `/tmp/parallel-n64-paper-mario-captures`
+  - compares against the saved GLide HIRES no-input 16s oracle and emits focused crops for `top_banner`, `today_text`, `bottom_stage_grid`, and `left_stage_grid`
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off
@@ -68,6 +73,8 @@ Co-Authored-By: Codex <noreply@openai.com>
   - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
 - Preserved GLide oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
+- Preserved GLide 4x HIRES-on no-input 16s oracle:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-noinput-16s-1/Paper Mario (USA)-260308-011300.png`
 - Preserved GLide 4x HIRES-off scaling oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-2`
   - validated button-path screenshot: `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-2/Paper Mario (USA)-260306-212123.png`

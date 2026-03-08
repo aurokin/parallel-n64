@@ -111,6 +111,10 @@
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
   - for intro/title captures without controller input:
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
+- Comparable Paper Mario HIRES zoom compare on `parallel`:
+  - `./run-paper-mario-hires-zoom-compare.sh`
+- Preserved GLideN64 4x HIRES-on no-input 16s oracle:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-noinput-16s-1/Paper Mario (USA)-260308-011300.png`
 - Preserved GLideN64 oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
 - Refresh GLideN64 only when the oracle scene or workflow changes materially:

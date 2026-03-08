@@ -2,192 +2,138 @@
 
 ## Goal
 
-Improve native 4x scaling quality in `parallel` while preserving the current low-level emulation path as the default baseline.
+Improve native 4x HIRES-off scaling quality in `parallel` while preserving the existing default path when the experimental override is off.
 
-This work is explicitly about the non-HIRES path first. HIRES compatibility must be preserved or deliberately adjusted as part of the design, but HIRES is not the primary oracle for this phase.
+This plan is for active work only. Completed exploration history lives in git and supporting notes such as [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/code/parallel-n64/docs/VI_SOURCE_MAPPING_RESEARCH.md).
 
 ## Invariants
 
-- The existing default path must remain unchanged when the new scaling override is off.
-- HIRES-off behavior is the primary validation target for this phase.
-- The current `upscaling` multiplier remains the source of truth for target resolution.
-- The baseline LLE renderer remains intact. The new work should be an override at scanout / reconstruction time, not a replacement for the core renderer.
+- Default-off behavior must stay unchanged.
+- HIRES-off remains the primary validation target.
+- The existing upscale multiplier remains the source of truth for target resolution.
+- The baseline LLE renderer stays intact; changes should stay in scanout / VI reconstruction unless clearly justified.
 
-## Current Oracles
+## Oracle
 
 - GLideN64 4x HIRES-off oracle:
-  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-2`
-  - validated button-path screenshot: `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-2/Paper Mario (USA)-260306-212123.png`
-- Matching `parallel` 4x HIRES-off reference:
-  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/reference-parallel-4x-hires-off-1`
-- Full comparison image:
-  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/paper-mario-glide-vs-parallel-4x-hires-off-full.png`
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/scaling/oracle-gliden64-4x-hires-off-2/Paper Mario (USA)-260306-212123.png`
 
-Do not re-run GLideN64 unless a major method change requires refreshing the oracle.
+Do not refresh the GLide oracle unless a major method change makes the old comparison invalid.
 
-For current `parallel` iteration, use:
+For `parallel` iteration, use:
 
 - `./run-paper-mario-scaling-capture.sh --tag <tag>`
 - `./run-paper-mario-scaling-compare.sh --tag <tag>`
 
-This keeps scaling work on the same-core save-state path instead of the slower, less stable button-path capture.
-Run captures sequentially; the helpers reuse RetroArch netcmd defaults and are not designed for concurrent launches.
-The helper currently relies on an explicit temp `core-options.cfg` inside its isolated XDG root; do not switch it back to mixed per-core option mode unless RetroArch behavior changes and you re-validate that path.
+Run captures sequentially.
 
-## Current Findings
+## Current Baseline
 
-- The experimental VI reconstruction path is real and already improves the saved Paper Mario oracle over accurate mode.
-- The current committed improvements came from subpixel reconstruction and X-axis sample-phase tuning in `vi_scale.frag`.
-- The current best experimental path combines the existing non-linear row-phase-aware VI reconstruction with source-domain X/Y step biases in `scale_stage()`.
-- That path now has two meaningful parts:
-  - `vi_scale.frag` keeps the tuned `0/2/7/18` row-phase schedule, the upward-skewed `upper 8/16`, `lower 7/16` 4-tap footprint, the localized `y_frac` remap for phases `1/2` when the source row is in the upper band, and now splits phase-1 source-Y handling between the upper and lower source bands.
-  - `scale_stage()` now also applies tested experimental source-domain biases through `vi_scale_sampling_policy`, currently `x_add -= 17`, `y_add -= 30`, `y_base += 736`, a phase-1 source Y bias of `+384` in the upper band, a phase-1 lower-band source Y bias of `-512`, and a phase-3-only source Y bias of `+512` in the upper band for the validated 4x path.
-  - local experimentation can override the global source-domain values at runtime with `PARALLEL_VI_SOURCE_{X,Y}_{ADD,BASE}_BIAS`, and can probe the per-phase seam controls with `PARALLEL_VI_PHASE1_Y_BIAS`, `PARALLEL_VI_PHASE1_LOWER_Y_BIAS`, `PARALLEL_VI_PHASE3_Y_BIAS`, and `PARALLEL_VI_PHASE3_X_BIAS`.
-  - the current committed baseline from those sweeps is `x_add -= 17`, `y_add -= 30`, `y_base += 736`, `phase1_upper_y += 384`, `phase1_lower_y -= 512`, and `phase3_y += 512`, which improved the saved Paper Mario oracle to a clean `full 18.5840 / left 19.3148 / right 30.2321 / top 17.9058 / bottom 21.0256 / file2_new 2.9931`.
-- That row-phase adjustment materially reduces the remaining 4x cadence artifact in the `scale` dump:
-  - previous committed experimental path: `mod4 spread 5.7583`, `mod8 spread 6.5015`, `mod12 spread 6.4761`
-  - prior committed row-phase path: `mod4 0.5964`, `mod8 1.3461`, `mod12 1.9907`
-  - prior best row-phase-only path: `mod4 0.4867`, `mod8 1.1960`, `mod12 1.7706`
-  - current combined path: `mod4 0.5443`, `mod8 1.2770`, `mod12 1.8259`
-- Latest Paper Mario oracle comparison for the current experimental path:
-  - clean committed run: `full 18.5840`, `left 19.3148`, `right 30.2321`, `top 17.9058`, `bottom 21.0256`, `file2_new 2.9931`
-  - repeated same-code captures still show a small left-side variance, which moves the `left` crop and `full` metric slightly while leaving `right`, `top`, `bottom`, and `file2_new` unchanged; this remains the main source of full-frame metric wobble
-- Practical read on the latest improvement: source-domain mapping remains the dominant lane, and the current best result now depends on phase-specific source Y biases in both the upper and lower source bands. The upper-band phase-1/phase-3 controls shrink the top seam, while the lower-band phase-1 control tightens the right/bottom residual without giving back the top gain.
-- Practical read: the current combined path is a better visual/oracle baseline even though the raw cadence metric is slightly worse than the prior row-phase-only variant. Keep both facts in mind before optimizing only against the row spread numbers.
-- The plugin-level `interlacing` toggle was previously not threaded into `ScanoutOptions` at all. That is now fixed: it maps to weave/persistence mode (`blend_previous_frame = true`, `upscale_deinterlacing = false`) when enabled.
-- On the current Paper Mario save-state scene, forcing that interlacing path changes only a narrow left-side region and does not materially move the main oracle regions, so it is not the dominant source of the horizontal split artifact here.
-- There is still more room to improve this VI path, but it did not eliminate the main horizontal seam / banding issue on the file-select scene.
-- Treat VI sample-phase tuning as a proven secondary lever, not the primary remaining blocker.
-- When work resumes, preserve the current experimental path as a better baseline, but focus new effort on the horizontal-line artifact before spending many more cycles on small VI kernel refinements.
-- Use `./run-paper-mario-scaling-capture.sh --tag <tag> --dump-vi-stages aa,divot,scale,final` to localize scanout-stage regressions.
-- The VI dump trigger is aligned to screenshot time, so state-mode dumps represent the loaded Paper Mario save-state scene rather than the launch frame.
-- On the current Paper Mario 4x state workflow, `scale` and `final` are byte-identical, so the remaining horizontal-line artifact is already present by the end of `scale_stage()` in this path.
-- Accurate vs experimental state dumps now diverge almost entirely at `scale/final`, while `aa/divot` remain effectively unchanged, which keeps the main investigation centered on `scale_stage()`.
+The current committed experimental path is the best known local result for the Paper Mario file-select scene.
 
-## Architectural Direction
+Files:
 
-The preferred design is:
+- [video_interface.cpp](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/video_interface.cpp)
+- [vi_scale.frag](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/shaders/vi_scale.frag)
+- [vi_scale_sampling_policy.hpp](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/vi_scale_sampling_policy.hpp)
 
-- keep the current `parallel` path as the default
-- add a dedicated scaling override mode
-- reuse the existing upscale factor rather than introducing a second resolution configuration path
-- improve final reconstruction with as few additional phases as possible
+Current experimental 4x source/reconstruction baseline:
 
-The first implementation target is the VI scanout / reconstruction path:
+- `x_add -= 17`
+- `y_add -= 30`
+- `y_base += 736`
+- upper-band `phase1_y += 384`
+- lower-band `phase1_y -= 512`
+- upper-band `phase3_y += 512`
+- row-phase schedule `0/2/7/18`
+- upward-skewed 4-tap footprint `upper 8/16`, `lower 7/16`
+- localized `y_frac` remap for phases `1/2` in the upper source band
 
-- `mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/video_interface.cpp`
+Current clean Paper Mario compare:
 
-The current scale factor already flows through:
+- `full 18.5840`
+- `left 19.3148`
+- `right 30.2321`
+- `top 17.9058`
+- `bottom 21.0256`
+- `file2_new 2.9931`
 
-- `mupen64plus-video-paraLLEl/rdp.cpp`
-- `mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_device.cpp`
-- `mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/video_interface.cpp`
+Important caveat:
 
-## Phase 0: Add Scaling Regression Tests
+- repeated same-code captures still show left-side variance
+- trust `right`, `top`, `bottom`, `file2_new`, and stage dumps more than the `left` crop alone
 
-Before changing scaling behavior, add unit coverage for the current scanout policy so regressions are caught early.
+## What We Believe Now
 
-Test targets:
+Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/code/parallel-n64/docs/VI_SOURCE_MAPPING_RESEARCH.md):
 
-- scale-factor plumbing from integration into scanout
-- HIRES-off invariant behavior when the new scaling override is disabled
-- downscale-step policy and final pass selection
-- scanout option selection for VI AA / VI scale / divot / dither combinations
-- any helper logic introduced for alternate scaling mode selection
+- The main bug class is source-coordinate modeling in the VI upscale path.
+- The current constants are useful, but they are still an empirical approximation.
+- The remaining mismatch is split by both:
+  - scanline phase
+  - vertical band
+- The docs support a more principled explanation:
+  - `Y_SCALE` is accumulated every scanline
+  - source Y is stateful across the frame
+  - field-relative half-line behavior matters
+  - `Y_OFFSET` and sometimes `ORIGIN` participate in field-relative positioning
 
-Test style:
+So the next goal is not to stack more arbitrary constants. It is to replace some of the current constants with a clearer rule derived from VI semantics.
 
-- prefer unit tests around policy / helper functions over screenshot-only validation
-- keep image or oracle comparisons as higher-level validation, not the only test signal
-- if current code is hard to test directly, refactor small pieces into helper policies first
+## Active Plan
 
-Acceptance for Phase 0:
+### Add Experiments
 
-- new tests fail on a deliberate regression
-- tests pass on the current baseline
+These are the things we should experimentally add next.
 
-## Phase 1: Baseline Measurement and Defect Classification
+- Add a derived source-Y model based on accumulated `Y_SCALE` semantics instead of treating every correction as a flat bias.
+- Add a field-relative source-Y offset experiment based on the documented `Y_SCALE / 2` interlace-style behavior, but keep it behind the experimental mode.
+- Add a lightweight derived piecewise source mapping rule that depends on:
+  - phase
+  - source band
+  - current scanout field semantics
+- Add targeted instrumentation only when needed to verify the live values fed into `vi_scale.frag`.
+- Add one or two additional validation scenes after each meaningful improvement:
+  - another Paper Mario scene
+  - one non-Paper-Mario 2D-heavy scene
 
-Use the saved Paper Mario HIRES-off oracle to classify the current visual differences.
+### Try To Remove
 
-Focus on:
+These are the things we should try to remove from the current approximation as we replace them with clearer rules.
 
-- final scanout filtering
-- downscale policy
-- 2D / texrect-sensitive regions
-- seam and banding artifacts
+- Remove hardcoded phase-specific source-Y constants if a derived field/accumulation rule reproduces the same improvement.
+- Remove band splits that are only acting as proxies for missing VI state.
+- Remove any temporary env-driven sweep hooks once the corresponding behavior is either:
+  - promoted to a principled default, or
+  - proven dead
+- Remove duplicated correction layers when a single earlier source-coordinate correction makes a later shader bias unnecessary.
 
-This phase should produce a short defect inventory tied to the current scanout stages, not just screenshots.
+### Avoid For Now
 
-## Phase 2: Minimal Alternate Scanout Path
+- Do not spend many more cycles on generic kernel/tap-layout churn unless a new source-mapping rule stalls.
+- Do not revisit broad texrect-special handling yet.
+- Do not copy upstream paraLLEl-RDP or GLideN64 structure wholesale.
 
-Add a new scaling override mode behind a dedicated core option, default off.
+## Immediate Next Steps
 
-Constraints:
+1. Derive a candidate source-Y rule from the documented accumulated `Y_SCALE` behavior.
+2. Test whether the current upper/lower phase-Y constants can be reduced or replaced by that rule.
+3. If the rule helps, remove one constant at a time and revalidate.
+4. If the rule does not help enough, revisit a more explicit line-aware scanout model.
 
-- use the existing upscale multiplier
-- do not change default behavior when the override is off
-- do not change RDP rasterization behavior in the first pass
+## Validation Rules
 
-Initial implementation target:
+- Always validate with the saved GLide oracle.
+- Prefer state-mode `parallel` captures for current scaling work.
+- Use `--dump-vi-stages aa,divot,scale,final` when needed.
+- If `scale` and `final` match, keep the investigation in `scale_stage()` / `vi_scale.frag`.
+- Do not commit a change that only improves one noisy region while regressing the stable regions.
 
-- replace or augment final reconstruction in `scale_stage()` and `downscale_stage()`
-- avoid stacking many extra passes if a better single-pass or fewer-pass Vulkan approach is possible
+## Acceptance
 
-Preferred exploration areas:
+The current lane is successful when:
 
-- explicit Vulkan sampling control for final reconstruction
-- higher-quality resolve/downscale path than the current repeated blit-style halving
-- modern Vulkan-friendly methods rather than copying GL-era GLide structure
-
-## Phase 3: HIRES Compatibility Validation
-
-After the alternate scaling path works for HIRES-off, validate HIRES-on behavior.
-
-Important assumption:
-
-- HIRES replacement is applied earlier in the pipeline, primarily in the rasterizer / texture replacement path
-- the new scaling override should initially leave that path alone
-
-Validation targets:
-
-- replacements still load and bind correctly
-- final scene remains stable with the new scanout mode
-- no unexpected interaction between replacement sampling and the new reconstruction path
-
-It is acceptable to modify HIRES compatibility behavior if it unlocks a better scaling method, but any such change must be explicit and tested.
-
-## Phase 4: Decide Whether Texrect-Specific Handling Is Necessary
-
-Do not start with texrect specialization.
-
-Only introduce texrect-specific handling if oracle comparison shows that:
-
-- final reconstruction improvements are insufficient, and
-- the remaining gap is concentrated in 2D / texrect-driven content
-
-If needed, use the existing texrect-related policy points as the foundation rather than creating unrelated control paths.
-
-## Phase 5: Validation, Tooling, and Documentation
-
-Once the method stabilizes:
-
-- add oracle-driven regression workflow for scaling
-- keep HIRES-off and HIRES-on validation paths documented separately
-- document the new scaling override, its default-off behavior, and its relationship to the existing upscale multiplier
-
-## Acceptance Criteria
-
-The work is ready to land when all of the following are true:
-
-- the new override materially improves the HIRES-off Paper Mario 4x comparison against the saved GLide oracle
-- default-off behavior is unchanged
-- unit tests cover the new scaling policy surface
-- HIRES-on behavior is still functional under the new path
-
-## Non-Goals
-
-- replacing the baseline LLE path
-- adding multiple parallel resolution configuration systems
-- reworking HIRES replacement as the first step
-- copying GLideN64 architecture wholesale
+- the experimental path improves the stable oracle regions further
+- at least one current hardcoded source-phase correction is replaced by a clearer derived rule
+- default-off behavior remains unchanged
+- unit coverage still protects the policy surface

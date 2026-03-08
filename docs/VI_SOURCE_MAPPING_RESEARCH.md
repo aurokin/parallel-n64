@@ -47,6 +47,39 @@ Read-only references consulted:
 - The official manual explicitly describes line interpolation behavior in interlaced low-resolution modes.
 - `repeater64` confirms that emulators often fail on line-by-line VI effects and show short horizontal artifacts when VI behavior is wrong.
 
+### Concrete hardware details from the docs
+
+The most useful details from `/home/auro/code/n64_docs/n64brew_Video_Interface.html` and the official manuals were:
+
+- `VI_X_SCALE` and `VI_Y_SCALE` are both 2.10 fixed-point inverse scale-up factors.
+- The VI keeps an internal accumulated vertical offset register:
+  - it is initialized from `Y_OFFSET`
+  - `Y_SCALE` is added every scanline
+  - the integer part of that running value selects the framebuffer Y position
+- Mid-frame `VI_Y_SCALE` changes do not reset that accumulated vertical register.
+- Mid-frame `VI_ORIGIN` changes also do not reset the internally accumulated vertical offset.
+- Serration is only one part of interlacing:
+  - the other part is an odd number of half-scanlines
+  - to display the odd field correctly, software typically needs to offset `Y_OFFSET` by `Y_SCALE / 2`
+  - if that offset overflows the fractional domain, the integer part must be expressed via `VI_ORIGIN`
+- `VI_WIDTH` and `VI_ORIGIN` can both participate in odd/even field stepping for interlaced output.
+- The official manual describes low-resolution interlaced vertical reconstruction as alternating 75/25 and 25/75 line weighting between fields.
+
+These points matter because they strongly support a model where:
+
+- the effective source Y mapping is stateful across scanlines
+- field-relative source positioning is not just a global constant
+- some of the empirical phase/band fixes we found may be approximating missing half-line / accumulated-offset behavior
+
+### One especially relevant doc clue
+
+The n64brew VI page calls out a very common horizontal bug:
+
+- with `X_SCALE <= 0x200` and low `H_START`, the VI can generate invalid output
+- a common workaround for a nominal `0x200` case is to use `0x201`
+
+That does not directly explain our current best `x_add -= 17` correction, but it is an important reminder that VI coordinate behavior is not perfectly "ideal math." There are hardware quirks around exact scale values, start values, and filtering modes.
+
 ### What upstream paraLLEl-RDP clarified
 
 - Upstream paraLLEl-RDP does not rely on one global `x_start/x_add/y_start/y_add` pair at scanout time.
@@ -81,12 +114,25 @@ The current best reading is:
 - The right long-term fix is probably not "more constants."
 - The right long-term fix is a clearer derived source-coordinate rule, or a more explicit line-aware scanout model, informed by VI semantics.
 
+More specifically after reading the docs:
+
+- the current local path is probably missing some combination of:
+  - accumulated vertical offset semantics
+  - field-relative half-line positioning
+  - piecewise source rebasing between scanline bands / fields
+- the current empirical upper-band and lower-band phase-Y corrections are plausible approximations of those missing behaviors
+- a principled replacement should be derived from VI register semantics first, not from more blind sweeps
+
 ## Practical Next Steps
 
 1. Keep using the current experimental baseline as the best local result.
 2. Derive a clearer rule for source-coordinate rebasing from VI semantics instead of continuing with blind sweeps.
-3. Prefer a lightweight derived piecewise rule first.
-4. Only revisit a larger per-line scanout port if the derived rule cannot explain the remaining mismatch.
+3. Focus first on:
+   - accumulated `Y_SCALE` semantics
+   - field-relative `Y_OFFSET` / `Y_SCALE / 2` behavior
+   - whether our current phase-1 / phase-3 split matches a half-line or fractional-field offset model
+4. Prefer a lightweight derived piecewise rule first.
+5. Only revisit a larger per-line scanout port if the derived rule cannot explain the remaining mismatch.
 
 ## Non-Conclusions
 

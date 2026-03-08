@@ -44,8 +44,8 @@ require_pattern "--smoke-mode timed" "$CAPTURE_RUNNER" \
   "intro22 capture should force timed mode on parallel"
 require_pattern 'parallel_screenshot_at="22"' "$CAPTURE_RUNNER" \
   "intro22 capture should default parallel timing to the 22-second scene"
-require_pattern 'glide_screenshot_at="22"' "$CAPTURE_RUNNER" \
-  "intro22 capture should default glide timing to the 22-second scene"
+require_pattern 'glide_screenshot_at="19"' "$CAPTURE_RUNNER" \
+  "intro22 capture should default glide timing to the aligned 19-second scene"
 require_pattern "--parallel-screenshot-at SEC" "$CAPTURE_RUNNER" \
   "intro22 capture should allow parallel timing offsets"
 require_pattern "--glide-screenshot-at SEC" "$CAPTURE_RUNNER" \

@@ -28,7 +28,8 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
     - `./run-paper-mario-hires-zoom-compare.sh --profile intro22`
 - Timing:
   - no-input timed capture
-  - screenshot at `22s` by default, but `parallel` and GLide can be offset independently
+  - aligned default is `parallel=22s`, `glide=19s`
+  - `parallel` and GLide can still be offset independently when the scene drifts
   - `parallel` close delay `10s`
   - `GLide` input deferred with `--start-delay 40 --post-delay 2`
   - both helpers pause immediately before the screenshot by default

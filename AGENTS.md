@@ -62,6 +62,7 @@ Co-Authored-By: Codex <noreply@openai.com>
   - scene quick list: `./run-paper-mario-scenes.sh`
   - raw equivalent: `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at 22 --timed-close-delay 10 --require-hires`
   - intro22 wrapper supports per-client screenshot offsets and defaults to pausing immediately before the screenshot so `parallel` and GLide can be tuned onto the same rendered frame
+  - current aligned default is `parallel=22s`, `GLideN64=19s`
   - timed mode also supports deterministic save-state seeding:
     - `--timed-save-state-at <sec> --savestate-dir <dir>` sends `SAVE_STATE` before the screenshot and writes slot `0` into the explicit savestate directory
     - after seeding, validate from the same directory with `--smoke-mode state --savestate-dir <dir>`

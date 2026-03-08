@@ -9,7 +9,7 @@ mode="parallel"
 tag=""
 capture_root=""
 parallel_screenshot_at="22"
-glide_screenshot_at="22"
+glide_screenshot_at="19"
 pause_before_shot="1"
 pause_before_shot_delay="0.2"
 declare -a extra_args=()
@@ -27,7 +27,7 @@ Options:
   --parallel-screenshot-at SEC
                     Screenshot time for `parallel` (default: 22)
   --glide-screenshot-at SEC
-                    Screenshot time for `glide` (default: 22)
+                    Screenshot time for `glide` (default: 19)
   --pause-before-shot
                     Send PAUSE_TOGGLE before SCREENSHOT (default)
   --no-pause-before-shot

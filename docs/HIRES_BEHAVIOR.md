@@ -113,6 +113,7 @@
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
   - current useful intro `Today...` scene:
     - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
+    - current aligned default is `parallel=22s`, `glide=19s`
   - to seed a deterministic intro/title save state for later replay:
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --timed-save-state-at <sec> --savestate-dir <dir> --tag <tag> --require-hires`
 - Comparable Paper Mario HIRES zoom compare on `parallel`:

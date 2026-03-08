@@ -41,6 +41,7 @@ layout(push_constant, std430) uniform Registers
     int y_add;
     int raw_y_add;
     int y_line_base_upper;
+    int y_line_base_lower;
     int use_derived_y_biases;
     int frame_count;
     int phase1_y_bias;
@@ -134,6 +135,8 @@ void main()
     int y = coord.y * registers.y_add + registers.y_base;
     if (registers.y_line_base_upper != 0 && (y >> 10) < 640)
         y = (((coord.y << 10) - registers.y_line_base_upper) * registers.y_add >> 10) + registers.y_base;
+    else if (registers.y_line_base_lower != 0 && (y >> 10) >= 640)
+        y = (((coord.y << 10) - registers.y_line_base_lower) * registers.y_add >> 10) + registers.y_base;
     uvec3 c00;
 
     if (EXPERIMENTAL_RECONSTRUCTION)

@@ -128,6 +128,7 @@ More specifically after reading the docs:
 - the structural `y_start / line-base` split is also now validated in one limited form:
   - an upper-band-only line-base term improves `top` and `right` without moving the bottom region
   - current best local rule is `upper-band y_line_base -= 768`
+  - a lower-band-only line-base term then improves `bottom/right`; current best local rule is `lower-band y_line_base += 256`
 - a principled replacement should be derived from VI register semantics first, not from more blind sweeps
 
 ## Practical Next Steps

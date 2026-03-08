@@ -43,6 +43,7 @@ Current experimental 4x source/reconstruction baseline:
 - `y_add -= 30`
 - `y_base += 736`
 - upper-band `y_line_base -= 768`
+- lower-band `y_line_base += 256`
 - lower-band `phase3_x += 128`
 - derived phase-Y adjustments from raw `Y_SCALE`:
   - upper-band `phase1_y += 3 * raw_y_add / 8`
@@ -55,11 +56,11 @@ Current experimental 4x source/reconstruction baseline:
 
 Current clean Paper Mario compare:
 
-- `full 18.0974`
-- `left 18.6573`
-- `right 30.0718`
+- `full 18.0293`
+- `left 18.6289`
+- `right 30.0410`
 - `top 16.6798`
-- `bottom 20.7471`
+- `bottom 20.4990`
 - `file2_new 2.9933`
 
 Important caveat:
@@ -79,6 +80,7 @@ Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/
   - the remaining lower-band phase-3 residual also responds to a derived raw-`Y_SCALE` term instead of another free-standing policy constant
 - The first structural scanout split is now also paying off:
   - upper-band source Y uses a separate line-base term instead of relying only on the additive `y_base` path
+  - lower-band source Y now does the same, with the opposite sign
 - The remaining mismatch is split by both:
   - scanline phase
   - vertical band

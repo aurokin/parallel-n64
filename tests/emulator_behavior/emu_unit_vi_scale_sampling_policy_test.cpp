@@ -73,6 +73,7 @@ static void test_experimental_mode_enables_subpixel_reconstruction_when_upscaled
 	check(policy.source_y_add_bias == 30u, "4x experimental mode should bias source y_add");
 	check(policy.source_y_base_bias == 736, "4x experimental mode should bias source y base");
 	check(policy.source_y_line_base_upper_bias == -768, "4x experimental mode should bias the upper-band source y line base");
+	check(policy.source_y_line_base_lower_bias == 256, "4x experimental mode should bias the lower-band source y line base");
 	check(policy.source_x_add_bias == 17u, "4x experimental mode should bias source x_add");
 	check(policy.source_x_base_bias == 0, "4x experimental mode should keep zero source x base bias");
 	check(policy.phase1_source_y_bias == 0, "4x experimental mode should leave phase 1 source y override at zero");
@@ -132,6 +133,8 @@ static void test_env_overrides_replace_default_biases()
 
 	setenv("PARALLEL_VI_SOURCE_Y_ADD_BIAS", "31", 1);
 	setenv("PARALLEL_VI_SOURCE_Y_BASE_BIAS", "512", 1);
+	setenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_UPPER_BIAS", "-96", 1);
+	setenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_LOWER_BIAS", "160", 1);
 	setenv("PARALLEL_VI_SOURCE_X_ADD_BIAS", "19", 1);
 	setenv("PARALLEL_VI_SOURCE_X_BASE_BIAS", "-64", 1);
 	setenv("PARALLEL_VI_PHASE1_Y_BIAS", "40", 1);
@@ -143,6 +146,8 @@ static void test_env_overrides_replace_default_biases()
 	check(!policy.use_derived_source_y_biases, "env override should disable derived source y biases");
 	check(policy.source_y_add_bias == 31u, "env override should replace source y_add bias");
 	check(policy.source_y_base_bias == 512, "env override should replace source y base bias");
+	check(policy.source_y_line_base_upper_bias == -96, "env override should replace upper-band source y line base bias");
+	check(policy.source_y_line_base_lower_bias == 160, "env override should replace lower-band source y line base bias");
 	check(policy.source_x_add_bias == 19u, "env override should replace source x_add bias");
 	check(policy.source_x_base_bias == -64, "env override should replace source x base bias");
 	check(policy.phase1_source_y_bias == 40, "env override should replace phase 1 source y bias");
@@ -152,6 +157,8 @@ static void test_env_overrides_replace_default_biases()
 
 	unsetenv("PARALLEL_VI_SOURCE_Y_ADD_BIAS");
 	unsetenv("PARALLEL_VI_SOURCE_Y_BASE_BIAS");
+	unsetenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_UPPER_BIAS");
+	unsetenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_LOWER_BIAS");
 	unsetenv("PARALLEL_VI_SOURCE_X_ADD_BIAS");
 	unsetenv("PARALLEL_VI_SOURCE_X_BASE_BIAS");
 	unsetenv("PARALLEL_VI_PHASE1_Y_BIAS");

@@ -20,6 +20,7 @@ struct VIScaleSamplingPolicy
 	unsigned source_y_add_bias = 0;
 	int source_y_base_bias = 0;
 	int source_y_line_base_upper_bias = 0;
+	int source_y_line_base_lower_bias = 0;
 	unsigned source_x_add_bias = 0;
 	int source_x_base_bias = 0;
 	int phase1_source_y_bias = 0;
@@ -44,6 +45,7 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 			out.source_y_add_bias = 30;
 			out.source_y_base_bias = 736;
 			out.source_y_line_base_upper_bias = -768;
+			out.source_y_line_base_lower_bias = 256;
 			out.source_x_add_bias = 17;
 			out.source_x_base_bias = 0;
 			out.phase3_source_x_bias = 128;
@@ -57,6 +59,8 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 		out.source_y_base_bias = int(std::strtol(env, nullptr, 0));
 	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_UPPER_BIAS"))
 		out.source_y_line_base_upper_bias = int(std::strtol(env, nullptr, 0));
+	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_LOWER_BIAS"))
+		out.source_y_line_base_lower_bias = int(std::strtol(env, nullptr, 0));
 	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_X_ADD_BIAS"))
 		out.source_x_add_bias = unsigned(std::strtoul(env, nullptr, 0));
 	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_X_BASE_BIAS"))

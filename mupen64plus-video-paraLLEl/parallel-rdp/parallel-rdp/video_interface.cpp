@@ -700,6 +700,7 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 		uint32_t y_add;
 		uint32_t raw_y_add;
 		int32_t y_line_base_upper;
+		int32_t y_line_base_lower;
 		uint32_t use_derived_y_biases;
 		uint32_t frame_count;
 		int32_t phase1_y_bias;
@@ -723,6 +724,7 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 	push.y_add = regs.y_add;
 	push.raw_y_add = regs.y_add;
 	push.y_line_base_upper = sampling_policy.source_y_line_base_upper_bias;
+	push.y_line_base_lower = sampling_policy.source_y_line_base_lower_bias;
 	push.use_derived_y_biases = sampling_policy.use_derived_source_y_biases ? 1u : 0u;
 	push.frame_count = frame_count;
 	if (sampling_policy.source_x_add_bias != 0 && push.x_add > sampling_policy.source_x_add_bias)

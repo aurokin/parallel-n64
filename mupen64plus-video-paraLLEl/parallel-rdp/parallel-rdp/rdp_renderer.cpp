@@ -1842,7 +1842,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	// can continue to escape native texrect protection.
 	if (draw_has_replacement && !copy_mode)
 		draw_setup.flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
-	if (draw_has_replacement)
+	if (draw_has_replacement &&
+	    (stream.depth_blend_state.flags & DEPTH_BLEND_FORCE_BLEND_BIT) != 0)
 		stream.depth_blend_state.flags &= ~DEPTH_BLEND_DITHER_ENABLE_BIT;
 
 	update_deduced_height(draw_setup);

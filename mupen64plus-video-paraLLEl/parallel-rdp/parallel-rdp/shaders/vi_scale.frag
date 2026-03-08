@@ -157,11 +157,13 @@ void main()
         {
             if ((y >> 10) < 640)
             {
-                x += registers.phase3_x_bias;
                 y += phase3_y_bias;
             }
             else if (registers.use_derived_y_biases != 0)
+            {
+                x += registers.phase3_x_bias;
                 y -= registers.raw_y_add >> 2;
+            }
         }
         y += (registers.y_add * phase_adjust) >> 5;
         int quarter_x = max(registers.x_add >> 2, 1);

@@ -42,6 +42,7 @@ Current experimental 4x source/reconstruction baseline:
 - `x_add -= 17`
 - `y_add -= 30`
 - `y_base += 736`
+- lower-band `phase3_x += 128`
 - derived phase-Y adjustments from raw `Y_SCALE`:
   - upper-band `phase1_y += 3 * raw_y_add / 8`
   - lower-band `phase1_y -= raw_y_add / 2`
@@ -53,17 +54,18 @@ Current experimental 4x source/reconstruction baseline:
 
 Current clean Paper Mario compare:
 
-- `full 18.5087`
-- `left 19.2639`
-- `right 30.2013`
+- `full 18.2105`
+- `left 17.4481`
+- `right 30.1935`
 - `top 17.9058`
-- `bottom 20.7660`
+- `bottom 20.7471`
 - `file2_new 2.9931`
 
 Important caveat:
 
 - repeated same-code captures still show left-side variance
 - trust `right`, `top`, `bottom`, `file2_new`, and stage dumps more than the `left` crop alone
+- the current lower-band `phase3_x += 128` result repeated bit-identically across two captures on the Paper Mario state path, so this one is not behaving like the earlier left-side-only variance
 
 ## What We Believe Now
 

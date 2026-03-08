@@ -20,6 +20,7 @@ struct VIScaleSamplingPolicy
 	int source_y_base_bias = 0;
 	unsigned source_x_add_bias = 0;
 	int source_x_base_bias = 0;
+	int phase1_source_y_bias = 0;
 	int phase3_source_x_bias = 0;
 	int phase3_source_y_bias = 0;
 };
@@ -41,6 +42,7 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 			out.source_y_base_bias = 736;
 			out.source_x_add_bias = 17;
 			out.source_x_base_bias = 0;
+			out.phase1_source_y_bias = 384;
 			out.phase3_source_y_bias = 512;
 		}
 	}
@@ -53,6 +55,8 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 		out.source_x_add_bias = unsigned(std::strtoul(env, nullptr, 0));
 	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_X_BASE_BIAS"))
 		out.source_x_base_bias = int(std::strtol(env, nullptr, 0));
+	if (const char *env = std::getenv("PARALLEL_VI_PHASE1_Y_BIAS"))
+		out.phase1_source_y_bias = int(std::strtol(env, nullptr, 0));
 	if (const char *env = std::getenv("PARALLEL_VI_PHASE3_X_BIAS"))
 		out.phase3_source_x_bias = int(std::strtol(env, nullptr, 0));
 	if (const char *env = std::getenv("PARALLEL_VI_PHASE3_Y_BIAS"))

@@ -40,6 +40,7 @@ layout(push_constant, std430) uniform Registers
     int x_add;
     int y_add;
     int frame_count;
+    int phase1_y_bias;
     int phase3_x_bias;
     int phase3_y_bias;
 
@@ -133,6 +134,8 @@ void main()
     {
         int phase = coord.y & 3;
         int phase_adjust = phase == 0 ? 0 : (phase == 1 ? 2 : (phase == 2 ? 7 : 18));
+        if (phase == 1 && (y >> 10) < 640)
+            y += registers.phase1_y_bias;
         if (phase == 3 && (y >> 10) < 640)
         {
             x += registers.phase3_x_bias;

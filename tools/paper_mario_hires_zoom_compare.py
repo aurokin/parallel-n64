@@ -6,17 +6,34 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageStat
 
 
-DEFAULT_ORACLE = Path(
-    "/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/"
-    "hires/oracle-gliden64-4x-hires-on-noinput-16s-1/Paper Mario (USA)-260308-011300.png"
-)
-
-REGIONS = {
-    "top_banner": {"parallel_box": (620, 10, 2140, 340), "search_radius": 120},
-    "today_text": {"parallel_box": (1040, 1590, 1700, 1825), "search_radius": 180},
-    "bottom_stage_grid": {"parallel_box": (540, 1480, 2240, 2022), "search_radius": 140},
-    "left_stage_grid": {"parallel_box": (0, 140, 360, 1510), "search_radius": 140},
+PROFILES = {
+    "intro22": {
+        "oracle": Path(
+            "/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/"
+            "hires/oracle-gliden64-4x-hires-on-intro22-noinput-1/"
+            "Paper Mario (USA)-260308-161105.png"
+        ),
+        "regions": {
+            "top_banner": {"parallel_box": (500, 0, 2280, 360), "search_radius": 120},
+            "today_text": {"parallel_box": (900, 1560, 1760, 1845), "search_radius": 180},
+            "bottom_stage_grid": {"parallel_box": (420, 1460, 2360, 2086), "search_radius": 140},
+            "left_stage_grid": {"parallel_box": (0, 120, 420, 1560), "search_radius": 140},
+        },
+    },
+    "noinput16": {
+        "oracle": Path(
+            "/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/"
+            "hires/oracle-gliden64-4x-hires-on-noinput-16s-1/Paper Mario (USA)-260308-011300.png"
+        ),
+        "regions": {
+            "top_banner": {"parallel_box": (620, 10, 2140, 340), "search_radius": 120},
+            "today_text": {"parallel_box": (1040, 1590, 1700, 1825), "search_radius": 180},
+            "bottom_stage_grid": {"parallel_box": (540, 1480, 2240, 2022), "search_radius": 140},
+            "left_stage_grid": {"parallel_box": (0, 140, 360, 1510), "search_radius": 140},
+        },
+    },
 }
+DEFAULT_PROFILE = "intro22"
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,7 +41,13 @@ def parse_args() -> argparse.Namespace:
         description="Create focused zoom comparisons between a Paper Mario parallel HIRES capture and the saved GLide oracle."
     )
     parser.add_argument("--candidate", required=True, help="Candidate PNG to compare.")
-    parser.add_argument("--oracle", default=str(DEFAULT_ORACLE), help="Oracle PNG to compare against.")
+    parser.add_argument(
+        "--profile",
+        default=DEFAULT_PROFILE,
+        choices=sorted(PROFILES.keys()),
+        help="Comparison scene profile to use.",
+    )
+    parser.add_argument("--oracle", default="", help="Oracle PNG to compare against.")
     parser.add_argument("--output-dir", required=True, help="Directory to write crops and summaries into.")
     return parser.parse_args()
 
@@ -102,7 +125,8 @@ def build_diff(lhs: Image.Image, rhs: Image.Image) -> Image.Image:
 def main() -> int:
     args = parse_args()
     candidate_path = Path(args.candidate)
-    oracle_path = Path(args.oracle)
+    profile = PROFILES[args.profile]
+    oracle_path = Path(args.oracle) if args.oracle else profile["oracle"]
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -114,11 +138,12 @@ def main() -> int:
     summary = {
         "candidate": str(candidate_path),
         "oracle": str(oracle_path),
+        "profile": args.profile,
         "regions": {},
     }
 
     rows = []
-    for name, spec in REGIONS.items():
+    for name, spec in profile["regions"].items():
         pbox = spec["parallel_box"]
         gx0, gy0, gx1, gy1, score = find_best_box(candidate_gray, oracle_gray, pbox, spec["search_radius"])
         gbox = (gx0, gy0, gx1, gy1)
@@ -151,8 +176,9 @@ def main() -> int:
     summary_text_lines = [
         f"candidate: {candidate_path}",
         f"oracle: {oracle_path}",
+        f"profile: {args.profile}",
     ]
-    for name in REGIONS:
+    for name in profile["regions"]:
         region = summary["regions"][name]
         summary_text_lines.append(
             f"{name}: parallel={tuple(region['parallel_box'])} glide={tuple(region['glide_box'])} score={region['alignment_score']:.4f}"

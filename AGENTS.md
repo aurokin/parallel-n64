@@ -57,14 +57,16 @@ Co-Authored-By: Codex <noreply@openai.com>
   - the helper forces `parallel-n64-parallel-rdp-hirestex = enabled` by default; only override that on purpose
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
-  - for the current no-input HIRES intro scene, use `--smoke-mode timed --screenshot-at 16`
+  - for the current useful no-input HIRES intro `Today...` scene, prefer `./run-paper-mario-hires-intro22-capture.sh`
+  - raw equivalent: `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at 22 --timed-close-delay 10 --require-hires`
   - timed mode also supports deterministic save-state seeding:
     - `--timed-save-state-at <sec> --savestate-dir <dir>` sends `SAVE_STATE` before the screenshot and writes slot `0` into the explicit savestate directory
     - after seeding, validate from the same directory with `--smoke-mode state --savestate-dir <dir>`
 - Parallel HIRES zoom compare:
   - `./run-paper-mario-hires-zoom-compare.sh`
+  - `./run-paper-mario-hires-intro22-compare.sh`
   - defaults to the latest PNG under `/tmp/parallel-n64-paper-mario-captures`
-  - compares against the saved GLide HIRES no-input 16s oracle and emits focused crops for `top_banner`, `today_text`, `bottom_stage_grid`, and `left_stage_grid`
+  - defaults to the saved GLide HIRES intro22 `Today...` oracle and emits focused crops for `top_banner`, `today_text`, `bottom_stage_grid`, and `left_stage_grid`
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off
@@ -74,8 +76,12 @@ Co-Authored-By: Codex <noreply@openai.com>
   - `./run-paper-mario-scaling-compare.sh --tag <tag>`
 - GLide oracle capture:
   - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
+- GLide intro22 oracle capture:
+  - `./run-paper-mario-hires-intro22-capture.sh --glide --tag <tag>`
 - Preserved GLide oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
+- Preserved GLide 4x HIRES-on intro22 `Today...` oracle:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-noinput-1/Paper Mario (USA)-260308-161105.png`
 - Preserved GLide 4x HIRES-on no-input 16s oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-noinput-16s-1/Paper Mario (USA)-260308-011300.png`
 - Preserved GLide 4x HIRES-off scaling oracle:

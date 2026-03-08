@@ -3,13 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 COMPARE_TOOL="$SCRIPT_DIR/tools/paper_mario_hires_zoom_compare.py"
-DEFAULT_ORACLE="/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-noinput-16s-1/Paper Mario (USA)-260308-011300.png"
 CAPTURE_ROOT="/tmp/parallel-n64-paper-mario-captures"
 OUTPUT_ROOT="/tmp/parallel-n64-paper-mario-hires-compare"
 
 candidate=""
 tag=""
-oracle="$DEFAULT_ORACLE"
+profile="intro22"
+oracle=""
 output_dir=""
 
 usage() {
@@ -20,13 +20,15 @@ Usage:
 Options:
   --candidate PNG   Candidate screenshot to compare
   --tag NAME        Resolve the newest PNG under /tmp/parallel-n64-paper-mario-captures/NAME
-  --oracle PNG      Override the default GLide HIRES oracle
+  --profile NAME    Compare profile: intro22|noinput16 (default: intro22)
+  --oracle PNG      Override the profile's default GLide HIRES oracle
   --output-dir DIR  Override the output directory
   -h, --help        Show this help
 
 Behavior:
   - Defaults to the newest PNG under /tmp/parallel-n64-paper-mario-captures when no candidate is given.
-  - Compares the candidate against the saved GLideN64 4x HIRES no-input 16s oracle.
+  - `intro22` compares against the saved GLideN64 4x HIRES no-input `Today...` oracle.
+  - `noinput16` keeps the older saved GLideN64 4x HIRES no-input 16s oracle.
   - Emits focused zoom crops for top banner, today text, bottom stage grid, and left stage grid.
 EOF_USAGE
 }
@@ -66,6 +68,10 @@ while (($#)); do
       shift
       tag="${1:-}"
       ;;
+    --profile)
+      shift
+      profile="${1:-}"
+      ;;
     --oracle)
       shift
       oracle="${1:-}"
@@ -93,6 +99,12 @@ if [[ -n "$candidate" && -n "$tag" ]]; then
   exit 1
 fi
 
+if [[ "$profile" != "intro22" && "$profile" != "noinput16" ]]; then
+  echo "Unknown --profile: $profile" >&2
+  usage >&2
+  exit 1
+fi
+
 if [[ -n "$tag" ]]; then
   candidate="$(find "$CAPTURE_ROOT/$tag" -maxdepth 1 -type f -name '*.png' | sort | tail -n 1)"
 elif [[ -z "$candidate" ]]; then
@@ -101,11 +113,6 @@ fi
 
 if [[ -z "$candidate" || ! -f "$candidate" ]]; then
   echo "Candidate screenshot not found: ${candidate:-<empty>}" >&2
-  exit 1
-fi
-
-if [[ ! -f "$oracle" ]]; then
-  echo "Oracle screenshot not found: $oracle" >&2
   exit 1
 fi
 
@@ -121,7 +128,15 @@ fi
 
 mkdir -p "$output_dir"
 
-exec python3 "$COMPARE_TOOL" \
-  --candidate "$candidate" \
-  --oracle "$oracle" \
+declare -a cmd=(
+  python3 "$COMPARE_TOOL"
+  --candidate "$candidate"
+  --profile "$profile"
   --output-dir "$output_dir"
+)
+
+if [[ -n "$oracle" ]]; then
+  cmd+=(--oracle "$oracle")
+fi
+
+exec "${cmd[@]}"

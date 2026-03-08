@@ -30,14 +30,23 @@ require_pattern "run-paper-mario-hires-zoom-compare.sh [options]" "$RUNNER" \
   "usage text missing hires zoom compare invocation"
 require_pattern "--candidate PNG" "$RUNNER" "hires zoom compare should accept an explicit candidate"
 require_pattern "--tag NAME" "$RUNNER" "hires zoom compare should resolve captures by tag"
+require_pattern "--profile NAME" "$RUNNER" "hires zoom compare should accept scene profiles"
 require_pattern "Defaults to the newest PNG under /tmp/parallel-n64-paper-mario-captures" "$RUNNER" \
   "hires zoom compare should default to the latest capture"
 require_pattern "/tmp/parallel-n64-paper-mario-hires-compare" "$RUNNER" \
   "hires zoom compare should use the standard output root"
-require_pattern 'exec python3 "$COMPARE_TOOL"' "$RUNNER" \
-  "hires zoom compare should exec the python tool"
-require_pattern "DEFAULT_ORACLE = Path(" "$TOOL" \
-  "python zoom compare tool should define the default oracle"
+require_pattern 'profile="intro22"' "$RUNNER" \
+  "hires zoom compare should default to the intro22 profile"
+require_pattern 'python3 "$COMPARE_TOOL"' "$RUNNER" \
+  "hires zoom compare should invoke the python tool"
+require_pattern 'exec "${cmd[@]}"' "$RUNNER" \
+  "hires zoom compare should exec the assembled command"
+require_pattern 'DEFAULT_PROFILE = "intro22"' "$TOOL" \
+  "python zoom compare tool should default to the intro22 profile"
+require_pattern '"intro22": {' "$TOOL" \
+  "python zoom compare tool should define the intro22 profile"
+require_pattern '"noinput16": {' "$TOOL" \
+  "python zoom compare tool should retain the legacy noinput16 profile"
 require_pattern '"top_banner"' "$TOOL" \
   "python zoom compare tool should define the top banner crop"
 require_pattern '"today_text"' "$TOOL" \

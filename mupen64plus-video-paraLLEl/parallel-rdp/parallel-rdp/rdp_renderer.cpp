@@ -3569,6 +3569,7 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 				if (!candidate_hit && probe_meta.fmt == TextureFormat::CI)
 				{
 					uint64_t ci_fallback_checksum64 = 0;
+					bool ci_fallback_matched_preferred_palette = false;
 					if (replacement_provider->lookup_ci_low32_unique(
 							candidate_texture_crc,
 							probe_formatsize,
@@ -3583,17 +3584,36 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 							 probe_formatsize,
 							 hires_ci_palette_hint,
 							 &probe_repl_meta,
-							 &ci_fallback_checksum64))
+							 &ci_fallback_checksum64,
+							 &ci_fallback_matched_preferred_palette))
 					{
-						candidate_checksum64 = ci_fallback_checksum64;
-						candidate_hit = true;
-						if (hires_debug)
+						if (!detail::should_accept_hires_ci_ambiguous_fallback(
+								false,
+								hires_ci_palette_hint,
+								ci_fallback_matched_preferred_palette))
 						{
-							LOGI("Hi-res keying CI ambiguous block fallback: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
-							     candidate_texture_crc,
-							     unsigned(probe_formatsize),
-							     hires_ci_palette_hint,
-							     static_cast<unsigned long long>(candidate_checksum64));
+							if (hires_debug)
+							{
+								LOGI("Hi-res keying CI ambiguous block fallback rejected: tex_crc=%08x fs=%u hint=%08x -> key=%016llx.\n",
+								     candidate_texture_crc,
+								     unsigned(probe_formatsize),
+								     hires_ci_palette_hint,
+								     static_cast<unsigned long long>(ci_fallback_checksum64));
+							}
+						}
+						else
+						{
+							candidate_checksum64 = ci_fallback_checksum64;
+							candidate_hit = true;
+							if (hires_debug)
+							{
+								LOGI("Hi-res keying CI ambiguous block fallback: tex_crc=%08x fs=%u hint=%08x matched=%d -> key=%016llx.\n",
+								     candidate_texture_crc,
+								     unsigned(probe_formatsize),
+								     hires_ci_palette_hint,
+								     ci_fallback_matched_preferred_palette ? 1 : 0,
+								     static_cast<unsigned long long>(candidate_checksum64));
+							}
 						}
 					}
 				}
@@ -4366,9 +4386,10 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							&ci_fallback_checksum64,
 							&ci_fallback_matched_preferred_palette))
 					{
-						if (!allow_ci_ambiguous_without_palette_match &&
-						    hires_ci_palette_hint != 0 &&
-						    !ci_fallback_matched_preferred_palette)
+						if (!detail::should_accept_hires_ci_ambiguous_fallback(
+								allow_ci_ambiguous_without_palette_match,
+								hires_ci_palette_hint,
+								ci_fallback_matched_preferred_palette))
 						{
 							if (hires_debug)
 							{
@@ -4399,12 +4420,13 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				return candidate_hit;
 			};
 
+			// Keep the primary key strict so CI textures do not inherit a stale palette hint.
 			hit = try_lookup_for_texture_crc(
 					texture_crc,
 					key_width_pixels,
 					key_height_pixels,
 					row_stride_bytes,
-					true);
+					false);
 
 			uint32_t lookup_width_pixels = key_width_pixels;
 			uint32_t lookup_height_pixels = key_height_pixels;

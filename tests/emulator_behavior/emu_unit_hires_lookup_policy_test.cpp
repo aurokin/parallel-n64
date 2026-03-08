@@ -58,6 +58,18 @@ static void test_ci_palette_candidate_gate_contract()
 	      "invalid TLUT shadow should skip palette candidate path");
 }
 
+static void test_ci_ambiguous_fallback_gate_contract()
+{
+	check(should_accept_hires_ci_ambiguous_fallback(true, 0x12345678u, false),
+	      "explicitly allowed ambiguous CI fallback should be accepted");
+	check(should_accept_hires_ci_ambiguous_fallback(false, 0u, false),
+	      "missing preferred palette hint should allow ambiguous CI fallback");
+	check(should_accept_hires_ci_ambiguous_fallback(false, 0x12345678u, true),
+	      "matching preferred palette should allow ambiguous CI fallback");
+	check(!should_accept_hires_ci_ambiguous_fallback(false, 0x12345678u, false),
+	      "mismatched preferred palette should reject ambiguous CI fallback");
+}
+
 static void test_hires_key_base_addr_contract()
 {
 	const uint32_t tex_addr = 0x1000u;
@@ -255,6 +267,7 @@ int main()
 	test_tlut_shadow_gate();
 	test_hires_lookup_fast_path_gate();
 	test_ci_palette_candidate_gate_contract();
+	test_ci_ambiguous_fallback_gate_contract();
 	test_hires_key_base_addr_contract();
 	test_hires_texture_byte_layout_contract();
 	test_hires_tile_lookup_dim_contract();

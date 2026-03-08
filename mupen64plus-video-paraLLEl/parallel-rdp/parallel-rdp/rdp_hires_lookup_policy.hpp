@@ -42,6 +42,15 @@ inline bool should_try_hires_ci_palette_candidates(TextureFormat fmt,
 	       (size == TextureSize::Bpp4 || size == TextureSize::Bpp8);
 }
 
+inline bool should_accept_hires_ci_ambiguous_fallback(bool allow_without_palette_match,
+                                                      uint32_t preferred_palette_hint,
+                                                      bool matched_preferred_palette)
+{
+	return allow_without_palette_match ||
+	       preferred_palette_hint == 0 ||
+	       matched_preferred_palette;
+}
+
 inline uint32_t compute_hires_key_base_addr(uint32_t tex_addr,
                                             uint32_t tex_width,
                                             uint32_t key_start_x,

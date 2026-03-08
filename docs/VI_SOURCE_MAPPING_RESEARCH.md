@@ -140,6 +140,7 @@ More specifically after reading the docs:
   - `y_add -= raw_y_add / 32 - raw_y_add / 512`
 - the upper/lower band boundary can now also be expressed directly from raw `Y_SCALE`:
   - `upper_band_limit = 5 * raw_y_add / 8`
+- using that derived band split consistently in both the outer source-coordinate path and the inner `sample_divot_output()` path is a real visual improvement; leaving a stale hardcoded `640` in the inner path was part of the remaining mismatch
 - a principled replacement should be derived from VI register semantics first, not from more blind sweeps
 
 ## Practical Next Steps

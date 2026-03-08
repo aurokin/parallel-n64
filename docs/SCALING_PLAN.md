@@ -62,8 +62,8 @@ Current experimental 4x source/reconstruction baseline:
 
 Current clean Paper Mario compare:
 
-- `full 18.0293`
-- `left 18.6289`
+- `full 17.7298`
+- `left 16.7295`
 - `right 30.0410`
 - `top 16.6798`
 - `bottom 20.4990`
@@ -86,6 +86,8 @@ Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/
   - the remaining lower-band phase-3 residual also responds to a derived raw-`Y_SCALE` term instead of another free-standing policy constant
 - Another cleanup step is now complete:
   - the lower-band `phase3_x` correction is also derived from raw `Y_SCALE` instead of stored as a default constant
+- Another real fix came from consistency, not a new heuristic:
+  - the upper/lower band split must be derived the same way inside `sample_divot_output()`, not only in the outer source-coordinate path
 - The first structural scanout split is now also paying off:
   - source Y uses separate upper/lower line-base terms instead of relying only on the additive `y_base` path
   - both band terms are now derived from raw `Y_SCALE` instead of stored as default constants

@@ -103,7 +103,7 @@ uvec3 sample_divot_output(int x, int y, int phase)
         uint x_frac = uint((x >> 5) & 31);
         uint y_frac = uint((y >> 5) & 31);
 
-        if (EXPERIMENTAL_RECONSTRUCTION && (phase == 1 || phase == 2) && (y >> 10) < 640)
+        if (EXPERIMENTAL_RECONSTRUCTION && (phase == 1 || phase == 2) && (y >> 10) < ((registers.raw_y_add * 5) >> 3))
         {
             y_frac = (y_frac * 29u + 16u) >> 5u;
         }

@@ -51,6 +51,8 @@ Current experimental 4x source/reconstruction baseline:
   - lower-band `phase3_y -= raw_y_add / 4`
 - derived lower-band phase-3 X adjustment from raw `Y_SCALE`:
   - lower-band `phase3_x += raw_y_add / 8`
+- derived upper/lower band split from raw `Y_SCALE`:
+  - `upper_band_limit = 5 * raw_y_add / 8`
 - derived band line-base adjustments from raw `Y_SCALE`:
   - upper-band `y_line_base -= 3 * raw_y_add / 4`
   - lower-band `y_line_base += raw_y_add / 4`

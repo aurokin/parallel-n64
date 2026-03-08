@@ -133,6 +133,7 @@ void main()
 
     int x = coord.x * registers.x_add + registers.x_base;
     int y = coord.y * registers.y_add + registers.y_base;
+    int upper_band_limit = (registers.raw_y_add * 5) >> 3;
     int y_line_base_upper = registers.y_line_base_upper;
     int y_line_base_lower = registers.y_line_base_lower;
     if (registers.use_derived_y_biases != 0)
@@ -142,9 +143,9 @@ void main()
         if (y_line_base_lower == 0)
             y_line_base_lower = registers.raw_y_add >> 2;
     }
-    if (y_line_base_upper != 0 && (y >> 10) < 640)
+    if (y_line_base_upper != 0 && (y >> 10) < upper_band_limit)
         y = (((coord.y << 10) - y_line_base_upper) * registers.y_add >> 10) + registers.y_base;
-    else if (y_line_base_lower != 0 && (y >> 10) >= 640)
+    else if (y_line_base_lower != 0 && (y >> 10) >= upper_band_limit)
         y = (((coord.y << 10) - y_line_base_lower) * registers.y_add >> 10) + registers.y_base;
     uvec3 c00;
 
@@ -166,14 +167,14 @@ void main()
         }
         if (phase == 1)
         {
-            if ((y >> 10) < 640)
+            if ((y >> 10) < upper_band_limit)
                 y += phase1_y_bias;
             else
                 y += phase1_lower_y_bias;
         }
         if (phase == 3)
         {
-            if ((y >> 10) < 640)
+            if ((y >> 10) < upper_band_limit)
             {
                 y += phase3_y_bias;
             }

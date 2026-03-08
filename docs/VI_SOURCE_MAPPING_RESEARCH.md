@@ -138,6 +138,8 @@ More specifically after reading the docs:
 - the remaining source-step biases can now also be expressed directly from raw scale:
   - `x_add -= raw_x_add / 32 + raw_x_add / 512`
   - `y_add -= raw_y_add / 32 - raw_y_add / 512`
+- the upper/lower band boundary can now also be expressed directly from raw `Y_SCALE`:
+  - `upper_band_limit = 5 * raw_y_add / 8`
 - a principled replacement should be derived from VI register semantics first, not from more blind sweeps
 
 ## Practical Next Steps

@@ -39,8 +39,9 @@ Files:
 
 Current experimental 4x source/reconstruction baseline:
 
-- `x_add -= 17`
-- `y_add -= 30`
+- derived source step biases from raw scale:
+  - `x_add -= raw_x_add / 32 + raw_x_add / 512`
+  - `y_add -= raw_y_add / 32 - raw_y_add / 512`
 - derived source Y base from raw `Y_SCALE`:
   - `y_base += 23 * raw_y_add / 32`
 - derived phase-Y adjustments from raw `Y_SCALE`:

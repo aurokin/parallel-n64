@@ -135,6 +135,9 @@ More specifically after reading the docs:
     - `lower-band y_line_base += raw_y_add / 4`
 - the remaining source-Y base bias can also now be expressed directly from raw `Y_SCALE`:
   - `y_base += 23 * raw_y_add / 32`
+- the remaining source-step biases can now also be expressed directly from raw scale:
+  - `x_add -= raw_x_add / 32 + raw_x_add / 512`
+  - `y_add -= raw_y_add / 32 - raw_y_add / 512`
 - a principled replacement should be derived from VI register semantics first, not from more blind sweeps
 
 ## Practical Next Steps

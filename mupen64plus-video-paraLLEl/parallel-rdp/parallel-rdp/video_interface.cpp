@@ -729,8 +729,20 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 	push.frame_count = frame_count;
 	if (sampling_policy.source_x_add_bias != 0 && push.x_add > sampling_policy.source_x_add_bias)
 		push.x_add -= sampling_policy.source_x_add_bias;
+	else if (sampling_policy.use_derived_source_y_biases != 0)
+	{
+		uint32_t derived_x_add_bias = (regs.x_add >> 5) + (regs.x_add >> 9);
+		if (push.x_add > derived_x_add_bias)
+			push.x_add -= derived_x_add_bias;
+	}
 	if (sampling_policy.source_y_add_bias != 0 && push.y_add > sampling_policy.source_y_add_bias)
 		push.y_add -= sampling_policy.source_y_add_bias;
+	else if (sampling_policy.use_derived_source_y_biases != 0)
+	{
+		uint32_t derived_y_add_bias = (regs.y_add >> 5) - (regs.y_add >> 9);
+		if (push.y_add > derived_y_add_bias)
+			push.y_add -= derived_y_add_bias;
+	}
 	push.x_offset += sampling_policy.source_x_base_bias;
 	if (sampling_policy.source_y_base_bias != 0)
 		push.y_offset += sampling_policy.source_y_base_bias;

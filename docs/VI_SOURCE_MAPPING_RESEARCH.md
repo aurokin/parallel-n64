@@ -125,6 +125,8 @@ More specifically after reading the docs:
   - three of those phase-Y adjustments can be derived directly from raw `Y_SCALE` without changing the Paper Mario oracle result
   - a fourth lower-band phase-3 adjustment also improved the current oracle when derived from raw `Y_SCALE / 4`
 - the remaining right/bottom residual also responds to a lower-band-only phase-3 X correction; current best local rule is `phase3_x += 128` in the lower band only
+- that phase-3 X correction can now also be expressed directly from raw `Y_SCALE`:
+  - `lower-band phase3_x += raw_y_add / 8`
 - the structural `y_start / line-base` split is also now validated in one limited form:
   - an upper-band-only line-base term improves `top` and `right` without moving the bottom region
   - a lower-band-only line-base term then improves `bottom/right`

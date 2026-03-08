@@ -42,12 +42,13 @@ Current experimental 4x source/reconstruction baseline:
 - `x_add -= 17`
 - `y_add -= 30`
 - `y_base += 736`
-- lower-band `phase3_x += 128`
 - derived phase-Y adjustments from raw `Y_SCALE`:
   - upper-band `phase1_y += 3 * raw_y_add / 8`
   - lower-band `phase1_y -= raw_y_add / 2`
   - upper-band `phase3_y += raw_y_add / 2`
   - lower-band `phase3_y -= raw_y_add / 4`
+- derived lower-band phase-3 X adjustment from raw `Y_SCALE`:
+  - lower-band `phase3_x += raw_y_add / 8`
 - derived band line-base adjustments from raw `Y_SCALE`:
   - upper-band `y_line_base -= 3 * raw_y_add / 4`
   - lower-band `y_line_base += raw_y_add / 4`
@@ -79,6 +80,8 @@ Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/
 - Two cleanup steps have landed already:
   - the original phase-Y corrections are derived from raw `Y_SCALE` in the shader instead of being stored as three default constants in policy state
   - the remaining lower-band phase-3 residual also responds to a derived raw-`Y_SCALE` term instead of another free-standing policy constant
+- Another cleanup step is now complete:
+  - the lower-band `phase3_x` correction is also derived from raw `Y_SCALE` instead of stored as a default constant
 - The first structural scanout split is now also paying off:
   - source Y uses separate upper/lower line-base terms instead of relying only on the additive `y_base` path
   - both band terms are now derived from raw `Y_SCALE` instead of stored as default constants

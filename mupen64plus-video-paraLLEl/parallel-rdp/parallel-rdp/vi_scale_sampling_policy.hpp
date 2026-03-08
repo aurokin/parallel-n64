@@ -46,7 +46,6 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 			out.source_y_base_bias = 736;
 			out.source_x_add_bias = 17;
 			out.source_x_base_bias = 0;
-			out.phase3_source_x_bias = 128;
 			out.use_derived_source_y_biases = true;
 		}
 	}

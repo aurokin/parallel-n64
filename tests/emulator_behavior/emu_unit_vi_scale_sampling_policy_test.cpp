@@ -78,7 +78,7 @@ static void test_experimental_mode_enables_subpixel_reconstruction_when_upscaled
 	check(policy.source_x_base_bias == 0, "4x experimental mode should keep zero source x base bias");
 	check(policy.phase1_source_y_bias == 0, "4x experimental mode should leave phase 1 source y override at zero");
 	check(policy.phase1_lower_source_y_bias == 0, "4x experimental mode should leave lower-band phase 1 source y override at zero");
-	check(policy.phase3_source_x_bias == 128, "4x experimental mode should bias phase 3 source x");
+	check(policy.phase3_source_x_bias == 0, "4x experimental mode should derive phase 3 source x");
 	check(policy.phase3_source_y_bias == 0, "4x experimental mode should leave phase 3 source y override at zero");
 }
 

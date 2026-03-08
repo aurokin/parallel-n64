@@ -154,11 +154,14 @@ void main()
         int phase_adjust = phase == 0 ? 0 : (phase == 1 ? 2 : (phase == 2 ? 7 : 18));
         int phase1_y_bias = registers.phase1_y_bias;
         int phase1_lower_y_bias = registers.phase1_lower_y_bias;
+        int phase3_x_bias = registers.phase3_x_bias;
         int phase3_y_bias = registers.phase3_y_bias;
         if (registers.use_derived_y_biases != 0)
         {
             phase1_y_bias = (registers.raw_y_add * 3) >> 3;
             phase1_lower_y_bias = -(registers.raw_y_add >> 1);
+            if (phase3_x_bias == 0)
+                phase3_x_bias = registers.raw_y_add >> 3;
             phase3_y_bias = registers.raw_y_add >> 1;
         }
         if (phase == 1)
@@ -176,7 +179,7 @@ void main()
             }
             else if (registers.use_derived_y_biases != 0)
             {
-                x += registers.phase3_x_bias;
+                x += phase3_x_bias;
                 y -= registers.raw_y_add >> 2;
             }
         }

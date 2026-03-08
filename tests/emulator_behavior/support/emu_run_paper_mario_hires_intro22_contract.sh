@@ -42,8 +42,16 @@ require_pattern "run-paper-mario-hires-intro22-capture.sh [options]" "$CAPTURE_R
   "usage text missing intro22 capture invocation"
 require_pattern "--smoke-mode timed" "$CAPTURE_RUNNER" \
   "intro22 capture should force timed mode on parallel"
-require_pattern "--screenshot-at 22" "$CAPTURE_RUNNER" \
-  "intro22 capture should target the 22-second scene"
+require_pattern 'parallel_screenshot_at="22"' "$CAPTURE_RUNNER" \
+  "intro22 capture should default parallel timing to the 22-second scene"
+require_pattern 'glide_screenshot_at="22"' "$CAPTURE_RUNNER" \
+  "intro22 capture should default glide timing to the 22-second scene"
+require_pattern "--parallel-screenshot-at SEC" "$CAPTURE_RUNNER" \
+  "intro22 capture should allow parallel timing offsets"
+require_pattern "--glide-screenshot-at SEC" "$CAPTURE_RUNNER" \
+  "intro22 capture should allow glide timing offsets"
+require_pattern "--pause-before-shot" "$CAPTURE_RUNNER" \
+  "intro22 capture should expose pre-screenshot pause"
 require_pattern "--timed-close-delay 10" "$CAPTURE_RUNNER" \
   "intro22 capture should use the safer timed close delay"
 require_pattern "--require-hires" "$CAPTURE_RUNNER" \
@@ -52,6 +60,8 @@ require_pattern "--start-delay 40" "$CAPTURE_RUNNER" \
   "intro22 GLide capture should defer input past the screenshot"
 require_pattern "--post-delay 2" "$CAPTURE_RUNNER" \
   "intro22 GLide capture should use the short post delay"
+require_pattern "--pause-before-shot-delay \"\$pause_before_shot_delay\"" "$CAPTURE_RUNNER" \
+  "intro22 capture should forward the pause delay"
 require_pattern "--profile intro22" "$COMPARE_RUNNER" \
   "intro22 compare wrapper should pin the intro22 profile"
 require_pattern 'run-paper-mario-hires-intro22-capture.sh' "$REFRESH_RUNNER" \

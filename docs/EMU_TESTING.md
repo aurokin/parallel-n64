@@ -35,6 +35,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
 - Paper Mario current useful intro `Today...` capture on `parallel`:
   - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
+  - the intro22 wrapper supports separate `parallel` / `glide` screenshot timing and pauses before the screenshot by default to reduce frame drift across cores
 - Paper Mario scene list:
   - `./run-paper-mario-scenes.sh`
 - Paper Mario timed save-state seed on `parallel`:

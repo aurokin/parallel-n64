@@ -18,6 +18,8 @@ button_hold_ms=140
 max_presses=2
 buttons_csv="start"
 screenshot_at=27
+pause_before_shot="0"
+pause_before_shot_delay="0.2"
 netcmd_port=55355
 capture_root="${TMPDIR:-/tmp}/parallel-n64-paper-mario-gliden64"
 tag=""
@@ -69,6 +71,10 @@ Options:
   --buttons CSV           Buttons to tap each tick (default: start)
   --max-presses N         Cap total input ticks (default: 2)
   --screenshot-at SEC     Seconds after launch to send SCREENSHOT (default: 27)
+  --pause-before-shot     Send PAUSE_TOGGLE immediately before SCREENSHOT
+  --no-pause-before-shot  Skip PAUSE_TOGGLE before SCREENSHOT (default)
+  --pause-before-shot-delay SEC
+                         Delay after PAUSE_TOGGLE before SCREENSHOT (default: 0.2)
   --port PORT             RetroArch network command UDP port (default: 55355)
   --hires-on              Enable GLideN64 hi-res textures and staged cache (default)
   --hires-off             Disable GLideN64 hi-res textures for native-scaling captures
@@ -477,6 +483,16 @@ while (($#)); do
       shift
       screenshot_at="${1:-}"
       ;;
+    --pause-before-shot)
+      pause_before_shot="1"
+      ;;
+    --no-pause-before-shot)
+      pause_before_shot="0"
+      ;;
+    --pause-before-shot-delay)
+      shift
+      pause_before_shot_delay="${1:-}"
+      ;;
     --port)
       shift
       netcmd_port="${1:-}"
@@ -571,6 +587,11 @@ if ! is_nonnegative_number "$screenshot_at"; then
   exit 1
 fi
 
+if ! is_nonnegative_number "$pause_before_shot_delay"; then
+  echo "--pause-before-shot-delay must be a non-negative number: $pause_before_shot_delay" >&2
+  exit 1
+fi
+
 if ! is_positive_int "$netcmd_port"; then
   echo "--port must be a positive integer: $netcmd_port" >&2
   exit 1
@@ -638,6 +659,9 @@ else
   echo "GLide hires storage: disabled"
 fi
 echo "GLide native res factor: 4x"
+if [[ "$pause_before_shot" == "1" ]]; then
+  echo "Pre-screenshot pause: on (+${pause_before_shot_delay}s)"
+fi
 
 (
   export XDG_CONFIG_HOME="$xdg_root"
@@ -714,6 +738,14 @@ helper_pid=$!
 
 sleep "$screenshot_at"
 if kill -0 "$run_pid" 2>/dev/null; then
+  if [[ "$pause_before_shot" == "1" ]]; then
+    if send_netcmd "PAUSE_TOGGLE"; then
+      echo "NetCmd: sent 'PAUSE_TOGGLE'"
+      sleep "$pause_before_shot_delay"
+    else
+      echo "NetCmd failed: 'PAUSE_TOGGLE'" >&2
+    fi
+  fi
   if send_netcmd "SCREENSHOT"; then
     echo "NetCmd: sent 'SCREENSHOT'"
   else

@@ -10,6 +10,12 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
   - Good for `Today...`, top banner, bottom stage grid, and left stage grid.
 - Parallel capture:
   - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
+- Tune per-core timing when `parallel` and GLide drift:
+  - `./run-paper-mario-hires-intro22-capture.sh --parallel-screenshot-at <sec> --glide-screenshot-at <sec>`
+- Frame freeze before screenshot:
+  - enabled by default with `PAUSE_TOGGLE`
+  - disable only if it proves harmful:
+    - `./run-paper-mario-hires-intro22-capture.sh --no-pause-before-shot`
 - Refresh latest compare in one command:
   - `./run-paper-mario-hires-intro22-refresh.sh`
 - GLide oracle capture:
@@ -22,9 +28,10 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
     - `./run-paper-mario-hires-zoom-compare.sh --profile intro22`
 - Timing:
   - no-input timed capture
-  - screenshot at `22s`
+  - screenshot at `22s` by default, but `parallel` and GLide can be offset independently
   - `parallel` close delay `10s`
   - `GLide` input deferred with `--start-delay 40 --post-delay 2`
+  - both helpers pause immediately before the screenshot by default
 - Preserved GLide oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-noinput-1/Paper Mario (USA)-260308-161105.png`
 

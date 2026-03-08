@@ -25,6 +25,12 @@ require_pattern "--smoke-mode MODE       Capture path: buttons|state|timed (defa
   "usage text missing --smoke-mode"
 require_pattern "--screenshot-at SEC     Seconds after launch to send SCREENSHOT (default: 27)" \
   "usage text missing --screenshot-at"
+require_pattern "--pause-before-shot     Send PAUSE_TOGGLE immediately before SCREENSHOT in buttons/timed mode" \
+  "usage text missing --pause-before-shot"
+require_pattern "--no-pause-before-shot  Skip PAUSE_TOGGLE before SCREENSHOT (default)" \
+  "usage text missing --no-pause-before-shot"
+require_pattern "--pause-before-shot-delay SEC" \
+  "usage text missing --pause-before-shot-delay"
 require_pattern "--state-load-delay SEC  Delay before sending state command in state mode (default: 4.0)" \
   "usage text missing --state-load-delay"
 require_pattern "--state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)" \
@@ -75,6 +81,8 @@ require_pattern 'mode="$(xrandr 2>/dev/null | awk ' \
 require_pattern 'buttons_csv="start"' "default Paper Mario button sequence missing"
 require_pattern 'max_presses=2' "default max presses missing"
 require_pattern 'screenshot_at=27' "default screenshot timing missing"
+require_pattern 'pause_before_shot="0"' "default pre-screenshot pause missing"
+require_pattern 'pause_before_shot_delay="0.2"' "default pre-screenshot pause delay missing"
 require_pattern 'timed_close_delay="1.0"' "default timed close delay missing"
 require_pattern 'xdg_root="$capture_dir/xdg"' "temp XDG root missing"
 require_pattern 'retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"' \
@@ -130,6 +138,7 @@ require_pattern 'float_delay_from_to()' "timed save-state delay helper missing"
 require_pattern 'send_netcmd "$timed_save_state_cmd"' "timed save-state netcmd missing"
 require_pattern 'wait_for_screenshot()' "timed helper should wait for screenshot flush"
 require_pattern 'Screenshot flushed:' "timed helper should log flushed screenshots"
+require_pattern 'send_netcmd "PAUSE_TOGGLE"' "timed helper should support pre-screenshot pause"
 require_pattern 'sleep "$timed_close_delay"' "timed mode close delay missing"
 require_pattern 'find "$DEFAULT_SCREENSHOT_DIR" -maxdepth 1 -type f -name '\''*.png'\'' -newer "$stamp_file"' \
   "default screenshot fallback missing"

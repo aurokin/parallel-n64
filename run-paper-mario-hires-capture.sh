@@ -19,6 +19,8 @@ button_hold_ms=140
 max_presses=2
 buttons_csv="start"
 screenshot_at=27
+pause_before_shot="0"
+pause_before_shot_delay="0.2"
 state_load_delay="4.0"
 state_pause_delay="0.2"
 state_shot_delay="1.2"
@@ -70,6 +72,10 @@ Options:
   --buttons CSV           Buttons to tap each tick (default: start)
   --max-presses N         Cap total input ticks (default: 2)
   --screenshot-at SEC     Seconds after launch to send SCREENSHOT (default: 27)
+  --pause-before-shot     Send PAUSE_TOGGLE immediately before SCREENSHOT in buttons/timed mode
+  --no-pause-before-shot  Skip PAUSE_TOGGLE before SCREENSHOT (default)
+  --pause-before-shot-delay SEC
+                         Delay after PAUSE_TOGGLE before SCREENSHOT (default: 0.2)
   --state-load-delay SEC  Delay before sending state command in state mode (default: 4.0)
   --state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)
   --state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)
@@ -382,6 +388,16 @@ while (($#)); do
       shift
       screenshot_at="${1:-}"
       ;;
+    --pause-before-shot)
+      pause_before_shot="1"
+      ;;
+    --no-pause-before-shot)
+      pause_before_shot="0"
+      ;;
+    --pause-before-shot-delay)
+      shift
+      pause_before_shot_delay="${1:-}"
+      ;;
     --state-load-delay)
       shift
       state_load_delay="${1:-}"
@@ -535,6 +551,11 @@ if ! is_nonnegative_number "$screenshot_at"; then
   exit 1
 fi
 
+if ! is_nonnegative_number "$pause_before_shot_delay"; then
+  echo "--pause-before-shot-delay must be a non-negative number: $pause_before_shot_delay" >&2
+  exit 1
+fi
+
 if ! is_nonnegative_number "$state_load_delay"; then
   echo "--state-load-delay must be a non-negative number: $state_load_delay" >&2
   exit 1
@@ -656,6 +677,9 @@ else
   echo "Smoke mode: timed"
   echo "Timed screenshot: +${screenshot_at}s, close +${timed_close_delay}s after shot"
 fi
+if [[ "$pause_before_shot" == "1" && ( "$smoke_mode" == "buttons" || "$smoke_mode" == "timed" ) ]]; then
+  echo "Pre-screenshot pause: on (+${pause_before_shot_delay}s)"
+fi
 if [[ -n "$window_override_width" && -n "$window_override_height" ]]; then
   echo "Window override: ${window_override_width}x${window_override_height}"
 fi
@@ -697,6 +721,14 @@ if [[ "$smoke_mode" == "buttons" || "$smoke_mode" == "timed" ]]; then
     if [[ -n "$dump_vi_stages" ]]; then
       : >"$dump_vi_trigger_file"
       sleep 0.2
+    fi
+    if [[ "$pause_before_shot" == "1" ]]; then
+      if send_netcmd "PAUSE_TOGGLE"; then
+        echo "NetCmd: sent 'PAUSE_TOGGLE'"
+        sleep "$pause_before_shot_delay"
+      else
+        echo "NetCmd failed: 'PAUSE_TOGGLE'" >&2
+      fi
     fi
     if send_netcmd "SCREENSHOT"; then
       echo "NetCmd: sent 'SCREENSHOT'"

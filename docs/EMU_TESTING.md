@@ -33,6 +33,9 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
 - Paper Mario no-input timed capture on `parallel`:
   - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
+- Paper Mario timed save-state seed on `parallel`:
+  - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --timed-save-state-at <sec> --savestate-dir <dir> --tag <tag> --require-hires`
+  - writes slot `0` into the explicit savestate directory so the same scene can be replayed via `--smoke-mode state --savestate-dir <dir>`
 - Paper Mario HIRES zoom compare on `parallel`:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - defaults to the latest `parallel` capture and compares against the saved GLide HIRES no-input 16s oracle
@@ -109,6 +112,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - drives the button path with the virtual pad
   - captures a RetroArch screenshot into the temp capture dir
   - for HIRES experiments, prefer `--require-hires` so the run fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
+  - timed mode can seed a deterministic same-core save state by combining `--timed-save-state-at <sec>` with `--savestate-dir <dir>`; the helper disables state auto-indexing and writes slot `0`
 - `parallel` scaling helper:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses the same-core save state path for faster, stable scaling iteration

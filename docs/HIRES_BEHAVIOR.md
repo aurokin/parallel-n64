@@ -111,6 +111,8 @@
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
   - for intro/title captures without controller input:
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
+  - to seed a deterministic intro/title save state for later replay:
+    - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --timed-save-state-at <sec> --savestate-dir <dir> --tag <tag> --require-hires`
 - Comparable Paper Mario HIRES zoom compare on `parallel`:
   - `./run-paper-mario-hires-zoom-compare.sh`
 - Preserved GLideN64 4x HIRES-on no-input 16s oracle:

@@ -35,12 +35,18 @@ require_pattern "--state-close-delay SEC Delay after SCREENSHOT before close in 
   "usage text missing --state-close-delay"
 require_pattern "--timed-close-delay SEC Delay after SCREENSHOT before close in timed mode (default: 1.0)" \
   "usage text missing --timed-close-delay"
+require_pattern "--timed-save-state-at SEC" \
+  "usage text missing --timed-save-state-at"
+require_pattern "--timed-save-state-cmd CMD" \
+  "usage text missing --timed-save-state-cmd"
 require_pattern "--state-cmd CMD         Command to send for state load in state mode (default: LOAD_STATE)" \
   "usage text missing --state-cmd"
 require_pattern "--state-pause           Send PAUSE_TOGGLE before screenshot in state mode" \
   "usage text missing --state-pause"
 require_pattern "--no-state-pause        Skip PAUSE_TOGGLE in state mode (default)" \
   "usage text missing --no-state-pause"
+require_pattern "--savestate-dir PATH    Override RetroArch savestate directory for timed/state workflows" \
+  "usage text missing --savestate-dir"
 require_pattern "--core-option K=V       Override a ParaLLEl core option in the temp options file" \
   "usage text missing --core-option"
 require_pattern "--dump-vi-stages CSV    Dump VI stages once under capture_dir/vi-stages" \
@@ -85,6 +91,9 @@ require_pattern 'global_core_options" "true"' "RetroArch config must force expli
 require_pattern 'core_options_path" "$core_options_file"' "RetroArch config must point at the temp core options file"
 require_pattern 'screenshot_directory" "$capture_dir"' "RetroArch config missing screenshot directory override"
 require_pattern 'network_cmd_enable" "true"' "RetroArch config missing network command enable"
+require_pattern 'savestate_directory" "$save_state_dir"' "savestate directory override missing"
+require_pattern 'savestate_auto_index" "false"' "savestate auto index override missing"
+require_pattern 'state_slot" "0"' "state slot override missing"
 require_pattern 'video_window_custom_size_enable" "true"' "RetroArch config missing window size override"
 require_pattern 'video_windowed_position_width" "$window_override_width"' "window width override missing"
 require_pattern 'video_windowed_position_height" "$window_override_height"' "window height override missing"
@@ -101,6 +110,9 @@ require_pattern 'validate_hires_log()' "hires log validation helper missing"
 require_pattern "Hi-res keying summary: .*provider=on" "hires validation must require provider=on summary"
 require_pattern 'draw_with_replacement' "hires validation must check replacement-bound draws"
 require_pattern 'dump_vi_stages="${1:-}"' "VI stage dump option parsing missing"
+require_pattern 'timed_save_state_at="${1:-}"' "timed save-state timing parsing missing"
+require_pattern 'timed_save_state_cmd="${1:-}"' "timed save-state command parsing missing"
+require_pattern 'save_state_dir="${1:-}"' "savestate dir parsing missing"
 require_pattern 'core_option_overrides+=("${1:-}")' "core option override parsing missing"
 require_pattern 'smoke_cmd+=("--buttons" "$buttons_csv")' "button forwarding missing"
 require_pattern 'smoke_cmd+=("--state-cmd" "$state_cmd")' "state command forwarding missing"
@@ -114,6 +126,8 @@ require_pattern 'echo "Smoke mode: state"' "state mode logging missing"
 require_pattern 'echo "Smoke mode: buttons"' "buttons mode logging missing"
 require_pattern 'smoke_cmd+=(-- --config "$retroarch_cfg")' "RetroArch config forwarding missing"
 require_pattern 'if [[ "$smoke_mode" == "buttons" || "$smoke_mode" == "timed" ]]; then' "timed mode must use screenshot timer path"
+require_pattern 'float_delay_from_to()' "timed save-state delay helper missing"
+require_pattern 'send_netcmd "$timed_save_state_cmd"' "timed save-state netcmd missing"
 require_pattern 'sleep "$timed_close_delay"' "timed mode close delay missing"
 require_pattern 'find "$DEFAULT_SCREENSHOT_DIR" -maxdepth 1 -type f -name '\''*.png'\'' -newer "$stamp_file"' \
   "default screenshot fallback missing"

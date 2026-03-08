@@ -58,6 +58,9 @@ Co-Authored-By: Codex <noreply@openai.com>
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
   - for the current no-input HIRES intro scene, use `--smoke-mode timed --screenshot-at 16`
+  - timed mode also supports deterministic save-state seeding:
+    - `--timed-save-state-at <sec> --savestate-dir <dir>` sends `SAVE_STATE` before the screenshot and writes slot `0` into the explicit savestate directory
+    - after seeding, validate from the same directory with `--smoke-mode state --savestate-dir <dir>`
 - Parallel HIRES zoom compare:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - defaults to the latest PNG under `/tmp/parallel-n64-paper-mario-captures`

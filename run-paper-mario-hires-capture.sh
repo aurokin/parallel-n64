@@ -24,6 +24,8 @@ state_pause_delay="0.2"
 state_shot_delay="1.2"
 state_close_delay="1.0"
 timed_close_delay="1.0"
+timed_save_state_at=""
+timed_save_state_cmd="SAVE_STATE"
 state_cmd="LOAD_STATE"
 state_pause="0"
 netcmd_port=55355
@@ -41,6 +43,7 @@ xdg_root=""
 retroarch_cfg=""
 log_file=""
 core_options_file=""
+save_state_dir=""
 stamp_file=""
 dump_vi_trigger_file=""
 run_pid=""
@@ -72,10 +75,15 @@ Options:
   --state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)
   --state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 1.0)
   --timed-close-delay SEC Delay after SCREENSHOT before close in timed mode (default: 1.0)
+  --timed-save-state-at SEC
+                         Send SAVE_STATE-style netcmd at this time in timed mode
+  --timed-save-state-cmd CMD
+                         Timed-mode save-state netcmd (default: SAVE_STATE)
   --state-cmd CMD         Command to send for state load in state mode (default: LOAD_STATE)
   --state-pause           Send PAUSE_TOGGLE before screenshot in state mode
   --no-state-pause        Skip PAUSE_TOGGLE in state mode (default)
   --port PORT             RetroArch network command UDP port (default: 55355)
+  --savestate-dir PATH    Override RetroArch savestate directory for timed/state workflows
   --core-option K=V       Override a ParaLLEl core option in the temp options file
   --dump-vi-stages CSV    Dump VI stages once under capture_dir/vi-stages (e.g. aa,divot,scale,downscale,final)
   --debug-hires           Enable PARALLEL_RDP_HIRES_DEBUG=1 for the run
@@ -102,6 +110,18 @@ is_nonnegative_number() {
 
 is_positive_int() {
   [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+
+float_delay_from_to() {
+  python3 - "$1" "$2" <<'PY'
+import sys
+start = float(sys.argv[1])
+end = float(sys.argv[2])
+delta = end - start
+if delta < 0:
+    delta = 0.0
+print(delta)
+PY
 }
 
 send_netcmd() {
@@ -228,6 +248,11 @@ write_temp_retroarch_cfg() {
   ensure_retroarch_setting "$retroarch_cfg" "notification_show_save_state" "false"
   ensure_retroarch_setting "$retroarch_cfg" "network_cmd_enable" "true"
   ensure_retroarch_setting "$retroarch_cfg" "network_cmd_port" "$netcmd_port"
+  if [[ -n "$save_state_dir" ]]; then
+    ensure_retroarch_setting "$retroarch_cfg" "savestate_directory" "$save_state_dir"
+    ensure_retroarch_setting "$retroarch_cfg" "savestate_auto_index" "false"
+    ensure_retroarch_setting "$retroarch_cfg" "state_slot" "0"
+  fi
 
   if [[ "$force_fullscreen" == "0" && "${RUN_N64_MAXIMIZE:-1}" != "0" ]]; then
     if resolution="$(get_desktop_resolution)"; then
@@ -327,6 +352,14 @@ while (($#)); do
       shift
       timed_close_delay="${1:-}"
       ;;
+    --timed-save-state-at)
+      shift
+      timed_save_state_at="${1:-}"
+      ;;
+    --timed-save-state-cmd)
+      shift
+      timed_save_state_cmd="${1:-}"
+      ;;
     --state-cmd)
       shift
       state_cmd="${1:-}"
@@ -340,6 +373,10 @@ while (($#)); do
     --port)
       shift
       netcmd_port="${1:-}"
+      ;;
+    --savestate-dir)
+      shift
+      save_state_dir="${1:-}"
       ;;
     --core-option)
       shift
@@ -473,6 +510,11 @@ if ! is_nonnegative_number "$timed_close_delay"; then
   exit 1
 fi
 
+if [[ -n "$timed_save_state_at" ]] && ! is_nonnegative_number "$timed_save_state_at"; then
+  echo "--timed-save-state-at must be a non-negative number: $timed_save_state_at" >&2
+  exit 1
+fi
+
 if ! is_positive_int "$netcmd_port"; then
   echo "--port must be a positive integer: $netcmd_port" >&2
   exit 1
@@ -586,7 +628,21 @@ fi
 run_pid="$!"
 
 if [[ "$smoke_mode" == "buttons" || "$smoke_mode" == "timed" ]]; then
-  sleep "$screenshot_at"
+  current_t="0"
+  if [[ "$smoke_mode" == "timed" && -n "$timed_save_state_at" ]]; then
+    sleep "$(float_delay_from_to "$current_t" "$timed_save_state_at")"
+    current_t="$timed_save_state_at"
+    if kill -0 "$run_pid" 2>/dev/null; then
+      if send_netcmd "$timed_save_state_cmd"; then
+        echo "NetCmd: sent '$timed_save_state_cmd'"
+      else
+        echo "NetCmd failed: '$timed_save_state_cmd'" >&2
+      fi
+    fi
+  fi
+
+  sleep "$(float_delay_from_to "$current_t" "$screenshot_at")"
+  current_t="$screenshot_at"
   if kill -0 "$run_pid" 2>/dev/null; then
     if [[ -n "$dump_vi_stages" ]]; then
       : >"$dump_vi_trigger_file"

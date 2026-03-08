@@ -688,6 +688,7 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 	{
 		yuv = false;
 		int hires_lod = compute_hires_replacement_lod(tile, lod_frac);
+		bool hires_linear = tlut;
 		// Preserve the native 3-point neighborhood selection and only swap in the
 		// replacement texels for those taps. Pre-filtering hires content here breaks
 		// stage assets that depend on the original RDP interpolation pattern.
@@ -695,19 +696,19 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 				tile,
 				remap_hires_st_fp5(tile, st_fp5),
 				hires_lod,
-				false);
+				hires_linear);
 		if (sample_quad)
 		{
 			t10 = sample_hires_replacement_texel_fp5(
 					tile,
 					remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 0)),
 					hires_lod,
-					false);
+					hires_linear);
 			t01 = sample_hires_replacement_texel_fp5(
 					tile,
 					remap_hires_st_fp5(tile, st_fp5 + ivec2(0, 32)),
 					hires_lod,
-					false);
+					hires_linear);
 		}
 		if (mid_texel)
 		{
@@ -715,7 +716,7 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 					tile,
 					remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 32)),
 					hires_lod,
-					false);
+					hires_linear);
 		}
 	}
 	else if (tlut)

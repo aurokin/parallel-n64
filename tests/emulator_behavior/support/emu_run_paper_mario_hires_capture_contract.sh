@@ -45,6 +45,8 @@ require_pattern "--dump-vi-stages CSV    Dump VI stages once under capture_dir/v
   "usage text missing --dump-vi-stages"
 require_pattern "--debug-hires           Enable PARALLEL_RDP_HIRES_DEBUG=1 for the run" \
   "usage text missing --debug-hires"
+require_pattern "--require-hires         Fail unless the log proves HIRES replacement was active" \
+  "usage text missing --require-hires"
 require_pattern 'SMOKE_START_RUNNER="$SCRIPT_DIR/run-n64-smoke-start.sh"' \
   "missing button smoke runner path"
 require_pattern 'SMOKE_STATE_RUNNER="$SCRIPT_DIR/run-n64-smoke-state.sh"' \
@@ -70,6 +72,8 @@ require_pattern 'core_options_file="$xdg_root/retroarch/core-options.cfg"' \
   "temp core options path missing"
 require_pattern 'cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"' \
   "temp core options copy missing"
+require_pattern 'apply_default_hires_core_options' "default hires core option bootstrap missing"
+require_pattern 'parallel-n64-parallel-rdp-hirestex" "enabled"' "hires helper must force replacement on by default"
 require_pattern 'apply_core_option_overrides' "core option override application missing"
 require_pattern 'write_temp_retroarch_cfg()' "temp RetroArch config writer missing"
 require_pattern 'global_core_options" "true"' "RetroArch config must force explicit global core options mode"
@@ -87,6 +91,10 @@ require_pattern 'export PARALLEL_VI_DUMP_STAGES="$dump_vi_stages"' "VI stage dum
 require_pattern 'export PARALLEL_VI_DUMP_DIR="$capture_dir/vi-stages"' "VI stage dump directory export missing"
 require_pattern 'export PARALLEL_VI_DUMP_TRIGGER_FILE="$dump_vi_trigger_file"' "VI stage dump trigger export missing"
 require_pattern 'export PARALLEL_RDP_HIRES_DEBUG=1' "hires debug export missing"
+require_pattern 'require_hires="1"' "require-hires option should enable hires validation mode"
+require_pattern 'validate_hires_log()' "hires log validation helper missing"
+require_pattern "Hi-res keying summary: .*provider=on" "hires validation must require provider=on summary"
+require_pattern 'draw_with_replacement' "hires validation must check replacement-bound draws"
 require_pattern 'dump_vi_stages="${1:-}"' "VI stage dump option parsing missing"
 require_pattern 'core_option_overrides+=("${1:-}")' "core option override parsing missing"
 require_pattern 'smoke_cmd+=("--buttons" "$buttons_csv")' "button forwarding missing"

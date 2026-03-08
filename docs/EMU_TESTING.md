@@ -100,8 +100,10 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - builds an isolated RetroArch config root under the capture dir
   - keeps a temp global `core-options.cfg` inside that isolated XDG root
   - points RetroArch at that explicit temp options file with `global_core_options = true`
+  - forces `parallel-n64-parallel-rdp-hirestex = enabled` by default; use `--core-option` only when you intentionally want to override that
   - drives the button path with the virtual pad
   - captures a RetroArch screenshot into the temp capture dir
+  - for HIRES experiments, prefer `--require-hires` so the run fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
 - `parallel` scaling helper:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses the same-core save state path for faster, stable scaling iteration

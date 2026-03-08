@@ -54,6 +54,8 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Oracle path: `GLideN64`
 - Parallel capture:
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
+  - the helper forces `parallel-n64-parallel-rdp-hirestex = enabled` by default; only override that on purpose
+  - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off

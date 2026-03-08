@@ -30,6 +30,7 @@ rom_path="$DEFAULT_ROM_NAME"
 capture_root="${TMPDIR:-/tmp}/parallel-n64-paper-mario-captures"
 tag=""
 debug_hires="0"
+require_hires="0"
 dump_vi_stages=""
 force_fullscreen="${RUN_N64_FULLSCREEN:-0}"
 
@@ -76,6 +77,7 @@ Options:
   --dump-vi-stages CSV    Dump VI stages once under capture_dir/vi-stages (e.g. aa,divot,scale,downscale,final)
   --debug-hires           Enable PARALLEL_RDP_HIRES_DEBUG=1 for the run
   --no-debug-hires        Disable PARALLEL_RDP_HIRES_DEBUG (default)
+  --require-hires         Fail unless the log proves HIRES replacement was active
   --fullscreen            Force fullscreen launch
   --no-fullscreen         Disable fullscreen launch
   -h, --help              Show this help
@@ -101,6 +103,34 @@ is_positive_int() {
 send_netcmd() {
   local cmd="$1"
   printf '%s\n' "$cmd" | nc -u -w1 127.0.0.1 "$netcmd_port" >/dev/null 2>&1
+}
+
+validate_hires_log() {
+  local log_path="$1"
+  local summary_line=""
+  local hits=""
+  local draw_with_replacement=""
+
+  summary_line="$(rg -m1 'Hi-res keying summary: .*provider=on' "$log_path" || true)"
+  if [[ -z "$summary_line" ]]; then
+    echo "HIRES validation failed: missing provider=on summary in $log_path" >&2
+    return 1
+  fi
+
+  hits="$(printf '%s\n' "$summary_line" | grep -oE '(^| )hits=[0-9]+' | head -n1 | sed 's/.*hits=//')"
+  draw_with_replacement="$(printf '%s\n' "$summary_line" | grep -oE '(^| )draw_with_replacement=[0-9]+' | head -n1 | sed 's/.*draw_with_replacement=//')"
+
+  if [[ -z "$hits" || "$hits" == "0" ]]; then
+    echo "HIRES validation failed: summary did not report replacement hits in $log_path" >&2
+    return 1
+  fi
+
+  if [[ -z "$draw_with_replacement" || "$draw_with_replacement" == "0" ]]; then
+    echo "HIRES validation failed: summary did not report replacement-bound draws in $log_path" >&2
+    return 1
+  fi
+
+  echo "HIRES validation: hits=$hits draw_with_replacement=$draw_with_replacement"
 }
 
 ensure_core_option() {
@@ -131,6 +161,10 @@ apply_core_option_overrides() {
     value="${override#*=}"
     ensure_core_option "$core_options_file" "$key" "$value"
   done
+}
+
+apply_default_hires_core_options() {
+  ensure_core_option "$core_options_file" "parallel-n64-parallel-rdp-hirestex" "enabled"
 }
 
 ensure_retroarch_setting() {
@@ -313,6 +347,10 @@ while (($#)); do
     --no-debug-hires)
       debug_hires="0"
       ;;
+    --require-hires)
+      require_hires="1"
+      debug_hires="1"
+      ;;
     --fullscreen)
       force_fullscreen="1"
       ;;
@@ -436,6 +474,7 @@ core_options_file="$xdg_root/retroarch/core-options.cfg"
 dump_vi_trigger_file="$capture_dir/vi-stages.trigger"
 mkdir -p "$(dirname "$core_options_file")"
 cp "$DEFAULT_CORE_OPTIONS_FILE" "$core_options_file"
+apply_default_hires_core_options
 apply_core_option_overrides
 write_temp_retroarch_cfg
 stamp_file="$(mktemp /tmp/parallel-n64-paper-mario-shot-stamp.XXXX)"
@@ -554,5 +593,11 @@ fi
 echo "Screenshot: $latest_screenshot"
 echo "Capture dir: $capture_dir"
 echo "Log file: $log_file"
+
+if [[ "$require_hires" == "1" ]]; then
+  if ! validate_hires_log "$log_file"; then
+    exit 1
+  fi
+fi
 
 exit "$rc"

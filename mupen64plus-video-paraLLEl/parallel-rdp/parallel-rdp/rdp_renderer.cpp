@@ -1823,6 +1823,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		stream.max_shaded_tiles += num_tiles;
 
 	bool draw_has_replacement = false;
+	bool draw_has_desc27 = false;
 	for (const auto &tile_info : tiles)
 	{
 		const auto &repl = tile_info.replacement;
@@ -1831,11 +1832,14 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		    repl.repl_w != 0 && repl.repl_h != 0)
 		{
 			draw_has_replacement = true;
+			const uint32_t desc = detail::unpack_hires_shader_descriptor_index(repl.repl_desc_index);
+			draw_has_desc27 = draw_has_desc27 || desc == 27u;
 			break;
 		}
 	}
 
 	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
+	const bool tile1_shadow = tiles[1].meta.offset == 1024 && tiles[1].meta.stride == 32;
 
 	// Keep texrect-native protection for copy strips even when they bind hi-res replacements.
 	// Those paths are still broken in the upscaled copy pipeline. Non-copy replacement draws
@@ -1845,6 +1849,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	if (draw_has_replacement &&
 	    (stream.depth_blend_state.flags & DEPTH_BLEND_FORCE_BLEND_BIT) != 0)
 		stream.depth_blend_state.flags &= ~DEPTH_BLEND_DITHER_ENABLE_BIT;
+	if (draw_has_desc27 && tile1_shadow && attr.dsde >= 0 && attr.s > (1000 << 16))
+		stream.depth_blend_state.flags &= ~DEPTH_BLEND_MULTI_CYCLE_BIT;
 
 	update_deduced_height(draw_setup);
 	stream.span_info_offsets.add(allocate_span_jobs(draw_setup));

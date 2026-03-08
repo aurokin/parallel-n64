@@ -1810,6 +1810,7 @@ void Renderer::deduce_static_texture_state(unsigned tile, unsigned max_lod_level
 
 void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const AttributeSetup &attr)
 {
+	auto draw_setup = setup;
 	unsigned num_tiles = compute_conservative_max_num_tiles(setup);
 
 #if 0
@@ -1821,12 +1822,30 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	if (!caps.ubershader)
 		stream.max_shaded_tiles += num_tiles;
 
-	update_deduced_height(setup);
-	stream.span_info_offsets.add(allocate_span_jobs(setup));
+	bool draw_has_replacement = false;
+	for (const auto &tile_info : tiles)
+	{
+		const auto &repl = tile_info.replacement;
+		if (detail::hires_descriptor_index_valid(repl.repl_desc_index) &&
+		    repl.repl_orig_w != 0 && repl.repl_orig_h != 0 &&
+		    repl.repl_w != 0 && repl.repl_h != 0)
+		{
+			draw_has_replacement = true;
+			break;
+		}
+	}
+
+	// Keep texrect-native protection for native content, but let bound hi-res replacement
+	// draws use the upscaled path instead of being forced back to native texrect resolution.
+	if (draw_has_replacement)
+		draw_setup.flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
+
+	update_deduced_height(draw_setup);
+	stream.span_info_offsets.add(allocate_span_jobs(draw_setup));
 
 	if ((stream.static_raster_state.flags & RASTERIZATION_INTERLACE_FIELD_BIT) != 0)
 	{
-		auto tmp = setup;
+		auto tmp = draw_setup;
 		tmp.flags |= (stream.static_raster_state.flags & RASTERIZATION_INTERLACE_FIELD_BIT) ?
 				TRIANGLE_SETUP_INTERLACE_FIELD_BIT : 0;
 		tmp.flags |= (stream.static_raster_state.flags & RASTERIZATION_INTERLACE_KEEP_ODD_BIT) ?
@@ -1834,7 +1853,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		stream.triangle_setup.add(tmp);
 	}
 	else
-		stream.triangle_setup.add(setup);
+		stream.triangle_setup.add(draw_setup);
 
 	if (constants.use_prim_depth)
 	{
@@ -1853,21 +1872,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	stream.derived_setup.add(build_derived_attributes(attr));
 	stream.scissor_setup.add(stream.scissor_state);
 
-	deduce_static_texture_state(setup.tile & 7, setup.tile >> 3);
+	deduce_static_texture_state(draw_setup.tile & 7, draw_setup.tile >> 3);
 	deduce_noise_state();
-
-	bool draw_has_replacement = false;
-	for (const auto &tile_info : tiles)
-	{
-		const auto &repl = tile_info.replacement;
-		if (detail::hires_descriptor_index_valid(repl.repl_desc_index) &&
-		    repl.repl_orig_w != 0 && repl.repl_orig_h != 0 &&
-		    repl.repl_w != 0 && repl.repl_h != 0)
-		{
-			draw_has_replacement = true;
-			break;
-		}
-	}
 	hires_draw_calls_total++;
 	if (draw_has_replacement)
 		hires_draw_calls_with_replacement++;

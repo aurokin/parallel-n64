@@ -13,7 +13,6 @@ struct ScalingQuirkPolicyInput
 	unsigned experimental_texrect = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	unsigned upscaling_factor = 1;
 	bool native_tex_rect = true;
-	bool hires_textures_enabled = false;
 };
 
 struct ScalingQuirkPolicy
@@ -38,7 +37,7 @@ inline ScalingQuirkPolicy derive_scaling_quirk_policy(const ScalingQuirkPolicyIn
 		enable_experimental_texrect = in.vi_scaling_mode == VI_SCALING_MODE_EXPERIMENTAL;
 		break;
 	}
-	if (enable_experimental_texrect && in.upscaling_factor > 1 && !in.hires_textures_enabled)
+	if (enable_experimental_texrect && in.upscaling_factor > 1)
 		out.effective_native_tex_rect = true;
 	return out;
 }

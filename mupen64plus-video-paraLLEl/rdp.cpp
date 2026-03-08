@@ -235,7 +235,6 @@ bool init()
 		scaling_quirk_input.experimental_texrect = experimental_texrect;
 		scaling_quirk_input.upscaling_factor = upscaling;
 		scaling_quirk_input.native_tex_rect = native_tex_rect;
-		scaling_quirk_input.hires_textures_enabled = hires_capabilities_ok;
 		auto scaling_quirk_policy = detail::derive_scaling_quirk_policy(scaling_quirk_input);
 	quirks.set_native_texture_lod(native_texture_lod);
 	quirks.set_native_resolution_tex_rect(scaling_quirk_policy.effective_native_tex_rect);
@@ -392,7 +391,6 @@ void complete_frame()
 		scaling_quirk_input.experimental_texrect = experimental_texrect;
 		scaling_quirk_input.upscaling_factor = upscaling;
 		scaling_quirk_input.native_tex_rect = native_tex_rect;
-		scaling_quirk_input.hires_textures_enabled = hires_textures;
 		auto scaling_quirk_policy = detail::derive_scaling_quirk_policy(scaling_quirk_input);
 	quirks.set_native_texture_lod(native_texture_lod);
 	quirks.set_native_resolution_tex_rect(scaling_quirk_policy.effective_native_tex_rect);

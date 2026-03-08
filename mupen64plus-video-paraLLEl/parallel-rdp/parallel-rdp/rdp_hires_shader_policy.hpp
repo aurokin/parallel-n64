@@ -4,7 +4,9 @@
 #include "rdp_hires_runtime_policy.hpp"
 #include "rdp_hires_sampling_policy.hpp"
 
+#include <cstdlib>
 #include <cstdint>
+#include <vector>
 
 namespace RDP
 {
@@ -30,6 +32,40 @@ inline bool should_rebuild_hires_shader_bank(bool has_shader_bank,
 	return has_shader_bank &&
 	       !runtime_shader_dir_enabled &&
 	       (previous_hires_shader_define != next_hires_shader_define);
+}
+
+inline bool debug_hires_descriptor_suppressed(uint32_t desc_index)
+{
+	static const std::vector<uint32_t> suppressed = []() {
+		std::vector<uint32_t> values;
+		const char *env = std::getenv("PARALLEL_HIRES_SUPPRESS_DESC");
+		if (!env || !*env)
+			return values;
+
+		const char *ptr = env;
+		while (*ptr)
+		{
+			while (*ptr == ',' || *ptr == ' ' || *ptr == '\t')
+				ptr++;
+			if (!*ptr)
+				break;
+
+			char *end = nullptr;
+			unsigned long value = std::strtoul(ptr, &end, 10);
+			if (end == ptr)
+				break;
+			values.push_back(static_cast<uint32_t>(value));
+			ptr = end;
+		}
+		return values;
+	}();
+
+	for (uint32_t value : suppressed)
+	{
+		if (value == desc_index)
+			return true;
+	}
+	return false;
 }
 
 template <typename TileInfoType>
@@ -93,6 +129,11 @@ inline void apply_hires_tile_replacement_binding(TileInfoType &tile,
 	    state.orig_w > 0 && state.orig_h > 0 &&
 	    state.repl_w > 0 && state.repl_h > 0)
 	{
+		if (debug_hires_descriptor_suppressed(state.vk_image_index))
+		{
+			clear_hires_tile_replacement_binding(tile);
+			return;
+		}
 		if (state.vk_image_index >= 65u && state.vk_image_index <= 72u)
 		{
 			tile.replacement.repl_orig_w = state.orig_w;

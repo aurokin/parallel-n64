@@ -93,8 +93,16 @@ inline void apply_hires_tile_replacement_binding(TileInfoType &tile,
 	    state.orig_w > 0 && state.orig_h > 0 &&
 	    state.repl_w > 0 && state.repl_h > 0)
 	{
-		tile.replacement.repl_orig_w = resolve_hires_tile_replacement_orig_width(tile, state);
-		tile.replacement.repl_orig_h = resolve_hires_tile_replacement_orig_height(tile, state);
+		if (state.vk_image_index >= 65u && state.vk_image_index <= 72u)
+		{
+			tile.replacement.repl_orig_w = state.orig_w;
+			tile.replacement.repl_orig_h = state.orig_h;
+		}
+		else
+		{
+			tile.replacement.repl_orig_w = resolve_hires_tile_replacement_orig_width(tile, state);
+			tile.replacement.repl_orig_h = resolve_hires_tile_replacement_orig_height(tile, state);
+		}
 		tile.replacement.repl_w = state.repl_w;
 		tile.replacement.repl_h = state.repl_h;
 		tile.replacement.repl_desc_index = pack_hires_shader_descriptor_index(state.vk_image_index, state.has_mips);

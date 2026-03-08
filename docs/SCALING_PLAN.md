@@ -42,14 +42,15 @@ Current experimental 4x source/reconstruction baseline:
 - `x_add -= 17`
 - `y_add -= 30`
 - `y_base += 736`
-- upper-band `y_line_base -= 768`
-- lower-band `y_line_base += 256`
 - lower-band `phase3_x += 128`
 - derived phase-Y adjustments from raw `Y_SCALE`:
   - upper-band `phase1_y += 3 * raw_y_add / 8`
   - lower-band `phase1_y -= raw_y_add / 2`
   - upper-band `phase3_y += raw_y_add / 2`
   - lower-band `phase3_y -= raw_y_add / 4`
+- derived band line-base adjustments from raw `Y_SCALE`:
+  - upper-band `y_line_base -= 3 * raw_y_add / 4`
+  - lower-band `y_line_base += raw_y_add / 4`
 - row-phase schedule `0/2/7/18`
 - upward-skewed 4-tap footprint `upper 8/16`, `lower 7/16`
 - localized `y_frac` remap for phases `1/2` in the upper source band
@@ -79,8 +80,8 @@ Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/
   - the original phase-Y corrections are derived from raw `Y_SCALE` in the shader instead of being stored as three default constants in policy state
   - the remaining lower-band phase-3 residual also responds to a derived raw-`Y_SCALE` term instead of another free-standing policy constant
 - The first structural scanout split is now also paying off:
-  - upper-band source Y uses a separate line-base term instead of relying only on the additive `y_base` path
-  - lower-band source Y now does the same, with the opposite sign
+  - source Y uses separate upper/lower line-base terms instead of relying only on the additive `y_base` path
+  - both band terms are now derived from raw `Y_SCALE` instead of stored as default constants
 - The remaining mismatch is split by both:
   - scanline phase
   - vertical band

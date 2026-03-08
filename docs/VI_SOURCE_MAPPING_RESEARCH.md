@@ -127,8 +127,10 @@ More specifically after reading the docs:
 - the remaining right/bottom residual also responds to a lower-band-only phase-3 X correction; current best local rule is `phase3_x += 128` in the lower band only
 - the structural `y_start / line-base` split is also now validated in one limited form:
   - an upper-band-only line-base term improves `top` and `right` without moving the bottom region
-  - current best local rule is `upper-band y_line_base -= 768`
-  - a lower-band-only line-base term then improves `bottom/right`; current best local rule is `lower-band y_line_base += 256`
+  - a lower-band-only line-base term then improves `bottom/right`
+  - those band terms can now be expressed directly from raw `Y_SCALE`:
+    - `upper-band y_line_base -= 3 * raw_y_add / 4`
+    - `lower-band y_line_base += raw_y_add / 4`
 - a principled replacement should be derived from VI register semantics first, not from more blind sweeps
 
 ## Practical Next Steps

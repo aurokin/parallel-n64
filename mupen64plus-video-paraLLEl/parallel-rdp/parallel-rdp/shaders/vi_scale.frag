@@ -133,10 +133,19 @@ void main()
 
     int x = coord.x * registers.x_add + registers.x_base;
     int y = coord.y * registers.y_add + registers.y_base;
-    if (registers.y_line_base_upper != 0 && (y >> 10) < 640)
-        y = (((coord.y << 10) - registers.y_line_base_upper) * registers.y_add >> 10) + registers.y_base;
-    else if (registers.y_line_base_lower != 0 && (y >> 10) >= 640)
-        y = (((coord.y << 10) - registers.y_line_base_lower) * registers.y_add >> 10) + registers.y_base;
+    int y_line_base_upper = registers.y_line_base_upper;
+    int y_line_base_lower = registers.y_line_base_lower;
+    if (registers.use_derived_y_biases != 0)
+    {
+        if (y_line_base_upper == 0)
+            y_line_base_upper = -((registers.raw_y_add * 3) >> 2);
+        if (y_line_base_lower == 0)
+            y_line_base_lower = registers.raw_y_add >> 2;
+    }
+    if (y_line_base_upper != 0 && (y >> 10) < 640)
+        y = (((coord.y << 10) - y_line_base_upper) * registers.y_add >> 10) + registers.y_base;
+    else if (y_line_base_lower != 0 && (y >> 10) >= 640)
+        y = (((coord.y << 10) - y_line_base_lower) * registers.y_add >> 10) + registers.y_base;
     uvec3 c00;
 
     if (EXPERIMENTAL_RECONSTRUCTION)

@@ -693,19 +693,19 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 		// stage assets that depend on the original RDP interpolation pattern.
 		t_base = sample_hires_replacement_texel_fp5(
 				tile,
-				remap_hires_st_fp5(tile, base_st << 5),
+				remap_hires_st_fp5(tile, st_fp5),
 				hires_lod,
 				false);
 		if (sample_quad)
 		{
 			t10 = sample_hires_replacement_texel_fp5(
 					tile,
-					remap_hires_st_fp5(tile, ivec2(s1, t0) << 5),
+					remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 0)),
 					hires_lod,
 					false);
 			t01 = sample_hires_replacement_texel_fp5(
 					tile,
-					remap_hires_st_fp5(tile, ivec2(s0, t1) << 5),
+					remap_hires_st_fp5(tile, st_fp5 + ivec2(0, 32)),
 					hires_lod,
 					false);
 		}
@@ -713,7 +713,7 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 		{
 			t11 = sample_hires_replacement_texel_fp5(
 					tile,
-					remap_hires_st_fp5(tile, ivec2(s1, t1) << 5),
+					remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 32)),
 					hires_lod,
 					false);
 		}

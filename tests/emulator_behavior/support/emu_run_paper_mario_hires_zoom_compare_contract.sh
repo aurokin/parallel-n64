@@ -35,12 +35,14 @@ require_pattern "Defaults to the newest PNG under /tmp/parallel-n64-paper-mario-
   "hires zoom compare should default to the latest capture"
 require_pattern "/tmp/parallel-n64-paper-mario-hires-compare" "$RUNNER" \
   "hires zoom compare should use the standard output root"
+require_pattern 'latest_link="$OUTPUT_ROOT/latest-$profile"' "$RUNNER" \
+  "hires zoom compare should maintain a latest-profile link"
+require_pattern 'ln -sfn "$output_dir" "$latest_link"' "$RUNNER" \
+  "hires zoom compare should refresh the latest-profile link"
 require_pattern 'profile="intro22"' "$RUNNER" \
   "hires zoom compare should default to the intro22 profile"
 require_pattern 'python3 "$COMPARE_TOOL"' "$RUNNER" \
   "hires zoom compare should invoke the python tool"
-require_pattern 'exec "${cmd[@]}"' "$RUNNER" \
-  "hires zoom compare should exec the assembled command"
 require_pattern 'DEFAULT_PROFILE = "intro22"' "$TOOL" \
   "python zoom compare tool should default to the intro22 profile"
 require_pattern '"intro22": {' "$TOOL" \
@@ -59,6 +61,10 @@ require_pattern "summary.png" "$TOOL" \
   "python zoom compare tool should emit a summary image"
 require_pattern "summary.txt" "$TOOL" \
   "python zoom compare tool should emit summary text"
+require_pattern "candidate:" "$TOOL" \
+  "python zoom compare tool should stamp candidate identity into the summary image"
+require_pattern "oracle:" "$TOOL" \
+  "python zoom compare tool should stamp oracle identity into the summary image"
 
 if ! python3 -m py_compile "$TOOL"; then
   echo "FAIL: python zoom compare tool failed to compile" >&2

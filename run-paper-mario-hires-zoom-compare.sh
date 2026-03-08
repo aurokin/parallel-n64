@@ -139,4 +139,9 @@ if [[ -n "$oracle" ]]; then
   cmd+=(--oracle "$oracle")
 fi
 
-exec "${cmd[@]}"
+"${cmd[@]}"
+
+latest_link="$OUTPUT_ROOT/latest-$profile"
+ln -sfn "$output_dir" "$latest_link"
+
+echo "Latest link: $latest_link"

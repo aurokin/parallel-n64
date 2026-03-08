@@ -138,6 +138,13 @@ def build_diff(lhs: Image.Image, rhs: Image.Image) -> Image.Image:
     return Image.merge("RGB", bands)
 
 
+def fit_label(text: str, limit: int = 120) -> str:
+    if len(text) <= limit:
+        return text
+    keep = max(16, (limit - 3) // 2)
+    return text[:keep] + "..." + text[-keep:]
+
+
 def main() -> int:
     args = parse_args()
     candidate_path = Path(args.candidate)
@@ -183,9 +190,20 @@ def main() -> int:
 
     width = max(row.width for row in rows)
     gap = 24
-    height = sum(row.height for row in rows) + gap * (len(rows) - 1)
+    header_lines = [
+        f"profile: {args.profile}",
+        f"candidate: {fit_label(str(candidate_path))}",
+        f"oracle: {fit_label(str(oracle_path))}",
+    ]
+    header_h = 18 * len(header_lines) + 24
+    height = header_h + sum(row.height for row in rows) + gap * (len(rows) - 1)
     summary_image = Image.new("RGB", (width, height), "black")
-    y = 0
+    draw = ImageDraw.Draw(summary_image)
+    y = 8
+    for line in header_lines:
+        draw.text((0, y), line, fill="white")
+        y += 18
+    y = header_h
     for row in rows:
         summary_image.paste(row, (0, y))
         y += row.height + gap

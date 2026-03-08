@@ -73,6 +73,7 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `./run-paper-mario-hires-intro22-refresh.sh`
   - open latest compare in tmux/feh:
     - `./run-paper-mario-open-compare.sh --profile intro22`
+    - rebuilds `/tmp/parallel-n64-paper-mario-hires-compare/latest-intro22` before opening so the viewer does not reuse stale summaries
   - defaults to the latest PNG under `/tmp/parallel-n64-paper-mario-captures`
   - defaults to the saved GLide HIRES intro22 oracle and emits focused crops for `top_banner`, `story_text`, `bottom_stage_grid`, and `left_stage_grid`
 - Parallel scaling capture:

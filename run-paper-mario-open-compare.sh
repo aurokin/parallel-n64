@@ -8,6 +8,7 @@ COMPARE_RUNNER="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/run-paper-ma
 
 profile=""
 image=""
+rebuild="0"
 
 usage() {
   cat <<'EOF_USAGE'
@@ -17,12 +18,13 @@ Usage:
 Options:
   --profile NAME  Prefer the latest compare output for a specific profile/tag prefix
   --image PATH    Open an explicit image instead of auto-resolving the latest compare
+  --rebuild       Force regeneration of the compare before opening
   -h, --help      Show this help
 
 Behavior:
   - Reuses tmux session `paper-mario-compare`.
   - Defaults to the newest `summary.png` under /tmp/parallel-n64-paper-mario-hires-compare.
-  - If no compare exists yet for the requested profile, it generates one from the latest capture.
+  - For `--profile`, it rebuilds into a canonical `latest-<profile>` output so the viewer does not reopen stale summaries.
   - `--profile intro22` prefers outputs created from the intro22 compare flow.
 EOF_USAGE
 }
@@ -53,6 +55,9 @@ while (($#)); do
       shift
       image="${1:-}"
       ;;
+    --rebuild)
+      rebuild="1"
+      ;;
     -h|--help)
       usage
       exit 0
@@ -66,8 +71,18 @@ while (($#)); do
   shift
 done
 
-if [[ -z "$image" ]]; then
+if [[ -n "$profile" && -z "$image" && -x "$COMPARE_RUNNER" ]]; then
+  canonical_dir="$COMPARE_ROOT/latest-$profile"
+  "$COMPARE_RUNNER" --profile "$profile" --output-dir "$canonical_dir" >/dev/null
+  image="$canonical_dir/summary.png"
+elif [[ -z "$image" ]]; then
   image="$(latest_image "$COMPARE_ROOT" "$profile")"
+fi
+
+if [[ "$rebuild" == "1" && -n "$profile" && -z "$image" && -x "$COMPARE_RUNNER" ]]; then
+  canonical_dir="$COMPARE_ROOT/latest-$profile"
+  "$COMPARE_RUNNER" --profile "$profile" --output-dir "$canonical_dir" >/dev/null
+  image="$canonical_dir/summary.png"
 fi
 
 if [[ -z "$image" && -n "$profile" && -x "$COMPARE_RUNNER" ]]; then

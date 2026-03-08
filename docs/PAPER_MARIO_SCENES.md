@@ -24,6 +24,7 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
   - `./run-paper-mario-hires-intro22-compare.sh`
   - open latest compare:
     - `./run-paper-mario-open-compare.sh --profile intro22`
+    - rebuilds `/tmp/parallel-n64-paper-mario-hires-compare/latest-intro22` before opening
   - raw equivalent:
     - `./run-paper-mario-hires-zoom-compare.sh --profile intro22`
 - Timing:

@@ -70,6 +70,8 @@ require_pattern 'run-paper-mario-hires-intro22-compare.sh' "$REFRESH_RUNNER" \
   "intro22 refresh runner should call the intro22 compare wrapper"
 require_pattern 'run-paper-mario-open-compare.sh' "$REFRESH_RUNNER" \
   "intro22 refresh runner should reopen the compare viewer"
+require_pattern '--profile intro22' "$REFRESH_RUNNER" \
+  "intro22 refresh runner should reopen the canonical intro22 compare profile"
 require_pattern "intro22" "$SCENE_LIST_RUNNER" \
   "scene list should include intro22"
 require_pattern "file-select-state" "$SCENE_LIST_RUNNER" \

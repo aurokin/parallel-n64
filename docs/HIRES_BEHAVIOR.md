@@ -119,6 +119,7 @@
 - Comparable Paper Mario HIRES zoom compare on `parallel`:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`
+  - `./run-paper-mario-open-compare.sh --profile intro22` rebuilds a canonical latest compare before opening
 - Paper Mario scene manifest:
   - `docs/PAPER_MARIO_SCENES.md`
 - Preserved GLideN64 4x HIRES-on intro22 matched oracle:

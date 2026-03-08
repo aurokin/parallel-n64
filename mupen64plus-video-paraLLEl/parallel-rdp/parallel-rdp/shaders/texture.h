@@ -688,10 +688,14 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 	{
 		yuv = false;
 		int hires_lod = compute_hires_replacement_lod(tile, lod_frac);
+		bool hires_direct_sample = !tlut;
 		bool hires_linear = tlut;
-		// Preserve the native 3-point neighborhood selection and only swap in the
-		// replacement texels for those taps. Pre-filtering hires content here breaks
-		// stage assets that depend on the original RDP interpolation pattern.
+		if (hires_direct_sample)
+			hires_linear = true;
+		// TLUT-backed replacements stay on the native 3-point neighborhood path.
+		// For non-TLUT replacement art, sample the replacement directly instead of
+		// reapplying the native neighborhood interpolation, which introduces visible
+		// intro-scene breakup on smooth HIRES assets.
 		t_base = sample_hires_replacement_texel_fp5(
 				tile,
 				remap_hires_st_fp5(tile, st_fp5),
@@ -717,6 +721,11 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 					remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 32)),
 					hires_lod,
 					hires_linear);
+		}
+		if (hires_direct_sample)
+		{
+			sample_quad = false;
+			mid_texel = false;
 		}
 	}
 	else if (tlut)

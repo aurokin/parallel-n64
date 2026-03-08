@@ -67,6 +67,8 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Parallel HIRES zoom compare:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`
+  - open latest compare in tmux/feh:
+    - `./run-paper-mario-open-compare.sh --profile intro22`
   - defaults to the latest PNG under `/tmp/parallel-n64-paper-mario-captures`
   - defaults to the saved GLide HIRES intro22 `Today...` oracle and emits focused crops for `top_banner`, `today_text`, `bottom_stage_grid`, and `left_stage_grid`
 - Parallel scaling capture:

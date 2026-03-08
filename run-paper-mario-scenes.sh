@@ -8,6 +8,7 @@ intro22
   parallel: ./run-paper-mario-hires-intro22-capture.sh --tag <tag>
   glide:    ./run-paper-mario-hires-intro22-capture.sh --glide --tag <tag>
   compare:  ./run-paper-mario-hires-intro22-compare.sh
+  open:     ./run-paper-mario-open-compare.sh --profile intro22
   purpose:  current primary HIRES scene (`Today...`, top banner, stage grids)
 
 noinput16

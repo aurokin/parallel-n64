@@ -91,6 +91,9 @@ Co-Authored-By: Codex <noreply@openai.com>
   - current clean metrics for that experimental baseline: `full 18.0028`, `left 18.6370`, `right 30.0180`, `top 16.6342`, `bottom 20.4758`, `file2_new 2.9933`
   - the plugin-level `interlacing` flag is now wired into scanout (`blend_previous_frame = true`, `upscale_deinterlacing = false` when enabled), but on the current Paper Mario save-state it only perturbs the left-side variance region and does not explain the main horizontal split
   - the biggest recent improvements came from source-domain setup, not another VI kernel tweak; if future tuning stalls again, inspect the source mapping fed into `scale_stage()` before spending many more cycles on shader kernel variants
+  - newer finding: the file-select center backdrop is assembled from repeated `copy=1` horizontal strips, so the remaining seam is likely not a pure global-VI problem; treat texrect/copy composition as an active lane
+  - experimental mode must not silently force `native_tex_rect` off; preserve the requested core option and test texrect-heavy scenes with that option explicitly enabled when investigating strip-based artifacts
+  - on the current Paper Mario scaling scene, `experimental + native_tex_rect=enabled` is a real improvement over the disabled baseline, especially on the backdrop-heavy `right`, `top`, and `bottom` regions
 - Save-state warning:
   - prefer save states for fast iteration when they were created from the same ROM image and the same core path you are validating
   - same-core save states are valid across HIRES-on and HIRES-off runs

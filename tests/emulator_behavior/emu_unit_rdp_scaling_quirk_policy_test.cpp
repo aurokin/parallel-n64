@@ -34,7 +34,7 @@ static void test_accurate_mode_preserves_requested_native_tex_rect()
 	      "accurate mode should preserve a disabled native tex-rect request");
 }
 
-static void test_experimental_mode_only_overrides_tex_rect_when_upscaled()
+static void test_experimental_mode_preserves_requested_tex_rect_setting()
 {
 	ScalingQuirkPolicyInput in = {};
 	in.vi_scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
@@ -47,15 +47,20 @@ static void test_experimental_mode_only_overrides_tex_rect_when_upscaled()
 
 	in.upscaling_factor = 4;
 	policy = derive_scaling_quirk_policy(in);
+	check(policy.effective_native_tex_rect,
+	      "experimental mode should preserve enabled native tex-rect when VI upscaling is active");
+
+	in.native_tex_rect = false;
+	policy = derive_scaling_quirk_policy(in);
 	check(!policy.effective_native_tex_rect,
-	      "experimental mode should force tex-rect upscaling when VI upscaling is active");
+	      "experimental mode should preserve a disabled native tex-rect request");
 }
 }
 
 int main()
 {
 	test_accurate_mode_preserves_requested_native_tex_rect();
-	test_experimental_mode_only_overrides_tex_rect_when_upscaled();
+	test_experimental_mode_preserves_requested_tex_rect_setting();
 	std::cout << "emu_unit_rdp_scaling_quirk_policy_test: PASS" << std::endl;
 	return 0;
 }

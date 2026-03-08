@@ -6,6 +6,11 @@ Improve native 4x HIRES-off scaling quality in `parallel` while preserving the e
 
 This plan is for active work only. Completed exploration history lives in git and supporting notes such as [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/code/parallel-n64/docs/VI_SOURCE_MAPPING_RESEARCH.md).
 
+Current high-value finding:
+
+- the Paper Mario file-select backdrop is not behaving like ordinary 3D geometry; it is assembled from repeated `copy=1` horizontal strips, so texrect/copy behavior must now be treated as a first-class part of the scaling problem
+- with the current experimental VI path, explicitly enabling `native_tex_rect` is a major improvement on this scene; representative repeat metrics moved from the disabled baseline `right/top/bottom = 30.0180 / 16.6342 / 20.4758` to `29.7766 / 16.3699 / 20.3800`, with a best first run at `28.0939 / 16.3287 / 20.0186`
+
 ## Invariants
 
 - Default-off behavior must stay unchanged.
@@ -137,7 +142,7 @@ These are the things we should try to remove from the current approximation as w
 ### Avoid For Now
 
 - Do not spend many more cycles on generic kernel/tap-layout churn unless a new source-mapping rule stalls.
-- Do not revisit broad texrect-special handling yet.
+- Do not reintroduce hidden policy overrides that force texrect behavior off in experimental mode.
 - Do not copy upstream paraLLEl-RDP or GLideN64 structure wholesale.
 
 ## Immediate Next Steps
@@ -146,6 +151,12 @@ These are the things we should try to remove from the current approximation as w
 2. Extend that rule beyond the phase-Y cleanup and the first upper-band `y_line_base` split, and test whether the remaining band logic can also be reduced.
 3. If the rule helps, remove one constant at a time and revalidate.
 4. If the rule does not help enough, revisit a more explicit line-aware scanout model.
+
+Near-term texrect lane:
+
+1. Treat the file-select center backdrop as a copy/texrect strip-composition testcase.
+2. Keep experimental mode from force-disabling `native_tex_rect`; respect the user/core option instead.
+3. Compare bad strip-composed textures against clean textures in the same scene to determine whether the remaining seam is in copy/texrect composition before VI.
 
 ## Validation Rules
 

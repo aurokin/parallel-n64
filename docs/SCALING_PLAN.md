@@ -46,74 +46,32 @@ Files:
 - [vi_scale.frag](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/shaders/vi_scale.frag)
 - [vi_scale_sampling_policy.hpp](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/vi_scale_sampling_policy.hpp)
 
-Current opt-in experimental VI/source/reconstruction baseline:
+Current opt-in VI baseline:
 
-- derived source step biases from raw scale:
-  - `x_add -= raw_x_add / 32 + raw_x_add / 512`
-  - `y_add -= raw_y_add / 32 - raw_y_add / 512`
-- derived source X base from raw `X_SCALE`:
-  - `x_base += raw_x_add / 16`
-- derived source Y base from raw `Y_SCALE`:
-  - `y_base += 23 * raw_y_add / 32`
-- derived phase-Y adjustments from raw `Y_SCALE`:
-  - upper-band `phase1_y += 3 * raw_y_add / 8`
-  - lower-band `phase1_y -= raw_y_add / 2`
-  - upper-band `phase3_y += raw_y_add / 2`
-  - lower-band `phase3_y -= raw_y_add / 4`
-- derived lower-band phase-3 X adjustment from raw `Y_SCALE`:
-  - lower-band `phase3_x += raw_y_add / 8`
-- derived upper/lower band split from raw `Y_SCALE`:
-  - `upper_band_limit = 5 * raw_y_add / 8`
-- derived band line-base adjustments from raw `Y_SCALE`:
-  - upper-band `y_line_base -= 3 * raw_y_add / 4`
-  - lower-band `y_line_base += raw_y_add / 4`
-- row-phase schedule `0/2/7/18`
-- upward-skewed 4-tap footprint `upper 8/16`, `lower 7/16`
-- localized `y_frac` remap for phases `1/2` in the upper source band
+- the heuristic reconstruction lane has been removed
+- the remaining VI path is intentionally narrow and documentation-driven
+- when explicitly enabled, it preserves the baseline VI sampling kernel and only applies field-relative source-Y handling for serrated/interlaced scanout, matching the documented `Y_OFFSET + Y_SCALE / 2` style behavior
 
-Current clean Paper Mario compare for the combined `texrect + vi` path:
+Current expectation for Paper Mario file-select:
 
-- `full 17.4949`
-- `left 18.4366`
-- `right 29.7766`
-- `top 16.3699`
-- `bottom 20.3800`
-- `file2_new 2.9933`
-
-Important caveat:
-
-- repeated same-code captures still show left-side variance
-- trust `right`, `top`, `bottom`, `file2_new`, and stage dumps more than the `left` crop alone
-- the current derived `x_base += raw_x_add / 16` result repeated with the same `right`, `top`, `bottom`, and `file2_new` metrics on the Paper Mario state path, so treat the `left` / `full` movement here as part of the known save-state variance envelope
+- this scene is progressive and texrect-heavy
+- the primary bug fix is the texrect lane
+- the trimmed VI accuracy-improvement path is expected to have little or no visible effect here
 
 ## What We Believe Now
 
 Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/code/parallel-n64/docs/VI_SOURCE_MAPPING_RESEARCH.md):
 
-- The main bug class is source-coordinate modeling in the VI upscale path.
-- The current constants are useful, but they are still an empirical approximation.
-- Two cleanup steps have landed already:
-  - the original phase-Y corrections are derived from raw `Y_SCALE` in the shader instead of being stored as three default constants in policy state
-  - the remaining lower-band phase-3 residual also responds to a derived raw-`Y_SCALE` term instead of another free-standing policy constant
-- Another cleanup step is now complete:
-  - the lower-band `phase3_x` correction is also derived from raw `Y_SCALE` instead of stored as a default constant
-- Another source-domain cleanup step is now complete:
-  - source X also uses a derived base term from raw `X_SCALE` instead of relying only on additive policy bias state
-- Another real fix came from consistency, not a new heuristic:
-  - the upper/lower band split must be derived the same way inside `sample_divot_output()`, not only in the outer source-coordinate path
-- The first structural scanout split is now also paying off:
-  - source Y uses separate upper/lower line-base terms instead of relying only on the additive `y_base` path
-  - both band terms are now derived from raw `Y_SCALE` instead of stored as default constants
-- The remaining mismatch is split by both:
-  - scanline phase
-  - vertical band
-- The docs support a more principled explanation:
+- The texrect fix solved the original Paper Mario stripe bug.
+- The old VI lane mixed real VI/source-mapping ideas with scene-tuned reconstruction heuristics.
+- Only part of that lane was supported by docs.
+- The docs support a much narrower explanation:
   - `Y_SCALE` is accumulated every scanline
   - source Y is stateful across the frame
   - field-relative half-line behavior matters
   - `Y_OFFSET` and sometimes `ORIGIN` participate in field-relative positioning
 
-So the next goal is not to stack more arbitrary constants. It is to replace some of the current constants with a clearer rule derived from VI semantics.
+So the VI lane is now treated as an accuracy-improvement track only, and only the doc-backed field/source-Y behavior remains committed.
 
 The practical split now is:
 
@@ -126,12 +84,8 @@ The practical split now is:
 
 These are the things we should experimentally add next.
 
-- Add a derived source-Y model based on accumulated `Y_SCALE` semantics instead of treating every correction as a flat bias.
 - Add a field-relative source-Y offset experiment based on the documented `Y_SCALE / 2` interlace-style behavior, but keep it behind the experimental mode.
-- Add a lightweight derived piecewise source mapping rule that depends on:
-  - phase
-  - source band
-  - current scanout field semantics
+- Add tests or validation scenes that actually exercise serrated/interlaced output before expanding the VI accuracy-improvement path again.
 - Add targeted instrumentation only when needed to verify the live values fed into `vi_scale.frag`.
 - Add one or two additional validation scenes after each meaningful improvement:
   - another Paper Mario scene
@@ -141,12 +95,8 @@ These are the things we should experimentally add next.
 
 These are the things we should try to remove from the current approximation as we replace them with clearer rules.
 
-- Remove hardcoded phase-specific source-Y constants if a derived field/accumulation rule reproduces the same improvement.
-- Remove band splits that are only acting as proxies for missing VI state.
-- Remove any temporary env-driven sweep hooks once the corresponding behavior is either:
-  - promoted to a principled default, or
-  - proven dead
-- Remove duplicated correction layers when a single earlier source-coordinate correction makes a later shader bias unnecessary.
+- Remove any future VI tweaks that cannot be tied back to documented VI semantics or tests.
+- Remove hidden reconstruction heuristics if they start creeping back into `vi_scale.frag`.
 
 ### Avoid For Now
 

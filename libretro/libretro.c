@@ -400,7 +400,7 @@ static void setup_variables(void)
       { "parallel-n64-parallel-rdp-scaling-mode",
          "(ParaLLEl-RDP) Scaling mode; accurate|experimental" },
       { "parallel-n64-parallel-rdp-experimental-vi",
-         "(ParaLLEl-RDP) Experimental VI/source mapping overrides; auto|enabled|disabled" },
+         "(ParaLLEl-RDP) VI accuracy improvement; auto|enabled|disabled" },
       { "parallel-n64-parallel-rdp-experimental-texrect",
          "(ParaLLEl-RDP) Experimental TEX_RECT overrides; auto|enabled|disabled" },
       { "parallel-n64-parallel-rdp-native-texture-lod",

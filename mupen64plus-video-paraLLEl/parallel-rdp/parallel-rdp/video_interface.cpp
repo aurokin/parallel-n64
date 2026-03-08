@@ -691,7 +691,7 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 	                                               VI_CONTROL_META_SCALE_BIT |
 	                                               VI_CONTROL_META_AA_BIT));
 	cmd.set_specialization_constant(2, uint32_t(fetch_bug));
-	cmd.set_specialization_constant(3, uint32_t(sampling_policy.use_subpixel_reconstruction));
+	cmd.set_specialization_constant(3, 0u);
 
 	struct Push
 	{
@@ -699,15 +699,7 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 		int32_t h_offset, v_offset;
 		uint32_t x_add;
 		uint32_t y_add;
-		uint32_t raw_y_add;
-		int32_t y_line_base_upper;
-		int32_t y_line_base_lower;
-		uint32_t use_derived_y_biases;
 		uint32_t frame_count;
-		int32_t phase1_y_bias;
-		int32_t phase1_lower_y_bias;
-		int32_t phase3_x_bias;
-		int32_t phase3_y_bias;
 
 		uint32_t serrate_shift;
 		uint32_t serrate_mask;
@@ -719,42 +711,16 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 
 	push.x_offset = regs.x_start;
 	push.y_offset = regs.y_start;
-	push.h_offset = int(crop_pixels_x) - regs.h_start;
-	push.v_offset = int(crop_pixels_y) - regs.v_start;
-	push.x_add = regs.x_add;
-	push.y_add = regs.y_add;
-	push.raw_y_add = regs.y_add;
-	push.y_line_base_upper = sampling_policy.source_y_line_base_upper_bias;
-	push.y_line_base_lower = sampling_policy.source_y_line_base_lower_bias;
-	push.use_derived_y_biases = sampling_policy.use_derived_source_y_biases ? 1u : 0u;
-	push.frame_count = frame_count;
-	if (sampling_policy.source_x_add_bias != 0 && push.x_add > sampling_policy.source_x_add_bias)
-		push.x_add -= sampling_policy.source_x_add_bias;
-	else if (sampling_policy.use_derived_source_y_biases != 0)
-	{
-		uint32_t derived_x_add_bias = (regs.x_add >> 5) + (regs.x_add >> 9);
-		if (push.x_add > derived_x_add_bias)
-			push.x_add -= derived_x_add_bias;
-	}
-	if (sampling_policy.source_y_add_bias != 0 && push.y_add > sampling_policy.source_y_add_bias)
-		push.y_add -= sampling_policy.source_y_add_bias;
-	else if (sampling_policy.use_derived_source_y_biases != 0)
-	{
-		uint32_t derived_y_add_bias = (regs.y_add >> 5) - (regs.y_add >> 9);
-		if (push.y_add > derived_y_add_bias)
-			push.y_add -= derived_y_add_bias;
-	}
-	push.x_offset += sampling_policy.source_x_base_bias;
-	if (sampling_policy.use_derived_source_y_biases != 0)
-		push.x_offset += int(regs.x_add >> 4);
-	if (sampling_policy.source_y_base_bias != 0)
-		push.y_offset += sampling_policy.source_y_base_bias;
-	else if (sampling_policy.use_derived_source_y_biases != 0)
-		push.y_offset += int((regs.y_add * 23) >> 5);
-	push.phase1_y_bias = sampling_policy.phase1_source_y_bias;
-	push.phase1_lower_y_bias = sampling_policy.phase1_lower_source_y_bias;
-	push.phase3_x_bias = sampling_policy.phase3_source_x_bias;
-	push.phase3_y_bias = sampling_policy.phase3_source_y_bias;
+		push.h_offset = int(crop_pixels_x) - regs.h_start;
+		push.v_offset = int(crop_pixels_y) - regs.v_start;
+		push.x_add = regs.x_add;
+		push.y_add = regs.y_add;
+		push.frame_count = frame_count;
+		// Documented VI interlace handling requires the odd field to apply a half-line
+		// source offset (Y_SCALE / 2), with the integer overflow expressed via ORIGIN.
+		// We keep this path scoped to fielded scanout only.
+		if (sampling_policy.use_documented_source_mapping && scale_policy.serrate && regs.v_current_line != 0)
+			push.y_offset += regs.y_add >> 1;
 
 	cmd.set_opaque_state();
 #ifdef PARALLEL_RDP_SHADER_DIR

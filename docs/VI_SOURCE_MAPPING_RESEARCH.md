@@ -178,3 +178,13 @@ It only shows that:
 - upstream uses a richer coordinate model than the local simplified path
 - our current wins are consistent with fixing a real source-mapping error
 - GLide's cleaner image is achieved through a substantially different architecture
+
+## Current Code Policy
+
+The repo no longer ships the older heuristic VI reconstruction lane.
+
+Current committed policy is narrower:
+
+- keep texrect handling as the practical fix for the Paper Mario stripe bug
+- keep VI changes opt-in only
+- only keep VI behavior that can be explained as a documented accuracy improvement, primarily field-relative source-Y handling around `Y_OFFSET` / `Y_SCALE / 2`

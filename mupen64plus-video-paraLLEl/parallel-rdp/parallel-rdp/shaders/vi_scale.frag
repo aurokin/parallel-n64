@@ -39,15 +39,7 @@ layout(push_constant, std430) uniform Registers
     int v_offset;
     int x_add;
     int y_add;
-    int raw_y_add;
-    int y_line_base_upper;
-    int y_line_base_lower;
-    int use_derived_y_biases;
     int frame_count;
-    int phase1_y_bias;
-    int phase1_lower_y_bias;
-    int phase3_x_bias;
-    int phase3_y_bias;
 
     int serrate_shift;
     int serrate_mask;
@@ -81,9 +73,7 @@ uvec3 integer_gamma(uvec3 color)
 }
 
 layout(constant_id = 2) const bool FETCH_BUG = false;
-layout(constant_id = 3) const bool EXPERIMENTAL_RECONSTRUCTION = false;
-
-uvec3 sample_divot_output(int x, int y, int phase)
+uvec3 sample_divot_output(int x, int y)
 {
     ivec2 base_coord = ivec2(x, y) >> 10;
     uvec3 c00 = texelFetch(uDivotOutput, ivec3(base_coord, 0), 0).rgb;
@@ -102,11 +92,6 @@ uvec3 sample_divot_output(int x, int y, int phase)
     {
         uint x_frac = uint((x >> 5) & 31);
         uint y_frac = uint((y >> 5) & 31);
-
-        if (EXPERIMENTAL_RECONSTRUCTION && (phase == 1 || phase == 2) && (y >> 10) < ((registers.raw_y_add * 5) >> 3))
-        {
-            y_frac = (y_frac * 29u + 16u) >> 5u;
-        }
 
         uvec3 c10 = texelFetchOffset(uDivotOutput, ivec3(base_coord, 0), 0, ivec2(1, 0)).rgb;
         uvec3 c01 = texelFetchOffset(uDivotOutput, ivec3(base_coord, bug_offset), 0, ivec2(0, 1)).rgb;
@@ -133,71 +118,7 @@ void main()
 
     int x = coord.x * registers.x_add + registers.x_base;
     int y = coord.y * registers.y_add + registers.y_base;
-    int upper_band_limit = (registers.raw_y_add * 5) >> 3;
-    int y_line_base_upper = registers.y_line_base_upper;
-    int y_line_base_lower = registers.y_line_base_lower;
-    if (registers.use_derived_y_biases != 0)
-    {
-        if (y_line_base_upper == 0)
-            y_line_base_upper = -((registers.raw_y_add * 3) >> 2);
-        if (y_line_base_lower == 0)
-            y_line_base_lower = registers.raw_y_add >> 2;
-    }
-    if (y_line_base_upper != 0 && (y >> 10) < upper_band_limit)
-        y = (((coord.y << 10) - y_line_base_upper) * registers.y_add >> 10) + registers.y_base;
-    else if (y_line_base_lower != 0 && (y >> 10) >= upper_band_limit)
-        y = (((coord.y << 10) - y_line_base_lower) * registers.y_add >> 10) + registers.y_base;
-    uvec3 c00;
-
-    if (EXPERIMENTAL_RECONSTRUCTION)
-    {
-        int phase = coord.y & 3;
-        int phase_adjust = phase == 0 ? 0 : (phase == 1 ? 2 : (phase == 2 ? 7 : 18));
-        int phase1_y_bias = registers.phase1_y_bias;
-        int phase1_lower_y_bias = registers.phase1_lower_y_bias;
-        int phase3_x_bias = registers.phase3_x_bias;
-        int phase3_y_bias = registers.phase3_y_bias;
-        if (registers.use_derived_y_biases != 0)
-        {
-            phase1_y_bias = (registers.raw_y_add * 3) >> 3;
-            phase1_lower_y_bias = -(registers.raw_y_add >> 1);
-            if (phase3_x_bias == 0)
-                phase3_x_bias = registers.raw_y_add >> 3;
-            phase3_y_bias = registers.raw_y_add >> 1;
-        }
-        if (phase == 1)
-        {
-            if ((y >> 10) < upper_band_limit)
-                y += phase1_y_bias;
-            else
-                y += phase1_lower_y_bias;
-        }
-        if (phase == 3)
-        {
-            if ((y >> 10) < upper_band_limit)
-            {
-                y += phase3_y_bias;
-            }
-            else if (registers.use_derived_y_biases != 0)
-            {
-                x += phase3_x_bias;
-                y -= registers.raw_y_add >> 2;
-            }
-        }
-        y += (registers.y_add * phase_adjust) >> 5;
-        int quarter_x = max(registers.x_add >> 2, 1);
-        int upper_y = max((registers.y_add * 8) >> 4, 1);
-        int lower_y = max((registers.y_add * 7) >> 4, 1);
-        int three_quarter_x = max((registers.x_add * 3) >> 2, 1);
-        uvec3 accum = uvec3(0);
-        accum += sample_divot_output(x + quarter_x, y - upper_y, phase);
-        accum += sample_divot_output(x + three_quarter_x, y - upper_y, phase);
-        accum += sample_divot_output(x + quarter_x, y + lower_y, phase);
-        accum += sample_divot_output(x + three_quarter_x, y + lower_y, phase);
-        c00 = (accum + 2u) >> 2u;
-    }
-    else
-        c00 = sample_divot_output(x, y, 0);
+    uvec3 c00 = sample_divot_output(x, y);
 
     if (GAMMA_ENABLE)
         c00 = integer_gamma(c00);

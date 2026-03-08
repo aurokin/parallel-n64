@@ -26,17 +26,8 @@ static void test_accurate_mode_keeps_single_sample_path()
 	in.vi_scale = true;
 
 	auto policy = derive_vi_scale_sampling_policy(in);
-	check(!policy.use_subpixel_reconstruction, "accurate mode should keep the baseline sampling path");
-	check(!policy.use_derived_source_y_biases, "accurate mode should not derive source y biases");
+	check(!policy.use_documented_source_mapping, "accurate mode should keep the baseline VI mapping path");
 	check(policy.subpixel_grid == 1u, "accurate mode should keep the single-sample grid");
-	check(policy.source_y_add_bias == 0u, "accurate mode should not bias source y_add");
-	check(policy.source_y_base_bias == 0, "accurate mode should not bias source y base");
-	check(policy.source_x_add_bias == 0u, "accurate mode should not bias source x_add");
-	check(policy.source_x_base_bias == 0, "accurate mode should not bias source x base");
-	check(policy.phase1_source_y_bias == 0, "accurate mode should not bias phase 1 source y");
-	check(policy.phase1_lower_source_y_bias == 0, "accurate mode should not bias lower-band phase 1 source y");
-	check(policy.phase3_source_x_bias == 0, "accurate mode should not bias phase 3 source x");
-	check(policy.phase3_source_y_bias == 0, "accurate mode should not bias phase 3 source y");
 }
 
 static void test_experimental_mode_is_inert_at_native_scale()
@@ -48,17 +39,8 @@ static void test_experimental_mode_is_inert_at_native_scale()
 	in.vi_scale = true;
 
 	auto policy = derive_vi_scale_sampling_policy(in);
-	check(!policy.use_subpixel_reconstruction, "experimental mode should stay inert at native scale");
-	check(!policy.use_derived_source_y_biases, "native-scale experimental mode should not derive source y biases");
+	check(!policy.use_documented_source_mapping, "native-scale experimental mode should stay inert");
 	check(policy.subpixel_grid == 1u, "native-scale experimental mode should keep the single-sample grid");
-	check(policy.source_y_add_bias == 0u, "native-scale experimental mode should not bias source y_add");
-	check(policy.source_y_base_bias == 0, "native-scale experimental mode should not bias source y base");
-	check(policy.source_x_add_bias == 0u, "native-scale experimental mode should not bias source x_add");
-	check(policy.source_x_base_bias == 0, "native-scale experimental mode should not bias source x base");
-	check(policy.phase1_source_y_bias == 0, "native-scale experimental mode should not bias phase 1 source y");
-	check(policy.phase1_lower_source_y_bias == 0, "native-scale experimental mode should not bias lower-band phase 1 source y");
-	check(policy.phase3_source_x_bias == 0, "native-scale experimental mode should not bias phase 3 source x");
-	check(policy.phase3_source_y_bias == 0, "native-scale experimental mode should not bias phase 3 source y");
 }
 
 static void test_experimental_mode_auto_keeps_vi_path_disabled_when_upscaled()
@@ -70,12 +52,11 @@ static void test_experimental_mode_auto_keeps_vi_path_disabled_when_upscaled()
 	in.vi_scale = true;
 
 	auto policy = derive_vi_scale_sampling_policy(in);
-	check(!policy.use_subpixel_reconstruction, "auto VI override should keep experimental VI disabled");
-	check(!policy.use_derived_source_y_biases, "auto VI override should not derive source y biases");
+	check(!policy.use_documented_source_mapping, "auto VI override should keep VI accuracy improvements disabled");
 	check(policy.subpixel_grid == 1u, "auto VI override should keep the single-sample grid");
 }
 
-static void test_explicit_vi_enabled_enables_subpixel_reconstruction_when_upscaled()
+static void test_explicit_vi_enabled_enables_documented_mapping_when_upscaled()
 {
 	VIScaleSamplingPolicyInput in = {};
 	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
@@ -84,19 +65,8 @@ static void test_explicit_vi_enabled_enables_subpixel_reconstruction_when_upscal
 	in.vi_scale = true;
 
 	auto policy = derive_vi_scale_sampling_policy(in);
-	check(policy.use_subpixel_reconstruction, "enabled VI override should enable subpixel reconstruction when upscaled");
-	check(policy.use_derived_source_y_biases, "enabled VI override should derive source y biases at 4x");
-	check(policy.subpixel_grid == 2u, "enabled VI override should request a 2x2 subpixel grid");
-	check(policy.source_y_add_bias == 0u, "enabled VI override should derive source y_add");
-	check(policy.source_y_base_bias == 0, "enabled VI override should derive source y base");
-	check(policy.source_y_line_base_upper_bias == 0, "enabled VI override should derive the upper-band source y line base");
-	check(policy.source_y_line_base_lower_bias == 0, "enabled VI override should derive the lower-band source y line base");
-	check(policy.source_x_add_bias == 0u, "enabled VI override should derive source x_add");
-	check(policy.source_x_base_bias == 0, "enabled VI override should keep zero source x base bias");
-	check(policy.phase1_source_y_bias == 0, "enabled VI override should leave phase 1 source y override at zero");
-	check(policy.phase1_lower_source_y_bias == 0, "enabled VI override should leave lower-band phase 1 source y override at zero");
-	check(policy.phase3_source_x_bias == 0, "enabled VI override should derive phase 3 source x");
-	check(policy.phase3_source_y_bias == 0, "enabled VI override should leave phase 3 source y override at zero");
+	check(policy.use_documented_source_mapping, "enabled VI override should enable documented VI mapping when upscaled");
+	check(policy.subpixel_grid == 1u, "enabled VI override should keep the baseline sample grid");
 }
 
 static void test_experimental_mode_respects_disabled_vi_scaling()
@@ -108,20 +78,11 @@ static void test_experimental_mode_respects_disabled_vi_scaling()
 	in.vi_scale = false;
 
 	auto policy = derive_vi_scale_sampling_policy(in);
-	check(!policy.use_subpixel_reconstruction, "disabled VI scale should bypass experimental sampling");
-	check(!policy.use_derived_source_y_biases, "disabled VI scale should not derive source y biases");
+	check(!policy.use_documented_source_mapping, "disabled VI scale should bypass documented VI mapping");
 	check(policy.subpixel_grid == 1u, "disabled VI scale should keep the single-sample grid");
-	check(policy.source_y_add_bias == 0u, "disabled VI scale should not bias source y_add");
-	check(policy.source_y_base_bias == 0, "disabled VI scale should not bias source y base");
-	check(policy.source_x_add_bias == 0u, "disabled VI scale should not bias source x_add");
-	check(policy.source_x_base_bias == 0, "disabled VI scale should not bias source x base");
-	check(policy.phase1_source_y_bias == 0, "disabled VI scale should not bias phase 1 source y");
-	check(policy.phase1_lower_source_y_bias == 0, "disabled VI scale should not bias lower-band phase 1 source y");
-	check(policy.phase3_source_x_bias == 0, "disabled VI scale should not bias phase 3 source x");
-	check(policy.phase3_source_y_bias == 0, "disabled VI scale should not bias phase 3 source y");
 }
 
-static void test_non_4x_experimental_mode_keeps_zero_source_y_add_bias()
+static void test_non_4x_experimental_mode_uses_documented_mapping_when_upscaled()
 {
 	VIScaleSamplingPolicyInput in = {};
 	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
@@ -130,61 +91,8 @@ static void test_non_4x_experimental_mode_keeps_zero_source_y_add_bias()
 	in.vi_scale = true;
 
 	auto policy = derive_vi_scale_sampling_policy(in);
-	check(policy.use_subpixel_reconstruction, "experimental mode should still use subpixel reconstruction at 8x");
-	check(!policy.use_derived_source_y_biases, "unvalidated non-4x path should not derive source y biases");
-	check(policy.subpixel_grid == 2u, "8x experimental mode should keep the 2x2 subpixel grid");
-	check(policy.source_y_add_bias == 0u, "unvalidated non-4x path should keep zero source y_add bias");
-	check(policy.source_y_base_bias == 0, "unvalidated non-4x path should keep zero source y base bias");
-	check(policy.source_x_add_bias == 0u, "unvalidated non-4x path should keep zero source x_add bias");
-	check(policy.source_x_base_bias == 0, "unvalidated non-4x path should keep zero source x base bias");
-	check(policy.phase1_source_y_bias == 0, "unvalidated non-4x path should keep zero phase 1 source y bias");
-	check(policy.phase1_lower_source_y_bias == 0, "unvalidated non-4x path should keep zero lower-band phase 1 source y bias");
-	check(policy.phase3_source_x_bias == 0, "unvalidated non-4x path should keep zero phase 3 source x bias");
-	check(policy.phase3_source_y_bias == 0, "unvalidated non-4x path should keep zero phase 3 source y bias");
-}
-
-static void test_env_overrides_replace_default_biases()
-{
-	VIScaleSamplingPolicyInput in = {};
-	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
-	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_ENABLED;
-	in.scaling_factor = 4;
-	in.vi_scale = true;
-
-	setenv("PARALLEL_VI_SOURCE_Y_ADD_BIAS", "31", 1);
-	setenv("PARALLEL_VI_SOURCE_Y_BASE_BIAS", "512", 1);
-	setenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_UPPER_BIAS", "-96", 1);
-	setenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_LOWER_BIAS", "160", 1);
-	setenv("PARALLEL_VI_SOURCE_X_ADD_BIAS", "19", 1);
-	setenv("PARALLEL_VI_SOURCE_X_BASE_BIAS", "-64", 1);
-	setenv("PARALLEL_VI_PHASE1_Y_BIAS", "40", 1);
-	setenv("PARALLEL_VI_PHASE1_LOWER_Y_BIAS", "-24", 1);
-	setenv("PARALLEL_VI_PHASE3_X_BIAS", "96", 1);
-	setenv("PARALLEL_VI_PHASE3_Y_BIAS", "-48", 1);
-
-	auto policy = derive_vi_scale_sampling_policy(in);
-	check(!policy.use_derived_source_y_biases, "env override should disable derived source y biases");
-	check(policy.source_y_add_bias == 31u, "env override should replace source y_add bias");
-	check(policy.source_y_base_bias == 512, "env override should replace source y base bias");
-	check(policy.source_y_line_base_upper_bias == -96, "env override should replace upper-band source y line base bias");
-	check(policy.source_y_line_base_lower_bias == 160, "env override should replace lower-band source y line base bias");
-	check(policy.source_x_add_bias == 19u, "env override should replace source x_add bias");
-	check(policy.source_x_base_bias == -64, "env override should replace source x base bias");
-	check(policy.phase1_source_y_bias == 40, "env override should replace phase 1 source y bias");
-	check(policy.phase1_lower_source_y_bias == -24, "env override should replace lower-band phase 1 source y bias");
-	check(policy.phase3_source_x_bias == 96, "env override should replace phase 3 source x bias");
-	check(policy.phase3_source_y_bias == -48, "env override should replace phase 3 source y bias");
-
-	unsetenv("PARALLEL_VI_SOURCE_Y_ADD_BIAS");
-	unsetenv("PARALLEL_VI_SOURCE_Y_BASE_BIAS");
-	unsetenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_UPPER_BIAS");
-	unsetenv("PARALLEL_VI_SOURCE_Y_LINE_BASE_LOWER_BIAS");
-	unsetenv("PARALLEL_VI_SOURCE_X_ADD_BIAS");
-	unsetenv("PARALLEL_VI_SOURCE_X_BASE_BIAS");
-	unsetenv("PARALLEL_VI_PHASE1_Y_BIAS");
-	unsetenv("PARALLEL_VI_PHASE1_LOWER_Y_BIAS");
-	unsetenv("PARALLEL_VI_PHASE3_X_BIAS");
-	unsetenv("PARALLEL_VI_PHASE3_Y_BIAS");
+	check(policy.use_documented_source_mapping, "documented VI mapping should apply at any upscale factor when enabled");
+	check(policy.subpixel_grid == 1u, "documented VI mapping should keep the baseline sample grid");
 }
 
 static void test_explicit_vi_override_splits_from_scaling_mode()
@@ -196,14 +104,12 @@ static void test_explicit_vi_override_splits_from_scaling_mode()
 	in.vi_scale = true;
 
 	auto policy = derive_vi_scale_sampling_policy(in);
-	check(policy.use_subpixel_reconstruction, "enabled VI override should force experimental VI reconstruction");
-	check(policy.use_derived_source_y_biases, "enabled VI override should derive source y biases at 4x");
+	check(policy.use_documented_source_mapping, "enabled VI override should force documented VI mapping");
 
 	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
 	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_DISABLED;
 	policy = derive_vi_scale_sampling_policy(in);
-	check(!policy.use_subpixel_reconstruction, "disabled VI override should suppress experimental VI reconstruction");
-	check(!policy.use_derived_source_y_biases, "disabled VI override should suppress derived source y biases");
+	check(!policy.use_documented_source_mapping, "disabled VI override should suppress documented VI mapping");
 }
 }
 
@@ -212,10 +118,9 @@ int main()
 	test_accurate_mode_keeps_single_sample_path();
 	test_experimental_mode_is_inert_at_native_scale();
 	test_experimental_mode_auto_keeps_vi_path_disabled_when_upscaled();
-	test_explicit_vi_enabled_enables_subpixel_reconstruction_when_upscaled();
+	test_explicit_vi_enabled_enables_documented_mapping_when_upscaled();
 	test_experimental_mode_respects_disabled_vi_scaling();
-	test_non_4x_experimental_mode_keeps_zero_source_y_add_bias();
-	test_env_overrides_replace_default_biases();
+	test_non_4x_experimental_mode_uses_documented_mapping_when_upscaled();
 	test_explicit_vi_override_splits_from_scaling_mode();
 	std::cout << "emu_unit_vi_scale_sampling_policy_test: PASS" << std::endl;
 	return 0;

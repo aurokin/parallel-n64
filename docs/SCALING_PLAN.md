@@ -42,6 +42,7 @@ Current experimental 4x source/reconstruction baseline:
 - `x_add -= 17`
 - `y_add -= 30`
 - `y_base += 736`
+- upper-band `y_line_base -= 768`
 - lower-band `phase3_x += 128`
 - derived phase-Y adjustments from raw `Y_SCALE`:
   - upper-band `phase1_y += 3 * raw_y_add / 8`
@@ -54,12 +55,12 @@ Current experimental 4x source/reconstruction baseline:
 
 Current clean Paper Mario compare:
 
-- `full 18.2105`
-- `left 17.4481`
-- `right 30.1935`
-- `top 17.9058`
+- `full 18.0974`
+- `left 18.6573`
+- `right 30.0718`
+- `top 16.6798`
 - `bottom 20.7471`
-- `file2_new 2.9931`
+- `file2_new 2.9933`
 
 Important caveat:
 
@@ -76,6 +77,8 @@ Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/
 - Two cleanup steps have landed already:
   - the original phase-Y corrections are derived from raw `Y_SCALE` in the shader instead of being stored as three default constants in policy state
   - the remaining lower-band phase-3 residual also responds to a derived raw-`Y_SCALE` term instead of another free-standing policy constant
+- The first structural scanout split is now also paying off:
+  - upper-band source Y uses a separate line-base term instead of relying only on the additive `y_base` path
 - The remaining mismatch is split by both:
   - scanline phase
   - vertical band
@@ -124,7 +127,7 @@ These are the things we should try to remove from the current approximation as w
 ## Immediate Next Steps
 
 1. Derive a candidate source-Y rule from the documented accumulated `Y_SCALE` behavior.
-2. Extend that rule beyond the phase-Y cleanup that is already landed, and test whether the remaining band logic can also be reduced.
+2. Extend that rule beyond the phase-Y cleanup and the first upper-band `y_line_base` split, and test whether the remaining band logic can also be reduced.
 3. If the rule helps, remove one constant at a time and revalidate.
 4. If the rule does not help enough, revisit a more explicit line-aware scanout model.
 

@@ -73,7 +73,7 @@ Co-Authored-By: Codex <noreply@openai.com>
   - open latest compare in tmux/feh:
     - `./run-paper-mario-open-compare.sh --profile intro22`
   - defaults to the latest PNG under `/tmp/parallel-n64-paper-mario-captures`
-  - defaults to the saved GLide HIRES intro22 `Today...` oracle and emits focused crops for `top_banner`, `today_text`, `bottom_stage_grid`, and `left_stage_grid`
+  - defaults to the saved GLide HIRES intro22 oracle and emits focused crops for `top_banner`, `story_text`, `bottom_stage_grid`, and `left_stage_grid`
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off

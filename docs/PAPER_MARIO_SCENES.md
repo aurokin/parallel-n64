@@ -7,7 +7,7 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
 
 - Purpose:
   - Primary HIRES scene for current corruption/composition debugging.
-  - Good for `Today...`, top banner, bottom stage grid, and left stage grid.
+  - Good for the wide intro story text, top banner, bottom stage grid, and left stage grid.
 - Parallel capture:
   - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
 - Tune per-core timing when `parallel` and GLide drift:

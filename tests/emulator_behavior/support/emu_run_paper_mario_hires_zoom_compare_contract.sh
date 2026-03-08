@@ -49,8 +49,8 @@ require_pattern '"noinput16": {' "$TOOL" \
   "python zoom compare tool should retain the legacy noinput16 profile"
 require_pattern '"top_banner"' "$TOOL" \
   "python zoom compare tool should define the top banner crop"
-require_pattern '"today_text"' "$TOOL" \
-  "python zoom compare tool should define the today text crop"
+require_pattern '"story_text"' "$TOOL" \
+  "python zoom compare tool should define the intro story text crop"
 require_pattern '"bottom_stage_grid"' "$TOOL" \
   "python zoom compare tool should define the bottom stage crop"
 require_pattern '"left_stage_grid"' "$TOOL" \

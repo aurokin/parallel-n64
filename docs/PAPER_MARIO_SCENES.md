@@ -10,6 +10,8 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
   - Good for `Today...`, top banner, bottom stage grid, and left stage grid.
 - Parallel capture:
   - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
+- Refresh latest compare in one command:
+  - `./run-paper-mario-hires-intro22-refresh.sh`
 - GLide oracle capture:
   - `./run-paper-mario-hires-intro22-capture.sh --glide --tag <tag>`
 - Compare:

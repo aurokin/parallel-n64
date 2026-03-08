@@ -85,7 +85,25 @@ if [[ -z "$image" || ! -f "$image" ]]; then
 fi
 
 tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
-tmux new-session -d -s "$SESSION_NAME" "feh --auto-zoom --geometry 1800x980 '$image'"
+tmux new-session -d -s "$SESSION_NAME" "sh -lc '
+  feh --auto-zoom \"$image\" &
+  feh_pid=\$!
+  if command -v xdotool >/dev/null 2>&1; then
+    tries=60
+    while [ \$tries -gt 0 ]; do
+      wid=\$(xdotool search --onlyvisible --pid \$feh_pid 2>/dev/null | head -n 1 || true)
+      if [ -n \"\$wid\" ]; then
+        xdotool windowactivate \"\$wid\" >/dev/null 2>&1 || true
+        xdotool windowstate --add MAXIMIZED_VERT \"\$wid\" >/dev/null 2>&1 || true
+        xdotool windowstate --add MAXIMIZED_HORZ \"\$wid\" >/dev/null 2>&1 || true
+        break
+      fi
+      sleep 0.1
+      tries=\$((tries - 1))
+    done
+  fi
+  wait \$feh_pid
+'"
 
 echo "Opened: $image"
 echo "To monitor:"

@@ -67,6 +67,8 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Parallel HIRES zoom compare:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`
+  - refresh capture+compare+viewer in one command:
+    - `./run-paper-mario-hires-intro22-refresh.sh`
   - open latest compare in tmux/feh:
     - `./run-paper-mario-open-compare.sh --profile intro22`
   - defaults to the latest PNG under `/tmp/parallel-n64-paper-mario-captures`

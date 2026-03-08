@@ -42,6 +42,8 @@ Current experimental 4x source/reconstruction baseline:
 - derived source step biases from raw scale:
   - `x_add -= raw_x_add / 32 + raw_x_add / 512`
   - `y_add -= raw_y_add / 32 - raw_y_add / 512`
+- derived source X base from raw `X_SCALE`:
+  - `x_base += raw_x_add / 16`
 - derived source Y base from raw `Y_SCALE`:
   - `y_base += 23 * raw_y_add / 32`
 - derived phase-Y adjustments from raw `Y_SCALE`:
@@ -62,18 +64,18 @@ Current experimental 4x source/reconstruction baseline:
 
 Current clean Paper Mario compare:
 
-- `full 17.7298`
-- `left 16.7295`
-- `right 30.0410`
-- `top 16.6798`
-- `bottom 20.4990`
+- `full 18.0028`
+- `left 18.6370`
+- `right 30.0180`
+- `top 16.6342`
+- `bottom 20.4758`
 - `file2_new 2.9933`
 
 Important caveat:
 
 - repeated same-code captures still show left-side variance
 - trust `right`, `top`, `bottom`, `file2_new`, and stage dumps more than the `left` crop alone
-- the current lower-band `phase3_x += 128` result repeated bit-identically across two captures on the Paper Mario state path, so this one is not behaving like the earlier left-side-only variance
+- the current derived `x_base += raw_x_add / 16` result repeated with the same `right`, `top`, `bottom`, and `file2_new` metrics on the Paper Mario state path, so treat the `left` / `full` movement here as part of the known save-state variance envelope
 
 ## What We Believe Now
 
@@ -86,6 +88,8 @@ Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/
   - the remaining lower-band phase-3 residual also responds to a derived raw-`Y_SCALE` term instead of another free-standing policy constant
 - Another cleanup step is now complete:
   - the lower-band `phase3_x` correction is also derived from raw `Y_SCALE` instead of stored as a default constant
+- Another source-domain cleanup step is now complete:
+  - source X also uses a derived base term from raw `X_SCALE` instead of relying only on additive policy bias state
 - Another real fix came from consistency, not a new heuristic:
   - the upper/lower band split must be derived the same way inside `sample_divot_output()`, not only in the outer source-coordinate path
 - The first structural scanout split is now also paying off:

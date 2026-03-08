@@ -138,6 +138,8 @@ More specifically after reading the docs:
 - the remaining source-step biases can now also be expressed directly from raw scale:
   - `x_add -= raw_x_add / 32 + raw_x_add / 512`
   - `y_add -= raw_y_add / 32 - raw_y_add / 512`
+- source X base can now also be expressed directly from raw `X_SCALE`:
+  - `x_base += raw_x_add / 16`
 - the upper/lower band boundary can now also be expressed directly from raw `Y_SCALE`:
   - `upper_band_limit = 5 * raw_y_add / 8`
 - using that derived band split consistently in both the outer source-coordinate path and the inner `sample_divot_output()` path is a real visual improvement; leaving a stale hardcoded `640` in the inner path was part of the remaining mismatch

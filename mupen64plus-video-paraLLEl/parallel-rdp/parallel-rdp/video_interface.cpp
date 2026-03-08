@@ -744,6 +744,8 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 			push.y_add -= derived_y_add_bias;
 	}
 	push.x_offset += sampling_policy.source_x_base_bias;
+	if (sampling_policy.use_derived_source_y_biases != 0)
+		push.x_offset += int(regs.x_add >> 4);
 	if (sampling_policy.source_y_base_bias != 0)
 		push.y_offset += sampling_policy.source_y_base_bias;
 	else if (sampling_policy.use_derived_source_y_biases != 0)

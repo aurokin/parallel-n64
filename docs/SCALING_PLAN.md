@@ -41,7 +41,8 @@ Current experimental 4x source/reconstruction baseline:
 
 - `x_add -= 17`
 - `y_add -= 30`
-- `y_base += 736`
+- derived source Y base from raw `Y_SCALE`:
+  - `y_base += 23 * raw_y_add / 32`
 - derived phase-Y adjustments from raw `Y_SCALE`:
   - upper-band `phase1_y += 3 * raw_y_add / 8`
   - lower-band `phase1_y -= raw_y_add / 2`

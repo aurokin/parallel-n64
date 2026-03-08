@@ -133,6 +133,8 @@ More specifically after reading the docs:
   - those band terms can now be expressed directly from raw `Y_SCALE`:
     - `upper-band y_line_base -= 3 * raw_y_add / 4`
     - `lower-band y_line_base += raw_y_add / 4`
+- the remaining source-Y base bias can also now be expressed directly from raw `Y_SCALE`:
+  - `y_base += 23 * raw_y_add / 32`
 - a principled replacement should be derived from VI register semantics first, not from more blind sweeps
 
 ## Practical Next Steps

@@ -71,7 +71,7 @@ static void test_experimental_mode_enables_subpixel_reconstruction_when_upscaled
 	check(policy.use_derived_source_y_biases, "4x experimental mode should derive source y biases");
 	check(policy.subpixel_grid == 2u, "experimental mode should request a 2x2 subpixel grid");
 	check(policy.source_y_add_bias == 30u, "4x experimental mode should bias source y_add");
-	check(policy.source_y_base_bias == 736, "4x experimental mode should bias source y base");
+	check(policy.source_y_base_bias == 0, "4x experimental mode should derive source y base");
 	check(policy.source_y_line_base_upper_bias == 0, "4x experimental mode should derive the upper-band source y line base");
 	check(policy.source_y_line_base_lower_bias == 0, "4x experimental mode should derive the lower-band source y line base");
 	check(policy.source_x_add_bias == 17u, "4x experimental mode should bias source x_add");

@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../../.." && pwd)"
 CAPTURE_RUNNER="$REPO_ROOT/run-paper-mario-hires-intro22-capture.sh"
 COMPARE_RUNNER="$REPO_ROOT/run-paper-mario-hires-intro22-compare.sh"
+SCENE_LIST_RUNNER="$REPO_ROOT/run-paper-mario-scenes.sh"
 
 if [[ ! -f "$CAPTURE_RUNNER" ]]; then
   echo "FAIL: missing intro22 capture runner at $CAPTURE_RUNNER" >&2
@@ -13,6 +14,11 @@ fi
 
 if [[ ! -f "$COMPARE_RUNNER" ]]; then
   echo "FAIL: missing intro22 compare runner at $COMPARE_RUNNER" >&2
+  exit 1
+fi
+
+if [[ ! -f "$SCENE_LIST_RUNNER" ]]; then
+  echo "FAIL: missing Paper Mario scene list runner at $SCENE_LIST_RUNNER" >&2
   exit 1
 fi
 
@@ -42,8 +48,12 @@ require_pattern "--post-delay 2" "$CAPTURE_RUNNER" \
   "intro22 GLide capture should use the short post delay"
 require_pattern "--profile intro22" "$COMPARE_RUNNER" \
   "intro22 compare wrapper should pin the intro22 profile"
+require_pattern "intro22" "$SCENE_LIST_RUNNER" \
+  "scene list should include intro22"
+require_pattern "file-select-state" "$SCENE_LIST_RUNNER" \
+  "scene list should include file-select-state"
 
-if ! bash -n "$CAPTURE_RUNNER" "$COMPARE_RUNNER"; then
+if ! bash -n "$CAPTURE_RUNNER" "$COMPARE_RUNNER" "$SCENE_LIST_RUNNER"; then
   echo "FAIL: intro22 wrappers failed bash -n" >&2
   exit 1
 fi

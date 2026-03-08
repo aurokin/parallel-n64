@@ -48,6 +48,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 ## Testing Docs
 - Emulator test tiers: `docs/EMU_TESTING.md`
 - HIRES behavior and roadmap: `docs/HIRES_BEHAVIOR.md`
+- Paper Mario scene manifest: `docs/PAPER_MARIO_SCENES.md`
 
 ## Paper Mario HIRES Loop
 - Primary path: `parallel`
@@ -58,6 +59,7 @@ Co-Authored-By: Codex <noreply@openai.com>
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
   - for the current useful no-input HIRES intro `Today...` scene, prefer `./run-paper-mario-hires-intro22-capture.sh`
+  - scene quick list: `./run-paper-mario-scenes.sh`
   - raw equivalent: `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at 22 --timed-close-delay 10 --require-hires`
   - timed mode also supports deterministic save-state seeding:
     - `--timed-save-state-at <sec> --savestate-dir <dir>` sends `SAVE_STATE` before the screenshot and writes slot `0` into the explicit savestate directory

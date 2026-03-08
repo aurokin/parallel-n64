@@ -128,6 +128,8 @@ require_pattern 'smoke_cmd+=(-- --config "$retroarch_cfg")' "RetroArch config fo
 require_pattern 'if [[ "$smoke_mode" == "buttons" || "$smoke_mode" == "timed" ]]; then' "timed mode must use screenshot timer path"
 require_pattern 'float_delay_from_to()' "timed save-state delay helper missing"
 require_pattern 'send_netcmd "$timed_save_state_cmd"' "timed save-state netcmd missing"
+require_pattern 'wait_for_screenshot()' "timed helper should wait for screenshot flush"
+require_pattern 'Screenshot flushed:' "timed helper should log flushed screenshots"
 require_pattern 'sleep "$timed_close_delay"' "timed mode close delay missing"
 require_pattern 'find "$DEFAULT_SCREENSHOT_DIR" -maxdepth 1 -type f -name '\''*.png'\'' -newer "$stamp_file"' \
   "default screenshot fallback missing"

@@ -118,6 +118,8 @@
 - Comparable Paper Mario HIRES zoom compare on `parallel`:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`
+- Paper Mario scene manifest:
+  - `docs/PAPER_MARIO_SCENES.md`
 - Preserved GLideN64 4x HIRES-on intro22 `Today...` oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-noinput-1/Paper Mario (USA)-260308-161105.png`
 - Preserved GLideN64 4x HIRES-on no-input 16s oracle:

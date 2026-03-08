@@ -120,6 +120,56 @@ send_netcmd() {
   printf '%s\n' "$cmd" | nc -u -w1 127.0.0.1 "$netcmd_port" >/dev/null 2>&1
 }
 
+latest_screenshot_since_stamp() {
+  local candidate=""
+  candidate="$(find "$capture_dir" -maxdepth 1 -type f -name '*.png' -newer "$stamp_file" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)"
+  if [[ -z "$candidate" && -d "$DEFAULT_SCREENSHOT_DIR" ]]; then
+    candidate="$(find "$DEFAULT_SCREENSHOT_DIR" -maxdepth 1 -type f -name '*.png' -newer "$stamp_file" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)"
+  fi
+  printf '%s\n' "$candidate"
+}
+
+wait_for_screenshot() {
+  local timeout="$1"
+  local start_ts=""
+  local now_ts=""
+  local elapsed=""
+  local candidate=""
+
+  start_ts="$(python3 - <<'PY'
+import time
+print(time.monotonic())
+PY
+)"
+
+  while true; do
+    candidate="$(latest_screenshot_since_stamp)"
+    if [[ -n "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+
+    now_ts="$(python3 - <<'PY'
+import time
+print(time.monotonic())
+PY
+)"
+    elapsed="$(python3 - "$start_ts" "$now_ts" <<'PY'
+import sys
+print(float(sys.argv[2]) - float(sys.argv[1]))
+PY
+)"
+    if python3 - "$elapsed" "$timeout" <<'PY'
+import sys
+sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)
+PY
+    then
+      return 1
+    fi
+    sleep 0.2
+  done
+}
+
 stop_stale_vpad_daemons() {
   pkill -f 'tools/virtual_gamepad.py daemon --socket /tmp/parallel-n64-vpad-smoke' >/dev/null 2>&1 || true
   pkill -f 'tools/virtual_gamepad.py daemon --socket /tmp/parallel-n64-vpad-gliden64' >/dev/null 2>&1 || true
@@ -669,6 +719,9 @@ if kill -0 "$run_pid" 2>/dev/null; then
   else
     echo "NetCmd failed: 'SCREENSHOT'" >&2
   fi
+  if latest_screenshot="$(wait_for_screenshot 8)"; then
+    echo "Screenshot flushed: $latest_screenshot"
+  fi
 fi
 
 rc=0
@@ -681,9 +734,12 @@ if (( rc == 130 || rc == 143 )); then
   rc=0
 fi
 
-latest_screenshot="$(find "$capture_dir" -maxdepth 1 -type f -name '*.png' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)"
+latest_screenshot="$(latest_screenshot_since_stamp)"
+if [[ -z "$latest_screenshot" ]]; then
+  latest_screenshot="$(find "$capture_dir" -maxdepth 1 -type f -name '*.png' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)"
+fi
 if [[ -z "$latest_screenshot" && -d "$DEFAULT_SCREENSHOT_DIR" ]]; then
-  latest_screenshot="$(find "$DEFAULT_SCREENSHOT_DIR" -maxdepth 1 -type f -name '*.png' -newer "$stamp_file" -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)"
+  latest_screenshot="$(find "$DEFAULT_SCREENSHOT_DIR" -maxdepth 1 -type f -name '*.png' -newer "$stamp_file" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)"
   if [[ -n "$latest_screenshot" ]]; then
     copied_screenshot="$capture_dir/$(basename "$latest_screenshot")"
     cp "$latest_screenshot" "$copied_screenshot"

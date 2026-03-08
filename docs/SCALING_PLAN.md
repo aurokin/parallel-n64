@@ -46,17 +46,18 @@ Current experimental 4x source/reconstruction baseline:
   - upper-band `phase1_y += 3 * raw_y_add / 8`
   - lower-band `phase1_y -= raw_y_add / 2`
   - upper-band `phase3_y += raw_y_add / 2`
+  - lower-band `phase3_y -= raw_y_add / 4`
 - row-phase schedule `0/2/7/18`
 - upward-skewed 4-tap footprint `upper 8/16`, `lower 7/16`
 - localized `y_frac` remap for phases `1/2` in the upper source band
 
 Current clean Paper Mario compare:
 
-- `full 18.5840`
-- `left 19.3148`
-- `right 30.2321`
+- `full 18.5087`
+- `left 19.2639`
+- `right 30.2013`
 - `top 17.9058`
-- `bottom 21.0256`
+- `bottom 20.7660`
 - `file2_new 2.9931`
 
 Important caveat:
@@ -70,7 +71,9 @@ Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/
 
 - The main bug class is source-coordinate modeling in the VI upscale path.
 - The current constants are useful, but they are still an empirical approximation.
-- One cleanup step has landed already: the phase-Y corrections are now derived from raw `Y_SCALE` in the shader instead of being stored as three default constants in policy state.
+- Two cleanup steps have landed already:
+  - the original phase-Y corrections are derived from raw `Y_SCALE` in the shader instead of being stored as three default constants in policy state
+  - the remaining lower-band phase-3 residual also responds to a derived raw-`Y_SCALE` term instead of another free-standing policy constant
 - The remaining mismatch is split by both:
   - scanline phase
   - vertical band

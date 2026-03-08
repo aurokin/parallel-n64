@@ -121,7 +121,9 @@ More specifically after reading the docs:
   - field-relative half-line positioning
   - piecewise source rebasing between scanline bands / fields
 - the current empirical upper-band and lower-band phase-Y corrections are plausible approximations of those missing behaviors
-- the first cleanup step is now validated locally: three of those phase-Y adjustments can be derived directly from raw `Y_SCALE` without changing the current Paper Mario oracle result
+- the first cleanup steps are now validated locally:
+  - three of those phase-Y adjustments can be derived directly from raw `Y_SCALE` without changing the Paper Mario oracle result
+  - a fourth lower-band phase-3 adjustment also improved the current oracle when derived from raw `Y_SCALE / 4`
 - a principled replacement should be derived from VI register semantics first, not from more blind sweeps
 
 ## Practical Next Steps

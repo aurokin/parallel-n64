@@ -1835,9 +1835,12 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		}
 	}
 
-	// Keep texrect-native protection for native content, but let bound hi-res replacement
-	// draws use the upscaled path instead of being forced back to native texrect resolution.
-	if (draw_has_replacement)
+	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
+
+	// Keep texrect-native protection for copy strips even when they bind hi-res replacements.
+	// Those paths are still broken in the upscaled copy pipeline. Non-copy replacement draws
+	// can continue to escape native texrect protection.
+	if (draw_has_replacement && !copy_mode)
 		draw_setup.flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
 
 	update_deduced_height(draw_setup);
@@ -1881,7 +1884,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	if (hires_debug && hires_draw_calls_total <= 300000)
 	{
 		const auto raster_flags = stream.static_raster_state.flags;
-		const bool copy_mode = (raster_flags & RASTERIZATION_COPY_BIT) != 0;
 		const bool uses_texel0 = (raster_flags & RASTERIZATION_USES_TEXEL0_BIT) != 0;
 		const bool uses_texel1 = (raster_flags & RASTERIZATION_USES_TEXEL1_BIT) != 0;
 		const bool uses_pipelined_texel1 = (raster_flags & RASTERIZATION_USES_PIPELINED_TEXEL1_BIT) != 0;

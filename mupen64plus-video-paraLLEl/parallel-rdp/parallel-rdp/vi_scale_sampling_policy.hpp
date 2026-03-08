@@ -15,6 +15,7 @@ struct VIScaleSamplingPolicyInput
 struct VIScaleSamplingPolicy
 {
 	bool use_subpixel_reconstruction = false;
+	bool use_derived_source_y_biases = false;
 	unsigned subpixel_grid = 1;
 	unsigned source_y_add_bias = 0;
 	int source_y_base_bias = 0;
@@ -43,9 +44,7 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 			out.source_y_base_bias = 736;
 			out.source_x_add_bias = 17;
 			out.source_x_base_bias = 0;
-			out.phase1_source_y_bias = 384;
-			out.phase1_lower_source_y_bias = -512;
-			out.phase3_source_y_bias = 512;
+			out.use_derived_source_y_biases = true;
 		}
 	}
 
@@ -58,13 +57,22 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 	if (const char *env = std::getenv("PARALLEL_VI_SOURCE_X_BASE_BIAS"))
 		out.source_x_base_bias = int(std::strtol(env, nullptr, 0));
 	if (const char *env = std::getenv("PARALLEL_VI_PHASE1_Y_BIAS"))
+	{
+		out.use_derived_source_y_biases = false;
 		out.phase1_source_y_bias = int(std::strtol(env, nullptr, 0));
+	}
 	if (const char *env = std::getenv("PARALLEL_VI_PHASE1_LOWER_Y_BIAS"))
+	{
+		out.use_derived_source_y_biases = false;
 		out.phase1_lower_source_y_bias = int(std::strtol(env, nullptr, 0));
+	}
 	if (const char *env = std::getenv("PARALLEL_VI_PHASE3_X_BIAS"))
 		out.phase3_source_x_bias = int(std::strtol(env, nullptr, 0));
 	if (const char *env = std::getenv("PARALLEL_VI_PHASE3_Y_BIAS"))
+	{
+		out.use_derived_source_y_biases = false;
 		out.phase3_source_y_bias = int(std::strtol(env, nullptr, 0));
+	}
 
 	return out;
 }

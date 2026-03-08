@@ -42,9 +42,10 @@ Current experimental 4x source/reconstruction baseline:
 - `x_add -= 17`
 - `y_add -= 30`
 - `y_base += 736`
-- upper-band `phase1_y += 384`
-- lower-band `phase1_y -= 512`
-- upper-band `phase3_y += 512`
+- derived phase-Y adjustments from raw `Y_SCALE`:
+  - upper-band `phase1_y += 3 * raw_y_add / 8`
+  - lower-band `phase1_y -= raw_y_add / 2`
+  - upper-band `phase3_y += raw_y_add / 2`
 - row-phase schedule `0/2/7/18`
 - upward-skewed 4-tap footprint `upper 8/16`, `lower 7/16`
 - localized `y_frac` remap for phases `1/2` in the upper source band
@@ -69,6 +70,7 @@ Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/
 
 - The main bug class is source-coordinate modeling in the VI upscale path.
 - The current constants are useful, but they are still an empirical approximation.
+- One cleanup step has landed already: the phase-Y corrections are now derived from raw `Y_SCALE` in the shader instead of being stored as three default constants in policy state.
 - The remaining mismatch is split by both:
   - scanline phase
   - vertical band
@@ -117,7 +119,7 @@ These are the things we should try to remove from the current approximation as w
 ## Immediate Next Steps
 
 1. Derive a candidate source-Y rule from the documented accumulated `Y_SCALE` behavior.
-2. Test whether the current upper/lower phase-Y constants can be reduced or replaced by that rule.
+2. Extend that rule beyond the phase-Y cleanup that is already landed, and test whether the remaining band logic can also be reduced.
 3. If the rule helps, remove one constant at a time and revalidate.
 4. If the rule does not help enough, revisit a more explicit line-aware scanout model.
 

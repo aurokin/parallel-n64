@@ -26,6 +26,7 @@ static void test_accurate_mode_keeps_single_sample_path()
 
 	auto policy = derive_vi_scale_sampling_policy(in);
 	check(!policy.use_subpixel_reconstruction, "accurate mode should keep the baseline sampling path");
+	check(!policy.use_derived_source_y_biases, "accurate mode should not derive source y biases");
 	check(policy.subpixel_grid == 1u, "accurate mode should keep the single-sample grid");
 	check(policy.source_y_add_bias == 0u, "accurate mode should not bias source y_add");
 	check(policy.source_y_base_bias == 0, "accurate mode should not bias source y base");
@@ -46,6 +47,7 @@ static void test_experimental_mode_is_inert_at_native_scale()
 
 	auto policy = derive_vi_scale_sampling_policy(in);
 	check(!policy.use_subpixel_reconstruction, "experimental mode should stay inert at native scale");
+	check(!policy.use_derived_source_y_biases, "native-scale experimental mode should not derive source y biases");
 	check(policy.subpixel_grid == 1u, "native-scale experimental mode should keep the single-sample grid");
 	check(policy.source_y_add_bias == 0u, "native-scale experimental mode should not bias source y_add");
 	check(policy.source_y_base_bias == 0, "native-scale experimental mode should not bias source y base");
@@ -66,15 +68,16 @@ static void test_experimental_mode_enables_subpixel_reconstruction_when_upscaled
 
 	auto policy = derive_vi_scale_sampling_policy(in);
 	check(policy.use_subpixel_reconstruction, "experimental mode should enable subpixel reconstruction when upscaled");
+	check(policy.use_derived_source_y_biases, "4x experimental mode should derive source y biases");
 	check(policy.subpixel_grid == 2u, "experimental mode should request a 2x2 subpixel grid");
 	check(policy.source_y_add_bias == 30u, "4x experimental mode should bias source y_add");
 	check(policy.source_y_base_bias == 736, "4x experimental mode should bias source y base");
 	check(policy.source_x_add_bias == 17u, "4x experimental mode should bias source x_add");
 	check(policy.source_x_base_bias == 0, "4x experimental mode should keep zero source x base bias");
-	check(policy.phase1_source_y_bias == 384, "4x experimental mode should bias phase 1 source y");
-	check(policy.phase1_lower_source_y_bias == -512, "4x experimental mode should bias lower-band phase 1 source y");
+	check(policy.phase1_source_y_bias == 0, "4x experimental mode should leave phase 1 source y override at zero");
+	check(policy.phase1_lower_source_y_bias == 0, "4x experimental mode should leave lower-band phase 1 source y override at zero");
 	check(policy.phase3_source_x_bias == 0, "4x experimental mode should keep zero phase 3 source x bias");
-	check(policy.phase3_source_y_bias == 512, "4x experimental mode should bias phase 3 source y");
+	check(policy.phase3_source_y_bias == 0, "4x experimental mode should leave phase 3 source y override at zero");
 }
 
 static void test_experimental_mode_respects_disabled_vi_scaling()
@@ -86,6 +89,7 @@ static void test_experimental_mode_respects_disabled_vi_scaling()
 
 	auto policy = derive_vi_scale_sampling_policy(in);
 	check(!policy.use_subpixel_reconstruction, "disabled VI scale should bypass experimental sampling");
+	check(!policy.use_derived_source_y_biases, "disabled VI scale should not derive source y biases");
 	check(policy.subpixel_grid == 1u, "disabled VI scale should keep the single-sample grid");
 	check(policy.source_y_add_bias == 0u, "disabled VI scale should not bias source y_add");
 	check(policy.source_y_base_bias == 0, "disabled VI scale should not bias source y base");
@@ -106,6 +110,7 @@ static void test_non_4x_experimental_mode_keeps_zero_source_y_add_bias()
 
 	auto policy = derive_vi_scale_sampling_policy(in);
 	check(policy.use_subpixel_reconstruction, "experimental mode should still use subpixel reconstruction at 8x");
+	check(!policy.use_derived_source_y_biases, "unvalidated non-4x path should not derive source y biases");
 	check(policy.subpixel_grid == 2u, "8x experimental mode should keep the 2x2 subpixel grid");
 	check(policy.source_y_add_bias == 0u, "unvalidated non-4x path should keep zero source y_add bias");
 	check(policy.source_y_base_bias == 0, "unvalidated non-4x path should keep zero source y base bias");
@@ -134,6 +139,7 @@ static void test_env_overrides_replace_default_biases()
 	setenv("PARALLEL_VI_PHASE3_Y_BIAS", "-48", 1);
 
 	auto policy = derive_vi_scale_sampling_policy(in);
+	check(!policy.use_derived_source_y_biases, "env override should disable derived source y biases");
 	check(policy.source_y_add_bias == 31u, "env override should replace source y_add bias");
 	check(policy.source_y_base_bias == 512, "env override should replace source y base bias");
 	check(policy.source_x_add_bias == 19u, "env override should replace source x_add bias");

@@ -39,6 +39,8 @@ layout(push_constant, std430) uniform Registers
     int v_offset;
     int x_add;
     int y_add;
+    int raw_y_add;
+    int use_derived_y_biases;
     int frame_count;
     int phase1_y_bias;
     int phase1_lower_y_bias;
@@ -135,17 +137,26 @@ void main()
     {
         int phase = coord.y & 3;
         int phase_adjust = phase == 0 ? 0 : (phase == 1 ? 2 : (phase == 2 ? 7 : 18));
+        int phase1_y_bias = registers.phase1_y_bias;
+        int phase1_lower_y_bias = registers.phase1_lower_y_bias;
+        int phase3_y_bias = registers.phase3_y_bias;
+        if (registers.use_derived_y_biases != 0)
+        {
+            phase1_y_bias = (registers.raw_y_add * 3) >> 3;
+            phase1_lower_y_bias = -(registers.raw_y_add >> 1);
+            phase3_y_bias = registers.raw_y_add >> 1;
+        }
         if (phase == 1)
         {
             if ((y >> 10) < 640)
-                y += registers.phase1_y_bias;
+                y += phase1_y_bias;
             else
-                y += registers.phase1_lower_y_bias;
+                y += phase1_lower_y_bias;
         }
         if (phase == 3 && (y >> 10) < 640)
         {
             x += registers.phase3_x_bias;
-            y += registers.phase3_y_bias;
+            y += phase3_y_bias;
         }
         y += (registers.y_add * phase_adjust) >> 5;
         int quarter_x = max(registers.x_add >> 2, 1);

@@ -103,6 +103,18 @@ This is important because our current experimental fixes are acting like a piece
 
 So GLide remains a visual oracle, but not a direct implementation oracle for this problem.
 
+### What the current texrect lane clarified
+
+- The Paper Mario file-select scene is not just a VI-only problem.
+- The center backdrop is composed from repeated texrect strips, and current tracing also shows non-copy texrect composition in the same scene.
+- A copy-cycle-only native-resolution experiment was inert.
+- Broad native texrect handling in the experimental upscaled path is what materially improves the stable `right/top/bottom` regions.
+
+That means the remaining seam is now best treated as a mixed problem:
+
+- source-coordinate / VI reconstruction still matters
+- but texrect composition is also a first-class contributor
+
 ## Current Interpretation
 
 The current best reading is:
@@ -155,6 +167,7 @@ More specifically after reading the docs:
    - whether our current phase-1 / phase-3 split matches a half-line or fractional-field offset model
 4. Prefer a lightweight derived piecewise rule first.
 5. Only revisit a larger per-line scanout port if the derived rule cannot explain the remaining mismatch.
+6. Keep texrect composition in scope while doing that; the current best local result now depends on broad native texrect handling in the experimental path.
 
 ## Non-Conclusions
 

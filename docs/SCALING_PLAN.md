@@ -9,7 +9,8 @@ This plan is for active work only. Completed exploration history lives in git an
 Current high-value finding:
 
 - the Paper Mario file-select backdrop is not behaving like ordinary 3D geometry; it is assembled from repeated `copy=1` horizontal strips, so texrect/copy behavior must now be treated as a first-class part of the scaling problem
-- with the current experimental VI path, explicitly enabling `native_tex_rect` is a major improvement on this scene; representative repeat metrics moved from the disabled baseline `right/top/bottom = 30.0180 / 16.6342 / 20.4758` to `29.7766 / 16.3699 / 20.3800`, with a best first run at `28.0939 / 16.3287 / 20.0186`
+- the file-select scene is a mix of copy and non-copy texrect composition, not just the `copy=1` strips; broad native texrect behavior is what helps here
+- the experimental upscaled path now forces `native_tex_rect` on; representative repeat metrics moved from the disabled baseline `right/top/bottom = 30.0180 / 16.6342 / 20.4758` to `29.7766 / 16.3699 / 20.3800`
 
 ## Invariants
 
@@ -69,11 +70,11 @@ Current experimental 4x source/reconstruction baseline:
 
 Current clean Paper Mario compare:
 
-- `full 18.0028`
-- `left 18.6370`
-- `right 30.0180`
-- `top 16.6342`
-- `bottom 20.4758`
+- `full 17.4949`
+- `left 18.4366`
+- `right 29.7766`
+- `top 16.3699`
+- `bottom 20.3800`
 - `file2_new 2.9933`
 
 Important caveat:
@@ -143,6 +144,7 @@ These are the things we should try to remove from the current approximation as w
 
 - Do not spend many more cycles on generic kernel/tap-layout churn unless a new source-mapping rule stalls.
 - Do not reintroduce hidden policy overrides that force texrect behavior off in experimental mode.
+- Do not narrow the texrect fix back down to copy-cycle-only handling unless a broader scene set proves it safe.
 - Do not copy upstream paraLLEl-RDP or GLideN64 structure wholesale.
 
 ## Immediate Next Steps
@@ -155,7 +157,7 @@ These are the things we should try to remove from the current approximation as w
 Near-term texrect lane:
 
 1. Treat the file-select center backdrop as a copy/texrect strip-composition testcase.
-2. Keep experimental mode from force-disabling `native_tex_rect`; respect the user/core option instead.
+2. Treat texrect-heavy composition as the current intrusive lane: the working improvement comes from broad texrect native-resolution handling, not copy-cycle-only handling.
 3. Compare bad strip-composed textures against clean textures in the same scene to determine whether the remaining seam is in copy/texrect composition before VI.
 
 ## Validation Rules

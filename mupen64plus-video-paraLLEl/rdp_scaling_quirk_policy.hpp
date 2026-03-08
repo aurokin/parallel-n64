@@ -23,6 +23,8 @@ inline ScalingQuirkPolicy derive_scaling_quirk_policy(const ScalingQuirkPolicyIn
 {
 	ScalingQuirkPolicy out = {};
 	out.effective_native_tex_rect = in.native_tex_rect;
+	if (in.vi_scaling_mode == VI_SCALING_MODE_EXPERIMENTAL && in.upscaling_factor > 1)
+		out.effective_native_tex_rect = true;
 	return out;
 }
 }

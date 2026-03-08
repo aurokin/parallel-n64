@@ -88,8 +88,8 @@ Co-Authored-By: Codex <noreply@openai.com>
   - `./run-paper-mario-hires-intro22-capture.sh --glide --tag <tag>`
 - Preserved GLide oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/gliden64/oracle-gliden64-5`
-- Preserved GLide 4x HIRES-on intro22 `Today...` oracle:
-  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-noinput-1/Paper Mario (USA)-260308-161105.png`
+- Preserved GLide 4x HIRES-on intro22 matched oracle:
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-matched-1/Paper Mario (USA)-260308-170727.png`
 - Preserved GLide 4x HIRES-on no-input 16s oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-noinput-16s-1/Paper Mario (USA)-260308-011300.png`
 - Preserved GLide 4x HIRES-off scaling oracle:

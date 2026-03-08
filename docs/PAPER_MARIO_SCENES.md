@@ -34,7 +34,7 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
   - `GLide` input deferred with `--start-delay 40 --post-delay 2`
   - both helpers pause immediately before the screenshot by default
 - Preserved GLide oracle:
-  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-noinput-1/Paper Mario (USA)-260308-161105.png`
+  - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-matched-1/Paper Mario (USA)-260308-170727.png`
 
 ## noinput16
 

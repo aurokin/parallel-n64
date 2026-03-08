@@ -10,8 +10,8 @@ PROFILES = {
     "intro22": {
         "oracle": Path(
             "/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/"
-            "hires/oracle-gliden64-4x-hires-on-intro22-noinput-1/"
-            "Paper Mario (USA)-260308-161105.png"
+            "hires/oracle-gliden64-4x-hires-on-intro22-matched-1/"
+            "Paper Mario (USA)-260308-170727.png"
         ),
         "regions": {
             "top_banner": {"parallel_box": (500, 0, 2280, 360), "search_radius": 120, "oracle_bias": (8, 0)},

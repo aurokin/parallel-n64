@@ -45,7 +45,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - Paper Mario HIRES zoom compare on `parallel`:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`
-  - defaults to the latest `parallel` capture and compares against the saved GLide HIRES intro22 `Today...` oracle
+  - defaults to the latest `parallel` capture and compares against the saved GLide HIRES intro22 matched oracle
 - Paper Mario button-path oracle capture on `GLideN64`:
   - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
 - Paper Mario intro22 oracle capture on `GLideN64`:

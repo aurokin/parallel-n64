@@ -24,6 +24,7 @@ static void test_accurate_mode_preserves_requested_native_tex_rect()
 	in.experimental_texrect = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	in.upscaling_factor = 4;
 	in.native_tex_rect = true;
+	in.hires_textures_enabled = false;
 
 	auto policy = derive_scaling_quirk_policy(in);
 	check(policy.effective_native_tex_rect,
@@ -42,6 +43,7 @@ static void test_experimental_mode_auto_forces_native_tex_rect_when_upscaled()
 	in.experimental_texrect = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	in.upscaling_factor = 1;
 	in.native_tex_rect = true;
+	in.hires_textures_enabled = false;
 
 	auto policy = derive_scaling_quirk_policy(in);
 	check(policy.effective_native_tex_rect,
@@ -58,6 +60,20 @@ static void test_experimental_mode_auto_forces_native_tex_rect_when_upscaled()
 	      "experimental mode should force native tex-rect on when VI upscaling is active");
 }
 
+static void test_experimental_mode_preserves_non_native_texrect_with_hires_enabled()
+{
+	ScalingQuirkPolicyInput in = {};
+	in.vi_scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
+	in.experimental_texrect = VI_EXPERIMENTAL_OVERRIDE_AUTO;
+	in.upscaling_factor = 4;
+	in.native_tex_rect = false;
+	in.hires_textures_enabled = true;
+
+	auto policy = derive_scaling_quirk_policy(in);
+	check(!policy.effective_native_tex_rect,
+	      "experimental texrect forcing should not override non-native tex-rect when hi-res replacement is enabled");
+}
+
 static void test_explicit_texrect_override_splits_from_scaling_mode()
 {
 	ScalingQuirkPolicyInput in = {};
@@ -65,6 +81,7 @@ static void test_explicit_texrect_override_splits_from_scaling_mode()
 	in.experimental_texrect = VI_EXPERIMENTAL_OVERRIDE_ENABLED;
 	in.upscaling_factor = 4;
 	in.native_tex_rect = false;
+	in.hires_textures_enabled = false;
 
 	auto policy = derive_scaling_quirk_policy(in);
 	check(policy.effective_native_tex_rect,
@@ -82,6 +99,7 @@ int main()
 {
 	test_accurate_mode_preserves_requested_native_tex_rect();
 	test_experimental_mode_auto_forces_native_tex_rect_when_upscaled();
+	test_experimental_mode_preserves_non_native_texrect_with_hires_enabled();
 	test_explicit_texrect_override_splits_from_scaling_mode();
 	std::cout << "emu_unit_rdp_scaling_quirk_policy_test: PASS" << std::endl;
 	return 0;

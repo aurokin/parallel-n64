@@ -43,7 +43,7 @@ inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSampli
 		enable_experimental_vi = false;
 		break;
 	default:
-		enable_experimental_vi = in.scaling_mode == VI_SCALING_MODE_EXPERIMENTAL;
+		enable_experimental_vi = false;
 		break;
 	}
 

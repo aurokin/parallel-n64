@@ -10,7 +10,10 @@ Current high-value finding:
 
 - the Paper Mario file-select backdrop is not behaving like ordinary 3D geometry; it is assembled from repeated `copy=1` horizontal strips, so texrect/copy behavior must now be treated as a first-class part of the scaling problem
 - the file-select scene is a mix of copy and non-copy texrect composition, not just the `copy=1` strips; broad native texrect behavior is what helps here
-- the experimental upscaled path now forces `native_tex_rect` on; representative repeat metrics moved from the disabled baseline `right/top/bottom = 30.0180 / 16.6342 / 20.4758` to `29.7766 / 16.3699 / 20.3800`
+- the texrect lane is now separated from the VI/source-mapping lane
+- plain `scaling-mode=experimental` now means `texrect on, VI off`
+- the VI/source-mapping lane is opt-in through `parallel-n64-parallel-rdp-experimental-vi=enabled`
+- the texrect lane is switchable through `parallel-n64-parallel-rdp-experimental-texrect=auto|enabled|disabled`
 
 ## Invariants
 
@@ -35,7 +38,7 @@ Run captures sequentially.
 
 ## Current Baseline
 
-The current committed experimental path is the best known local result for the Paper Mario file-select scene.
+The current best combined path is still the best oracle-scoring local result for the Paper Mario file-select scene, but the original texrect bug fix has been separated from the VI/source-mapping lane.
 
 Files:
 
@@ -43,7 +46,7 @@ Files:
 - [vi_scale.frag](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/shaders/vi_scale.frag)
 - [vi_scale_sampling_policy.hpp](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/vi_scale_sampling_policy.hpp)
 
-Current experimental 4x source/reconstruction baseline:
+Current opt-in experimental VI/source/reconstruction baseline:
 
 - derived source step biases from raw scale:
   - `x_add -= raw_x_add / 32 + raw_x_add / 512`
@@ -68,7 +71,7 @@ Current experimental 4x source/reconstruction baseline:
 - upward-skewed 4-tap footprint `upper 8/16`, `lower 7/16`
 - localized `y_frac` remap for phases `1/2` in the upper source band
 
-Current clean Paper Mario compare:
+Current clean Paper Mario compare for the combined `texrect + vi` path:
 
 - `full 17.4949`
 - `left 18.4366`
@@ -111,6 +114,11 @@ Based on the current experiments and [VI_SOURCE_MAPPING_RESEARCH.md](/home/auro/
   - `Y_OFFSET` and sometimes `ORIGIN` participate in field-relative positioning
 
 So the next goal is not to stack more arbitrary constants. It is to replace some of the current constants with a clearer rule derived from VI semantics.
+
+The practical split now is:
+
+- original bug fix: texrect lane
+- follow-up quality work: VI/source-mapping lane
 
 ## Active Plan
 

@@ -8,6 +8,7 @@ namespace RDP::detail
 struct VIScaleSamplingPolicyInput
 {
 	unsigned scaling_mode = VI_SCALING_MODE_ACCURATE;
+	unsigned experimental_vi = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	unsigned scaling_factor = 1;
 	bool vi_scale = true;
 };
@@ -32,8 +33,21 @@ struct VIScaleSamplingPolicy
 inline VIScaleSamplingPolicy derive_vi_scale_sampling_policy(const VIScaleSamplingPolicyInput &in)
 {
 	VIScaleSamplingPolicy out = {};
+	bool enable_experimental_vi = false;
+	switch (in.experimental_vi)
+	{
+	case VI_EXPERIMENTAL_OVERRIDE_ENABLED:
+		enable_experimental_vi = true;
+		break;
+	case VI_EXPERIMENTAL_OVERRIDE_DISABLED:
+		enable_experimental_vi = false;
+		break;
+	default:
+		enable_experimental_vi = in.scaling_mode == VI_SCALING_MODE_EXPERIMENTAL;
+		break;
+	}
 
-	if (in.vi_scale && in.scaling_mode == VI_SCALING_MODE_EXPERIMENTAL && in.scaling_factor > 1)
+	if (in.vi_scale && enable_experimental_vi && in.scaling_factor > 1)
 	{
 		out.use_subpixel_reconstruction = true;
 		out.subpixel_grid = 2;

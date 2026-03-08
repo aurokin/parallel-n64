@@ -206,6 +206,16 @@ void parallel_set_vi_scaling_mode(unsigned mode)
 	RDP::vi_scaling_mode = mode != 0 ? 1u : 0u;
 }
 
+void parallel_set_experimental_vi(unsigned mode)
+{
+	RDP::experimental_vi = mode;
+}
+
+void parallel_set_experimental_texrect(unsigned mode)
+{
+	RDP::experimental_texrect = mode;
+}
+
 void parallel_set_native_texture_lod(bool enable)
 {
 	RDP::native_texture_lod = enable;

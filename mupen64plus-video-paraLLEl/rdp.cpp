@@ -42,6 +42,8 @@ unsigned overscan;
 unsigned upscaling = 1;
 unsigned downscaling_steps = 0;
 unsigned vi_scaling_mode = VI_SCALING_MODE_ACCURATE;
+unsigned experimental_vi = VI_EXPERIMENTAL_OVERRIDE_AUTO;
+unsigned experimental_texrect = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 bool native_texture_lod = false;
 bool native_tex_rect = true;
 bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
@@ -230,6 +232,7 @@ bool init()
 	RDP::Quirks quirks;
 	detail::ScalingQuirkPolicyInput scaling_quirk_input = {};
 	scaling_quirk_input.vi_scaling_mode = vi_scaling_mode;
+	scaling_quirk_input.experimental_texrect = experimental_texrect;
 	scaling_quirk_input.upscaling_factor = upscaling;
 	scaling_quirk_input.native_tex_rect = native_tex_rect;
 	auto scaling_quirk_policy = detail::derive_scaling_quirk_policy(scaling_quirk_input);
@@ -337,7 +340,7 @@ void complete_frame()
 
 	ScanoutOptions opts = detail::make_scanout_options(
 			vi_aa, vi_scale, dither_filter, divot_filter, gamma_dither, interlacing,
-			downscaling_steps, overscan, vi_scaling_mode);
+			downscaling_steps, overscan, vi_scaling_mode, experimental_vi);
 	auto image = frontend->scanout(opts);
 	unsigned index = vulkan->get_sync_index(vulkan->handle);
 
@@ -385,6 +388,7 @@ void complete_frame()
 	RDP::Quirks quirks;
 	detail::ScalingQuirkPolicyInput scaling_quirk_input = {};
 	scaling_quirk_input.vi_scaling_mode = vi_scaling_mode;
+	scaling_quirk_input.experimental_texrect = experimental_texrect;
 	scaling_quirk_input.upscaling_factor = upscaling;
 	scaling_quirk_input.native_tex_rect = native_tex_rect;
 	auto scaling_quirk_policy = detail::derive_scaling_quirk_policy(scaling_quirk_input);

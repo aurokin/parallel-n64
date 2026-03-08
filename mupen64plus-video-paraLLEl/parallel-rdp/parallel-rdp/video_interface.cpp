@@ -641,6 +641,7 @@ Vulkan::ImageHandle VideoInterface::scale_stage(Vulkan::CommandBuffer &cmd, Vulk
 	auto scale_policy = detail::derive_vi_scale_policy(scale_policy_input);
 	detail::VIScaleSamplingPolicyInput sampling_policy_input = {};
 	sampling_policy_input.scaling_mode = options.scaling_mode;
+	sampling_policy_input.experimental_vi = options.experimental_vi;
 	sampling_policy_input.scaling_factor = scaling_factor;
 	sampling_policy_input.vi_scale = options.vi.scale;
 	auto sampling_policy = detail::derive_vi_scale_sampling_policy(sampling_policy_input);

@@ -36,6 +36,7 @@ struct ScanoutOptions
 	unsigned crop_overscan_pixels = 0;
 	unsigned downscale_steps = 0;
 	unsigned scaling_mode = VI_SCALING_MODE_ACCURATE;
+	unsigned experimental_vi = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 
 	// Works around certain game bugs. Considered a hack if enabled.
 	bool persist_frame_on_invalid_input = false;

@@ -21,6 +21,7 @@ static void test_accurate_mode_keeps_single_sample_path()
 {
 	VIScaleSamplingPolicyInput in = {};
 	in.scaling_mode = VI_SCALING_MODE_ACCURATE;
+	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	in.scaling_factor = 4;
 	in.vi_scale = true;
 
@@ -42,6 +43,7 @@ static void test_experimental_mode_is_inert_at_native_scale()
 {
 	VIScaleSamplingPolicyInput in = {};
 	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
+	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	in.scaling_factor = 1;
 	in.vi_scale = true;
 
@@ -63,6 +65,7 @@ static void test_experimental_mode_enables_subpixel_reconstruction_when_upscaled
 {
 	VIScaleSamplingPolicyInput in = {};
 	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
+	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	in.scaling_factor = 4;
 	in.vi_scale = true;
 
@@ -86,6 +89,7 @@ static void test_experimental_mode_respects_disabled_vi_scaling()
 {
 	VIScaleSamplingPolicyInput in = {};
 	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
+	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	in.scaling_factor = 4;
 	in.vi_scale = false;
 
@@ -107,6 +111,7 @@ static void test_non_4x_experimental_mode_keeps_zero_source_y_add_bias()
 {
 	VIScaleSamplingPolicyInput in = {};
 	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
+	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	in.scaling_factor = 8;
 	in.vi_scale = true;
 
@@ -128,6 +133,7 @@ static void test_env_overrides_replace_default_biases()
 {
 	VIScaleSamplingPolicyInput in = {};
 	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
+	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_AUTO;
 	in.scaling_factor = 4;
 	in.vi_scale = true;
 
@@ -166,6 +172,25 @@ static void test_env_overrides_replace_default_biases()
 	unsetenv("PARALLEL_VI_PHASE3_X_BIAS");
 	unsetenv("PARALLEL_VI_PHASE3_Y_BIAS");
 }
+
+static void test_explicit_vi_override_splits_from_scaling_mode()
+{
+	VIScaleSamplingPolicyInput in = {};
+	in.scaling_mode = VI_SCALING_MODE_ACCURATE;
+	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_ENABLED;
+	in.scaling_factor = 4;
+	in.vi_scale = true;
+
+	auto policy = derive_vi_scale_sampling_policy(in);
+	check(policy.use_subpixel_reconstruction, "enabled VI override should force experimental VI reconstruction");
+	check(policy.use_derived_source_y_biases, "enabled VI override should derive source y biases at 4x");
+
+	in.scaling_mode = VI_SCALING_MODE_EXPERIMENTAL;
+	in.experimental_vi = VI_EXPERIMENTAL_OVERRIDE_DISABLED;
+	policy = derive_vi_scale_sampling_policy(in);
+	check(!policy.use_subpixel_reconstruction, "disabled VI override should suppress experimental VI reconstruction");
+	check(!policy.use_derived_source_y_biases, "disabled VI override should suppress derived source y biases");
+}
 }
 
 int main()
@@ -176,6 +201,7 @@ int main()
 	test_experimental_mode_respects_disabled_vi_scaling();
 	test_non_4x_experimental_mode_keeps_zero_source_y_add_bias();
 	test_env_overrides_replace_default_biases();
+	test_explicit_vi_override_splits_from_scaling_mode();
 	std::cout << "emu_unit_vi_scale_sampling_policy_test: PASS" << std::endl;
 	return 0;
 }

@@ -29,6 +29,8 @@ extern unsigned upscaling;
 extern unsigned downscaling_steps;
 extern unsigned overscan;
 extern unsigned vi_scaling_mode;
+extern unsigned experimental_vi;
+extern unsigned experimental_texrect;
 extern bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
 extern bool native_texture_lod, native_tex_rect;
 extern bool hires_textures;

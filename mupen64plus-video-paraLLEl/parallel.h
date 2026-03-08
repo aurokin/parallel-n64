@@ -27,6 +27,8 @@ void parallel_set_interlacing(bool enable);
 void parallel_set_upscaling(unsigned factor);
 void parallel_set_downscaling_steps(unsigned steps);
 void parallel_set_vi_scaling_mode(unsigned mode);
+void parallel_set_experimental_vi(unsigned mode);
+void parallel_set_experimental_texrect(unsigned mode);
 void parallel_set_native_texture_lod(bool enable);
 void parallel_set_native_tex_rect(bool enable);
 void parallel_set_hires_textures(bool enable);

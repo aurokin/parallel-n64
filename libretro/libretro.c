@@ -399,6 +399,10 @@ static void setup_variables(void)
          "(ParaLLEl-RDP) Downsampling; disable|1/2|1/4|1/8" },
       { "parallel-n64-parallel-rdp-scaling-mode",
          "(ParaLLEl-RDP) Scaling mode; accurate|experimental" },
+      { "parallel-n64-parallel-rdp-experimental-vi",
+         "(ParaLLEl-RDP) Experimental VI/source mapping overrides; auto|enabled|disabled" },
+      { "parallel-n64-parallel-rdp-experimental-texrect",
+         "(ParaLLEl-RDP) Experimental TEX_RECT overrides; auto|enabled|disabled" },
       { "parallel-n64-parallel-rdp-native-texture-lod",
          "(ParaLLEl-RDP) Use native texture LOD when upscaling; disabled|enabled" },
       { "parallel-n64-parallel-rdp-native-tex-rect",
@@ -1233,6 +1237,34 @@ void update_variables(bool startup)
        parallel_set_vi_scaling_mode(!strcmp(var.value, "experimental") ? 1 : 0);
    else
        parallel_set_vi_scaling_mode(0);
+
+   var.key = "parallel-n64-parallel-rdp-experimental-vi";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+       if (!strcmp(var.value, "enabled"))
+           parallel_set_experimental_vi(1);
+       else if (!strcmp(var.value, "disabled"))
+           parallel_set_experimental_vi(2);
+       else
+           parallel_set_experimental_vi(0);
+   }
+   else
+       parallel_set_experimental_vi(0);
+
+   var.key = "parallel-n64-parallel-rdp-experimental-texrect";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+       if (!strcmp(var.value, "enabled"))
+           parallel_set_experimental_texrect(1);
+       else if (!strcmp(var.value, "disabled"))
+           parallel_set_experimental_texrect(2);
+       else
+           parallel_set_experimental_texrect(0);
+   }
+   else
+       parallel_set_experimental_texrect(0);
 
    var.key = "parallel-n64-parallel-rdp-native-texture-lod";
    var.value = NULL;

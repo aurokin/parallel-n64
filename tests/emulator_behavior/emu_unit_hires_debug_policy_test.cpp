@@ -59,12 +59,22 @@ static void test_no_env_means_no_overrides()
 	EnvGuard clear_multi("PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC");
 	EnvGuard clear_image("PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
 	EnvGuard clear_dither("PARALLEL_HIRES_CLEAR_DITHER_DESC");
+	EnvGuard clear_depth_test("PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
+	EnvGuard clear_depth_update("PARALLEL_HIRES_CLEAR_DEPTH_UPDATE_DESC");
+	EnvGuard clear_color_on_cvg("PARALLEL_HIRES_CLEAR_COLOR_ON_CVG_DESC");
+	EnvGuard clear_aa("PARALLEL_HIRES_CLEAR_AA_DESC");
+	EnvGuard clear_alpha_test("PARALLEL_HIRES_CLEAR_ALPHA_TEST_DESC");
 	EnvGuard force_native("PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
 	EnvGuard force_upscaled("PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC");
 	unsetenv(clear_force.name);
 	unsetenv(clear_multi.name);
 	unsetenv(clear_image.name);
 	unsetenv(clear_dither.name);
+	unsetenv(clear_depth_test.name);
+	unsetenv(clear_depth_update.name);
+	unsetenv(clear_color_on_cvg.name);
+	unsetenv(clear_aa.name);
+	unsetenv(clear_alpha_test.name);
 	unsetenv(force_native.name);
 	unsetenv(force_upscaled.name);
 
@@ -74,6 +84,11 @@ static void test_no_env_means_no_overrides()
 	check(!overrides.clear_multi_cycle, "clear_multi_cycle should default off");
 	check(!overrides.clear_image_read, "clear_image_read should default off");
 	check(!overrides.clear_blend_dither, "clear_blend_dither should default off");
+	check(!overrides.clear_depth_test, "clear_depth_test should default off");
+	check(!overrides.clear_depth_update, "clear_depth_update should default off");
+	check(!overrides.clear_color_on_coverage, "clear_color_on_coverage should default off");
+	check(!overrides.clear_aa, "clear_aa should default off");
+	check(!overrides.clear_alpha_test, "clear_alpha_test should default off");
 	check(!overrides.force_native_texrect, "force_native_texrect should default off");
 	check(!overrides.force_upscaled_texrect, "force_upscaled_texrect should default off");
 }
@@ -83,24 +98,37 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
 	EnvGuard clear_image("PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
 	EnvGuard clear_dither("PARALLEL_HIRES_CLEAR_DITHER_DESC");
+	EnvGuard clear_depth("PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
 	setenv(clear_force.name, "41, 88", 1);
 	setenv(clear_image.name, "25", 1);
 	setenv(clear_dither.name, "999,40", 1);
+	setenv(clear_depth.name, "40", 1);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
 	check(!overrides.clear_force_blend, "non-matching clear_force_blend descriptor should not trigger");
 	check(overrides.clear_image_read, "matching clear_image_read descriptor should trigger");
 	check(overrides.clear_blend_dither, "matching clear_blend_dither descriptor should trigger");
+	check(overrides.clear_depth_test, "matching clear_depth_test descriptor should trigger");
 }
 
 static void test_apply_overrides_mutates_expected_state_bits()
 {
 	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
 	EnvGuard clear_multi("PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC");
+	EnvGuard clear_depth_test("PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
+	EnvGuard clear_depth_update("PARALLEL_HIRES_CLEAR_DEPTH_UPDATE_DESC");
+	EnvGuard clear_color_on_cvg("PARALLEL_HIRES_CLEAR_COLOR_ON_CVG_DESC");
+	EnvGuard clear_aa("PARALLEL_HIRES_CLEAR_AA_DESC");
+	EnvGuard clear_alpha_test("PARALLEL_HIRES_CLEAR_ALPHA_TEST_DESC");
 	EnvGuard force_native("PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
 	setenv(clear_force.name, "25", 1);
 	setenv(clear_multi.name, "25", 1);
+	setenv(clear_depth_test.name, "25", 1);
+	setenv(clear_depth_update.name, "25", 1);
+	setenv(clear_color_on_cvg.name, "25", 1);
+	setenv(clear_aa.name, "25", 1);
+	setenv(clear_alpha_test.name, "25", 1);
 	setenv(force_native.name, "25", 1);
 
 	auto descs = make_descs(25u);
@@ -108,10 +136,18 @@ static void test_apply_overrides_mutates_expected_state_bits()
 
 	TriangleSetup setup = {};
 	setup.flags = 0;
-	StaticRasterizationFlags raster = RASTERIZATION_MULTI_CYCLE_BIT | RASTERIZATION_COPY_BIT;
+	StaticRasterizationFlags raster = RASTERIZATION_MULTI_CYCLE_BIT |
+	                                  RASTERIZATION_COPY_BIT |
+	                                  RASTERIZATION_AA_BIT |
+	                                  RASTERIZATION_ALPHA_TEST_BIT |
+	                                  RASTERIZATION_ALPHA_TEST_DITHER_BIT;
 	DepthBlendFlags depth = DEPTH_BLEND_FORCE_BLEND_BIT |
+	                        DEPTH_BLEND_DEPTH_TEST_BIT |
+	                        DEPTH_BLEND_DEPTH_UPDATE_BIT |
 	                        DEPTH_BLEND_MULTI_CYCLE_BIT |
 	                        DEPTH_BLEND_IMAGE_READ_ENABLE_BIT |
+	                        DEPTH_BLEND_COLOR_ON_COVERAGE_BIT |
+	                        DEPTH_BLEND_AA_BIT |
 	                        DEPTH_BLEND_DITHER_ENABLE_BIT;
 	apply_hires_debug_draw_overrides(overrides, setup, raster, depth);
 
@@ -123,10 +159,24 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	      "clear_force_blend should clear depth force-blend");
 	check((depth & DEPTH_BLEND_MULTI_CYCLE_BIT) == 0,
 	      "clear_multi_cycle should clear depth multi-cycle");
+	check((depth & DEPTH_BLEND_DEPTH_TEST_BIT) == 0,
+	      "clear_depth_test should clear depth test");
+	check((depth & DEPTH_BLEND_DEPTH_UPDATE_BIT) == 0,
+	      "clear_depth_update should clear depth update");
+	check((depth & DEPTH_BLEND_COLOR_ON_COVERAGE_BIT) == 0,
+	      "clear_color_on_coverage should clear color-on-coverage");
+	check((depth & DEPTH_BLEND_AA_BIT) == 0,
+	      "clear_aa should clear depth AA bit");
 	check((depth & DEPTH_BLEND_IMAGE_READ_ENABLE_BIT) != 0,
 	      "unrequested image-read bit should remain set");
 	check((depth & DEPTH_BLEND_DITHER_ENABLE_BIT) != 0,
 	      "unrequested dither bit should remain set");
+	check((raster & RASTERIZATION_AA_BIT) == 0,
+	      "clear_aa should clear raster AA bit");
+	check((raster & RASTERIZATION_ALPHA_TEST_BIT) == 0,
+	      "clear_alpha_test should clear raster alpha test bit");
+	check((raster & RASTERIZATION_ALPHA_TEST_DITHER_BIT) == 0,
+	      "clear_alpha_test should clear raster alpha test dither bit");
 }
 
 static void test_force_upscaled_texrect_wins_last()

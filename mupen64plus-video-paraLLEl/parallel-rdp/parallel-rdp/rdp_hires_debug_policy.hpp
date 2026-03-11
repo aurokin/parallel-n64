@@ -16,6 +16,11 @@ struct HiresDebugDrawOverrides
 	bool clear_multi_cycle = false;
 	bool clear_image_read = false;
 	bool clear_blend_dither = false;
+	bool clear_depth_test = false;
+	bool clear_depth_update = false;
+	bool clear_color_on_coverage = false;
+	bool clear_aa = false;
+	bool clear_alpha_test = false;
 	bool force_native_texrect = false;
 	bool force_upscaled_texrect = false;
 };
@@ -75,6 +80,11 @@ inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides(const std::arra
 	overrides.clear_multi_cycle = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC");
 	overrides.clear_image_read = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
 	overrides.clear_blend_dither = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_DITHER_DESC");
+	overrides.clear_depth_test = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
+	overrides.clear_depth_update = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_DEPTH_UPDATE_DESC");
+	overrides.clear_color_on_coverage = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_COLOR_ON_CVG_DESC");
+	overrides.clear_aa = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_AA_DESC");
+	overrides.clear_alpha_test = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_ALPHA_TEST_DESC");
 	overrides.force_native_texrect = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
 	overrides.force_upscaled_texrect = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC");
 	return overrides;
@@ -100,6 +110,19 @@ inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &over
 		depth_blend_flags &= ~DEPTH_BLEND_IMAGE_READ_ENABLE_BIT;
 	if (overrides.clear_blend_dither)
 		depth_blend_flags &= ~DEPTH_BLEND_DITHER_ENABLE_BIT;
+	if (overrides.clear_depth_test)
+		depth_blend_flags &= ~DEPTH_BLEND_DEPTH_TEST_BIT;
+	if (overrides.clear_depth_update)
+		depth_blend_flags &= ~DEPTH_BLEND_DEPTH_UPDATE_BIT;
+	if (overrides.clear_color_on_coverage)
+		depth_blend_flags &= ~DEPTH_BLEND_COLOR_ON_COVERAGE_BIT;
+	if (overrides.clear_aa)
+	{
+		raster_flags &= ~RASTERIZATION_AA_BIT;
+		depth_blend_flags &= ~DEPTH_BLEND_AA_BIT;
+	}
+	if (overrides.clear_alpha_test)
+		raster_flags &= ~(RASTERIZATION_ALPHA_TEST_BIT | RASTERIZATION_ALPHA_TEST_DITHER_BIT);
 }
 }
 }

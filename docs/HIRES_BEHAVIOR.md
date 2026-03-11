@@ -120,6 +120,15 @@
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`
   - `./run-paper-mario-open-compare.sh --profile intro22` rebuilds a canonical latest compare before opening
+- Intro22 early-step HIRES debug knobs:
+  - descriptor-targeted env lists are available for early draw-state sweeps without source edits:
+    - `PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC`
+    - `PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC`
+    - `PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC`
+    - `PARALLEL_HIRES_CLEAR_DITHER_DESC`
+    - `PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC`
+    - `PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC`
+  - each env accepts a comma-separated descriptor list such as `40,41,42`
 - Paper Mario scene manifest:
   - `docs/PAPER_MARIO_SCENES.md`
 - Preserved GLideN64 4x HIRES-on intro22 matched oracle:

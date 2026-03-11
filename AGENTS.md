@@ -76,6 +76,14 @@ Co-Authored-By: Codex <noreply@openai.com>
     - rebuilds `/tmp/parallel-n64-paper-mario-hires-compare/latest-intro22` before opening so the viewer does not reuse stale summaries
   - defaults to the latest PNG under `/tmp/parallel-n64-paper-mario-captures`
   - defaults to the saved GLide HIRES intro22 oracle and emits focused crops for `top_banner`, `story_text`, `bottom_stage_grid`, and `left_stage_grid`
+  - for early draw-state sweeps on intro22 without patching renderer code, use descriptor-targeted env lists:
+    - `PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC`
+    - `PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC`
+    - `PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC`
+    - `PARALLEL_HIRES_CLEAR_DITHER_DESC`
+    - `PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC`
+    - `PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC`
+  - each env accepts a comma-separated descriptor list like `40,41,42`
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off

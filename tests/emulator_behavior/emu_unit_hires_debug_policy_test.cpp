@@ -1,0 +1,161 @@
+#include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_hires_debug_policy.hpp"
+
+#include <array>
+#include <cstdlib>
+#include <iostream>
+#include <string>
+
+using namespace RDP;
+using namespace RDP::detail;
+
+namespace
+{
+struct EnvGuard
+{
+	explicit EnvGuard(const char *name_)
+		: name(name_)
+	{
+		const char *current = std::getenv(name);
+		if (current)
+		{
+			had_value = true;
+			value = current;
+		}
+	}
+
+	~EnvGuard()
+	{
+		if (had_value)
+			setenv(name, value.c_str(), 1);
+		else
+			unsetenv(name);
+	}
+
+	const char *name;
+	bool had_value = false;
+	std::string value;
+};
+
+static void check(bool condition, const char *message)
+{
+	if (!condition)
+	{
+		std::cerr << "FAIL: " << message << std::endl;
+		std::exit(1);
+	}
+}
+
+static std::array<uint32_t, 8> make_descs(uint32_t a, uint32_t b = 0xffffffffu)
+{
+	std::array<uint32_t, 8> descs = {};
+	descs[0] = a;
+	descs[1] = b;
+	return descs;
+}
+
+static void test_no_env_means_no_overrides()
+{
+	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
+	EnvGuard clear_multi("PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC");
+	EnvGuard clear_image("PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
+	EnvGuard clear_dither("PARALLEL_HIRES_CLEAR_DITHER_DESC");
+	EnvGuard force_native("PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
+	EnvGuard force_upscaled("PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC");
+	unsetenv(clear_force.name);
+	unsetenv(clear_multi.name);
+	unsetenv(clear_image.name);
+	unsetenv(clear_dither.name);
+	unsetenv(force_native.name);
+	unsetenv(force_upscaled.name);
+
+	auto descs = make_descs(25u, 40u);
+	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
+	check(!overrides.clear_force_blend, "clear_force_blend should default off");
+	check(!overrides.clear_multi_cycle, "clear_multi_cycle should default off");
+	check(!overrides.clear_image_read, "clear_image_read should default off");
+	check(!overrides.clear_blend_dither, "clear_blend_dither should default off");
+	check(!overrides.force_native_texrect, "force_native_texrect should default off");
+	check(!overrides.force_upscaled_texrect, "force_upscaled_texrect should default off");
+}
+
+static void test_descriptor_lists_match_any_bound_replacement()
+{
+	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
+	EnvGuard clear_image("PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
+	EnvGuard clear_dither("PARALLEL_HIRES_CLEAR_DITHER_DESC");
+	setenv(clear_force.name, "41, 88", 1);
+	setenv(clear_image.name, "25", 1);
+	setenv(clear_dither.name, "999,40", 1);
+
+	auto descs = make_descs(25u, 40u);
+	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
+	check(!overrides.clear_force_blend, "non-matching clear_force_blend descriptor should not trigger");
+	check(overrides.clear_image_read, "matching clear_image_read descriptor should trigger");
+	check(overrides.clear_blend_dither, "matching clear_blend_dither descriptor should trigger");
+}
+
+static void test_apply_overrides_mutates_expected_state_bits()
+{
+	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
+	EnvGuard clear_multi("PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC");
+	EnvGuard force_native("PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
+	setenv(clear_force.name, "25", 1);
+	setenv(clear_multi.name, "25", 1);
+	setenv(force_native.name, "25", 1);
+
+	auto descs = make_descs(25u);
+	auto overrides = derive_hires_debug_draw_overrides(descs, 1);
+
+	TriangleSetup setup = {};
+	setup.flags = 0;
+	StaticRasterizationFlags raster = RASTERIZATION_MULTI_CYCLE_BIT | RASTERIZATION_COPY_BIT;
+	DepthBlendFlags depth = DEPTH_BLEND_FORCE_BLEND_BIT |
+	                        DEPTH_BLEND_MULTI_CYCLE_BIT |
+	                        DEPTH_BLEND_IMAGE_READ_ENABLE_BIT |
+	                        DEPTH_BLEND_DITHER_ENABLE_BIT;
+	apply_hires_debug_draw_overrides(overrides, setup, raster, depth);
+
+	check((setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) != 0,
+	      "force_native_texrect should disable upscaling");
+	check((raster & RASTERIZATION_MULTI_CYCLE_BIT) == 0,
+	      "clear_multi_cycle should clear raster multi-cycle");
+	check((depth & DEPTH_BLEND_FORCE_BLEND_BIT) == 0,
+	      "clear_force_blend should clear depth force-blend");
+	check((depth & DEPTH_BLEND_MULTI_CYCLE_BIT) == 0,
+	      "clear_multi_cycle should clear depth multi-cycle");
+	check((depth & DEPTH_BLEND_IMAGE_READ_ENABLE_BIT) != 0,
+	      "unrequested image-read bit should remain set");
+	check((depth & DEPTH_BLEND_DITHER_ENABLE_BIT) != 0,
+	      "unrequested dither bit should remain set");
+}
+
+static void test_force_upscaled_texrect_wins_last()
+{
+	EnvGuard force_native("PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
+	EnvGuard force_upscaled("PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC");
+	setenv(force_native.name, "25", 1);
+	setenv(force_upscaled.name, "25", 1);
+
+	auto descs = make_descs(25u);
+	auto overrides = derive_hires_debug_draw_overrides(descs, 1);
+
+	TriangleSetup setup = {};
+	setup.flags = TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
+	StaticRasterizationFlags raster = 0;
+	DepthBlendFlags depth = 0;
+	apply_hires_debug_draw_overrides(overrides, setup, raster, depth);
+
+	check((setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) == 0,
+	      "force_upscaled_texrect should win over force_native_texrect");
+}
+}
+
+int main()
+{
+	test_no_env_means_no_overrides();
+	test_descriptor_lists_match_any_bound_replacement();
+	test_apply_overrides_mutates_expected_state_bits();
+	test_force_upscaled_texrect_wins_last();
+	std::cout << "emu_unit_hires_debug_policy_test: PASS" << std::endl;
+	return 0;
+}

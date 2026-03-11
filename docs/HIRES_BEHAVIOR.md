@@ -128,6 +128,7 @@
     - `PARALLEL_HIRES_CLEAR_DITHER_DESC`
     - `PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC`
     - `PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC`
+    - `PARALLEL_HIRES_LOG_STATE_DESC`
   - each env accepts a comma-separated descriptor list such as `40,41,42`
 - Paper Mario scene manifest:
   - `docs/PAPER_MARIO_SCENES.md`

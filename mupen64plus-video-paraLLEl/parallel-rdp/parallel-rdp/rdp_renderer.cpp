@@ -1870,6 +1870,42 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		                                         draw_setup,
 		                                         stream.static_raster_state.flags,
 		                                         stream.depth_blend_state.flags);
+		auto normalized = normalize_static_state(stream.static_raster_state);
+		if (detail::hires_debug_desc_list_matches_any(draw_replacement_descs,
+		                                              draw_replacement_desc_count,
+		                                              "PARALLEL_HIRES_LOG_STATE_DESC"))
+		{
+			LOGI("Hi-res debug program: descs=[%u,%u,%u,%u,%u,%u,%u,%u] count=%u "
+			     "raster=0x%08x norm=0x%08x depth=0x%08x dither=0x%02x copy=%d "
+			     "c0_rgb={%u,%u,%u,%u} c0_a={%u,%u,%u,%u} "
+			     "c1_rgb={%u,%u,%u,%u} c1_a={%u,%u,%u,%u}.\n",
+			     unsigned(draw_replacement_descs[0]), unsigned(draw_replacement_descs[1]),
+			     unsigned(draw_replacement_descs[2]), unsigned(draw_replacement_descs[3]),
+			     unsigned(draw_replacement_descs[4]), unsigned(draw_replacement_descs[5]),
+			     unsigned(draw_replacement_descs[6]), unsigned(draw_replacement_descs[7]),
+			     unsigned(draw_replacement_desc_count),
+			     unsigned(stream.static_raster_state.flags),
+			     unsigned(normalized.flags),
+			     unsigned(stream.depth_blend_state.flags),
+			     unsigned(stream.static_raster_state.dither),
+			     copy_mode ? 1 : 0,
+			     unsigned(normalized.combiner[0].rgb.muladd),
+			     unsigned(normalized.combiner[0].rgb.mulsub),
+			     unsigned(normalized.combiner[0].rgb.mul),
+			     unsigned(normalized.combiner[0].rgb.add),
+			     unsigned(normalized.combiner[0].alpha.muladd),
+			     unsigned(normalized.combiner[0].alpha.mulsub),
+			     unsigned(normalized.combiner[0].alpha.mul),
+			     unsigned(normalized.combiner[0].alpha.add),
+			     unsigned(normalized.combiner[1].rgb.muladd),
+			     unsigned(normalized.combiner[1].rgb.mulsub),
+			     unsigned(normalized.combiner[1].rgb.mul),
+			     unsigned(normalized.combiner[1].rgb.add),
+			     unsigned(normalized.combiner[1].alpha.muladd),
+			     unsigned(normalized.combiner[1].alpha.mulsub),
+			     unsigned(normalized.combiner[1].alpha.mul),
+			     unsigned(normalized.combiner[1].alpha.add));
+		}
 	}
 
 	update_deduced_height(draw_setup);

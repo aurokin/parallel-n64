@@ -125,6 +125,9 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - captures a RetroArch screenshot into the temp capture dir
   - for HIRES experiments, prefer `--require-hires` so the run fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - timed mode can seed a deterministic same-core save state by combining `--timed-save-state-at <sec>` with `--savestate-dir <dir>`; the helper disables state auto-indexing and writes slot `0`
+  - state mode also supports optional pre-load pausing for stability checks:
+    - `--state-pause-before-load`
+    - `--state-pre-load-pause-delay <sec>`
 - `parallel` scaling helper:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses the same-core save state path for faster, stable scaling iteration

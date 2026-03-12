@@ -66,6 +66,9 @@ Co-Authored-By: Codex <noreply@openai.com>
   - timed mode also supports deterministic save-state seeding:
     - `--timed-save-state-at <sec> --savestate-dir <dir>` sends `SAVE_STATE` before the screenshot and writes slot `0` into the explicit savestate directory
     - after seeding, validate from the same directory with `--smoke-mode state --savestate-dir <dir>`
+  - state mode also supports optional pre-load pausing for stability checks:
+    - `--state-pause-before-load`
+    - `--state-pre-load-pause-delay <sec>`
 - Parallel HIRES zoom compare:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`

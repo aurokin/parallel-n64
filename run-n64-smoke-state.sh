@@ -5,12 +5,14 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$SCRIPT_DIR/run-n64.sh"
 
 load_delay="2.2"
+pre_load_pause_delay="0.2"
 pause_delay="0.2"
 shot_delay="1.2"
 close_delay="0.2"
 netcmd_port="55355"
 state_cmd="LOAD_STATE"
 send_pause="0"
+send_pre_load_pause="0"
 dump_trigger_file=""
 
 declare -a runner_args=()
@@ -23,9 +25,13 @@ Usage:
 
 Options:
   --load-delay SEC       Delay before sending state command (default: 2.2)
+  --pre-load-pause-delay SEC
+                         Delay after pre-load PAUSE_TOGGLE before state command (default: 0.2)
   --pause-delay SEC      Delay after state load before PAUSE_TOGGLE (default: 0.2)
   --shot-delay SEC       Delay after PAUSE_TOGGLE before SCREENSHOT (default: 1.2)
   --close-delay SEC      Delay after SCREENSHOT before close (default: 0.2)
+  --pause-before-load    Send PAUSE_TOGGLE before the state command
+  --no-pause-before-load Skip PAUSE_TOGGLE before the state command (default)
   --pause                Send PAUSE_TOGGLE step before screenshot
   --no-pause             Skip PAUSE_TOGGLE step before screenshot (default)
   --port PORT            RetroArch network command UDP port (default: 55355)
@@ -37,6 +43,7 @@ Examples:
   ./run-n64-smoke-state.sh -- --verbose
   ./run-n64-smoke-state.sh --load-delay 2.2 --shot-delay 1.2 --close-delay 0.2 -- --verbose
   ./run-n64-smoke-state.sh --pause --pause-delay 1.0 --shot-delay 0.2 -- --verbose
+  ./run-n64-smoke-state.sh --pause-before-load --pre-load-pause-delay 0.5 --pause -- --verbose
 EOF_USAGE
 }
 
@@ -77,6 +84,10 @@ while (($#)); do
       shift
       pause_delay="${1:-}"
       ;;
+    --pre-load-pause-delay)
+      shift
+      pre_load_pause_delay="${1:-}"
+      ;;
     --shot-delay)
       shift
       shot_delay="${1:-}"
@@ -90,6 +101,12 @@ while (($#)); do
       ;;
     --pause)
       send_pause="1"
+      ;;
+    --pause-before-load)
+      send_pre_load_pause="1"
+      ;;
+    --no-pause-before-load)
+      send_pre_load_pause="0"
       ;;
     --port)
       shift
@@ -134,6 +151,11 @@ if ! is_nonnegative_number "$load_delay"; then
   exit 1
 fi
 
+if ! is_nonnegative_number "$pre_load_pause_delay"; then
+  echo "--pre-load-pause-delay must be a non-negative number: $pre_load_pause_delay" >&2
+  exit 1
+fi
+
 if ! is_nonnegative_number "$pause_delay"; then
   echo "--pause-delay must be a non-negative number: $pause_delay" >&2
   exit 1
@@ -160,13 +182,25 @@ pause_state="disabled"
 if [[ "$send_pause" == "1" ]]; then
   pause_state="enabled"
 fi
-echo "Smoke-state: load_cmd='$state_cmd' at +${load_delay}s, pause=${pause_state}, pause_delay=${pause_delay}s, screenshot +${shot_delay}s after pause/load, close +${close_delay}s after screenshot, port=${netcmd_port}"
+pre_load_pause_state="disabled"
+if [[ "$send_pre_load_pause" == "1" ]]; then
+  pre_load_pause_state="enabled"
+fi
+echo "Smoke-state: load_cmd='$state_cmd' at +${load_delay}s, pre_load_pause=${pre_load_pause_state}, pre_load_pause_delay=${pre_load_pause_delay}s, pause=${pause_state}, pause_delay=${pause_delay}s, screenshot +${shot_delay}s after pause/load, close +${close_delay}s after screenshot, port=${netcmd_port}"
 
 "$RUNNER" "${runner_args[@]}" &
 run_pid="$!"
 
 sleep "$load_delay"
 if kill -0 "$run_pid" 2>/dev/null; then
+  if [[ "$send_pre_load_pause" == "1" ]]; then
+    if send_netcmd "PAUSE_TOGGLE"; then
+      echo "NetCmd: sent 'PAUSE_TOGGLE' before state load"
+      sleep "$pre_load_pause_delay"
+    else
+      echo "NetCmd failed: 'PAUSE_TOGGLE' before state load" >&2
+    fi
+  fi
   if send_netcmd "$state_cmd"; then
     echo "NetCmd: sent '$state_cmd'"
   else

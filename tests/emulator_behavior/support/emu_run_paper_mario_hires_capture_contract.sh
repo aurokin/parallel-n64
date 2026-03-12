@@ -33,6 +33,12 @@ require_pattern "--pause-before-shot-delay SEC" \
   "usage text missing --pause-before-shot-delay"
 require_pattern "--state-load-delay SEC  Delay before sending state command in state mode (default: 4.0)" \
   "usage text missing --state-load-delay"
+require_pattern "--state-pre-load-pause-delay SEC" \
+  "usage text missing --state-pre-load-pause-delay"
+require_pattern "--state-pause-before-load" \
+  "usage text missing --state-pause-before-load"
+require_pattern "--no-state-pause-before-load" \
+  "usage text missing --no-state-pause-before-load"
 require_pattern "--state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)" \
   "usage text missing --state-pause-delay"
 require_pattern "--state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)" \
@@ -83,6 +89,8 @@ require_pattern 'max_presses=2' "default max presses missing"
 require_pattern 'screenshot_at=27' "default screenshot timing missing"
 require_pattern 'pause_before_shot="0"' "default pre-screenshot pause missing"
 require_pattern 'pause_before_shot_delay="0.2"' "default pre-screenshot pause delay missing"
+require_pattern 'state_pre_load_pause_delay="0.2"' "default state pre-load pause delay missing"
+require_pattern 'state_pause_before_load="0"' "default state pre-load pause missing"
 require_pattern 'timed_close_delay="1.0"' "default timed close delay missing"
 require_pattern 'xdg_root="$capture_dir/xdg"' "temp XDG root missing"
 require_pattern 'retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"' \
@@ -118,15 +126,21 @@ require_pattern 'validate_hires_log()' "hires log validation helper missing"
 require_pattern "Hi-res keying summary: .*provider=on" "hires validation must require provider=on summary"
 require_pattern 'draw_with_replacement' "hires validation must check replacement-bound draws"
 require_pattern 'dump_vi_stages="${1:-}"' "VI stage dump option parsing missing"
+require_pattern 'state_pre_load_pause_delay="${1:-}"' "state pre-load pause delay parsing missing"
 require_pattern 'timed_save_state_at="${1:-}"' "timed save-state timing parsing missing"
 require_pattern 'timed_save_state_cmd="${1:-}"' "timed save-state command parsing missing"
+require_pattern 'state_pause_before_load="1"' "state pre-load pause enable parsing missing"
+require_pattern 'state_pause_before_load="0"' "state pre-load pause disable parsing missing"
 require_pattern 'save_state_dir="${1:-}"' "savestate dir parsing missing"
 require_pattern 'core_option_overrides+=("${1:-}")' "core option override parsing missing"
 require_pattern 'smoke_cmd+=("--buttons" "$buttons_csv")' "button forwarding missing"
 require_pattern 'smoke_cmd+=("--state-cmd" "$state_cmd")' "state command forwarding missing"
 require_pattern 'smoke_cmd+=("--load-delay" "$state_load_delay")' "state load delay forwarding missing"
+require_pattern 'smoke_cmd+=("--pre-load-pause-delay" "$state_pre_load_pause_delay")' "state pre-load pause delay forwarding missing"
 require_pattern 'smoke_cmd+=("--shot-delay" "$state_shot_delay")' "state shot delay forwarding missing"
 require_pattern 'smoke_cmd+=("--dump-trigger-file" "$dump_vi_trigger_file")' "state dump trigger forwarding missing"
+require_pattern 'smoke_cmd+=(--pause-before-load)' "state pre-load pause enable forwarding missing"
+require_pattern 'smoke_cmd+=(--no-pause-before-load)' "state pre-load pause disable forwarding missing"
 require_pattern 'smoke_cmd+=("$RUNNER")' "timed mode must launch run-n64.sh directly"
 require_pattern 'echo "Smoke mode: timed"' "timed mode logging missing"
 require_pattern 'echo "Timed screenshot: +${screenshot_at}s, close +${timed_close_delay}s after shot"' "timed mode timing log missing"

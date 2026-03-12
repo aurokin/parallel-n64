@@ -22,6 +22,7 @@ screenshot_at=27
 pause_before_shot="0"
 pause_before_shot_delay="0.2"
 state_load_delay="4.0"
+state_pre_load_pause_delay="0.2"
 state_pause_delay="0.2"
 state_shot_delay="1.2"
 state_close_delay="1.0"
@@ -29,6 +30,7 @@ timed_close_delay="1.0"
 timed_save_state_at=""
 timed_save_state_cmd="SAVE_STATE"
 state_cmd="LOAD_STATE"
+state_pause_before_load="0"
 state_pause="0"
 netcmd_port=55355
 rom_dir="$DEFAULT_ROM_DIR"
@@ -77,6 +79,12 @@ Options:
   --pause-before-shot-delay SEC
                          Delay after PAUSE_TOGGLE before SCREENSHOT (default: 0.2)
   --state-load-delay SEC  Delay before sending state command in state mode (default: 4.0)
+  --state-pre-load-pause-delay SEC
+                         Delay after pre-load PAUSE_TOGGLE before state command (default: 0.2)
+  --state-pause-before-load
+                         Send PAUSE_TOGGLE before the state command in state mode
+  --no-state-pause-before-load
+                         Skip PAUSE_TOGGLE before the state command in state mode (default)
   --state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)
   --state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)
   --state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 1.0)
@@ -402,6 +410,10 @@ while (($#)); do
       shift
       state_load_delay="${1:-}"
       ;;
+    --state-pre-load-pause-delay)
+      shift
+      state_pre_load_pause_delay="${1:-}"
+      ;;
     --state-pause-delay)
       shift
       state_pause_delay="${1:-}"
@@ -429,6 +441,12 @@ while (($#)); do
     --state-cmd)
       shift
       state_cmd="${1:-}"
+      ;;
+    --state-pause-before-load)
+      state_pause_before_load="1"
+      ;;
+    --no-state-pause-before-load)
+      state_pause_before_load="0"
       ;;
     --state-pause)
       state_pause="1"
@@ -561,6 +579,11 @@ if ! is_nonnegative_number "$state_load_delay"; then
   exit 1
 fi
 
+if ! is_nonnegative_number "$state_pre_load_pause_delay"; then
+  echo "--state-pre-load-pause-delay must be a non-negative number: $state_pre_load_pause_delay" >&2
+  exit 1
+fi
+
 if ! is_nonnegative_number "$state_pause_delay"; then
   echo "--state-pause-delay must be a non-negative number: $state_pause_delay" >&2
   exit 1
@@ -625,12 +648,18 @@ if [[ "$smoke_mode" == "buttons" ]]; then
 elif [[ "$smoke_mode" == "state" ]]; then
   smoke_cmd+=("$SMOKE_STATE_RUNNER")
   smoke_cmd+=("--load-delay" "$state_load_delay")
+  smoke_cmd+=("--pre-load-pause-delay" "$state_pre_load_pause_delay")
   smoke_cmd+=("--pause-delay" "$state_pause_delay")
   smoke_cmd+=("--shot-delay" "$state_shot_delay")
   smoke_cmd+=("--close-delay" "$state_close_delay")
   smoke_cmd+=("--state-cmd" "$state_cmd")
   if [[ -n "$dump_vi_stages" ]]; then
     smoke_cmd+=("--dump-trigger-file" "$dump_vi_trigger_file")
+  fi
+  if [[ "$state_pause_before_load" == "1" ]]; then
+    smoke_cmd+=(--pause-before-load)
+  else
+    smoke_cmd+=(--no-pause-before-load)
   fi
   if [[ "$state_pause" == "1" ]]; then
     smoke_cmd+=(--pause)
@@ -672,7 +701,7 @@ if [[ "$smoke_mode" == "buttons" ]]; then
   echo "Screenshot timing: +${screenshot_at}s"
 elif [[ "$smoke_mode" == "state" ]]; then
   echo "Smoke mode: state"
-  echo "State load timing: +${state_load_delay}s, screenshot +${state_shot_delay}s after load/pause"
+  echo "State load timing: +${state_load_delay}s, pre-load pause=${state_pause_before_load} (+${state_pre_load_pause_delay}s), screenshot +${state_shot_delay}s after load/pause"
 else
   echo "Smoke mode: timed"
   echo "Timed screenshot: +${screenshot_at}s, close +${timed_close_delay}s after shot"

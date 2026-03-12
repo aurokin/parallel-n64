@@ -27,6 +27,7 @@ struct HiresDebugDrawOverrides
 	bool force_blend_1a_pixel = false;
 	bool force_blend_1b_shade_alpha = false;
 	bool force_blend_1b_pixel_alpha = false;
+	bool force_blend_1b_zero = false;
 	bool force_blend_2a_memory = false;
 	bool force_blend_2a_pixel = false;
 	bool force_blend_2b_memory_alpha = false;
@@ -39,6 +40,8 @@ struct HiresDebugDrawOverrides
 	bool force_coverage_wrap_off = false;
 	bool force_blend_shift_zero = false;
 	bool force_blend_shift_max = false;
+	bool force_pixel_alpha_full = false;
+	bool force_pixel_alpha_zero = false;
 };
 
 enum HiresDepthBlendDebugBit : uint8_t
@@ -48,7 +51,9 @@ enum HiresDepthBlendDebugBit : uint8_t
 	HIRES_DBDBG_FORCE_CVG_WRAP_ON_BIT = 1 << 2,
 	HIRES_DBDBG_FORCE_CVG_WRAP_OFF_BIT = 1 << 3,
 	HIRES_DBDBG_FORCE_BLEND_SHIFT_ZERO_BIT = 1 << 4,
-	HIRES_DBDBG_FORCE_BLEND_SHIFT_MAX_BIT = 1 << 5
+	HIRES_DBDBG_FORCE_BLEND_SHIFT_MAX_BIT = 1 << 5,
+	HIRES_DBDBG_FORCE_PIXEL_ALPHA_FULL_BIT = 1 << 6,
+	HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT = 1 << 7
 };
 
 inline bool hires_debug_desc_list_matches_value(const char *env, uint32_t value)
@@ -117,6 +122,7 @@ inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides(const std::arra
 	overrides.force_blend_1a_pixel = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1A_PIXEL_DESC");
 	overrides.force_blend_1b_shade_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1B_SHADE_ALPHA_DESC");
 	overrides.force_blend_1b_pixel_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1B_PIXEL_ALPHA_DESC");
+	overrides.force_blend_1b_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1B_ZERO_DESC");
 	overrides.force_blend_2a_memory = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2A_MEMORY_DESC");
 	overrides.force_blend_2a_pixel = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2A_PIXEL_DESC");
 	overrides.force_blend_2b_memory_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_MEMORY_ALPHA_DESC");
@@ -129,6 +135,8 @@ inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides(const std::arra
 	overrides.force_coverage_wrap_off = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CVG_WRAP_OFF_DESC");
 	overrides.force_blend_shift_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_SHIFT_ZERO_DESC");
 	overrides.force_blend_shift_max = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_SHIFT_MAX_DESC");
+	overrides.force_pixel_alpha_full = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC");
+	overrides.force_pixel_alpha_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_PIXEL_ALPHA_ZERO_DESC");
 	return overrides;
 }
 
@@ -176,6 +184,8 @@ inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &over
 			cycle.blend_1b = BlendMode1B::ShadeAlpha;
 		if (overrides.force_blend_1b_pixel_alpha)
 			cycle.blend_1b = BlendMode1B::PixelAlpha;
+		if (overrides.force_blend_1b_zero)
+			cycle.blend_1b = BlendMode1B::Zero;
 		if (overrides.force_blend_2a_memory)
 			cycle.blend_2a = BlendMode2A::MemoryColor;
 		if (overrides.force_blend_2a_pixel)
@@ -202,6 +212,10 @@ inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &over
 		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_BLEND_SHIFT_ZERO_BIT;
 	if (overrides.force_blend_shift_max)
 		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_BLEND_SHIFT_MAX_BIT;
+	if (overrides.force_pixel_alpha_full)
+		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_PIXEL_ALPHA_FULL_BIT;
+	if (overrides.force_pixel_alpha_zero)
+		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT;
 }
 }
 }

@@ -104,6 +104,8 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `PARALLEL_HIRES_FORCE_CVG_WRAP_OFF_DESC`
     - `PARALLEL_HIRES_FORCE_BLEND_SHIFT_ZERO_DESC`
     - `PARALLEL_HIRES_FORCE_BLEND_SHIFT_MAX_DESC`
+    - `PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC`
+    - `PARALLEL_HIRES_FORCE_PIXEL_ALPHA_ZERO_DESC`
     - `PARALLEL_HIRES_LOG_STATE_DESC`
   - each env accepts a comma-separated descriptor list like `40,41,42`
 - Parallel scaling capture:

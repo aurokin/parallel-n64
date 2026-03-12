@@ -455,6 +455,8 @@ void fill_color(uint col)
 
 void depth_blend(int x, int y, uint primitive_index, ShadedData shaded)
 {
+	const uint HIRES_DBDBG_FORCE_PIXEL_ALPHA_FULL_BIT = 1u << 6u;
+	const uint HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT = 1u << 7u;
 	int z = shaded.z_dith >> 9;
 	int dith = shaded.z_dith & 0x1ff;
 	int coverage_count = shaded.coverage_count;
@@ -473,6 +475,10 @@ void depth_blend(int x, int y, uint primitive_index, ShadedData shaded)
 	bool blend_multicycle = (depth_blend.flags & DEPTH_BLEND_MULTI_CYCLE_BIT) != 0;
 	bool aa_enable = (depth_blend.flags & DEPTH_BLEND_AA_BIT) != 0;
 	bool dither_en = (depth_blend.flags & DEPTH_BLEND_DITHER_ENABLE_BIT) != 0;
+	if ((uint(depth_blend.padding0) & HIRES_DBDBG_FORCE_PIXEL_ALPHA_FULL_BIT) != 0u)
+		combined.a = U8_C(0xff);
+	if ((uint(depth_blend.padding0) & HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT) != 0u)
+		combined.a = U8_C(0x00);
 
 	bool blend_en;
 	bool coverage_wrap;

@@ -69,12 +69,15 @@ static void test_no_env_means_no_overrides()
 	EnvGuard blend_1a_memory("PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
 	EnvGuard blend_2a_memory("PARALLEL_HIRES_BLEND_2A_MEMORY_DESC");
 	EnvGuard blend_2b_memory_alpha("PARALLEL_HIRES_BLEND_2B_MEMORY_ALPHA_DESC");
+	EnvGuard blend_1b_zero("PARALLEL_HIRES_BLEND_1B_ZERO_DESC");
 	EnvGuard blend_en_on("PARALLEL_HIRES_FORCE_BLEND_EN_ON_DESC");
 	EnvGuard blend_en_off("PARALLEL_HIRES_FORCE_BLEND_EN_OFF_DESC");
 	EnvGuard cvg_wrap_on("PARALLEL_HIRES_FORCE_CVG_WRAP_ON_DESC");
 	EnvGuard cvg_wrap_off("PARALLEL_HIRES_FORCE_CVG_WRAP_OFF_DESC");
 	EnvGuard blend_shift_zero("PARALLEL_HIRES_FORCE_BLEND_SHIFT_ZERO_DESC");
 	EnvGuard blend_shift_max("PARALLEL_HIRES_FORCE_BLEND_SHIFT_MAX_DESC");
+	EnvGuard pixel_alpha_full("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC");
+	EnvGuard pixel_alpha_zero("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_ZERO_DESC");
 	unsetenv(clear_force.name);
 	unsetenv(clear_multi.name);
 	unsetenv(clear_image.name);
@@ -89,12 +92,15 @@ static void test_no_env_means_no_overrides()
 	unsetenv(blend_1a_memory.name);
 	unsetenv(blend_2a_memory.name);
 	unsetenv(blend_2b_memory_alpha.name);
+	unsetenv(blend_1b_zero.name);
 	unsetenv(blend_en_on.name);
 	unsetenv(blend_en_off.name);
 	unsetenv(cvg_wrap_on.name);
 	unsetenv(cvg_wrap_off.name);
 	unsetenv(blend_shift_zero.name);
 	unsetenv(blend_shift_max.name);
+	unsetenv(pixel_alpha_full.name);
+	unsetenv(pixel_alpha_zero.name);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -110,6 +116,7 @@ static void test_no_env_means_no_overrides()
 	check(!overrides.force_native_texrect, "force_native_texrect should default off");
 	check(!overrides.force_upscaled_texrect, "force_upscaled_texrect should default off");
 	check(!overrides.force_blend_1a_memory, "force_blend_1a_memory should default off");
+	check(!overrides.force_blend_1b_zero, "force_blend_1b_zero should default off");
 	check(!overrides.force_blend_2a_memory, "force_blend_2a_memory should default off");
 	check(!overrides.force_blend_2b_memory_alpha, "force_blend_2b_memory_alpha should default off");
 	check(!overrides.force_blend_en_on, "force_blend_en_on should default off");
@@ -118,6 +125,8 @@ static void test_no_env_means_no_overrides()
 	check(!overrides.force_coverage_wrap_off, "force_coverage_wrap_off should default off");
 	check(!overrides.force_blend_shift_zero, "force_blend_shift_zero should default off");
 	check(!overrides.force_blend_shift_max, "force_blend_shift_max should default off");
+	check(!overrides.force_pixel_alpha_full, "force_pixel_alpha_full should default off");
+	check(!overrides.force_pixel_alpha_zero, "force_pixel_alpha_zero should default off");
 }
 
 static void test_descriptor_lists_match_any_bound_replacement()
@@ -129,6 +138,8 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	EnvGuard blend_1a_memory("PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
 	EnvGuard blend_2b_one("PARALLEL_HIRES_BLEND_2B_ONE_DESC");
 	EnvGuard blend_en_on("PARALLEL_HIRES_FORCE_BLEND_EN_ON_DESC");
+	EnvGuard blend_1b_zero("PARALLEL_HIRES_BLEND_1B_ZERO_DESC");
+	EnvGuard pixel_alpha_full("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC");
 	setenv(clear_force.name, "41, 88", 1);
 	setenv(clear_image.name, "25", 1);
 	setenv(clear_dither.name, "999,40", 1);
@@ -136,6 +147,8 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	setenv(blend_1a_memory.name, "40", 1);
 	setenv(blend_2b_one.name, "88", 1);
 	setenv(blend_en_on.name, "25", 1);
+	setenv(blend_1b_zero.name, "25", 1);
+	setenv(pixel_alpha_full.name, "40", 1);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -144,8 +157,10 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	check(overrides.clear_blend_dither, "matching clear_blend_dither descriptor should trigger");
 	check(overrides.clear_depth_test, "matching clear_depth_test descriptor should trigger");
 	check(overrides.force_blend_1a_memory, "matching blend_1a_memory descriptor should trigger");
+	check(overrides.force_blend_1b_zero, "matching blend_1b_zero descriptor should trigger");
 	check(!overrides.force_blend_2b_one, "non-matching blend_2b_one descriptor should not trigger");
 	check(overrides.force_blend_en_on, "matching force_blend_en_on descriptor should trigger");
+	check(overrides.force_pixel_alpha_full, "matching force_pixel_alpha_full should trigger");
 }
 
 static void test_apply_overrides_mutates_expected_state_bits()
@@ -160,11 +175,14 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	EnvGuard force_native("PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
 	EnvGuard blend_1a_memory("PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
 	EnvGuard blend_1b_shade_alpha("PARALLEL_HIRES_BLEND_1B_SHADE_ALPHA_DESC");
+	EnvGuard blend_1b_zero("PARALLEL_HIRES_BLEND_1B_ZERO_DESC");
 	EnvGuard blend_2a_memory("PARALLEL_HIRES_BLEND_2A_MEMORY_DESC");
 	EnvGuard blend_2b_memory_alpha("PARALLEL_HIRES_BLEND_2B_MEMORY_ALPHA_DESC");
 	EnvGuard blend_en_on("PARALLEL_HIRES_FORCE_BLEND_EN_ON_DESC");
 	EnvGuard cvg_wrap_off("PARALLEL_HIRES_FORCE_CVG_WRAP_OFF_DESC");
 	EnvGuard blend_shift_zero("PARALLEL_HIRES_FORCE_BLEND_SHIFT_ZERO_DESC");
+	EnvGuard pixel_alpha_full("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC");
+	EnvGuard pixel_alpha_zero("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_ZERO_DESC");
 	setenv(clear_force.name, "25", 1);
 	setenv(clear_multi.name, "25", 1);
 	setenv(clear_depth_test.name, "25", 1);
@@ -175,11 +193,14 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	setenv(force_native.name, "25", 1);
 	setenv(blend_1a_memory.name, "25", 1);
 	setenv(blend_1b_shade_alpha.name, "25", 1);
+	setenv(blend_1b_zero.name, "41", 1);
 	setenv(blend_2a_memory.name, "25", 1);
 	setenv(blend_2b_memory_alpha.name, "25", 1);
 	setenv(blend_en_on.name, "25", 1);
 	setenv(cvg_wrap_off.name, "25", 1);
 	setenv(blend_shift_zero.name, "25", 1);
+	setenv(pixel_alpha_full.name, "25", 1);
+	setenv(pixel_alpha_zero.name, "25", 1);
 
 	auto descs = make_descs(25u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 1);
@@ -249,6 +270,10 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	      "cvg_wrap_off should set debug padding bit");
 	check((depth_state.padding[0] & HIRES_DBDBG_FORCE_BLEND_SHIFT_ZERO_BIT) != 0,
 	      "blend_shift_zero should set debug padding bit");
+	check((depth_state.padding[0] & HIRES_DBDBG_FORCE_PIXEL_ALPHA_FULL_BIT) != 0,
+	      "pixel_alpha_full should set debug padding bit");
+	check((depth_state.padding[0] & HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT) != 0,
+	      "pixel_alpha_zero should set debug padding bit");
 }
 
 static void test_force_upscaled_texrect_wins_last()

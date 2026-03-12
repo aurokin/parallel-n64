@@ -412,6 +412,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	shaded.coverage_count = u8(coverage_count);
 	// Shade alpha needs to be passed separately since it might affect the blending stage.
 	shaded.shade_alpha = u8(min(shade.a + alpha_dith, 0xff));
+	shaded.texel0_alpha = u8(clamp(texel0.a, i16(0), i16(0xff)));
 	return true;
 }
 

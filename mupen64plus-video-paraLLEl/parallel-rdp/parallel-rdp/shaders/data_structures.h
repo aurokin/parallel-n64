@@ -339,6 +339,7 @@ struct ShadedData
 	int z_dith;
 	u8 coverage_count;
 	u8 shade_alpha;
+	u8 texel0_alpha;
 };
 
 const int COVERAGE_FILL_BIT = 0x40;

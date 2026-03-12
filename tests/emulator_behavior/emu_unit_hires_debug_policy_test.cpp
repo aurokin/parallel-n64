@@ -88,6 +88,10 @@ static void test_no_env_means_no_overrides()
 	EnvGuard cycle1_rgb_texel0("PARALLEL_HIRES_FORCE_CYCLE1_RGB_TEXEL0_DESC");
 	EnvGuard cycle1_rgb_full("PARALLEL_HIRES_FORCE_CYCLE1_RGB_FULL_DESC");
 	EnvGuard cycle1_rgb_zero("PARALLEL_HIRES_FORCE_CYCLE1_RGB_ZERO_DESC");
+	EnvGuard cycle1_alpha_texel0("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_TEXEL0_DESC");
+	EnvGuard cycle1_alpha_shade("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_SHADE_DESC");
+	EnvGuard cycle1_alpha_full("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_FULL_DESC");
+	EnvGuard cycle1_alpha_zero("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_ZERO_DESC");
 	EnvGuard cycle0_alpha_texel0("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_TEXEL0_DESC");
 	EnvGuard cycle0_alpha_shade("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_SHADE_DESC");
 	EnvGuard cycle0_alpha_full("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_FULL_DESC");
@@ -128,6 +132,10 @@ static void test_no_env_means_no_overrides()
 	unsetenv(cycle1_rgb_texel0.name);
 	unsetenv(cycle1_rgb_full.name);
 	unsetenv(cycle1_rgb_zero.name);
+	unsetenv(cycle1_alpha_texel0.name);
+	unsetenv(cycle1_alpha_shade.name);
+	unsetenv(cycle1_alpha_full.name);
+	unsetenv(cycle1_alpha_zero.name);
 	unsetenv(cycle0_alpha_texel0.name);
 	unsetenv(cycle0_alpha_shade.name);
 	unsetenv(cycle0_alpha_full.name);
@@ -171,6 +179,10 @@ static void test_no_env_means_no_overrides()
 	check(!overrides.force_cycle1_rgb_texel0, "force_cycle1_rgb_texel0 should default off");
 	check(!overrides.force_cycle1_rgb_full, "force_cycle1_rgb_full should default off");
 	check(!overrides.force_cycle1_rgb_zero, "force_cycle1_rgb_zero should default off");
+	check(!overrides.force_cycle1_alpha_texel0, "force_cycle1_alpha_texel0 should default off");
+	check(!overrides.force_cycle1_alpha_shade, "force_cycle1_alpha_shade should default off");
+	check(!overrides.force_cycle1_alpha_full, "force_cycle1_alpha_full should default off");
+	check(!overrides.force_cycle1_alpha_zero, "force_cycle1_alpha_zero should default off");
 	check(!overrides.force_cycle0_alpha_texel0, "force_cycle0_alpha_texel0 should default off");
 	check(!overrides.force_cycle0_alpha_shade, "force_cycle0_alpha_shade should default off");
 	check(!overrides.force_cycle0_alpha_full, "force_cycle0_alpha_full should default off");
@@ -197,6 +209,8 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	EnvGuard cycle0_rgb_zero("PARALLEL_HIRES_FORCE_CYCLE0_RGB_ZERO_DESC");
 	EnvGuard cycle1_rgb_combined("PARALLEL_HIRES_FORCE_CYCLE1_RGB_COMBINED_DESC");
 	EnvGuard cycle1_rgb_zero("PARALLEL_HIRES_FORCE_CYCLE1_RGB_ZERO_DESC");
+	EnvGuard cycle1_alpha_texel0("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_TEXEL0_DESC");
+	EnvGuard cycle1_alpha_zero("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_ZERO_DESC");
 	EnvGuard cycle0_alpha_texel0("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_TEXEL0_DESC");
 	EnvGuard cycle0_alpha_zero("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_ZERO_DESC");
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
@@ -217,6 +231,8 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	setenv(cycle0_rgb_zero.name, "25", 1);
 	setenv(cycle1_rgb_combined.name, "40", 1);
 	setenv(cycle1_rgb_zero.name, "25", 1);
+	setenv(cycle1_alpha_texel0.name, "40", 1);
+	setenv(cycle1_alpha_zero.name, "25", 1);
 	setenv(cycle0_alpha_texel0.name, "40", 1);
 	setenv(cycle0_alpha_zero.name, "25", 1);
 	setenv(match_raster.name, "0x21844108", 1);
@@ -240,6 +256,8 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	check(overrides.force_cycle0_rgb_zero, "matching force_cycle0_rgb_zero should trigger");
 	check(overrides.force_cycle1_rgb_combined, "matching force_cycle1_rgb_combined should trigger");
 	check(overrides.force_cycle1_rgb_zero, "matching force_cycle1_rgb_zero should trigger");
+	check(overrides.force_cycle1_alpha_texel0, "matching force_cycle1_alpha_texel0 should trigger");
+	check(overrides.force_cycle1_alpha_zero, "matching force_cycle1_alpha_zero should trigger");
 	check(overrides.force_cycle0_alpha_texel0, "matching force_cycle0_alpha_texel0 should trigger");
 	check(overrides.force_cycle0_alpha_zero, "matching force_cycle0_alpha_zero should trigger");
 
@@ -366,6 +384,10 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	EnvGuard cycle1_rgb_texel0("PARALLEL_HIRES_FORCE_CYCLE1_RGB_TEXEL0_DESC");
 	EnvGuard cycle1_rgb_full("PARALLEL_HIRES_FORCE_CYCLE1_RGB_FULL_DESC");
 	EnvGuard cycle1_rgb_zero("PARALLEL_HIRES_FORCE_CYCLE1_RGB_ZERO_DESC");
+	EnvGuard cycle1_alpha_texel0("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_TEXEL0_DESC");
+	EnvGuard cycle1_alpha_shade("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_SHADE_DESC");
+	EnvGuard cycle1_alpha_full("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_FULL_DESC");
+	EnvGuard cycle1_alpha_zero("PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_ZERO_DESC");
 	EnvGuard cycle0_alpha_texel0("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_TEXEL0_DESC");
 	EnvGuard cycle0_alpha_shade("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_SHADE_DESC");
 	EnvGuard cycle0_alpha_full("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_FULL_DESC");
@@ -396,6 +418,10 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	setenv(cycle1_rgb_texel0.name, "25", 1);
 	setenv(cycle1_rgb_full.name, "25", 1);
 	setenv(cycle1_rgb_zero.name, "25", 1);
+	setenv(cycle1_alpha_texel0.name, "25", 1);
+	setenv(cycle1_alpha_shade.name, "25", 1);
+	setenv(cycle1_alpha_full.name, "25", 1);
+	setenv(cycle1_alpha_zero.name, "25", 1);
 	setenv(cycle0_alpha_texel0.name, "25", 1);
 	setenv(cycle0_alpha_shade.name, "25", 1);
 	setenv(cycle0_alpha_full.name, "25", 1);
@@ -476,8 +502,14 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	      "pixel_alpha_full should set debug padding bit");
 	check((depth_state.padding[0] & HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT) != 0,
 	      "pixel_alpha_zero should set debug padding bit");
-	check((depth_state.padding[1] & 0xffu) == 0,
-	      "cycle0 combiner probes should not use depth blend padding");
+	check((depth_state.padding[1] & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_TEXEL0_BIT) != 0,
+	      "cycle1_alpha_texel0 should set depth blend padding1");
+	check((depth_state.padding[1] & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_SHADE_BIT) != 0,
+	      "cycle1_alpha_shade should set depth blend padding1");
+	check((depth_state.padding[1] & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_FULL_BIT) != 0,
+	      "cycle1_alpha_full should set depth blend padding1");
+	check((depth_state.padding[1] & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_ZERO_BIT) != 0,
+	      "cycle1_alpha_zero should set depth blend padding1");
 	check((static_dither & HIRES_CMBDBG_FORCE_CYCLE0_RGB_TEXEL0_BIT) != 0,
 	      "cycle0_rgb_texel0 should set combiner dither debug bit");
 	check((static_dither & HIRES_CMBDBG_FORCE_CYCLE0_RGB_SHADE_BIT) != 0,

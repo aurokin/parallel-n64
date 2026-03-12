@@ -457,11 +457,16 @@ void depth_blend(int x, int y, uint primitive_index, ShadedData shaded)
 {
 	const uint HIRES_DBDBG_FORCE_PIXEL_ALPHA_FULL_BIT = 1u << 6u;
 	const uint HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT = 1u << 7u;
+	const uint HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_TEXEL0_BIT = 1u << 0u;
+	const uint HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_SHADE_BIT = 1u << 1u;
+	const uint HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_FULL_BIT = 1u << 2u;
+	const uint HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_ZERO_BIT = 1u << 3u;
 	int z = shaded.z_dith >> 9;
 	int dith = shaded.z_dith & 0x1ff;
 	int coverage_count = shaded.coverage_count;
 	u8x4 combined = shaded.combined;
 	u8 shade_alpha = shaded.shade_alpha;
+	u8 texel0_alpha = shaded.texel0_alpha;
 
 	uint blend_state_index = uint(state_indices.elems[primitive_index].static_depth_tmem.y);
 	DerivedSetup derived = load_derived_setup(primitive_index);
@@ -475,6 +480,14 @@ void depth_blend(int x, int y, uint primitive_index, ShadedData shaded)
 	bool blend_multicycle = (depth_blend.flags & DEPTH_BLEND_MULTI_CYCLE_BIT) != 0;
 	bool aa_enable = (depth_blend.flags & DEPTH_BLEND_AA_BIT) != 0;
 	bool dither_en = (depth_blend.flags & DEPTH_BLEND_DITHER_ENABLE_BIT) != 0;
+	if ((uint(depth_blend.padding1) & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_TEXEL0_BIT) != 0u)
+		combined.a = texel0_alpha;
+	if ((uint(depth_blend.padding1) & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_SHADE_BIT) != 0u)
+		combined.a = shade_alpha;
+	if ((uint(depth_blend.padding1) & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_FULL_BIT) != 0u)
+		combined.a = U8_C(0xff);
+	if ((uint(depth_blend.padding1) & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_ZERO_BIT) != 0u)
+		combined.a = U8_C(0x00);
 	if ((uint(depth_blend.padding0) & HIRES_DBDBG_FORCE_PIXEL_ALPHA_FULL_BIT) != 0u)
 		combined.a = U8_C(0xff);
 	if ((uint(depth_blend.padding0) & HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT) != 0u)

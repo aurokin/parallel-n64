@@ -41,6 +41,10 @@ require_pattern "--no-state-pause-before-load" \
   "usage text missing --no-state-pause-before-load"
 require_pattern "--state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)" \
   "usage text missing --state-pause-delay"
+require_pattern "--state-frame-advance N" \
+  "usage text missing --state-frame-advance"
+require_pattern "--state-frame-advance-delay SEC" \
+  "usage text missing --state-frame-advance-delay"
 require_pattern "--state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)" \
   "usage text missing --state-shot-delay"
 require_pattern "--state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 1.0)" \
@@ -91,6 +95,8 @@ require_pattern 'pause_before_shot="0"' "default pre-screenshot pause missing"
 require_pattern 'pause_before_shot_delay="0.2"' "default pre-screenshot pause delay missing"
 require_pattern 'state_pre_load_pause_delay="0.2"' "default state pre-load pause delay missing"
 require_pattern 'state_pause_before_load="0"' "default state pre-load pause missing"
+require_pattern 'state_frame_advance="0"' "default state frame advance missing"
+require_pattern 'state_frame_advance_delay="0.05"' "default state frame advance delay missing"
 require_pattern 'timed_close_delay="1.0"' "default timed close delay missing"
 require_pattern 'xdg_root="$capture_dir/xdg"' "temp XDG root missing"
 require_pattern 'retroarch_cfg="$xdg_root/retroarch/retroarch.cfg"' \
@@ -127,6 +133,8 @@ require_pattern "Hi-res keying summary: .*provider=on" "hires validation must re
 require_pattern 'draw_with_replacement' "hires validation must check replacement-bound draws"
 require_pattern 'dump_vi_stages="${1:-}"' "VI stage dump option parsing missing"
 require_pattern 'state_pre_load_pause_delay="${1:-}"' "state pre-load pause delay parsing missing"
+require_pattern 'state_frame_advance="${1:-}"' "state frame advance parsing missing"
+require_pattern 'state_frame_advance_delay="${1:-}"' "state frame advance delay parsing missing"
 require_pattern 'timed_save_state_at="${1:-}"' "timed save-state timing parsing missing"
 require_pattern 'timed_save_state_cmd="${1:-}"' "timed save-state command parsing missing"
 require_pattern 'state_pause_before_load="1"' "state pre-load pause enable parsing missing"
@@ -137,6 +145,8 @@ require_pattern 'smoke_cmd+=("--buttons" "$buttons_csv")' "button forwarding mis
 require_pattern 'smoke_cmd+=("--state-cmd" "$state_cmd")' "state command forwarding missing"
 require_pattern 'smoke_cmd+=("--load-delay" "$state_load_delay")' "state load delay forwarding missing"
 require_pattern 'smoke_cmd+=("--pre-load-pause-delay" "$state_pre_load_pause_delay")' "state pre-load pause delay forwarding missing"
+require_pattern 'smoke_cmd+=("--frame-advance" "$state_frame_advance")' "state frame advance forwarding missing"
+require_pattern 'smoke_cmd+=("--frame-advance-delay" "$state_frame_advance_delay")' "state frame advance delay forwarding missing"
 require_pattern 'smoke_cmd+=("--shot-delay" "$state_shot_delay")' "state shot delay forwarding missing"
 require_pattern 'smoke_cmd+=("--dump-trigger-file" "$dump_vi_trigger_file")' "state dump trigger forwarding missing"
 require_pattern 'smoke_cmd+=(--pause-before-load)' "state pre-load pause enable forwarding missing"

@@ -128,6 +128,12 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - state mode also supports optional pre-load pausing for stability checks:
     - `--state-pause-before-load`
     - `--state-pre-load-pause-delay <sec>`
+  - state mode also supports optional frame stepping:
+    - `--state-frame-advance <N>`
+    - `--state-frame-advance-delay <sec>`
+  - current Paper Mario intro22 caveat:
+    - RetroArch receives `FRAMEADVANCE` over netcmd, but the seeded intro22 loop was pixel-identical at `0/1/2` frame advances
+    - validate frame stepping on the specific scene before using it as a truth source
 - `parallel` scaling helper:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses the same-core save state path for faster, stable scaling iteration

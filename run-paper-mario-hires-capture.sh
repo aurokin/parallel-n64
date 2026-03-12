@@ -24,6 +24,8 @@ pause_before_shot_delay="0.2"
 state_load_delay="4.0"
 state_pre_load_pause_delay="0.2"
 state_pause_delay="0.2"
+state_frame_advance="0"
+state_frame_advance_delay="0.05"
 state_shot_delay="1.2"
 state_close_delay="1.0"
 timed_close_delay="1.0"
@@ -86,6 +88,10 @@ Options:
   --no-state-pause-before-load
                          Skip PAUSE_TOGGLE before the state command in state mode (default)
   --state-pause-delay SEC Delay after state load before PAUSE_TOGGLE (default: 0.2)
+  --state-frame-advance N
+                         Advance N frames after pause and before SCREENSHOT in state mode (default: 0)
+  --state-frame-advance-delay SEC
+                         Delay between FRAMEADVANCE commands in state mode (default: 0.05)
   --state-shot-delay SEC  Delay after state load/pause before SCREENSHOT (default: 1.2)
   --state-close-delay SEC Delay after SCREENSHOT before close in state mode (default: 1.0)
   --timed-close-delay SEC Delay after SCREENSHOT before close in timed mode (default: 1.0)
@@ -418,6 +424,14 @@ while (($#)); do
       shift
       state_pause_delay="${1:-}"
       ;;
+    --state-frame-advance)
+      shift
+      state_frame_advance="${1:-}"
+      ;;
+    --state-frame-advance-delay)
+      shift
+      state_frame_advance_delay="${1:-}"
+      ;;
     --state-shot-delay)
       shift
       state_shot_delay="${1:-}"
@@ -589,6 +603,16 @@ if ! is_nonnegative_number "$state_pause_delay"; then
   exit 1
 fi
 
+if ! [[ "$state_frame_advance" =~ ^[0-9]+$ ]]; then
+  echo "--state-frame-advance must be a non-negative integer: $state_frame_advance" >&2
+  exit 1
+fi
+
+if ! is_nonnegative_number "$state_frame_advance_delay"; then
+  echo "--state-frame-advance-delay must be a non-negative number: $state_frame_advance_delay" >&2
+  exit 1
+fi
+
 if ! is_nonnegative_number "$state_shot_delay"; then
   echo "--state-shot-delay must be a non-negative number: $state_shot_delay" >&2
   exit 1
@@ -650,6 +674,8 @@ elif [[ "$smoke_mode" == "state" ]]; then
   smoke_cmd+=("--load-delay" "$state_load_delay")
   smoke_cmd+=("--pre-load-pause-delay" "$state_pre_load_pause_delay")
   smoke_cmd+=("--pause-delay" "$state_pause_delay")
+  smoke_cmd+=("--frame-advance" "$state_frame_advance")
+  smoke_cmd+=("--frame-advance-delay" "$state_frame_advance_delay")
   smoke_cmd+=("--shot-delay" "$state_shot_delay")
   smoke_cmd+=("--close-delay" "$state_close_delay")
   smoke_cmd+=("--state-cmd" "$state_cmd")
@@ -701,7 +727,7 @@ if [[ "$smoke_mode" == "buttons" ]]; then
   echo "Screenshot timing: +${screenshot_at}s"
 elif [[ "$smoke_mode" == "state" ]]; then
   echo "Smoke mode: state"
-  echo "State load timing: +${state_load_delay}s, pre-load pause=${state_pause_before_load} (+${state_pre_load_pause_delay}s), screenshot +${state_shot_delay}s after load/pause"
+  echo "State load timing: +${state_load_delay}s, pre-load pause=${state_pause_before_load} (+${state_pre_load_pause_delay}s), frame_advance=${state_frame_advance} (+${state_frame_advance_delay}s), screenshot +${state_shot_delay}s after load/pause"
 else
   echo "Smoke mode: timed"
   echo "Timed screenshot: +${screenshot_at}s, close +${timed_close_delay}s after shot"

@@ -7,6 +7,8 @@ RUNNER="$SCRIPT_DIR/run-n64.sh"
 load_delay="2.2"
 pre_load_pause_delay="0.2"
 pause_delay="0.2"
+frame_advance_count="0"
+frame_advance_delay="0.05"
 shot_delay="1.2"
 close_delay="0.2"
 netcmd_port="55355"
@@ -28,6 +30,9 @@ Options:
   --pre-load-pause-delay SEC
                          Delay after pre-load PAUSE_TOGGLE before state command (default: 0.2)
   --pause-delay SEC      Delay after state load before PAUSE_TOGGLE (default: 0.2)
+  --frame-advance N      Advance N frames after pause and before SCREENSHOT (default: 0)
+  --frame-advance-delay SEC
+                         Delay between FRAMEADVANCE commands (default: 0.05)
   --shot-delay SEC       Delay after PAUSE_TOGGLE before SCREENSHOT (default: 1.2)
   --close-delay SEC      Delay after SCREENSHOT before close (default: 0.2)
   --pause-before-load    Send PAUSE_TOGGLE before the state command
@@ -42,7 +47,7 @@ Options:
 Examples:
   ./run-n64-smoke-state.sh -- --verbose
   ./run-n64-smoke-state.sh --load-delay 2.2 --shot-delay 1.2 --close-delay 0.2 -- --verbose
-  ./run-n64-smoke-state.sh --pause --pause-delay 1.0 --shot-delay 0.2 -- --verbose
+  ./run-n64-smoke-state.sh --pause --pause-delay 1.0 --frame-advance 3 --shot-delay 0.2 -- --verbose
   ./run-n64-smoke-state.sh --pause-before-load --pre-load-pause-delay 0.5 --pause -- --verbose
 EOF_USAGE
 }
@@ -53,6 +58,10 @@ is_nonnegative_number() {
 
 is_positive_int() {
   [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+
+is_nonnegative_int() {
+  [[ "$1" =~ ^[0-9]+$ ]]
 }
 
 send_netcmd() {
@@ -83,6 +92,14 @@ while (($#)); do
     --pause-delay)
       shift
       pause_delay="${1:-}"
+      ;;
+    --frame-advance)
+      shift
+      frame_advance_count="${1:-}"
+      ;;
+    --frame-advance-delay)
+      shift
+      frame_advance_delay="${1:-}"
       ;;
     --pre-load-pause-delay)
       shift
@@ -161,6 +178,16 @@ if ! is_nonnegative_number "$pause_delay"; then
   exit 1
 fi
 
+if ! is_nonnegative_int "$frame_advance_count"; then
+  echo "--frame-advance must be a non-negative integer: $frame_advance_count" >&2
+  exit 1
+fi
+
+if ! is_nonnegative_number "$frame_advance_delay"; then
+  echo "--frame-advance-delay must be a non-negative number: $frame_advance_delay" >&2
+  exit 1
+fi
+
 if ! is_nonnegative_number "$shot_delay"; then
   echo "--shot-delay must be a non-negative number: $shot_delay" >&2
   exit 1
@@ -179,14 +206,15 @@ fi
 trap cleanup EXIT
 
 pause_state="disabled"
-if [[ "$send_pause" == "1" ]]; then
+if [[ "$send_pause" == "1" || "$frame_advance_count" != "0" ]]; then
   pause_state="enabled"
+  send_pause="1"
 fi
 pre_load_pause_state="disabled"
 if [[ "$send_pre_load_pause" == "1" ]]; then
   pre_load_pause_state="enabled"
 fi
-echo "Smoke-state: load_cmd='$state_cmd' at +${load_delay}s, pre_load_pause=${pre_load_pause_state}, pre_load_pause_delay=${pre_load_pause_delay}s, pause=${pause_state}, pause_delay=${pause_delay}s, screenshot +${shot_delay}s after pause/load, close +${close_delay}s after screenshot, port=${netcmd_port}"
+echo "Smoke-state: load_cmd='$state_cmd' at +${load_delay}s, pre_load_pause=${pre_load_pause_state}, pre_load_pause_delay=${pre_load_pause_delay}s, pause=${pause_state}, pause_delay=${pause_delay}s, frame_advance=${frame_advance_count}, frame_advance_delay=${frame_advance_delay}s, screenshot +${shot_delay}s after pause/load, close +${close_delay}s after screenshot, port=${netcmd_port}"
 
 "$RUNNER" "${runner_args[@]}" &
 run_pid="$!"
@@ -217,6 +245,22 @@ if [[ "$send_pause" == "1" ]]; then
       echo "NetCmd failed: 'PAUSE_TOGGLE'" >&2
     fi
   fi
+fi
+
+if [[ "$frame_advance_count" != "0" ]]; then
+  for ((i = 0; i < frame_advance_count; i++)); do
+    if ! kill -0 "$run_pid" 2>/dev/null; then
+      break
+    fi
+    if send_netcmd "FRAMEADVANCE"; then
+      echo "NetCmd: sent 'FRAMEADVANCE' ($((i + 1))/${frame_advance_count})"
+    else
+      echo "NetCmd failed: 'FRAMEADVANCE' ($((i + 1))/${frame_advance_count})" >&2
+    fi
+    if [[ "$frame_advance_delay" != "0" && $((i + 1)) -lt "$frame_advance_count" ]]; then
+      sleep "$frame_advance_delay"
+    fi
+  done
 fi
 
 if [[ -n "$dump_trigger_file" ]]; then

@@ -69,6 +69,12 @@ Co-Authored-By: Codex <noreply@openai.com>
   - state mode also supports optional pre-load pausing for stability checks:
     - `--state-pause-before-load`
     - `--state-pre-load-pause-delay <sec>`
+  - state mode also supports frame stepping via RetroArch netcmd:
+    - `--state-frame-advance <N>`
+    - `--state-frame-advance-delay <sec>`
+  - current intro22 seeded-state note:
+    - `FRAMEADVANCE` is delivered over netcmd, but `0/1/2` frame-advance captures were pixel-identical on the current seeded intro22 loop
+    - do not assume frame stepping is effective on this workflow until a scene-specific validation proves it
 - Parallel HIRES zoom compare:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`

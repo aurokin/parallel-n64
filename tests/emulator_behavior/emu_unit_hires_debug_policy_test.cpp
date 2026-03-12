@@ -66,6 +66,9 @@ static void test_no_env_means_no_overrides()
 	EnvGuard clear_alpha_test("PARALLEL_HIRES_CLEAR_ALPHA_TEST_DESC");
 	EnvGuard force_native("PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
 	EnvGuard force_upscaled("PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC");
+	EnvGuard blend_1a_memory("PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
+	EnvGuard blend_2a_memory("PARALLEL_HIRES_BLEND_2A_MEMORY_DESC");
+	EnvGuard blend_2b_memory_alpha("PARALLEL_HIRES_BLEND_2B_MEMORY_ALPHA_DESC");
 	unsetenv(clear_force.name);
 	unsetenv(clear_multi.name);
 	unsetenv(clear_image.name);
@@ -77,6 +80,9 @@ static void test_no_env_means_no_overrides()
 	unsetenv(clear_alpha_test.name);
 	unsetenv(force_native.name);
 	unsetenv(force_upscaled.name);
+	unsetenv(blend_1a_memory.name);
+	unsetenv(blend_2a_memory.name);
+	unsetenv(blend_2b_memory_alpha.name);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -91,6 +97,9 @@ static void test_no_env_means_no_overrides()
 	check(!overrides.clear_alpha_test, "clear_alpha_test should default off");
 	check(!overrides.force_native_texrect, "force_native_texrect should default off");
 	check(!overrides.force_upscaled_texrect, "force_upscaled_texrect should default off");
+	check(!overrides.force_blend_1a_memory, "force_blend_1a_memory should default off");
+	check(!overrides.force_blend_2a_memory, "force_blend_2a_memory should default off");
+	check(!overrides.force_blend_2b_memory_alpha, "force_blend_2b_memory_alpha should default off");
 }
 
 static void test_descriptor_lists_match_any_bound_replacement()
@@ -99,10 +108,14 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	EnvGuard clear_image("PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
 	EnvGuard clear_dither("PARALLEL_HIRES_CLEAR_DITHER_DESC");
 	EnvGuard clear_depth("PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
+	EnvGuard blend_1a_memory("PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
+	EnvGuard blend_2b_one("PARALLEL_HIRES_BLEND_2B_ONE_DESC");
 	setenv(clear_force.name, "41, 88", 1);
 	setenv(clear_image.name, "25", 1);
 	setenv(clear_dither.name, "999,40", 1);
 	setenv(clear_depth.name, "40", 1);
+	setenv(blend_1a_memory.name, "40", 1);
+	setenv(blend_2b_one.name, "88", 1);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -110,6 +123,8 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	check(overrides.clear_image_read, "matching clear_image_read descriptor should trigger");
 	check(overrides.clear_blend_dither, "matching clear_blend_dither descriptor should trigger");
 	check(overrides.clear_depth_test, "matching clear_depth_test descriptor should trigger");
+	check(overrides.force_blend_1a_memory, "matching blend_1a_memory descriptor should trigger");
+	check(!overrides.force_blend_2b_one, "non-matching blend_2b_one descriptor should not trigger");
 }
 
 static void test_apply_overrides_mutates_expected_state_bits()
@@ -122,6 +137,10 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	EnvGuard clear_aa("PARALLEL_HIRES_CLEAR_AA_DESC");
 	EnvGuard clear_alpha_test("PARALLEL_HIRES_CLEAR_ALPHA_TEST_DESC");
 	EnvGuard force_native("PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
+	EnvGuard blend_1a_memory("PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
+	EnvGuard blend_1b_shade_alpha("PARALLEL_HIRES_BLEND_1B_SHADE_ALPHA_DESC");
+	EnvGuard blend_2a_memory("PARALLEL_HIRES_BLEND_2A_MEMORY_DESC");
+	EnvGuard blend_2b_memory_alpha("PARALLEL_HIRES_BLEND_2B_MEMORY_ALPHA_DESC");
 	setenv(clear_force.name, "25", 1);
 	setenv(clear_multi.name, "25", 1);
 	setenv(clear_depth_test.name, "25", 1);
@@ -130,6 +149,10 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	setenv(clear_aa.name, "25", 1);
 	setenv(clear_alpha_test.name, "25", 1);
 	setenv(force_native.name, "25", 1);
+	setenv(blend_1a_memory.name, "25", 1);
+	setenv(blend_1b_shade_alpha.name, "25", 1);
+	setenv(blend_2a_memory.name, "25", 1);
+	setenv(blend_2b_memory_alpha.name, "25", 1);
 
 	auto descs = make_descs(25u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 1);
@@ -149,7 +172,13 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	                        DEPTH_BLEND_COLOR_ON_COVERAGE_BIT |
 	                        DEPTH_BLEND_AA_BIT |
 	                        DEPTH_BLEND_DITHER_ENABLE_BIT;
-	apply_hires_debug_draw_overrides(overrides, setup, raster, depth);
+	DepthBlendState depth_state = {};
+	depth_state.blend_cycles[0].blend_1a = BlendMode1A::PixelColor;
+	depth_state.blend_cycles[0].blend_1b = BlendMode1B::PixelAlpha;
+	depth_state.blend_cycles[0].blend_2a = BlendMode2A::PixelColor;
+	depth_state.blend_cycles[0].blend_2b = BlendMode2B::InvPixelAlpha;
+	depth_state.blend_cycles[1] = depth_state.blend_cycles[0];
+	apply_hires_debug_draw_overrides(overrides, setup, raster, depth, depth_state);
 
 	check((setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) != 0,
 	      "force_native_texrect should disable upscaling");
@@ -177,6 +206,16 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	      "clear_alpha_test should clear raster alpha test bit");
 	check((raster & RASTERIZATION_ALPHA_TEST_DITHER_BIT) == 0,
 	      "clear_alpha_test should clear raster alpha test dither bit");
+	check(depth_state.blend_cycles[0].blend_1a == BlendMode1A::MemoryColor,
+	      "blend_1a override should force memory color");
+	check(depth_state.blend_cycles[0].blend_1b == BlendMode1B::ShadeAlpha,
+	      "blend_1b override should force shade alpha");
+	check(depth_state.blend_cycles[0].blend_2a == BlendMode2A::MemoryColor,
+	      "blend_2a override should force memory color");
+	check(depth_state.blend_cycles[0].blend_2b == BlendMode2B::MemoryAlpha,
+	      "blend_2b override should force memory alpha");
+	check(depth_state.blend_cycles[1].blend_2b == BlendMode2B::MemoryAlpha,
+	      "blend overrides should apply to both cycles");
 }
 
 static void test_force_upscaled_texrect_wins_last()
@@ -193,7 +232,8 @@ static void test_force_upscaled_texrect_wins_last()
 	setup.flags = TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
 	StaticRasterizationFlags raster = 0;
 	DepthBlendFlags depth = 0;
-	apply_hires_debug_draw_overrides(overrides, setup, raster, depth);
+	DepthBlendState depth_state = {};
+	apply_hires_debug_draw_overrides(overrides, setup, raster, depth, depth_state);
 
 	check((setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) == 0,
 	      "force_upscaled_texrect should win over force_native_texrect");

@@ -23,6 +23,16 @@ struct HiresDebugDrawOverrides
 	bool clear_alpha_test = false;
 	bool force_native_texrect = false;
 	bool force_upscaled_texrect = false;
+	bool force_blend_1a_memory = false;
+	bool force_blend_1a_pixel = false;
+	bool force_blend_1b_shade_alpha = false;
+	bool force_blend_1b_pixel_alpha = false;
+	bool force_blend_2a_memory = false;
+	bool force_blend_2a_pixel = false;
+	bool force_blend_2b_memory_alpha = false;
+	bool force_blend_2b_inv_pixel_alpha = false;
+	bool force_blend_2b_one = false;
+	bool force_blend_2b_zero = false;
 };
 
 inline bool hires_debug_desc_list_matches_value(const char *env, uint32_t value)
@@ -87,13 +97,24 @@ inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides(const std::arra
 	overrides.clear_alpha_test = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_ALPHA_TEST_DESC");
 	overrides.force_native_texrect = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
 	overrides.force_upscaled_texrect = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC");
+	overrides.force_blend_1a_memory = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
+	overrides.force_blend_1a_pixel = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1A_PIXEL_DESC");
+	overrides.force_blend_1b_shade_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1B_SHADE_ALPHA_DESC");
+	overrides.force_blend_1b_pixel_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1B_PIXEL_ALPHA_DESC");
+	overrides.force_blend_2a_memory = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2A_MEMORY_DESC");
+	overrides.force_blend_2a_pixel = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2A_PIXEL_DESC");
+	overrides.force_blend_2b_memory_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_MEMORY_ALPHA_DESC");
+	overrides.force_blend_2b_inv_pixel_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_INV_PIXEL_ALPHA_DESC");
+	overrides.force_blend_2b_one = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_ONE_DESC");
+	overrides.force_blend_2b_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_ZERO_DESC");
 	return overrides;
 }
 
 inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &overrides,
                                              TriangleSetup &setup,
                                              StaticRasterizationFlags &raster_flags,
-                                             DepthBlendFlags &depth_blend_flags)
+                                             DepthBlendFlags &depth_blend_flags,
+                                             DepthBlendState &depth_blend_state)
 {
 	if (overrides.force_native_texrect)
 		setup.flags |= TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
@@ -123,6 +144,29 @@ inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &over
 	}
 	if (overrides.clear_alpha_test)
 		raster_flags &= ~(RASTERIZATION_ALPHA_TEST_BIT | RASTERIZATION_ALPHA_TEST_DITHER_BIT);
+	for (auto &cycle : depth_blend_state.blend_cycles)
+	{
+		if (overrides.force_blend_1a_memory)
+			cycle.blend_1a = BlendMode1A::MemoryColor;
+		if (overrides.force_blend_1a_pixel)
+			cycle.blend_1a = BlendMode1A::PixelColor;
+		if (overrides.force_blend_1b_shade_alpha)
+			cycle.blend_1b = BlendMode1B::ShadeAlpha;
+		if (overrides.force_blend_1b_pixel_alpha)
+			cycle.blend_1b = BlendMode1B::PixelAlpha;
+		if (overrides.force_blend_2a_memory)
+			cycle.blend_2a = BlendMode2A::MemoryColor;
+		if (overrides.force_blend_2a_pixel)
+			cycle.blend_2a = BlendMode2A::PixelColor;
+		if (overrides.force_blend_2b_memory_alpha)
+			cycle.blend_2b = BlendMode2B::MemoryAlpha;
+		if (overrides.force_blend_2b_inv_pixel_alpha)
+			cycle.blend_2b = BlendMode2B::InvPixelAlpha;
+		if (overrides.force_blend_2b_one)
+			cycle.blend_2b = BlendMode2B::One;
+		if (overrides.force_blend_2b_zero)
+			cycle.blend_2b = BlendMode2B::Zero;
+	}
 }
 }
 }

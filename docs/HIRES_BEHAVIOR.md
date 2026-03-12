@@ -122,9 +122,11 @@
   - `./run-paper-mario-open-compare.sh --profile intro22` rebuilds a canonical latest compare before opening
 - Intro22 early-step HIRES debug knobs:
   - descriptor-targeted env lists are available for early draw-state sweeps without source edits:
+    - `PARALLEL_HIRES_SUPPRESS_DRAW_DESC`
     - `PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC`
     - `PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC`
     - `PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC`
+    - `PARALLEL_HIRES_FORCE_IMAGE_READ_DESC`
     - `PARALLEL_HIRES_CLEAR_DITHER_DESC`
     - `PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC`
     - `PARALLEL_HIRES_CLEAR_DEPTH_UPDATE_DESC`
@@ -164,6 +166,7 @@
     - `PARALLEL_HIRES_MATCH_SHADE`
   - `PARALLEL_HIRES_LOG_STATE_DESC` now emits raw combiner selectors, derived constant slots, and per-draw shade values so frozen-frame HIRES ownership can be mapped from the actual active program instead of normalized guesses
   - each env accepts a comma-separated descriptor list such as `40,41,42`
+  - `*` matches descriptorless/non-replacement draws too when paired with subtype filters, which is necessary for intro22 story/bottom lane debugging
 - Paper Mario scene manifest:
   - `docs/PAPER_MARIO_SCENES.md`
 - Preserved GLideN64 4x HIRES-on intro22 matched oracle:

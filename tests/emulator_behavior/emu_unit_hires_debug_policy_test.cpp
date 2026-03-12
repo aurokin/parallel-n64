@@ -55,9 +55,11 @@ static std::array<uint32_t, 8> make_descs(uint32_t a, uint32_t b = 0xffffffffu)
 
 static void test_no_env_means_no_overrides()
 {
+	EnvGuard suppress_draw("PARALLEL_HIRES_SUPPRESS_DRAW_DESC");
 	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
 	EnvGuard clear_multi("PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC");
 	EnvGuard clear_image("PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
+	EnvGuard force_image("PARALLEL_HIRES_FORCE_IMAGE_READ_DESC");
 	EnvGuard clear_dither("PARALLEL_HIRES_CLEAR_DITHER_DESC");
 	EnvGuard clear_depth_test("PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
 	EnvGuard clear_depth_update("PARALLEL_HIRES_CLEAR_DEPTH_UPDATE_DESC");
@@ -93,9 +95,11 @@ static void test_no_env_means_no_overrides()
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
 	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
 	EnvGuard match_shade("PARALLEL_HIRES_MATCH_SHADE");
+	unsetenv(suppress_draw.name);
 	unsetenv(clear_force.name);
 	unsetenv(clear_multi.name);
 	unsetenv(clear_image.name);
+	unsetenv(force_image.name);
 	unsetenv(clear_dither.name);
 	unsetenv(clear_depth_test.name);
 	unsetenv(clear_depth_update.name);
@@ -134,9 +138,11 @@ static void test_no_env_means_no_overrides()
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
+	check(!overrides.suppress_draw, "suppress_draw should default off");
 	check(!overrides.clear_force_blend, "clear_force_blend should default off");
 	check(!overrides.clear_multi_cycle, "clear_multi_cycle should default off");
 	check(!overrides.clear_image_read, "clear_image_read should default off");
+	check(!overrides.force_image_read, "force_image_read should default off");
 	check(!overrides.clear_blend_dither, "clear_blend_dither should default off");
 	check(!overrides.clear_depth_test, "clear_depth_test should default off");
 	check(!overrides.clear_depth_update, "clear_depth_update should default off");
@@ -176,8 +182,10 @@ static void test_no_env_means_no_overrides()
 
 static void test_descriptor_lists_match_any_bound_replacement()
 {
+	EnvGuard suppress_draw("PARALLEL_HIRES_SUPPRESS_DRAW_DESC");
 	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
 	EnvGuard clear_image("PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
+	EnvGuard force_image("PARALLEL_HIRES_FORCE_IMAGE_READ_DESC");
 	EnvGuard clear_dither("PARALLEL_HIRES_CLEAR_DITHER_DESC");
 	EnvGuard clear_depth("PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
 	EnvGuard blend_1a_memory("PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
@@ -194,8 +202,10 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
 	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
 	EnvGuard match_shade("PARALLEL_HIRES_MATCH_SHADE");
+	setenv(suppress_draw.name, "40", 1);
 	setenv(clear_force.name, "41, 88", 1);
 	setenv(clear_image.name, "25", 1);
+	setenv(force_image.name, "40", 1);
 	setenv(clear_dither.name, "999,40", 1);
 	setenv(clear_depth.name, "40", 1);
 	setenv(blend_1a_memory.name, "40", 1);
@@ -215,8 +225,10 @@ static void test_descriptor_lists_match_any_bound_replacement()
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
+	check(overrides.suppress_draw, "matching suppress_draw descriptor should trigger");
 	check(!overrides.clear_force_blend, "non-matching clear_force_blend descriptor should not trigger");
 	check(overrides.clear_image_read, "matching clear_image_read descriptor should trigger");
+	check(overrides.force_image_read, "matching force_image_read descriptor should trigger");
 	check(overrides.clear_blend_dither, "matching clear_blend_dither descriptor should trigger");
 	check(overrides.clear_depth_test, "matching clear_depth_test descriptor should trigger");
 	check(overrides.force_blend_1a_memory, "matching blend_1a_memory descriptor should trigger");
@@ -241,6 +253,19 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	check(subtype.has_shade &&
 	      subtype.shade == std::array<uint8_t, 4>{ 255u, 255u, 255u, 255u },
 	      "subtype shade match should parse tuple");
+}
+
+static void test_descriptor_wildcard_matches_without_bound_descs()
+{
+	EnvGuard suppress_draw("PARALLEL_HIRES_SUPPRESS_DRAW_DESC");
+	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
+	setenv(suppress_draw.name, "*", 1);
+	setenv(clear_force.name, "*", 1);
+
+	std::array<uint32_t, 8> descs = {};
+	auto overrides = derive_hires_debug_draw_overrides(descs, 0);
+	check(overrides.suppress_draw, "wildcard suppress_draw should apply without bound descriptors");
+	check(overrides.clear_force_blend, "wildcard descriptor match should apply without bound descriptors");
 }
 
 static void test_subtype_filter_blocks_nonmatching_overrides()
@@ -483,6 +508,7 @@ int main()
 {
 	test_no_env_means_no_overrides();
 	test_descriptor_lists_match_any_bound_replacement();
+	test_descriptor_wildcard_matches_without_bound_descs();
 	test_subtype_filter_blocks_nonmatching_overrides();
 	test_apply_overrides_mutates_expected_state_bits();
 	test_force_upscaled_texrect_wins_last();

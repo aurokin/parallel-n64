@@ -78,8 +78,10 @@ Co-Authored-By: Codex <noreply@openai.com>
   - defaults to the saved GLide HIRES intro22 oracle and emits focused crops for `top_banner`, `story_text`, `bottom_stage_grid`, and `left_stage_grid`
   - for early draw-state sweeps on intro22 without patching renderer code, use descriptor-targeted env lists:
     - `PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC`
+    - `PARALLEL_HIRES_SUPPRESS_DRAW_DESC`
     - `PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC`
     - `PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC`
+    - `PARALLEL_HIRES_FORCE_IMAGE_READ_DESC`
     - `PARALLEL_HIRES_CLEAR_DITHER_DESC`
     - `PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC`
     - `PARALLEL_HIRES_CLEAR_DEPTH_UPDATE_DESC`
@@ -119,6 +121,7 @@ Co-Authored-By: Codex <noreply@openai.com>
       - `PARALLEL_HIRES_MATCH_SHADE`
     - `PARALLEL_HIRES_LOG_STATE_DESC` now dumps raw combiner selectors, derived constant slots, and per-draw shade so frozen-frame ownership can be rebuilt from actual active lanes
   - each env accepts a comma-separated descriptor list like `40,41,42`
+  - `*` matches descriptorless/non-replacement draws too when combined with subtype filters, which is required for frozen intro22 story/bottom lane work
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off

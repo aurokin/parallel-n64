@@ -1863,12 +1863,15 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		stream.depth_blend_state.flags &= ~DEPTH_BLEND_DITHER_ENABLE_BIT;
 	if (draw_has_intro22_story_glyph_replacement)
 		stream.depth_blend_state.flags &= ~DEPTH_BLEND_FORCE_BLEND_BIT;
-	if (draw_has_replacement)
+
+	const auto debug_subtype_match = detail::derive_hires_debug_subtype_match();
+	const bool debug_scope_active = draw_has_replacement || detail::hires_debug_subtype_match_active(debug_subtype_match);
+	if (debug_scope_active)
 	{
 		auto normalized = normalize_static_state(stream.static_raster_state);
 		const auto debug_overrides = detail::filter_hires_debug_draw_overrides(
 				detail::derive_hires_debug_draw_overrides(draw_replacement_descs, draw_replacement_desc_count),
-				detail::derive_hires_debug_subtype_match(),
+				debug_subtype_match,
 				uint32_t(stream.static_raster_state.flags),
 				normalized,
 				attr);
@@ -1949,6 +1952,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     unsigned(stream.depth_blend_state.z_mode),
 			     unsigned(stream.depth_blend_state.padding[0]));
 		}
+		if (debug_overrides.suppress_draw)
+			return;
 	}
 
 	update_deduced_height(draw_setup);

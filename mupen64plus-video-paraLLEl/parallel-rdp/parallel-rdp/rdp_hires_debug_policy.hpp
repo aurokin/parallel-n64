@@ -12,9 +12,11 @@ namespace detail
 {
 struct HiresDebugDrawOverrides
 {
+	bool suppress_draw = false;
 	bool clear_force_blend = false;
 	bool clear_multi_cycle = false;
 	bool clear_image_read = false;
+	bool force_image_read = false;
 	bool clear_blend_dither = false;
 	bool clear_depth_test = false;
 	bool clear_depth_update = false;
@@ -119,6 +121,17 @@ inline bool hires_debug_desc_list_matches_value(const char *env, uint32_t value)
 	return false;
 }
 
+inline bool hires_debug_desc_list_matches_all(const char *env)
+{
+	if (!env || !*env)
+		return false;
+
+	while (*env == ',' || *env == ' ' || *env == '\t')
+		env++;
+
+	return *env == '*';
+}
+
 inline bool hires_debug_parse_u32_env(const char *env_name, uint32_t &value)
 {
 	const char *env = std::getenv(env_name);
@@ -163,11 +176,12 @@ inline bool hires_debug_desc_list_matches_any(const std::array<uint32_t, N> &des
                                               size_t count,
                                               const char *env_name)
 {
-	if (count == 0)
-		return false;
-
 	const char *env = std::getenv(env_name);
 	if (!env || !*env)
+		return false;
+	if (hires_debug_desc_list_matches_all(env))
+		return true;
+	if (count == 0)
 		return false;
 
 	for (size_t i = 0; i < count; i++)
@@ -184,9 +198,11 @@ inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides(const std::arra
                                                                  size_t count)
 {
 	HiresDebugDrawOverrides overrides = {};
+	overrides.suppress_draw = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_SUPPRESS_DRAW_DESC");
 	overrides.clear_force_blend = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
 	overrides.clear_multi_cycle = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC");
 	overrides.clear_image_read = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
+	overrides.force_image_read = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_IMAGE_READ_DESC");
 	overrides.clear_blend_dither = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_DITHER_DESC");
 	overrides.clear_depth_test = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
 	overrides.clear_depth_update = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_DEPTH_UPDATE_DESC");
@@ -309,6 +325,8 @@ inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &over
 	}
 	if (overrides.clear_image_read)
 		depth_blend_flags &= ~DEPTH_BLEND_IMAGE_READ_ENABLE_BIT;
+	if (overrides.force_image_read)
+		depth_blend_flags |= DEPTH_BLEND_IMAGE_READ_ENABLE_BIT;
 	if (overrides.clear_blend_dither)
 		depth_blend_flags &= ~DEPTH_BLEND_DITHER_ENABLE_BIT;
 	if (overrides.clear_depth_test)

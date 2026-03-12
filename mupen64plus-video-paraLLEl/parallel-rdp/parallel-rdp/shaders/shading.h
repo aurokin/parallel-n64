@@ -37,6 +37,10 @@ const int SCALING_FACTOR = 1 << SCALING_LOG2;
 
 bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 {
+	const uint HIRES_CMBDBG_FORCE_CYCLE0_RGB_TEXEL0_BIT = 1u << 24u;
+	const uint HIRES_CMBDBG_FORCE_CYCLE0_RGB_SHADE_BIT = 1u << 25u;
+	const uint HIRES_CMBDBG_FORCE_CYCLE0_RGB_FULL_BIT = 1u << 26u;
+	const uint HIRES_CMBDBG_FORCE_CYCLE0_RGB_ZERO_BIT = 1u << 27u;
 	const uint HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT = 1u << 28u;
 	const uint HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_SHADE_BIT = 1u << 29u;
 	const uint HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_FULL_BIT = 1u << 30u;
@@ -69,11 +73,19 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	StaticRasterizationState static_state = load_static_rasterization_state(static_state_index);
 	uint static_state_flags = static_state.flags;
 	int static_state_dither = static_state.dither;
+	bool force_cycle0_rgb_texel0 = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_RGB_TEXEL0_BIT) != 0u;
+	bool force_cycle0_rgb_shade = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_RGB_SHADE_BIT) != 0u;
+	bool force_cycle0_rgb_full = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_RGB_FULL_BIT) != 0u;
+	bool force_cycle0_rgb_zero = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_RGB_ZERO_BIT) != 0u;
 	bool force_cycle0_alpha_texel0 = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT) != 0u;
 	bool force_cycle0_alpha_shade = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_SHADE_BIT) != 0u;
 	bool force_cycle0_alpha_full = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_FULL_BIT) != 0u;
 	bool force_cycle0_alpha_zero = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_ZERO_BIT) != 0u;
-	static_state_dither &= int(~(HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT |
+	static_state_dither &= int(~(HIRES_CMBDBG_FORCE_CYCLE0_RGB_TEXEL0_BIT |
+	                             HIRES_CMBDBG_FORCE_CYCLE0_RGB_SHADE_BIT |
+	                             HIRES_CMBDBG_FORCE_CYCLE0_RGB_FULL_BIT |
+	                             HIRES_CMBDBG_FORCE_CYCLE0_RGB_ZERO_BIT |
+	                             HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT |
 	                             HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_SHADE_BIT |
 	                             HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_FULL_BIT |
 	                             HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_ZERO_BIT));
@@ -309,6 +321,14 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		                                           combiner_inputs_alpha0,
 		                                           alpha_dith, coverage_count, cvg_times_alpha, alpha_cvg_select,
 		                                           alpha_test, alpha_reference);
+		if (force_cycle0_rgb_texel0)
+			combined_inputs.combined.rgb = combined_inputs.texel0.rgb;
+		if (force_cycle0_rgb_shade)
+			combined_inputs.combined.rgb = i16x3(shade.rgb);
+		if (force_cycle0_rgb_full)
+			combined_inputs.combined.rgb = i16x3(I16_C(0xff));
+		if (force_cycle0_rgb_zero)
+			combined_inputs.combined.rgb = i16x3(I16_C(0x00));
 		if (force_cycle0_alpha_texel0)
 			combined_inputs.combined.a = combined_inputs.texel0.a;
 		if (force_cycle0_alpha_shade)

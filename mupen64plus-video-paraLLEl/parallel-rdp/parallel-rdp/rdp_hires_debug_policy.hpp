@@ -33,6 +33,22 @@ struct HiresDebugDrawOverrides
 	bool force_blend_2b_inv_pixel_alpha = false;
 	bool force_blend_2b_one = false;
 	bool force_blend_2b_zero = false;
+	bool force_blend_en_on = false;
+	bool force_blend_en_off = false;
+	bool force_coverage_wrap_on = false;
+	bool force_coverage_wrap_off = false;
+	bool force_blend_shift_zero = false;
+	bool force_blend_shift_max = false;
+};
+
+enum HiresDepthBlendDebugBit : uint8_t
+{
+	HIRES_DBDBG_FORCE_BLEND_EN_ON_BIT = 1 << 0,
+	HIRES_DBDBG_FORCE_BLEND_EN_OFF_BIT = 1 << 1,
+	HIRES_DBDBG_FORCE_CVG_WRAP_ON_BIT = 1 << 2,
+	HIRES_DBDBG_FORCE_CVG_WRAP_OFF_BIT = 1 << 3,
+	HIRES_DBDBG_FORCE_BLEND_SHIFT_ZERO_BIT = 1 << 4,
+	HIRES_DBDBG_FORCE_BLEND_SHIFT_MAX_BIT = 1 << 5
 };
 
 inline bool hires_debug_desc_list_matches_value(const char *env, uint32_t value)
@@ -107,6 +123,12 @@ inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides(const std::arra
 	overrides.force_blend_2b_inv_pixel_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_INV_PIXEL_ALPHA_DESC");
 	overrides.force_blend_2b_one = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_ONE_DESC");
 	overrides.force_blend_2b_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_ZERO_DESC");
+	overrides.force_blend_en_on = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_EN_ON_DESC");
+	overrides.force_blend_en_off = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_EN_OFF_DESC");
+	overrides.force_coverage_wrap_on = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CVG_WRAP_ON_DESC");
+	overrides.force_coverage_wrap_off = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CVG_WRAP_OFF_DESC");
+	overrides.force_blend_shift_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_SHIFT_ZERO_DESC");
+	overrides.force_blend_shift_max = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_SHIFT_MAX_DESC");
 	return overrides;
 }
 
@@ -167,6 +189,19 @@ inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &over
 		if (overrides.force_blend_2b_zero)
 			cycle.blend_2b = BlendMode2B::Zero;
 	}
+	depth_blend_state.padding[0] = 0;
+	if (overrides.force_blend_en_on)
+		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_BLEND_EN_ON_BIT;
+	if (overrides.force_blend_en_off)
+		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_BLEND_EN_OFF_BIT;
+	if (overrides.force_coverage_wrap_on)
+		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_CVG_WRAP_ON_BIT;
+	if (overrides.force_coverage_wrap_off)
+		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_CVG_WRAP_OFF_BIT;
+	if (overrides.force_blend_shift_zero)
+		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_BLEND_SHIFT_ZERO_BIT;
+	if (overrides.force_blend_shift_max)
+		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_BLEND_SHIFT_MAX_BIT;
 }
 }
 }

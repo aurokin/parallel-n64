@@ -34,7 +34,8 @@ DepthBlendState load_depth_blend_state(uint index)
 			depth_blend_state.elems[index].flags,
 			u8(depth_blend_state.elems[index].coverage_mode),
 			u8(depth_blend_state.elems[index].z_mode),
-			u8(0), u8(0));
+			u8(depth_blend_state.elems[index].padding0),
+			u8(depth_blend_state.elems[index].padding1));
 #endif
 }
 

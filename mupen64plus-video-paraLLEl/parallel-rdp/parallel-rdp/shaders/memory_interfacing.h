@@ -486,6 +486,7 @@ void depth_blend(int x, int y, uint primitive_index, ShadedData shaded)
 	                         coverage_count, memory_coverage,
 	                         z_compare, depth_blend.z_mode,
 	                         force_blend, aa_enable,
+	                         depth_blend.padding0,
 	                         blend_en, coverage_wrap, blend_shift);
 
 	GENERIC_MESSAGE3(combined.x, combined.y, combined.z);

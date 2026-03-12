@@ -30,6 +30,13 @@ const int Z_MODE_INTERPENETRATING = 1;
 const int Z_MODE_TRANSPARENT = 2;
 const int Z_MODE_DECAL = 3;
 
+const int HIRES_DBDBG_FORCE_BLEND_EN_ON_BIT = 1 << 0;
+const int HIRES_DBDBG_FORCE_BLEND_EN_OFF_BIT = 1 << 1;
+const int HIRES_DBDBG_FORCE_CVG_WRAP_ON_BIT = 1 << 2;
+const int HIRES_DBDBG_FORCE_CVG_WRAP_OFF_BIT = 1 << 3;
+const int HIRES_DBDBG_FORCE_BLEND_SHIFT_ZERO_BIT = 1 << 4;
+const int HIRES_DBDBG_FORCE_BLEND_SHIFT_MAX_BIT = 1 << 5;
+
 int combine_dz(int dz)
 {
 	// Find largest POT which is <= dz.
@@ -43,6 +50,7 @@ bool depth_test(int z, int dz, int dz_compressed,
                 inout int coverage_count, int current_coverage_count,
                 bool z_compare, int z_mode,
                 bool force_blend, bool aa_enable,
+                u8 hires_debug_bits,
                 out bool blend_en, out bool coverage_wrap, out u8x2 blend_shift)
 {
 	bool depth_pass;
@@ -140,6 +148,18 @@ bool depth_test(int z, int dz, int dz_compressed,
 		coverage_wrap = overflow;
 		depth_pass = true;
 	}
+	if ((hires_debug_bits & HIRES_DBDBG_FORCE_BLEND_EN_ON_BIT) != 0)
+		blend_en = true;
+	if ((hires_debug_bits & HIRES_DBDBG_FORCE_BLEND_EN_OFF_BIT) != 0)
+		blend_en = false;
+	if ((hires_debug_bits & HIRES_DBDBG_FORCE_CVG_WRAP_ON_BIT) != 0)
+		coverage_wrap = true;
+	if ((hires_debug_bits & HIRES_DBDBG_FORCE_CVG_WRAP_OFF_BIT) != 0)
+		coverage_wrap = false;
+	if ((hires_debug_bits & HIRES_DBDBG_FORCE_BLEND_SHIFT_ZERO_BIT) != 0)
+		blend_shift = u8x2(0);
+	if ((hires_debug_bits & HIRES_DBDBG_FORCE_BLEND_SHIFT_MAX_BIT) != 0)
+		blend_shift = u8x2(4);
 	return depth_pass;
 }
 

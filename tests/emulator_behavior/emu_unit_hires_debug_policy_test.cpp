@@ -315,6 +315,29 @@ static void test_subtype_filter_blocks_nonmatching_overrides()
 	check(!wrong_raster.clear_force_blend, "wrong raster should clear overrides");
 }
 
+static void test_subtype_filter_can_force_suppress_without_descriptors()
+{
+	EnvGuard suppress_desc("PARALLEL_HIRES_SUPPRESS_DRAW_DESC");
+	EnvGuard suppress_match("PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW");
+	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
+	unsetenv(suppress_desc.name);
+	setenv(suppress_match.name, "1", 1);
+	setenv(match_raster.name, "0x21840010", 1);
+
+	std::array<uint32_t, 8> descs = {};
+	auto overrides = derive_hires_debug_draw_overrides(descs, 0);
+	auto subtype = derive_hires_debug_subtype_match();
+
+	StaticRasterizationState normalized = {};
+	AttributeSetup attr = {};
+
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr);
+	check(matched.suppress_draw, "matched subtype should force suppress_draw without bound descriptors");
+
+	auto wrong = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844118u, normalized, attr);
+	check(!wrong.suppress_draw, "nonmatching subtype should not force suppress_draw");
+}
+
 static void test_apply_overrides_mutates_expected_state_bits()
 {
 	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
@@ -510,6 +533,7 @@ int main()
 	test_descriptor_lists_match_any_bound_replacement();
 	test_descriptor_wildcard_matches_without_bound_descs();
 	test_subtype_filter_blocks_nonmatching_overrides();
+	test_subtype_filter_can_force_suppress_without_descriptors();
 	test_apply_overrides_mutates_expected_state_bits();
 	test_force_upscaled_texrect_wins_last();
 	std::cout << "emu_unit_hires_debug_policy_test: PASS" << std::endl;

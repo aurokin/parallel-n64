@@ -171,6 +171,12 @@ inline bool hires_debug_parse_u8x4_env(const char *env_name, std::array<uint8_t,
 	return true;
 }
 
+inline bool hires_debug_env_enabled(const char *env_name)
+{
+	const char *env = std::getenv(env_name);
+	return env && *env && !(env[0] == '0' && env[1] == '\0');
+}
+
 template <size_t N>
 inline bool hires_debug_desc_list_matches_any(const std::array<uint32_t, N> &descs,
                                               size_t count,
@@ -301,7 +307,12 @@ inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides(const HiresDebu
 	if (!hires_debug_subtype_match_active(match))
 		return overrides;
 	if (hires_debug_subtype_matches(match, raw_raster_flags, normalized, attr))
-		return overrides;
+	{
+		auto filtered = overrides;
+		if (hires_debug_env_enabled("PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW"))
+			filtered.suppress_draw = true;
+		return filtered;
+	}
 	return {};
 }
 

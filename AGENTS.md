@@ -114,12 +114,14 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_SHADE_DESC`
     - `PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC`
     - `PARALLEL_HIRES_FORCE_PIXEL_ALPHA_ZERO_DESC`
+    - `PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW`
     - `PARALLEL_HIRES_LOG_STATE_DESC`
     - optional subtype filters for those same probes:
       - `PARALLEL_HIRES_MATCH_RASTER_FLAGS`
       - `PARALLEL_HIRES_MATCH_C0_A`
       - `PARALLEL_HIRES_MATCH_SHADE`
     - `PARALLEL_HIRES_LOG_STATE_DESC` now dumps raw combiner selectors, derived constant slots, and per-draw shade so frozen-frame ownership can be rebuilt from actual active lanes
+    - `PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW=1` suppresses subtype-matched draws even when they are descriptorless/non-replacement lanes
   - each env accepts a comma-separated descriptor list like `40,41,42`
   - `*` matches descriptorless/non-replacement draws too when combined with subtype filters, which is required for frozen intro22 story/bottom lane work
 - Parallel scaling capture:

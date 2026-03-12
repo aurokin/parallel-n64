@@ -42,6 +42,10 @@ struct HiresDebugDrawOverrides
 	bool force_blend_shift_max = false;
 	bool force_pixel_alpha_full = false;
 	bool force_pixel_alpha_zero = false;
+	bool force_cycle0_alpha_full = false;
+	bool force_cycle0_alpha_zero = false;
+	bool force_cycle0_alpha_texel0 = false;
+	bool force_cycle0_alpha_shade = false;
 };
 
 enum HiresDepthBlendDebugBit : uint8_t
@@ -54,6 +58,14 @@ enum HiresDepthBlendDebugBit : uint8_t
 	HIRES_DBDBG_FORCE_BLEND_SHIFT_MAX_BIT = 1 << 5,
 	HIRES_DBDBG_FORCE_PIXEL_ALPHA_FULL_BIT = 1 << 6,
 	HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT = 1 << 7
+};
+
+enum HiresCombinerDitherDebugBit : uint32_t
+{
+	HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT = 1u << 28u,
+	HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_SHADE_BIT = 1u << 29u,
+	HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_FULL_BIT = 1u << 30u,
+	HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_ZERO_BIT = 1u << 31u
 };
 
 inline bool hires_debug_desc_list_matches_value(const char *env, uint32_t value)
@@ -137,12 +149,17 @@ inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides(const std::arra
 	overrides.force_blend_shift_max = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_SHIFT_MAX_DESC");
 	overrides.force_pixel_alpha_full = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC");
 	overrides.force_pixel_alpha_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_PIXEL_ALPHA_ZERO_DESC");
+	overrides.force_cycle0_alpha_texel0 = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_TEXEL0_DESC");
+	overrides.force_cycle0_alpha_shade = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_SHADE_DESC");
+	overrides.force_cycle0_alpha_full = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_FULL_DESC");
+	overrides.force_cycle0_alpha_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_ZERO_DESC");
 	return overrides;
 }
 
 inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &overrides,
                                              TriangleSetup &setup,
                                              StaticRasterizationFlags &raster_flags,
+                                             uint32_t &static_dither,
                                              DepthBlendFlags &depth_blend_flags,
                                              DepthBlendState &depth_blend_state)
 {
@@ -216,6 +233,18 @@ inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &over
 		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_PIXEL_ALPHA_FULL_BIT;
 	if (overrides.force_pixel_alpha_zero)
 		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT;
+	static_dither &= ~(HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT |
+	                   HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_SHADE_BIT |
+	                   HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_FULL_BIT |
+	                   HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_ZERO_BIT);
+	if (overrides.force_cycle0_alpha_texel0)
+		static_dither |= HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT;
+	if (overrides.force_cycle0_alpha_shade)
+		static_dither |= HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_SHADE_BIT;
+	if (overrides.force_cycle0_alpha_full)
+		static_dither |= HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_FULL_BIT;
+	if (overrides.force_cycle0_alpha_zero)
+		static_dither |= HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_ZERO_BIT;
 }
 }
 }

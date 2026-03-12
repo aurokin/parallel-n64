@@ -37,6 +37,10 @@ const int SCALING_FACTOR = 1 << SCALING_LOG2;
 
 bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 {
+	const uint HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT = 1u << 28u;
+	const uint HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_SHADE_BIT = 1u << 29u;
+	const uint HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_FULL_BIT = 1u << 30u;
+	const uint HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_ZERO_BIT = 1u << 31u;
 	SpanInfoOffsets span_offsets = load_span_offsets(primitive_index);
 	if ((y < (SCALING_FACTOR * span_offsets.ylo)) || (y > (span_offsets.yhi * SCALING_FACTOR + (SCALING_FACTOR - 1))))
 		return false;
@@ -65,6 +69,14 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	StaticRasterizationState static_state = load_static_rasterization_state(static_state_index);
 	uint static_state_flags = static_state.flags;
 	int static_state_dither = static_state.dither;
+	bool force_cycle0_alpha_texel0 = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT) != 0u;
+	bool force_cycle0_alpha_shade = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_SHADE_BIT) != 0u;
+	bool force_cycle0_alpha_full = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_FULL_BIT) != 0u;
+	bool force_cycle0_alpha_zero = (uint(static_state_dither) & HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_ZERO_BIT) != 0u;
+	static_state_dither &= int(~(HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_TEXEL0_BIT |
+	                             HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_SHADE_BIT |
+	                             HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_FULL_BIT |
+	                             HIRES_CMBDBG_FORCE_CYCLE0_ALPHA_ZERO_BIT));
 	u8x4 combiner_inputs_rgb0 = static_state.combiner_inputs_rgb0;
 	u8x4 combiner_inputs_alpha0 = static_state.combiner_inputs_alpha0;
 	u8x4 combiner_inputs_rgb1 = static_state.combiner_inputs_rgb1;
@@ -297,6 +309,14 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		                                           combiner_inputs_alpha0,
 		                                           alpha_dith, coverage_count, cvg_times_alpha, alpha_cvg_select,
 		                                           alpha_test, alpha_reference);
+		if (force_cycle0_alpha_texel0)
+			combined_inputs.combined.a = combined_inputs.texel0.a;
+		if (force_cycle0_alpha_shade)
+			combined_inputs.combined.a = shade.a;
+		if (force_cycle0_alpha_full)
+			combined_inputs.combined.a = I16_C(0xff);
+		if (force_cycle0_alpha_zero)
+			combined_inputs.combined.a = I16_C(0x00);
 
 		combined_inputs.constant_muladd = derived.constant_muladd1;
 		combined_inputs.constant_mulsub = derived.constant_mulsub1;

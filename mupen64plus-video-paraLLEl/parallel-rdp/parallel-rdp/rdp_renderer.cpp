@@ -1869,6 +1869,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		detail::apply_hires_debug_draw_overrides(debug_overrides,
 		                                         draw_setup,
 		                                         stream.static_raster_state.flags,
+		                                         stream.static_raster_state.dither,
 		                                         stream.depth_blend_state.flags,
 		                                         stream.depth_blend_state);
 		auto normalized = normalize_static_state(stream.static_raster_state);

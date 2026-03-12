@@ -161,6 +161,8 @@
   - optional subtype filters for those same probes:
     - `PARALLEL_HIRES_MATCH_RASTER_FLAGS`
     - `PARALLEL_HIRES_MATCH_C0_A`
+    - `PARALLEL_HIRES_MATCH_SHADE`
+  - `PARALLEL_HIRES_LOG_STATE_DESC` now emits raw combiner selectors, derived constant slots, and per-draw shade values so frozen-frame HIRES ownership can be mapped from the actual active program instead of normalized guesses
   - each env accepts a comma-separated descriptor list such as `40,41,42`
 - Paper Mario scene manifest:
   - `docs/PAPER_MARIO_SCENES.md`

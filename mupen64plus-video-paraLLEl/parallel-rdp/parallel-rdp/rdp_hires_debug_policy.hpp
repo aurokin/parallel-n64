@@ -62,6 +62,8 @@ struct HiresDebugSubtypeMatch
 	uint32_t raw_raster_flags = 0;
 	bool has_c0_alpha = false;
 	std::array<uint8_t, 4> c0_alpha = {};
+	bool has_shade = false;
+	std::array<uint8_t, 4> shade = {};
 };
 
 enum HiresDepthBlendDebugBit : uint8_t
@@ -234,17 +236,20 @@ inline HiresDebugSubtypeMatch derive_hires_debug_subtype_match()
 	                                                       match.raw_raster_flags);
 	match.has_c0_alpha = hires_debug_parse_u8x4_env("PARALLEL_HIRES_MATCH_C0_A",
 	                                                match.c0_alpha);
+	match.has_shade = hires_debug_parse_u8x4_env("PARALLEL_HIRES_MATCH_SHADE",
+	                                             match.shade);
 	return match;
 }
 
 inline bool hires_debug_subtype_match_active(const HiresDebugSubtypeMatch &match)
 {
-	return match.has_raw_raster_flags || match.has_c0_alpha;
+	return match.has_raw_raster_flags || match.has_c0_alpha || match.has_shade;
 }
 
 inline bool hires_debug_subtype_matches(const HiresDebugSubtypeMatch &match,
                                         uint32_t raw_raster_flags,
-                                        const StaticRasterizationState &normalized)
+                                        const StaticRasterizationState &normalized,
+                                        const AttributeSetup &attr)
 {
 	if (match.has_raw_raster_flags && match.raw_raster_flags != raw_raster_flags)
 		return false;
@@ -259,17 +264,27 @@ inline bool hires_debug_subtype_matches(const HiresDebugSubtypeMatch &match,
 			return false;
 	}
 
+	if (match.has_shade)
+	{
+		if (match.shade[0] != static_cast<uint8_t>((attr.r >> 16) & 0xff) ||
+		    match.shade[1] != static_cast<uint8_t>((attr.g >> 16) & 0xff) ||
+		    match.shade[2] != static_cast<uint8_t>((attr.b >> 16) & 0xff) ||
+		    match.shade[3] != static_cast<uint8_t>((attr.a >> 16) & 0xff))
+			return false;
+	}
+
 	return true;
 }
 
 inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides(const HiresDebugDrawOverrides &overrides,
                                                                  const HiresDebugSubtypeMatch &match,
                                                                  uint32_t raw_raster_flags,
-                                                                 const StaticRasterizationState &normalized)
+                                                                 const StaticRasterizationState &normalized,
+                                                                 const AttributeSetup &attr)
 {
 	if (!hires_debug_subtype_match_active(match))
 		return overrides;
-	if (hires_debug_subtype_matches(match, raw_raster_flags, normalized))
+	if (hires_debug_subtype_matches(match, raw_raster_flags, normalized, attr))
 		return overrides;
 	return {};
 }

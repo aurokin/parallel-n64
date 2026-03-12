@@ -92,6 +92,7 @@ static void test_no_env_means_no_overrides()
 	EnvGuard cycle0_alpha_zero("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_ZERO_DESC");
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
 	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
+	EnvGuard match_shade("PARALLEL_HIRES_MATCH_SHADE");
 	unsetenv(clear_force.name);
 	unsetenv(clear_multi.name);
 	unsetenv(clear_image.name);
@@ -129,6 +130,7 @@ static void test_no_env_means_no_overrides()
 	unsetenv(cycle0_alpha_zero.name);
 	unsetenv(match_raster.name);
 	unsetenv(match_c0_a.name);
+	unsetenv(match_shade.name);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -191,6 +193,7 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	EnvGuard cycle0_alpha_zero("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_ZERO_DESC");
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
 	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
+	EnvGuard match_shade("PARALLEL_HIRES_MATCH_SHADE");
 	setenv(clear_force.name, "41, 88", 1);
 	setenv(clear_image.name, "25", 1);
 	setenv(clear_dither.name, "999,40", 1);
@@ -208,6 +211,7 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	setenv(cycle0_alpha_zero.name, "25", 1);
 	setenv(match_raster.name, "0x21844108", 1);
 	setenv(match_c0_a.name, "7,7,7,1", 1);
+	setenv(match_shade.name, "255,255,255,255", 1);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -234,6 +238,9 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	check(subtype.has_c0_alpha &&
 	      subtype.c0_alpha == std::array<uint8_t, 4>{ 7u, 7u, 7u, 1u },
 	      "subtype c0_a match should parse tuple");
+	check(subtype.has_shade &&
+	      subtype.shade == std::array<uint8_t, 4>{ 255u, 255u, 255u, 255u },
+	      "subtype shade match should parse tuple");
 }
 
 static void test_subtype_filter_blocks_nonmatching_overrides()
@@ -241,9 +248,11 @@ static void test_subtype_filter_blocks_nonmatching_overrides()
 	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
 	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
+	EnvGuard match_shade("PARALLEL_HIRES_MATCH_SHADE");
 	setenv(clear_force.name, "68", 1);
 	setenv(match_raster.name, "0x21844108", 1);
 	setenv(match_c0_a.name, "7,7,7,1", 1);
+	setenv(match_shade.name, "255,255,255,255", 1);
 
 	auto descs = make_descs(68u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 1);
@@ -254,17 +263,30 @@ static void test_subtype_filter_blocks_nonmatching_overrides()
 	normalized.combiner[0].alpha.mulsub = AlphaAddSub::Zero;
 	normalized.combiner[0].alpha.mul = AlphaMul::Zero;
 	normalized.combiner[0].alpha.add = AlphaAddSub::Texel0Alpha;
+	AttributeSetup attr = {};
+	attr.r = 255 << 16;
+	attr.g = 255 << 16;
+	attr.b = 255 << 16;
+	attr.a = 255 << 16;
 
-	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized);
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr);
 	check(matched.clear_force_blend, "matching subtype should preserve overrides");
 
 	normalized.combiner[0].alpha.muladd = AlphaAddSub::Texel0Alpha;
 	normalized.combiner[0].alpha.mul = AlphaMul::ShadeAlpha;
 	normalized.combiner[0].alpha.add = AlphaAddSub::CombinedAlpha;
-	auto filtered = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized);
+	auto filtered = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr);
 	check(!filtered.clear_force_blend, "nonmatching subtype should clear overrides");
 
-	auto wrong_raster = filter_hires_debug_draw_overrides(overrides, subtype, 0x01804108u, normalized);
+	normalized.combiner[0].alpha.muladd = AlphaAddSub::Zero;
+	normalized.combiner[0].alpha.mul = AlphaMul::Zero;
+	normalized.combiner[0].alpha.add = AlphaAddSub::Texel0Alpha;
+	attr.r = 193 << 16;
+	auto wrong_shade = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr);
+	check(!wrong_shade.clear_force_blend, "wrong shade should clear overrides");
+
+	attr.r = 255 << 16;
+	auto wrong_raster = filter_hires_debug_draw_overrides(overrides, subtype, 0x01804108u, normalized, attr);
 	check(!wrong_raster.clear_force_blend, "wrong raster should clear overrides");
 }
 

@@ -1870,7 +1870,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				detail::derive_hires_debug_draw_overrides(draw_replacement_descs, draw_replacement_desc_count),
 				detail::derive_hires_debug_subtype_match(),
 				uint32_t(stream.static_raster_state.flags),
-				normalized);
+				normalized,
+				attr);
 		detail::apply_hires_debug_draw_overrides(debug_overrides,
 		                                         draw_setup,
 		                                         stream.static_raster_state.flags,
@@ -1884,6 +1885,9 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		{
 			LOGI("Hi-res debug program: descs=[%u,%u,%u,%u,%u,%u,%u,%u] count=%u "
 			     "raster=0x%08x norm=0x%08x depth=0x%08x dither=0x%02x copy=%d "
+			     "shade={%u,%u,%u,%u} "
+			     "raw_c0_rgb={%u,%u,%u,%u} raw_c0_a={%u,%u,%u,%u} "
+			     "raw_c1_rgb={%u,%u,%u,%u} raw_c1_a={%u,%u,%u,%u} "
 			     "c0_rgb={%u,%u,%u,%u} c0_a={%u,%u,%u,%u} "
 			     "c1_rgb={%u,%u,%u,%u} c1_a={%u,%u,%u,%u} "
 			     "b0={%u,%u,%u,%u} b1={%u,%u,%u,%u} cvg=%u z=%u dbg=0x%02x.\n",
@@ -1897,6 +1901,26 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     unsigned(stream.depth_blend_state.flags),
 			     unsigned(stream.static_raster_state.dither),
 			     copy_mode ? 1 : 0,
+			     unsigned((attr.r >> 16) & 0xff),
+			     unsigned((attr.g >> 16) & 0xff),
+			     unsigned((attr.b >> 16) & 0xff),
+			     unsigned((attr.a >> 16) & 0xff),
+			     unsigned(stream.static_raster_state.combiner[0].rgb.muladd),
+			     unsigned(stream.static_raster_state.combiner[0].rgb.mulsub),
+			     unsigned(stream.static_raster_state.combiner[0].rgb.mul),
+			     unsigned(stream.static_raster_state.combiner[0].rgb.add),
+			     unsigned(stream.static_raster_state.combiner[0].alpha.muladd),
+			     unsigned(stream.static_raster_state.combiner[0].alpha.mulsub),
+			     unsigned(stream.static_raster_state.combiner[0].alpha.mul),
+			     unsigned(stream.static_raster_state.combiner[0].alpha.add),
+			     unsigned(stream.static_raster_state.combiner[1].rgb.muladd),
+			     unsigned(stream.static_raster_state.combiner[1].rgb.mulsub),
+			     unsigned(stream.static_raster_state.combiner[1].rgb.mul),
+			     unsigned(stream.static_raster_state.combiner[1].rgb.add),
+			     unsigned(stream.static_raster_state.combiner[1].alpha.muladd),
+			     unsigned(stream.static_raster_state.combiner[1].alpha.mulsub),
+			     unsigned(stream.static_raster_state.combiner[1].alpha.mul),
+			     unsigned(stream.static_raster_state.combiner[1].alpha.add),
 			     unsigned(normalized.combiner[0].rgb.muladd),
 			     unsigned(normalized.combiner[0].rgb.mulsub),
 			     unsigned(normalized.combiner[0].rgb.mul),
@@ -1956,7 +1980,40 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		stream.attribute_setup.add(attr);
 	}
 
-	stream.derived_setup.add(build_derived_attributes(attr));
+	auto derived_setup = build_derived_attributes(attr);
+	if (draw_has_replacement &&
+	    detail::hires_debug_desc_list_matches_any(draw_replacement_descs,
+	                                              draw_replacement_desc_count,
+	                                              "PARALLEL_HIRES_LOG_STATE_DESC"))
+	{
+		LOGI("Hi-res derived constants: "
+		     "c0_muladd={%u,%u,%u,%u} c0_mulsub={%u,%u,%u,%u} c0_mul={%u,%u,%u,%u} c0_add={%u,%u,%u,%u} "
+		     "c1_muladd={%u,%u,%u,%u} c1_mulsub={%u,%u,%u,%u} c1_mul={%u,%u,%u,%u} c1_add={%u,%u,%u,%u} "
+		     "blend={%u,%u,%u,%u} fog={%u,%u,%u,%u} prim=0x%08x env=0x%08x prim_lod=%u.\n",
+		     unsigned(derived_setup.constants[0].muladd[0]), unsigned(derived_setup.constants[0].muladd[1]),
+		     unsigned(derived_setup.constants[0].muladd[2]), unsigned(derived_setup.constants[0].muladd[3]),
+		     unsigned(derived_setup.constants[0].mulsub[0]), unsigned(derived_setup.constants[0].mulsub[1]),
+		     unsigned(derived_setup.constants[0].mulsub[2]), unsigned(derived_setup.constants[0].mulsub[3]),
+		     unsigned(derived_setup.constants[0].mul[0]), unsigned(derived_setup.constants[0].mul[1]),
+		     unsigned(derived_setup.constants[0].mul[2]), unsigned(derived_setup.constants[0].mul[3]),
+		     unsigned(derived_setup.constants[0].add[0]), unsigned(derived_setup.constants[0].add[1]),
+		     unsigned(derived_setup.constants[0].add[2]), unsigned(derived_setup.constants[0].add[3]),
+		     unsigned(derived_setup.constants[1].muladd[0]), unsigned(derived_setup.constants[1].muladd[1]),
+		     unsigned(derived_setup.constants[1].muladd[2]), unsigned(derived_setup.constants[1].muladd[3]),
+		     unsigned(derived_setup.constants[1].mulsub[0]), unsigned(derived_setup.constants[1].mulsub[1]),
+		     unsigned(derived_setup.constants[1].mulsub[2]), unsigned(derived_setup.constants[1].mulsub[3]),
+		     unsigned(derived_setup.constants[1].mul[0]), unsigned(derived_setup.constants[1].mul[1]),
+		     unsigned(derived_setup.constants[1].mul[2]), unsigned(derived_setup.constants[1].mul[3]),
+		     unsigned(derived_setup.constants[1].add[0]), unsigned(derived_setup.constants[1].add[1]),
+		     unsigned(derived_setup.constants[1].add[2]), unsigned(derived_setup.constants[1].add[3]),
+		     unsigned(derived_setup.blend_color[0]), unsigned(derived_setup.blend_color[1]),
+		     unsigned(derived_setup.blend_color[2]), unsigned(derived_setup.blend_color[3]),
+		     unsigned(derived_setup.fog_color[0]), unsigned(derived_setup.fog_color[1]),
+		     unsigned(derived_setup.fog_color[2]), unsigned(derived_setup.fog_color[3]),
+		     unsigned(constants.primitive_color), unsigned(constants.env_color),
+		     unsigned(constants.prim_lod_frac));
+	}
+	stream.derived_setup.add(derived_setup);
 	stream.scissor_setup.add(stream.scissor_state);
 
 	deduce_static_texture_state(draw_setup.tile & 7, draw_setup.tile >> 3);

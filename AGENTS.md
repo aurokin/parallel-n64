@@ -116,6 +116,8 @@ Co-Authored-By: Codex <noreply@openai.com>
     - optional subtype filters for those same probes:
       - `PARALLEL_HIRES_MATCH_RASTER_FLAGS`
       - `PARALLEL_HIRES_MATCH_C0_A`
+      - `PARALLEL_HIRES_MATCH_SHADE`
+    - `PARALLEL_HIRES_LOG_STATE_DESC` now dumps raw combiner selectors, derived constant slots, and per-draw shade so frozen-frame ownership can be rebuilt from actual active lanes
   - each env accepts a comma-separated descriptor list like `40,41,42`
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`

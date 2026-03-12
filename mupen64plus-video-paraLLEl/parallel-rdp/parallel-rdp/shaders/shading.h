@@ -247,7 +247,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		                   tex_lod_en, sharpen_lod_en, detail_lod_en);
 	}
 
-	i16x4 texel0, texel1;
+	i16x4 texel0 = i16x4(0), texel1 = i16x4(0);
 
 	if (uses_texel0)
 	{

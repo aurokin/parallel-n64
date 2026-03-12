@@ -73,8 +73,10 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `--state-frame-advance <N>`
     - `--state-frame-advance-delay <sec>`
   - current intro22 seeded-state note:
-    - `FRAMEADVANCE` is delivered over netcmd, but `0/1/2` frame-advance captures were pixel-identical on the current seeded intro22 loop
-    - do not assume frame stepping is effective on this workflow until a scene-specific validation proves it
+    - `FRAMEADVANCE` is delivered over netcmd
+    - on the current seeded intro22 loop, `0/10/20/40/60` were pixel-identical
+    - `120` frames advanced the scene, mainly in `story_text` and `bottom_stage_grid`, while `top_banner` and `left_stage_grid` stayed static
+    - use larger frame-advance values when validating animated intro text; small values are not a useful lever on this scene
 - Parallel HIRES zoom compare:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`

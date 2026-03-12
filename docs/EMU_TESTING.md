@@ -136,6 +136,10 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
     - the seeded intro22 loop was pixel-identical at `0/10/20/40/60` frame advances
     - `120` frames advanced the scene, mainly in `story_text` and `bottom_stage_grid`, while `top_banner` and `left_stage_grid` stayed static
     - validate frame stepping on the specific scene before using it as a truth source
+  - standardized seeded intro22 state workflow:
+    - `./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>`
+    - uses the current same-core seed at `/tmp/parallel-n64-paper-mario-saves/intro22-seed-r1`
+    - defaults to `--state-frame-advance 1`
 - `parallel` scaling helper:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses the same-core save state path for faster, stable scaling iteration

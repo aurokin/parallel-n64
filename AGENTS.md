@@ -59,6 +59,7 @@ Co-Authored-By: Codex <noreply@openai.com>
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
   - for the current useful no-input HIRES intro `Today...` scene, prefer `./run-paper-mario-hires-intro22-capture.sh`
+  - for the current standardized seeded intro22 state path, prefer `./run-paper-mario-hires-intro22-state-capture.sh`
   - scene quick list: `./run-paper-mario-scenes.sh`
   - raw equivalent: `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at 22 --timed-close-delay 10 --require-hires`
   - intro22 wrapper supports per-client screenshot offsets and defaults to pausing immediately before the screenshot so `parallel` and GLide can be tuned onto the same rendered frame
@@ -76,6 +77,7 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `FRAMEADVANCE` is delivered over netcmd
     - on the current seeded intro22 loop, `0/10/20/40/60` were pixel-identical
     - `120` frames advanced the scene, mainly in `story_text` and `bottom_stage_grid`, while `top_banner` and `left_stage_grid` stayed static
+    - standardized default for the seeded-state helper is still `--state-frame-advance 1`
     - use larger frame-advance values when validating animated intro text; small values are not a useful lever on this scene
 - Parallel HIRES zoom compare:
   - `./run-paper-mario-hires-zoom-compare.sh`

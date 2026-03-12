@@ -37,6 +37,21 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
 - Preserved GLide oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-matched-1/Paper Mario (USA)-260308-170727.png`
 
+## intro22-state
+
+- Purpose:
+  - Standardized seeded same-core intro22 state for reliable renderer debugging.
+  - Use this for current `top_banner` / `left_stage_grid` investigation work.
+- Parallel capture:
+  - `./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>`
+- Standardization:
+  - uses `/tmp/parallel-n64-paper-mario-saves/intro22-seed-r1`
+  - forces `--smoke-mode state --require-hires --state-pause`
+  - standardized default is `--state-frame-advance 1`
+- Notes:
+  - earlier intro22 state/debug captures without this standardized path should be treated as stale
+  - do not refresh GLide for this workflow; keep the preserved timed intro22 oracle for the timed compare path only
+
 ## noinput16
 
 - Purpose:

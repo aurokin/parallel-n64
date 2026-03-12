@@ -61,10 +61,22 @@ require_pattern "summary.png" "$TOOL" \
   "python zoom compare tool should emit a summary image"
 require_pattern "summary.txt" "$TOOL" \
   "python zoom compare tool should emit summary text"
+require_pattern "summary.json" "$TOOL" \
+  "python zoom compare tool should emit summary json"
 require_pattern "candidate:" "$TOOL" \
   "python zoom compare tool should stamp candidate identity into the summary image"
 require_pattern "oracle:" "$TOOL" \
   "python zoom compare tool should stamp oracle identity into the summary image"
+require_pattern "whole_image:" "$TOOL" \
+  "python zoom compare tool should report whole-image diff metadata"
+require_pattern "candidate_sha256" "$TOOL" \
+  "python zoom compare tool should record the candidate sha256"
+require_pattern "oracle_sha256" "$TOOL" \
+  "python zoom compare tool should record the oracle sha256"
+require_pattern "exact_equal" "$TOOL" \
+  "python zoom compare tool should record exact equality data"
+require_pattern "diff_bbox" "$TOOL" \
+  "python zoom compare tool should record diff bounding boxes"
 
 if ! python3 -m py_compile "$TOOL"; then
   echo "FAIL: python zoom compare tool failed to compile" >&2

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -56,6 +57,10 @@ def load_rgb(path: Path) -> Image.Image:
     if not path.is_file():
         raise FileNotFoundError(f"missing image: {path}")
     return Image.open(path).convert("RGB")
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def grayscale(image: Image.Image) -> Image.Image:
@@ -138,6 +143,10 @@ def build_diff(lhs: Image.Image, rhs: Image.Image) -> Image.Image:
     return Image.merge("RGB", bands)
 
 
+def diff_bbox(lhs: Image.Image, rhs: Image.Image) -> list[int] | None:
+    return list(ImageChops.difference(lhs, rhs).getbbox() or ()) or None
+
+
 def fit_label(text: str, limit: int = 120) -> str:
     if len(text) <= limit:
         return text
@@ -157,11 +166,23 @@ def main() -> int:
     oracle = load_rgb(oracle_path)
     candidate_gray = grayscale(candidate)
     oracle_gray = grayscale(oracle)
+    size_match = candidate.size == oracle.size
+    whole_exact = size_match and ImageChops.difference(candidate, oracle).getbbox() is None
+    whole_bbox = diff_bbox(candidate, oracle) if size_match else None
 
     summary = {
         "candidate": str(candidate_path),
+        "candidate_sha256": sha256_file(candidate_path),
         "oracle": str(oracle_path),
+        "oracle_sha256": sha256_file(oracle_path),
         "profile": args.profile,
+        "whole_image": {
+            "candidate_size": list(candidate.size),
+            "oracle_size": list(oracle.size),
+            "size_match": size_match,
+            "exact_equal": whole_exact,
+            "diff_bbox": whole_bbox,
+        },
         "regions": {},
     }
 
@@ -186,6 +207,8 @@ def main() -> int:
             "parallel_box": list(pbox),
             "glide_box": list(gbox),
             "alignment_score": score,
+            "exact_equal": ImageChops.difference(parallel_crop, glide_crop).getbbox() is None,
+            "diff_bbox": diff_bbox(parallel_crop, glide_crop),
         }
 
     width = max(row.width for row in rows)
@@ -194,6 +217,7 @@ def main() -> int:
         f"profile: {args.profile}",
         f"candidate: {fit_label(str(candidate_path))}",
         f"oracle: {fit_label(str(oracle_path))}",
+        f"whole_image: size_match={size_match} exact_equal={whole_exact} diff_bbox={whole_bbox}",
     ]
     header_h = 18 * len(header_lines) + 24
     height = header_h + sum(row.height for row in rows) + gap * (len(rows) - 1)
@@ -211,13 +235,24 @@ def main() -> int:
 
     summary_text_lines = [
         f"candidate: {candidate_path}",
+        f"candidate_sha256: {summary['candidate_sha256']}",
         f"oracle: {oracle_path}",
+        f"oracle_sha256: {summary['oracle_sha256']}",
         f"profile: {args.profile}",
+        (
+            "whole_image: "
+            f"candidate_size={tuple(summary['whole_image']['candidate_size'])} "
+            f"oracle_size={tuple(summary['whole_image']['oracle_size'])} "
+            f"size_match={summary['whole_image']['size_match']} "
+            f"exact_equal={summary['whole_image']['exact_equal']} "
+            f"diff_bbox={summary['whole_image']['diff_bbox']}"
+        ),
     ]
     for name in profile["regions"]:
         region = summary["regions"][name]
         summary_text_lines.append(
-            f"{name}: parallel={tuple(region['parallel_box'])} glide={tuple(region['glide_box'])} score={region['alignment_score']:.4f}"
+            f"{name}: parallel={tuple(region['parallel_box'])} glide={tuple(region['glide_box'])} "
+            f"score={region['alignment_score']:.4f} exact_equal={region['exact_equal']} diff_bbox={region['diff_bbox']}"
         )
     summary_text = "\n".join(summary_text_lines) + "\n"
     (output_dir / "summary.txt").write_text(summary_text, encoding="utf-8")

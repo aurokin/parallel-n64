@@ -51,6 +51,7 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
 - Notes:
   - earlier intro22 state/debug captures without this standardized path should be treated as stale
   - do not refresh GLide for this workflow; keep the preserved timed intro22 oracle for the timed compare path only
+  - use `docs/PAPER_MARIO_HIRES_MATRIX.md` as the execution plan for current intro22 renderer debugging
 
 ## noinput16
 

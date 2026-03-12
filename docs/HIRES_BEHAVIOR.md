@@ -171,6 +171,8 @@
   - `*` matches descriptorless/non-replacement draws too when paired with subtype filters, which is necessary for intro22 story/bottom lane debugging
 - Paper Mario scene manifest:
   - `docs/PAPER_MARIO_SCENES.md`
+- Paper Mario HIRES debug matrix:
+  - `docs/PAPER_MARIO_HIRES_MATRIX.md`
 - Preserved GLideN64 4x HIRES-on intro22 matched oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-matched-1/Paper Mario (USA)-260308-170727.png`
 - Preserved GLideN64 4x HIRES-on no-input 16s oracle:

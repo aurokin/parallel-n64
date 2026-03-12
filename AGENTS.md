@@ -49,6 +49,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Emulator test tiers: `docs/EMU_TESTING.md`
 - HIRES behavior and roadmap: `docs/HIRES_BEHAVIOR.md`
 - Paper Mario scene manifest: `docs/PAPER_MARIO_SCENES.md`
+- Paper Mario HIRES debug matrix: `docs/PAPER_MARIO_HIRES_MATRIX.md`
 
 ## Paper Mario HIRES Loop
 - Primary path: `parallel`
@@ -60,6 +61,7 @@ Co-Authored-By: Codex <noreply@openai.com>
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
   - for the current useful no-input HIRES intro `Today...` scene, prefer `./run-paper-mario-hires-intro22-capture.sh`
   - for the current standardized seeded intro22 state path, prefer `./run-paper-mario-hires-intro22-state-capture.sh`
+  - for current intro22 renderer debugging strategy, follow `docs/PAPER_MARIO_HIRES_MATRIX.md`
   - scene quick list: `./run-paper-mario-scenes.sh`
   - raw equivalent: `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at 22 --timed-close-delay 10 --require-hires`
   - intro22 wrapper supports per-client screenshot offsets and defaults to pausing immediately before the screenshot so `parallel` and GLide can be tuned onto the same rendered frame

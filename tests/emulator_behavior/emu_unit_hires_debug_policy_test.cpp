@@ -82,6 +82,8 @@ static void test_no_env_means_no_overrides()
 	EnvGuard cycle0_alpha_shade("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_SHADE_DESC");
 	EnvGuard cycle0_alpha_full("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_FULL_DESC");
 	EnvGuard cycle0_alpha_zero("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_ZERO_DESC");
+	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
+	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
 	unsetenv(clear_force.name);
 	unsetenv(clear_multi.name);
 	unsetenv(clear_image.name);
@@ -109,8 +111,8 @@ static void test_no_env_means_no_overrides()
 	unsetenv(cycle0_alpha_shade.name);
 	unsetenv(cycle0_alpha_full.name);
 	unsetenv(cycle0_alpha_zero.name);
-	unsetenv(cycle0_alpha_full.name);
-	unsetenv(cycle0_alpha_zero.name);
+	unsetenv(match_raster.name);
+	unsetenv(match_c0_a.name);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -141,6 +143,9 @@ static void test_no_env_means_no_overrides()
 	check(!overrides.force_cycle0_alpha_shade, "force_cycle0_alpha_shade should default off");
 	check(!overrides.force_cycle0_alpha_full, "force_cycle0_alpha_full should default off");
 	check(!overrides.force_cycle0_alpha_zero, "force_cycle0_alpha_zero should default off");
+
+	auto subtype = derive_hires_debug_subtype_match();
+	check(!hires_debug_subtype_match_active(subtype), "subtype match should default inactive");
 }
 
 static void test_descriptor_lists_match_any_bound_replacement()
@@ -156,6 +161,8 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	EnvGuard pixel_alpha_full("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC");
 	EnvGuard cycle0_alpha_texel0("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_TEXEL0_DESC");
 	EnvGuard cycle0_alpha_zero("PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_ZERO_DESC");
+	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
+	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
 	setenv(clear_force.name, "41, 88", 1);
 	setenv(clear_image.name, "25", 1);
 	setenv(clear_dither.name, "999,40", 1);
@@ -167,6 +174,8 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	setenv(pixel_alpha_full.name, "40", 1);
 	setenv(cycle0_alpha_texel0.name, "40", 1);
 	setenv(cycle0_alpha_zero.name, "25", 1);
+	setenv(match_raster.name, "0x21844108", 1);
+	setenv(match_c0_a.name, "7,7,7,1", 1);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -181,6 +190,46 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	check(overrides.force_pixel_alpha_full, "matching force_pixel_alpha_full should trigger");
 	check(overrides.force_cycle0_alpha_texel0, "matching force_cycle0_alpha_texel0 should trigger");
 	check(overrides.force_cycle0_alpha_zero, "matching force_cycle0_alpha_zero should trigger");
+
+	auto subtype = derive_hires_debug_subtype_match();
+	check(hires_debug_subtype_match_active(subtype), "subtype match should become active");
+	check(subtype.has_raw_raster_flags && subtype.raw_raster_flags == 0x21844108u,
+	      "subtype raster match should parse hex");
+	check(subtype.has_c0_alpha &&
+	      subtype.c0_alpha == std::array<uint8_t, 4>{ 7u, 7u, 7u, 1u },
+	      "subtype c0_a match should parse tuple");
+}
+
+static void test_subtype_filter_blocks_nonmatching_overrides()
+{
+	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
+	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
+	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
+	setenv(clear_force.name, "68", 1);
+	setenv(match_raster.name, "0x21844108", 1);
+	setenv(match_c0_a.name, "7,7,7,1", 1);
+
+	auto descs = make_descs(68u);
+	auto overrides = derive_hires_debug_draw_overrides(descs, 1);
+	auto subtype = derive_hires_debug_subtype_match();
+
+	StaticRasterizationState normalized = {};
+	normalized.combiner[0].alpha.muladd = AlphaAddSub::Zero;
+	normalized.combiner[0].alpha.mulsub = AlphaAddSub::Zero;
+	normalized.combiner[0].alpha.mul = AlphaMul::Zero;
+	normalized.combiner[0].alpha.add = AlphaAddSub::Texel0Alpha;
+
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized);
+	check(matched.clear_force_blend, "matching subtype should preserve overrides");
+
+	normalized.combiner[0].alpha.muladd = AlphaAddSub::Texel0Alpha;
+	normalized.combiner[0].alpha.mul = AlphaMul::ShadeAlpha;
+	normalized.combiner[0].alpha.add = AlphaAddSub::CombinedAlpha;
+	auto filtered = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized);
+	check(!filtered.clear_force_blend, "nonmatching subtype should clear overrides");
+
+	auto wrong_raster = filter_hires_debug_draw_overrides(overrides, subtype, 0x01804108u, normalized);
+	check(!wrong_raster.clear_force_blend, "wrong raster should clear overrides");
 }
 
 static void test_apply_overrides_mutates_expected_state_bits()
@@ -344,6 +393,7 @@ int main()
 {
 	test_no_env_means_no_overrides();
 	test_descriptor_lists_match_any_bound_replacement();
+	test_subtype_filter_blocks_nonmatching_overrides();
 	test_apply_overrides_mutates_expected_state_bits();
 	test_force_upscaled_texrect_wins_last();
 	std::cout << "emu_unit_hires_debug_policy_test: PASS" << std::endl;

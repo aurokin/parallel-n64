@@ -48,6 +48,14 @@ struct HiresDebugDrawOverrides
 	bool force_cycle0_alpha_shade = false;
 };
 
+struct HiresDebugSubtypeMatch
+{
+	bool has_raw_raster_flags = false;
+	uint32_t raw_raster_flags = 0;
+	bool has_c0_alpha = false;
+	std::array<uint8_t, 4> c0_alpha = {};
+};
+
 enum HiresDepthBlendDebugBit : uint8_t
 {
 	HIRES_DBDBG_FORCE_BLEND_EN_ON_BIT = 1 << 0,
@@ -91,6 +99,45 @@ inline bool hires_debug_desc_list_matches_value(const char *env, uint32_t value)
 	}
 
 	return false;
+}
+
+inline bool hires_debug_parse_u32_env(const char *env_name, uint32_t &value)
+{
+	const char *env = std::getenv(env_name);
+	if (!env || !*env)
+		return false;
+
+	char *end = nullptr;
+	unsigned long parsed = std::strtoul(env, &end, 0);
+	if (end == env)
+		return false;
+	value = static_cast<uint32_t>(parsed);
+	return true;
+}
+
+inline bool hires_debug_parse_u8x4_env(const char *env_name, std::array<uint8_t, 4> &value)
+{
+	const char *env = std::getenv(env_name);
+	if (!env || !*env)
+		return false;
+
+	const char *ptr = env;
+	for (size_t i = 0; i < value.size(); i++)
+	{
+		while (*ptr == ',' || *ptr == ' ' || *ptr == '\t')
+			ptr++;
+		if (!*ptr)
+			return false;
+
+		char *end = nullptr;
+		unsigned long parsed = std::strtoul(ptr, &end, 0);
+		if (end == ptr || parsed > 255u)
+			return false;
+		value[i] = static_cast<uint8_t>(parsed);
+		ptr = end;
+	}
+
+	return true;
 }
 
 template <size_t N>
@@ -154,6 +201,53 @@ inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides(const std::arra
 	overrides.force_cycle0_alpha_full = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_FULL_DESC");
 	overrides.force_cycle0_alpha_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_ZERO_DESC");
 	return overrides;
+}
+
+inline HiresDebugSubtypeMatch derive_hires_debug_subtype_match()
+{
+	HiresDebugSubtypeMatch match = {};
+	match.has_raw_raster_flags = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_RASTER_FLAGS",
+	                                                       match.raw_raster_flags);
+	match.has_c0_alpha = hires_debug_parse_u8x4_env("PARALLEL_HIRES_MATCH_C0_A",
+	                                                match.c0_alpha);
+	return match;
+}
+
+inline bool hires_debug_subtype_match_active(const HiresDebugSubtypeMatch &match)
+{
+	return match.has_raw_raster_flags || match.has_c0_alpha;
+}
+
+inline bool hires_debug_subtype_matches(const HiresDebugSubtypeMatch &match,
+                                        uint32_t raw_raster_flags,
+                                        const StaticRasterizationState &normalized)
+{
+	if (match.has_raw_raster_flags && match.raw_raster_flags != raw_raster_flags)
+		return false;
+
+	if (match.has_c0_alpha)
+	{
+		const auto &alpha = normalized.combiner[0].alpha;
+		if (match.c0_alpha[0] != static_cast<uint8_t>(alpha.muladd) ||
+		    match.c0_alpha[1] != static_cast<uint8_t>(alpha.mulsub) ||
+		    match.c0_alpha[2] != static_cast<uint8_t>(alpha.mul) ||
+		    match.c0_alpha[3] != static_cast<uint8_t>(alpha.add))
+			return false;
+	}
+
+	return true;
+}
+
+inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides(const HiresDebugDrawOverrides &overrides,
+                                                                 const HiresDebugSubtypeMatch &match,
+                                                                 uint32_t raw_raster_flags,
+                                                                 const StaticRasterizationState &normalized)
+{
+	if (!hires_debug_subtype_match_active(match))
+		return overrides;
+	if (hires_debug_subtype_matches(match, raw_raster_flags, normalized))
+		return overrides;
+	return {};
 }
 
 inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &overrides,

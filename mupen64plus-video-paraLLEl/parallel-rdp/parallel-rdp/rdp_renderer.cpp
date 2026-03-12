@@ -1865,14 +1865,19 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		stream.depth_blend_state.flags &= ~DEPTH_BLEND_FORCE_BLEND_BIT;
 	if (draw_has_replacement)
 	{
-		const auto debug_overrides = detail::derive_hires_debug_draw_overrides(draw_replacement_descs, draw_replacement_desc_count);
+		auto normalized = normalize_static_state(stream.static_raster_state);
+		const auto debug_overrides = detail::filter_hires_debug_draw_overrides(
+				detail::derive_hires_debug_draw_overrides(draw_replacement_descs, draw_replacement_desc_count),
+				detail::derive_hires_debug_subtype_match(),
+				uint32_t(stream.static_raster_state.flags),
+				normalized);
 		detail::apply_hires_debug_draw_overrides(debug_overrides,
 		                                         draw_setup,
 		                                         stream.static_raster_state.flags,
 		                                         stream.static_raster_state.dither,
 		                                         stream.depth_blend_state.flags,
 		                                         stream.depth_blend_state);
-		auto normalized = normalize_static_state(stream.static_raster_state);
+		normalized = normalize_static_state(stream.static_raster_state);
 		if (detail::hires_debug_desc_list_matches_any(draw_replacement_descs,
 		                                              draw_replacement_desc_count,
 		                                              "PARALLEL_HIRES_LOG_STATE_DESC"))

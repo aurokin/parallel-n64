@@ -99,6 +99,10 @@ static void test_no_env_means_no_overrides()
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
 	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
 	EnvGuard match_shade("PARALLEL_HIRES_MATCH_SHADE");
+	EnvGuard match_screen_y_min("PARALLEL_HIRES_MATCH_SCREEN_Y_MIN");
+	EnvGuard match_screen_y_max("PARALLEL_HIRES_MATCH_SCREEN_Y_MAX");
+	EnvGuard match_screen_x_min("PARALLEL_HIRES_MATCH_SCREEN_X_MIN");
+	EnvGuard match_screen_x_max("PARALLEL_HIRES_MATCH_SCREEN_X_MAX");
 	unsetenv(suppress_draw.name);
 	unsetenv(clear_force.name);
 	unsetenv(clear_multi.name);
@@ -143,6 +147,10 @@ static void test_no_env_means_no_overrides()
 	unsetenv(match_raster.name);
 	unsetenv(match_c0_a.name);
 	unsetenv(match_shade.name);
+	unsetenv(match_screen_y_min.name);
+	unsetenv(match_screen_y_max.name);
+	unsetenv(match_screen_x_min.name);
+	unsetenv(match_screen_x_max.name);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -216,6 +224,10 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
 	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
 	EnvGuard match_shade("PARALLEL_HIRES_MATCH_SHADE");
+	EnvGuard match_screen_y_min("PARALLEL_HIRES_MATCH_SCREEN_Y_MIN");
+	EnvGuard match_screen_y_max("PARALLEL_HIRES_MATCH_SCREEN_Y_MAX");
+	EnvGuard match_screen_x_min("PARALLEL_HIRES_MATCH_SCREEN_X_MIN");
+	EnvGuard match_screen_x_max("PARALLEL_HIRES_MATCH_SCREEN_X_MAX");
 	setenv(suppress_draw.name, "40", 1);
 	setenv(clear_force.name, "41, 88", 1);
 	setenv(clear_image.name, "25", 1);
@@ -238,6 +250,10 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	setenv(match_raster.name, "0x21844108", 1);
 	setenv(match_c0_a.name, "7,7,7,1", 1);
 	setenv(match_shade.name, "255,255,255,255", 1);
+	setenv(match_screen_y_min.name, "2800", 1);
+	setenv(match_screen_y_max.name, "3036", 1);
+	setenv(match_screen_x_min.name, "464", 1);
+	setenv(match_screen_x_max.name, "1172", 1);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -271,6 +287,14 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	check(subtype.has_shade &&
 	      subtype.shade == std::array<uint8_t, 4>{ 255u, 255u, 255u, 255u },
 	      "subtype shade match should parse tuple");
+	check(subtype.has_screen_y_min && subtype.screen_y_min == 2800u,
+	      "subtype screen_y_min should parse");
+	check(subtype.has_screen_y_max && subtype.screen_y_max == 3036u,
+	      "subtype screen_y_max should parse");
+	check(subtype.has_screen_x_min && subtype.screen_x_min == 464u,
+	      "subtype screen_x_min should parse");
+	check(subtype.has_screen_x_max && subtype.screen_x_max == 1172u,
+	      "subtype screen_x_max should parse");
 }
 
 static void test_descriptor_wildcard_matches_without_bound_descs()
@@ -292,10 +316,18 @@ static void test_subtype_filter_blocks_nonmatching_overrides()
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
 	EnvGuard match_c0_a("PARALLEL_HIRES_MATCH_C0_A");
 	EnvGuard match_shade("PARALLEL_HIRES_MATCH_SHADE");
+	EnvGuard match_screen_y_min("PARALLEL_HIRES_MATCH_SCREEN_Y_MIN");
+	EnvGuard match_screen_y_max("PARALLEL_HIRES_MATCH_SCREEN_Y_MAX");
+	EnvGuard match_screen_x_min("PARALLEL_HIRES_MATCH_SCREEN_X_MIN");
+	EnvGuard match_screen_x_max("PARALLEL_HIRES_MATCH_SCREEN_X_MAX");
 	setenv(clear_force.name, "68", 1);
 	setenv(match_raster.name, "0x21844108", 1);
 	setenv(match_c0_a.name, "7,7,7,1", 1);
 	setenv(match_shade.name, "255,255,255,255", 1);
+	setenv(match_screen_y_min.name, "2800", 1);
+	setenv(match_screen_y_max.name, "3036", 1);
+	setenv(match_screen_x_min.name, "464", 1);
+	setenv(match_screen_x_max.name, "1172", 1);
 
 	auto descs = make_descs(68u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 1);
@@ -312,25 +344,31 @@ static void test_subtype_filter_blocks_nonmatching_overrides()
 	attr.b = 255 << 16;
 	attr.a = 255 << 16;
 
-	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr);
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(matched.clear_force_blend, "matching subtype should preserve overrides");
 
 	normalized.combiner[0].alpha.muladd = AlphaAddSub::Texel0Alpha;
 	normalized.combiner[0].alpha.mul = AlphaMul::ShadeAlpha;
 	normalized.combiner[0].alpha.add = AlphaAddSub::CombinedAlpha;
-	auto filtered = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr);
+	auto filtered = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(!filtered.clear_force_blend, "nonmatching subtype should clear overrides");
 
 	normalized.combiner[0].alpha.muladd = AlphaAddSub::Zero;
 	normalized.combiner[0].alpha.mul = AlphaMul::Zero;
 	normalized.combiner[0].alpha.add = AlphaAddSub::Texel0Alpha;
 	attr.r = 193 << 16;
-	auto wrong_shade = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr);
+	auto wrong_shade = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(!wrong_shade.clear_force_blend, "wrong shade should clear overrides");
 
 	attr.r = 255 << 16;
-	auto wrong_raster = filter_hires_debug_draw_overrides(overrides, subtype, 0x01804108u, normalized, attr);
+	auto wrong_raster = filter_hires_debug_draw_overrides(overrides, subtype, 0x01804108u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(!wrong_raster.clear_force_blend, "wrong raster should clear overrides");
+
+	auto wrong_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 464u, 1172u, 3037u, 3548u);
+	check(!wrong_bounds.clear_force_blend, "wrong screen bounds should clear overrides");
+
+	auto wrong_x_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 0u, 463u, 2800u, 3036u);
+	check(!wrong_x_bounds.clear_force_blend, "wrong screen x bounds should clear overrides");
 }
 
 static void test_subtype_filter_can_force_suppress_without_descriptors()
@@ -338,9 +376,17 @@ static void test_subtype_filter_can_force_suppress_without_descriptors()
 	EnvGuard suppress_desc("PARALLEL_HIRES_SUPPRESS_DRAW_DESC");
 	EnvGuard suppress_match("PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW");
 	EnvGuard match_raster("PARALLEL_HIRES_MATCH_RASTER_FLAGS");
+	EnvGuard match_screen_y_min("PARALLEL_HIRES_MATCH_SCREEN_Y_MIN");
+	EnvGuard match_screen_y_max("PARALLEL_HIRES_MATCH_SCREEN_Y_MAX");
+	EnvGuard match_screen_x_min("PARALLEL_HIRES_MATCH_SCREEN_X_MIN");
+	EnvGuard match_screen_x_max("PARALLEL_HIRES_MATCH_SCREEN_X_MAX");
 	unsetenv(suppress_desc.name);
 	setenv(suppress_match.name, "1", 1);
 	setenv(match_raster.name, "0x21840010", 1);
+	setenv(match_screen_y_min.name, "2800", 1);
+	setenv(match_screen_y_max.name, "3036", 1);
+	setenv(match_screen_x_min.name, "464", 1);
+	setenv(match_screen_x_max.name, "1172", 1);
 
 	std::array<uint32_t, 8> descs = {};
 	auto overrides = derive_hires_debug_draw_overrides(descs, 0);
@@ -349,11 +395,47 @@ static void test_subtype_filter_can_force_suppress_without_descriptors()
 	StaticRasterizationState normalized = {};
 	AttributeSetup attr = {};
 
-	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr);
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(matched.suppress_draw, "matched subtype should force suppress_draw without bound descriptors");
 
-	auto wrong = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844118u, normalized, attr);
+	auto wrong = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844118u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(!wrong.suppress_draw, "nonmatching subtype should not force suppress_draw");
+
+	auto wrong_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr, 0, 0, true, 464u, 1172u, 3037u, 3548u);
+	check(!wrong_bounds.suppress_draw, "nonmatching screen bounds should not force suppress_draw");
+
+	auto wrong_x_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr, 0, 0, true, 0u, 463u, 2800u, 3036u);
+	check(!wrong_x_bounds.suppress_draw, "nonmatching screen x bounds should not force suppress_draw");
+}
+
+static void test_subtype_filter_matches_st_bounds()
+{
+	EnvGuard suppress_match("PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW");
+	EnvGuard match_st_s_min("PARALLEL_HIRES_MATCH_ST_S_MIN");
+	EnvGuard match_st_s_max("PARALLEL_HIRES_MATCH_ST_S_MAX");
+	EnvGuard match_st_t_min("PARALLEL_HIRES_MATCH_ST_T_MIN");
+	EnvGuard match_st_t_max("PARALLEL_HIRES_MATCH_ST_T_MAX");
+	setenv(suppress_match.name, "1", 1);
+	setenv(match_st_s_min.name, "828", 1);
+	setenv(match_st_s_max.name, "828", 1);
+	setenv(match_st_t_min.name, "69", 1);
+	setenv(match_st_t_max.name, "69", 1);
+
+	std::array<uint32_t, 8> descs = {};
+	auto overrides = derive_hires_debug_draw_overrides(descs, 0);
+	auto subtype = derive_hires_debug_subtype_match();
+
+	StaticRasterizationState normalized = {};
+	AttributeSetup attr = {};
+
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 828, 69, true, 640u, 1073u, 3536u, 3676u);
+	check(matched.suppress_draw, "matching st bounds should force suppress_draw");
+
+	auto wrong_s = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 829, 69, true, 640u, 1073u, 3536u, 3676u);
+	check(!wrong_s.suppress_draw, "wrong st.s should clear suppress_draw");
+
+	auto wrong_t = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 828, 70, true, 640u, 1073u, 3536u, 3676u);
+	check(!wrong_t.suppress_draw, "wrong st.t should clear suppress_draw");
 }
 
 static void test_apply_overrides_mutates_expected_state_bits()
@@ -566,6 +648,7 @@ int main()
 	test_descriptor_wildcard_matches_without_bound_descs();
 	test_subtype_filter_blocks_nonmatching_overrides();
 	test_subtype_filter_can_force_suppress_without_descriptors();
+	test_subtype_filter_matches_st_bounds();
 	test_apply_overrides_mutates_expected_state_bits();
 	test_force_upscaled_texrect_wins_last();
 	std::cout << "emu_unit_hires_debug_policy_test: PASS" << std::endl;

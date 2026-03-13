@@ -1873,6 +1873,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	const unsigned tile0 = unsigned(setup.tile) & 7u;
 	const auto &tile0_info = tiles[tile0];
 	const uint32_t raw_raster_flags = uint32_t(stream.static_raster_state.flags);
+	const auto prim_bounds = compute_debug_primitive_bounds(setup, stream.scissor_state, int(caps.upscaling));
 	const bool draw_is_intro22_story_overlay_shape =
 		!uses_tex1 &&
 		!uses_pipe1 &&
@@ -1909,7 +1910,14 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				debug_subtype_match,
 				uint32_t(stream.static_raster_state.flags),
 				normalized,
-				attr);
+				attr,
+				attr.s >> 16,
+				attr.t >> 16,
+				prim_bounds.valid,
+				uint32_t(std::max(prim_bounds.x0, 0)),
+				uint32_t(std::max(prim_bounds.x1, 0)),
+				uint32_t(std::max(prim_bounds.y0, 0)),
+				uint32_t(std::max(prim_bounds.y1, 0)));
 		detail::apply_hires_debug_draw_overrides(debug_overrides,
 		                                         draw_setup,
 		                                         stream.static_raster_state.flags,
@@ -2149,8 +2157,38 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	indices.static_index = stream.static_raster_state_cache.add(normalize_static_state(stream.static_raster_state));
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);
 	indices.tile_instance_index = uint8_t(stream.tmem_upload_infos.size());
+	const bool env_desc65_lower_clear_repl1 = getenv("PARALLEL_DEBUG_DESC65_LOWER_CLEAR_REPL1") != nullptr;
+	const bool env_desc65_lower_force_orig = getenv("PARALLEL_DEBUG_DESC65_LOWER_FORCE_ORIG") != nullptr;
+	const bool draw_has_desc65 = std::find(draw_replacement_descs.begin(),
+	                                       draw_replacement_descs.begin() + draw_replacement_desc_count,
+	                                       65u) != (draw_replacement_descs.begin() + draw_replacement_desc_count);
+	const bool draw_is_desc65_lower_band =
+		draw_has_desc65 &&
+		raw_raster_flags == 0x21844108u &&
+		!uses_tex1 &&
+		!uses_pipe1 &&
+		prim_bounds.valid &&
+		prim_bounds.y0 >= 3536 &&
+		prim_bounds.y1 <= 3836;
+	TileReplacementMeta saved_tile0_repl = tiles[tile0].replacement;
+	TileReplacementMeta saved_tile1_repl = tiles[(tile0 + 1u) & 7u].replacement;
+	const unsigned tile1 = (tile0 + 1u) & 7u;
+	if (draw_is_desc65_lower_band && env_desc65_lower_clear_repl1)
+	{
+		tiles[tile1].replacement = {};
+		tiles[tile1].replacement.repl_desc_index = 0xffffffffu;
+	}
+	if (draw_is_desc65_lower_band && env_desc65_lower_force_orig)
+	{
+		tiles[tile0].replacement.repl_orig_w = 4;
+		tiles[tile0].replacement.repl_orig_h = 32;
+		tiles[tile1].replacement.repl_orig_w = 4;
+		tiles[tile1].replacement.repl_orig_h = 32;
+	}
 	for (unsigned i = 0; i < 8; i++)
 		indices.tile_indices[i] = stream.tile_info_state_cache.add(tiles[i]);
+	tiles[tile0].replacement = saved_tile0_repl;
+	tiles[tile1].replacement = saved_tile1_repl;
 	stream.state_indices.add(indices);
 
 	fb.color_write_pending = true;

@@ -49,6 +49,13 @@ def parse_args() -> argparse.Namespace:
         help="Comparison scene profile to use.",
     )
     parser.add_argument("--oracle", default="", help="Oracle PNG to compare against.")
+    parser.add_argument("--candidate-label", default="parallel", help="Label to use for the candidate column.")
+    parser.add_argument("--oracle-label", default="glide", help="Label to use for the reference/oracle column.")
+    parser.add_argument(
+        "--fixed-boxes",
+        action="store_true",
+        help="Use the candidate boxes directly for the reference image instead of alignment search.",
+    )
     parser.add_argument("--output-dir", required=True, help="Directory to write crops and summaries into.")
     return parser.parse_args()
 
@@ -116,24 +123,30 @@ def apply_oracle_bias(
     return (gx0, gy0, gx0 + width, gy0 + height)
 
 
-def build_row(title: str, parallel_crop: Image.Image, glide_crop: Image.Image) -> Image.Image:
-    scale = 2 if max(parallel_crop.width, parallel_crop.height) < 900 else 1
+def build_row(
+    title: str,
+    candidate_crop: Image.Image,
+    oracle_crop: Image.Image,
+    candidate_label: str,
+    oracle_label: str,
+) -> Image.Image:
+    scale = 2 if max(candidate_crop.width, candidate_crop.height) < 900 else 1
     if scale != 1:
-      parallel_crop = parallel_crop.resize((parallel_crop.width * scale, parallel_crop.height * scale), Image.Resampling.NEAREST)
-      glide_crop = glide_crop.resize((glide_crop.width * scale, glide_crop.height * scale), Image.Resampling.NEAREST)
+      candidate_crop = candidate_crop.resize((candidate_crop.width * scale, candidate_crop.height * scale), Image.Resampling.NEAREST)
+      oracle_crop = oracle_crop.resize((oracle_crop.width * scale, oracle_crop.height * scale), Image.Resampling.NEAREST)
 
     gap = 24
     header_h = 28
     row = Image.new(
         "RGB",
-        (parallel_crop.width + glide_crop.width + gap, max(parallel_crop.height, glide_crop.height) + header_h + 8),
+        (candidate_crop.width + oracle_crop.width + gap, max(candidate_crop.height, oracle_crop.height) + header_h + 8),
         "black",
     )
-    row.paste(parallel_crop, (0, header_h + 8))
-    row.paste(glide_crop, (parallel_crop.width + gap, header_h + 8))
+    row.paste(candidate_crop, (0, header_h + 8))
+    row.paste(oracle_crop, (candidate_crop.width + gap, header_h + 8))
     draw = ImageDraw.Draw(row)
-    draw.text((0, 0), f"{title}: parallel", fill="white")
-    draw.text((parallel_crop.width + gap, 0), "glide", fill="white")
+    draw.text((0, 0), f"{title}: {candidate_label}", fill="white")
+    draw.text((candidate_crop.width + gap, 0), oracle_label, fill="white")
     return row
 
 
@@ -172,8 +185,10 @@ def main() -> int:
 
     summary = {
         "candidate": str(candidate_path),
+        "candidate_label": args.candidate_label,
         "candidate_sha256": sha256_file(candidate_path),
         "oracle": str(oracle_path),
+        "oracle_label": args.oracle_label,
         "oracle_sha256": sha256_file(oracle_path),
         "profile": args.profile,
         "whole_image": {
@@ -189,14 +204,18 @@ def main() -> int:
     rows = []
     for name, spec in profile["regions"].items():
         pbox = spec["parallel_box"]
-        gx0, gy0, gx1, gy1, score = find_best_box(candidate_gray, oracle_gray, pbox, spec["search_radius"])
-        gbox = (gx0, gy0, gx1, gy1)
-        if "oracle_bias" in spec:
+        if args.fixed_boxes:
+            gbox = pbox
+            score = 0.0
+        else:
+            gx0, gy0, gx1, gy1, score = find_best_box(candidate_gray, oracle_gray, pbox, spec["search_radius"])
+            gbox = (gx0, gy0, gx1, gy1)
+        if "oracle_bias" in spec and not args.fixed_boxes:
             gbox = apply_oracle_bias(gbox, oracle, spec["oracle_bias"])
 
         parallel_crop = candidate.crop(pbox)
         glide_crop = oracle.crop(gbox)
-        row = build_row(name, parallel_crop, glide_crop)
+        row = build_row(name, parallel_crop, glide_crop, args.candidate_label, args.oracle_label)
         row.save(output_dir / f"{name}.png")
         build_diff(parallel_crop, glide_crop).save(output_dir / f"{name}-diff.png")
         parallel_crop.save(output_dir / f"{name}-parallel.png")
@@ -215,8 +234,8 @@ def main() -> int:
     gap = 24
     header_lines = [
         f"profile: {args.profile}",
-        f"candidate: {fit_label(str(candidate_path))}",
-        f"oracle: {fit_label(str(oracle_path))}",
+        f"{args.candidate_label}: {fit_label(str(candidate_path))}",
+        f"{args.oracle_label}: {fit_label(str(oracle_path))}",
         f"whole_image: size_match={size_match} exact_equal={whole_exact} diff_bbox={whole_bbox}",
     ]
     header_h = 18 * len(header_lines) + 24
@@ -235,8 +254,10 @@ def main() -> int:
 
     summary_text_lines = [
         f"candidate: {candidate_path}",
+        f"candidate_label: {args.candidate_label}",
         f"candidate_sha256: {summary['candidate_sha256']}",
         f"oracle: {oracle_path}",
+        f"oracle_label: {args.oracle_label}",
         f"oracle_sha256: {summary['oracle_sha256']}",
         f"profile: {args.profile}",
         (

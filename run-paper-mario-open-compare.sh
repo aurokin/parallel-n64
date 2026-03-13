@@ -24,8 +24,8 @@ Options:
 Behavior:
   - Reuses tmux session `paper-mario-compare`.
   - Defaults to the newest `summary.png` under /tmp/parallel-n64-paper-mario-hires-compare.
-  - For `--profile`, it rebuilds into a canonical `latest-<profile>` output so the viewer does not reopen stale summaries.
-  - `--profile intro22` prefers outputs created from the intro22 compare flow.
+  - For `--profile intro22`, it rebuilds into canonical `latest-intro22`.
+  - For `--profile intro22-probe`, it opens canonical `latest-intro22-probe` without rebuilding.
 EOF_USAGE
 }
 
@@ -71,7 +71,9 @@ while (($#)); do
   shift
 done
 
-if [[ -n "$profile" && -z "$image" && -x "$COMPARE_RUNNER" ]]; then
+if [[ "$profile" == "intro22-probe" && -z "$image" ]]; then
+  image="$COMPARE_ROOT/latest-intro22-probe/summary.png"
+elif [[ -n "$profile" && -z "$image" && -x "$COMPARE_RUNNER" ]]; then
   canonical_dir="$COMPARE_ROOT/latest-$profile"
   "$COMPARE_RUNNER" --profile "$profile" --output-dir "$canonical_dir" >/dev/null
   image="$canonical_dir/summary.png"
@@ -79,13 +81,13 @@ elif [[ -z "$image" ]]; then
   image="$(latest_image "$COMPARE_ROOT" "$profile")"
 fi
 
-if [[ "$rebuild" == "1" && -n "$profile" && -z "$image" && -x "$COMPARE_RUNNER" ]]; then
+if [[ "$rebuild" == "1" && -n "$profile" && "$profile" != "intro22-probe" && -z "$image" && -x "$COMPARE_RUNNER" ]]; then
   canonical_dir="$COMPARE_ROOT/latest-$profile"
   "$COMPARE_RUNNER" --profile "$profile" --output-dir "$canonical_dir" >/dev/null
   image="$canonical_dir/summary.png"
 fi
 
-if [[ -z "$image" && -n "$profile" && -x "$COMPARE_RUNNER" ]]; then
+if [[ -z "$image" && -n "$profile" && "$profile" != "intro22-probe" && -x "$COMPARE_RUNNER" ]]; then
   "$COMPARE_RUNNER" --profile "$profile" >/dev/null
   image="$(latest_image "$COMPARE_ROOT" "$profile")"
 fi

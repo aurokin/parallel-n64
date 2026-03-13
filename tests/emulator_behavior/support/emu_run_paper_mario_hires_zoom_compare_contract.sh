@@ -35,10 +35,12 @@ require_pattern "Defaults to the newest PNG under /tmp/parallel-n64-paper-mario-
   "hires zoom compare should default to the latest capture"
 require_pattern "/tmp/parallel-n64-paper-mario-hires-compare" "$RUNNER" \
   "hires zoom compare should use the standard output root"
-require_pattern 'latest_link="$OUTPUT_ROOT/latest-$profile"' "$RUNNER" \
-  "hires zoom compare should maintain a latest-profile link"
+require_pattern 'latest_alias=""' "$RUNNER" \
+  "hires zoom compare should support overriding the latest-link alias"
+require_pattern 'latest_link="$OUTPUT_ROOT/latest-$latest_alias"' "$RUNNER" \
+  "hires zoom compare should maintain a latest-alias link"
 require_pattern 'ln -sfn "$output_dir" "$latest_link"' "$RUNNER" \
-  "hires zoom compare should refresh the latest-profile link"
+  "hires zoom compare should refresh the latest compare link"
 require_pattern 'profile="intro22"' "$RUNNER" \
   "hires zoom compare should default to the intro22 profile"
 require_pattern 'python3 "$COMPARE_TOOL"' "$RUNNER" \
@@ -67,6 +69,10 @@ require_pattern "candidate:" "$TOOL" \
   "python zoom compare tool should stamp candidate identity into the summary image"
 require_pattern "oracle:" "$TOOL" \
   "python zoom compare tool should stamp oracle identity into the summary image"
+require_pattern "candidate_label" "$TOOL" \
+  "python zoom compare tool should record the candidate label"
+require_pattern "oracle_label" "$TOOL" \
+  "python zoom compare tool should record the oracle label"
 require_pattern "whole_image:" "$TOOL" \
   "python zoom compare tool should report whole-image diff metadata"
 require_pattern "candidate_sha256" "$TOOL" \

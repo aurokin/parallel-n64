@@ -111,9 +111,15 @@
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
   - for intro/title captures without controller input:
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
-  - current useful intro `Today...` scene:
+  - timed intro22 oracle scene:
     - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
-    - current aligned default is `parallel=22s`, `glide=19s`
+    - treat this as timed-oracle maintenance only
+  - current standardized renderer truth path:
+    - `./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>`
+    - canonical baseline:
+      - `./run-paper-mario-hires-intro22-baseline-capture.sh`
+    - probe vs baseline:
+      - `./run-paper-mario-hires-intro22-probe-compare.sh --tag <tag>`
   - to seed a deterministic intro/title save state for later replay:
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --timed-save-state-at <sec> --savestate-dir <dir> --tag <tag> --require-hires`
 - Comparable Paper Mario HIRES zoom compare on `parallel`:
@@ -177,6 +183,8 @@
   - `docs/PAPER_MARIO_SCENES.md`
 - Paper Mario HIRES debug matrix:
   - `docs/PAPER_MARIO_HIRES_MATRIX.md`
+- Paper Mario HIRES lane ledger:
+  - `docs/PAPER_MARIO_HIRES_LANES.md`
 - Preserved GLideN64 4x HIRES-on intro22 matched oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-intro22-matched-1/Paper Mario (USA)-260308-170727.png`
 - Preserved GLideN64 4x HIRES-on no-input 16s oracle:

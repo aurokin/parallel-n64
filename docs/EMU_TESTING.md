@@ -33,10 +33,15 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
 - Paper Mario no-input timed capture on `parallel`:
   - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
-- Paper Mario current useful intro `Today...` capture on `parallel`:
+- Paper Mario timed intro22 capture:
   - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
-  - the intro22 wrapper supports separate `parallel` / `glide` screenshot timing and pauses before the screenshot by default to reduce frame drift across cores
-  - current aligned default is `parallel=22s`, `glide=19s`
+  - use this only to maintain/refresh the preserved GLide oracle, not as the renderer truth path
+- Paper Mario standardized intro22 state capture:
+  - `./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>`
+- Paper Mario canonical intro22 baseline capture:
+  - `./run-paper-mario-hires-intro22-baseline-capture.sh`
+- Paper Mario intro22 probe-vs-baseline compare:
+  - `./run-paper-mario-hires-intro22-probe-compare.sh --tag <tag>`
 - Paper Mario scene list:
   - `./run-paper-mario-scenes.sh`
 - Paper Mario timed save-state seed on `parallel`:
@@ -47,6 +52,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - `./run-paper-mario-hires-intro22-compare.sh`
   - defaults to the latest `parallel` capture and compares against the saved GLide HIRES intro22 matched oracle
   - `./run-paper-mario-open-compare.sh --profile intro22` rebuilds `/tmp/parallel-n64-paper-mario-hires-compare/latest-intro22` before opening
+  - `./run-paper-mario-open-compare.sh --profile intro22-probe` opens the canonical probe-vs-baseline compare
 - Paper Mario button-path oracle capture on `GLideN64`:
   - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
 - Paper Mario intro22 oracle capture on `GLideN64`:
@@ -131,15 +137,15 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
   - state mode also supports optional frame stepping:
     - `--state-frame-advance <N>`
     - `--state-frame-advance-delay <sec>`
-  - current Paper Mario intro22 caveat:
-    - RetroArch receives `FRAMEADVANCE` over netcmd
-    - the seeded intro22 loop was pixel-identical at `0/10/20/40/60` frame advances
-    - `120` frames advanced the scene, mainly in `story_text` and `bottom_stage_grid`, while `top_banner` and `left_stage_grid` stayed static
-    - validate frame stepping on the specific scene before using it as a truth source
-  - standardized seeded intro22 state workflow:
-    - `./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>`
-    - uses the current same-core seed at `/tmp/parallel-n64-paper-mario-saves/intro22-seed-r1`
-    - defaults to `--state-frame-advance 1`
+  - current Paper Mario intro22 note:
+    - renderer truth is the standardized `state+1f` path
+    - treat larger frame-advance experiments as ad hoc scene analysis, not the default workflow
+- standardized seeded intro22 state workflow:
+  - `./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>`
+  - uses the current same-core seed at `/tmp/parallel-n64-paper-mario-saves/intro22-seed-r1`
+  - defaults to `--state-frame-advance 1`
+  - for any proof, compare probe vs canonical baseline first:
+    - `./run-paper-mario-hires-intro22-probe-compare.sh --tag <tag>`
 - `parallel` scaling helper:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses the same-core save state path for faster, stable scaling iteration

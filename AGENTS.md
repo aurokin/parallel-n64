@@ -50,6 +50,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 - HIRES behavior and roadmap: `docs/HIRES_BEHAVIOR.md`
 - Paper Mario scene manifest: `docs/PAPER_MARIO_SCENES.md`
 - Paper Mario HIRES debug matrix: `docs/PAPER_MARIO_HIRES_MATRIX.md`
+- Paper Mario HIRES lane ledger: `docs/PAPER_MARIO_HIRES_LANES.md`
 
 ## Paper Mario HIRES Loop
 - Primary path: `parallel`
@@ -59,13 +60,12 @@ Co-Authored-By: Codex <noreply@openai.com>
   - the helper forces `parallel-n64-parallel-rdp-hirestex = enabled` by default; only override that on purpose
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
-  - for the current useful no-input HIRES intro `Today...` scene, prefer `./run-paper-mario-hires-intro22-capture.sh`
   - for the current standardized seeded intro22 state path, prefer `./run-paper-mario-hires-intro22-state-capture.sh`
-  - for current intro22 renderer debugging strategy, follow `docs/PAPER_MARIO_HIRES_MATRIX.md`
+  - for current intro22 renderer debugging strategy, follow:
+    - `docs/PAPER_MARIO_HIRES_MATRIX.md`
+    - `docs/PAPER_MARIO_HIRES_LANES.md`
   - scene quick list: `./run-paper-mario-scenes.sh`
-  - raw equivalent: `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at 22 --timed-close-delay 10 --require-hires`
-  - intro22 wrapper supports per-client screenshot offsets and defaults to pausing immediately before the screenshot so `parallel` and GLide can be tuned onto the same rendered frame
-  - current aligned default is `parallel=22s`, `GLideN64=19s`
+  - use timed intro22 only to maintain/refresh the preserved GLide oracle, not as renderer truth
   - timed mode also supports deterministic save-state seeding:
     - `--timed-save-state-at <sec> --savestate-dir <dir>` sends `SAVE_STATE` before the screenshot and writes slot `0` into the explicit savestate directory
     - after seeding, validate from the same directory with `--smoke-mode state --savestate-dir <dir>`
@@ -75,22 +75,37 @@ Co-Authored-By: Codex <noreply@openai.com>
   - state mode also supports frame stepping via RetroArch netcmd:
     - `--state-frame-advance <N>`
     - `--state-frame-advance-delay <sec>`
-  - current intro22 seeded-state note:
-    - `FRAMEADVANCE` is delivered over netcmd
-    - on the current seeded intro22 loop, `0/10/20/40/60` were pixel-identical
-    - `120` frames advanced the scene, mainly in `story_text` and `bottom_stage_grid`, while `top_banner` and `left_stage_grid` stayed static
-    - standardized default for the seeded-state helper is still `--state-frame-advance 1`
-    - use larger frame-advance values when validating animated intro text; small values are not a useful lever on this scene
+  - intro22 seeded-state truth path:
+    - standardized default is `--state-frame-advance 1`
+    - use this same `state+1f` workflow for baseline and probe captures
+    - do not use `120f` as a normal debugging mode
 - Parallel HIRES zoom compare:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`
+  - capture canonical intro22 baseline:
+    - `./run-paper-mario-hires-intro22-baseline-capture.sh`
+  - compare probe vs baseline first:
+    - `./run-paper-mario-hires-intro22-probe-compare.sh --tag <tag>`
+    - this uses fixed crop boxes with no alignment search
   - refresh capture+compare+viewer in one command:
     - `./run-paper-mario-hires-intro22-refresh.sh`
   - open latest compare in tmux/feh:
     - `./run-paper-mario-open-compare.sh --profile intro22`
     - rebuilds `/tmp/parallel-n64-paper-mario-hires-compare/latest-intro22` before opening so the viewer does not reuse stale summaries
+    - `./run-paper-mario-open-compare.sh --profile intro22-probe`
+      - opens `/tmp/parallel-n64-paper-mario-hires-compare/latest-intro22-probe/summary.png`
   - defaults to the latest PNG under `/tmp/parallel-n64-paper-mario-captures`
   - defaults to the saved GLide HIRES intro22 oracle and emits focused crops for `top_banner`, `story_text`, `bottom_stage_grid`, and `left_stage_grid`
+  - probe-vs-baseline compares use the same crop profile but label columns `probe` and `baseline`
+  - current intro22 remaining static lanes:
+    - `top_banner`: remaining `desc68` repeated-pass/composition issue
+    - `left_stage_grid`: remaining `desc66` / `desc68` dark repeated-pass issue
+    - `bottom_stage_grid`: secondary lane; do not debug it first
+  - current intro22 fixed lanes already on `master`:
+    - story overlay force-blend quads (`35256e77`)
+    - `desc65` shadow/tint subgroup (`b33d4e34`)
+    - `desc66` left-stage additive cluster (`3105881a`)
+    - `desc68` bright modulation and sibling bright raster (`3ce96eba`, `efe32b4b`)
   - for early draw-state sweeps on intro22 without patching renderer code, use descriptor-targeted env lists:
     - `PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC`
     - `PARALLEL_HIRES_SUPPRESS_DRAW_DESC`
@@ -143,6 +158,7 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW=1` suppresses subtype-matched draws even when they are descriptorless/non-replacement lanes
   - each env accepts a comma-separated descriptor list like `40,41,42`
   - `*` matches descriptorless/non-replacement draws too when combined with subtype filters, which is required for frozen intro22 story/bottom lane work
+  - exact baseline diff is the gate for every proof; do not trust score movement alone
 - Parallel scaling capture:
   - `./run-paper-mario-scaling-capture.sh --tag <tag>`
   - uses same-core state-mode capture with HIRES off

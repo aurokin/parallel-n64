@@ -37,7 +37,7 @@ Options:
   -h, --help         Show this help
 
 Behavior:
-  - `parallel` capture uses the trusted no-input intro `Today...` scene:
+  - `parallel` capture uses the trusted timed intro22 oracle scene:
     `--smoke-mode timed --screenshot-at <parallel-shot> --timed-close-delay 10 --require-hires`
   - `glide` capture uses the matching no-input oracle path:
     `--screenshot-at <glide-shot> --start-delay 40 --post-delay 2 --hires-on`

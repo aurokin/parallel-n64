@@ -10,11 +10,14 @@ intro22
   glide:    ./run-paper-mario-hires-intro22-capture.sh --glide --tag <tag>
   compare:  ./run-paper-mario-hires-intro22-compare.sh
   open:     ./run-paper-mario-open-compare.sh --profile intro22
-  purpose:  current primary HIRES scene (`Today...`, top banner, stage grids)
+  purpose:  timed oracle maintenance for the matched intro story scene
 
 intro22-state
   parallel: ./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>
-  purpose:  seeded same-core intro22 state, standardized on `--state-frame-advance 1`
+  baseline: ./run-paper-mario-hires-intro22-baseline-capture.sh
+  probe:    ./run-paper-mario-hires-intro22-probe-compare.sh --tag <tag>
+  open:     ./run-paper-mario-open-compare.sh --profile intro22-probe
+  purpose:  seeded same-core intro22 truth path, standardized on `--state-frame-advance 1`
 
 noinput16
   parallel: ./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at 16 --tag <tag> --require-hires

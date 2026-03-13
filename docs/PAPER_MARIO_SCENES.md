@@ -6,27 +6,11 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
 ## intro22
 
 - Purpose:
-  - Primary HIRES scene for current corruption/composition debugging.
-  - Good for the wide intro story text, top banner, bottom stage grid, and left stage grid.
+  - Timed intro used only for preserving and refreshing the matched GLide oracle.
 - Parallel capture:
   - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
-- Tune per-core timing when `parallel` and GLide drift:
-  - `./run-paper-mario-hires-intro22-capture.sh --parallel-screenshot-at <sec> --glide-screenshot-at <sec>`
-- Frame freeze before screenshot:
-  - enabled by default with `PAUSE_TOGGLE`
-  - disable only if it proves harmful:
-    - `./run-paper-mario-hires-intro22-capture.sh --no-pause-before-shot`
-- Refresh latest compare in one command:
-  - `./run-paper-mario-hires-intro22-refresh.sh`
 - GLide oracle capture:
   - `./run-paper-mario-hires-intro22-capture.sh --glide --tag <tag>`
-- Compare:
-  - `./run-paper-mario-hires-intro22-compare.sh`
-  - open latest compare:
-    - `./run-paper-mario-open-compare.sh --profile intro22`
-    - rebuilds `/tmp/parallel-n64-paper-mario-hires-compare/latest-intro22` before opening
-  - raw equivalent:
-    - `./run-paper-mario-hires-zoom-compare.sh --profile intro22`
 - Timing:
   - no-input timed capture
   - aligned default is `parallel=22s`, `glide=19s`
@@ -41,17 +25,26 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
 
 - Purpose:
   - Standardized seeded same-core intro22 state for reliable renderer debugging.
-  - Use this for current `top_banner` / `left_stage_grid` investigation work.
+  - This is the primary HIRES truth path.
 - Parallel capture:
   - `./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>`
+- Canonical baseline capture:
+  - `./run-paper-mario-hires-intro22-baseline-capture.sh`
+- Probe vs baseline compare:
+  - `./run-paper-mario-hires-intro22-probe-compare.sh --tag <tag>`
+- Oracle compare:
+  - `./run-paper-mario-hires-intro22-compare.sh --tag <tag>`
 - Standardization:
   - uses `/tmp/parallel-n64-paper-mario-saves/intro22-seed-r1`
   - forces `--smoke-mode state --require-hires --state-pause`
   - standardized default is `--state-frame-advance 1`
 - Notes:
   - earlier intro22 state/debug captures without this standardized path should be treated as stale
-  - do not refresh GLide for this workflow; keep the preserved timed intro22 oracle for the timed compare path only
-  - use `docs/PAPER_MARIO_HIRES_MATRIX.md` as the execution plan for current intro22 renderer debugging
+  - do not refresh GLide for this workflow; keep the preserved timed intro22 oracle fixed
+  - use probe-vs-baseline compare first, then GLide
+  - use:
+    - `docs/PAPER_MARIO_HIRES_MATRIX.md`
+    - `docs/PAPER_MARIO_HIRES_LANES.md`
 
 ## noinput16
 

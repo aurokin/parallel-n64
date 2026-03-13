@@ -1825,6 +1825,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 
 	bool draw_has_replacement = false;
 	bool draw_has_intro22_story_glyph_replacement = false;
+	bool draw_has_intro22_story_overlay_replacement = false;
 	std::array<uint32_t, 8> draw_replacement_descs = {};
 	size_t draw_replacement_desc_count = 0;
 	for (const auto &tile_info : tiles)
@@ -1848,8 +1849,40 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				draw_replacement_descs[draw_replacement_desc_count++] = repl.repl_desc_index;
 			if (repl.repl_desc_index >= 140u && repl.repl_desc_index <= 145u)
 				draw_has_intro22_story_glyph_replacement = true;
+			switch (repl.repl_desc_index)
+			{
+			case 81u:
+			case 84u:
+			case 85u:
+			case 86u:
+			case 87u:
+			case 88u:
+			case 89u:
+			case 90u:
+			case 91u:
+				draw_has_intro22_story_overlay_replacement = true;
+				break;
+			default:
+				break;
+			}
 		}
 	}
+
+	const bool uses_tex1 = (stream.static_raster_state.flags & RASTERIZATION_USES_TEXEL1_BIT) != 0;
+	const bool uses_pipe1 = (stream.static_raster_state.flags & RASTERIZATION_USES_PIPELINED_TEXEL1_BIT) != 0;
+	const unsigned tile0 = unsigned(setup.tile) & 7u;
+	const auto &tile0_info = tiles[tile0];
+	const uint32_t raw_raster_flags = uint32_t(stream.static_raster_state.flags);
+	const bool draw_is_intro22_story_overlay_shape =
+		!uses_tex1 &&
+		!uses_pipe1 &&
+		(raw_raster_flags == 0x21864010u || raw_raster_flags == 0x218640d4u) &&
+		tile0_info.meta.fmt == TextureFormat::CI &&
+		tile0_info.meta.size == TextureSize::Bpp4 &&
+		tile0_info.size.slo == 0 &&
+		tile0_info.size.tlo == 0 &&
+		tile0_info.size.shi == ((16u - 1u) << 2u) &&
+		tile0_info.size.thi == ((16u - 1u) << 2u);
 
 	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
 
@@ -1862,6 +1895,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	    (stream.depth_blend_state.flags & DEPTH_BLEND_FORCE_BLEND_BIT) != 0)
 		stream.depth_blend_state.flags &= ~DEPTH_BLEND_DITHER_ENABLE_BIT;
 	if (draw_has_intro22_story_glyph_replacement)
+		stream.depth_blend_state.flags &= ~DEPTH_BLEND_FORCE_BLEND_BIT;
+	if (draw_has_intro22_story_overlay_replacement && draw_is_intro22_story_overlay_shape)
 		stream.depth_blend_state.flags &= ~DEPTH_BLEND_FORCE_BLEND_BIT;
 
 	const auto debug_subtype_match = detail::derive_hires_debug_subtype_match();

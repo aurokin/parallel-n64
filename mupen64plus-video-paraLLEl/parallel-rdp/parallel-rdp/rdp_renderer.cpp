@@ -1887,6 +1887,9 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	const bool draw_has_desc65 = std::find(draw_replacement_descs.begin(),
 	                                       draw_replacement_descs.begin() + draw_replacement_desc_count,
 	                                       65u) != (draw_replacement_descs.begin() + draw_replacement_desc_count);
+	const bool draw_has_desc68 = std::find(draw_replacement_descs.begin(),
+	                                       draw_replacement_descs.begin() + draw_replacement_desc_count,
+	                                       68u) != (draw_replacement_descs.begin() + draw_replacement_desc_count);
 	const bool draw_is_intro22_story_shadow_overlay =
 		draw_has_desc65 &&
 		!uses_tex1 &&
@@ -1900,6 +1903,13 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		uint8_t((attr.g >> 16) & 0xff) == 3u &&
 		uint8_t((attr.b >> 16) & 0xff) == 2u &&
 		uint8_t((attr.a >> 16) & 0xff) == 255u;
+	const bool draw_is_intro22_banner_bright =
+		draw_has_desc68 &&
+		raw_raster_flags == 0x21844108u &&
+		uint8_t((stream.static_raster_state.combiner[0].alpha.muladd)) == 7u &&
+		uint8_t((stream.static_raster_state.combiner[0].alpha.mulsub)) == 7u &&
+		uint8_t((stream.static_raster_state.combiner[0].alpha.mul)) == 7u &&
+		uint8_t((stream.static_raster_state.combiner[0].alpha.add)) == 1u;
 
 	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
 
@@ -2045,6 +2055,15 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	}
 
 	auto derived_setup = build_derived_attributes(attr);
+	if (draw_is_intro22_banner_bright)
+	{
+		// The intro22 banner bright subtype modulates too dark in cycle 1 on the HIRES path.
+		// A small lift here reproduces the proven debug result without affecting the noinput16 desc68 family,
+		// which uses a different raster/state signature.
+		derived_setup.constants[1].mul[0] = 196;
+		derived_setup.constants[1].mul[1] = 196;
+		derived_setup.constants[1].mul[2] = 196;
+	}
 	if (draw_has_replacement &&
 	    detail::hires_debug_desc_list_matches_any(draw_replacement_descs,
 	                                              draw_replacement_desc_count,

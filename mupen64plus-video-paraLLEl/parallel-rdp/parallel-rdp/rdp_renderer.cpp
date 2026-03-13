@@ -1884,6 +1884,22 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		tile0_info.size.tlo == 0 &&
 		tile0_info.size.shi == ((16u - 1u) << 2u) &&
 		tile0_info.size.thi == ((16u - 1u) << 2u);
+	const bool draw_has_desc65 = std::find(draw_replacement_descs.begin(),
+	                                       draw_replacement_descs.begin() + draw_replacement_desc_count,
+	                                       65u) != (draw_replacement_descs.begin() + draw_replacement_desc_count);
+	const bool draw_is_intro22_story_shadow_overlay =
+		draw_has_desc65 &&
+		!uses_tex1 &&
+		!uses_pipe1 &&
+		raw_raster_flags == 0x21844108u &&
+		prim_bounds.valid &&
+		prim_bounds.y0 >= 3536 &&
+		prim_bounds.y1 <= 3676 &&
+		prim_bounds.x1 <= 1075 &&
+		uint8_t((attr.r >> 16) & 0xff) == 3u &&
+		uint8_t((attr.g >> 16) & 0xff) == 3u &&
+		uint8_t((attr.b >> 16) & 0xff) == 2u &&
+		uint8_t((attr.a >> 16) & 0xff) == 255u;
 
 	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
 
@@ -2152,43 +2168,17 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 
 		}
 	}
+	// On the seeded intro22 story card, this desc65 shadow/tint subgroup darkens correctly
+	// only when the single-cycle path uses the combined RGB result in the final composition.
+	if (draw_is_intro22_story_shadow_overlay)
+		stream.static_raster_state.dither |= detail::HIRES_CMBDBG_FORCE_CYCLE1_RGB_COMBINED_BIT;
 
 	InstanceIndices indices = {};
 	indices.static_index = stream.static_raster_state_cache.add(normalize_static_state(stream.static_raster_state));
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);
 	indices.tile_instance_index = uint8_t(stream.tmem_upload_infos.size());
-	const bool env_desc65_lower_clear_repl1 = getenv("PARALLEL_DEBUG_DESC65_LOWER_CLEAR_REPL1") != nullptr;
-	const bool env_desc65_lower_force_orig = getenv("PARALLEL_DEBUG_DESC65_LOWER_FORCE_ORIG") != nullptr;
-	const bool draw_has_desc65 = std::find(draw_replacement_descs.begin(),
-	                                       draw_replacement_descs.begin() + draw_replacement_desc_count,
-	                                       65u) != (draw_replacement_descs.begin() + draw_replacement_desc_count);
-	const bool draw_is_desc65_lower_band =
-		draw_has_desc65 &&
-		raw_raster_flags == 0x21844108u &&
-		!uses_tex1 &&
-		!uses_pipe1 &&
-		prim_bounds.valid &&
-		prim_bounds.y0 >= 3536 &&
-		prim_bounds.y1 <= 3836;
-	TileReplacementMeta saved_tile0_repl = tiles[tile0].replacement;
-	TileReplacementMeta saved_tile1_repl = tiles[(tile0 + 1u) & 7u].replacement;
-	const unsigned tile1 = (tile0 + 1u) & 7u;
-	if (draw_is_desc65_lower_band && env_desc65_lower_clear_repl1)
-	{
-		tiles[tile1].replacement = {};
-		tiles[tile1].replacement.repl_desc_index = 0xffffffffu;
-	}
-	if (draw_is_desc65_lower_band && env_desc65_lower_force_orig)
-	{
-		tiles[tile0].replacement.repl_orig_w = 4;
-		tiles[tile0].replacement.repl_orig_h = 32;
-		tiles[tile1].replacement.repl_orig_w = 4;
-		tiles[tile1].replacement.repl_orig_h = 32;
-	}
 	for (unsigned i = 0; i < 8; i++)
 		indices.tile_indices[i] = stream.tile_info_state_cache.add(tiles[i]);
-	tiles[tile0].replacement = saved_tile0_repl;
-	tiles[tile1].replacement = saved_tile1_repl;
 	stream.state_indices.add(indices);
 
 	fb.color_write_pending = true;

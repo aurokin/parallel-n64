@@ -1944,6 +1944,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				uint32_t(stream.static_raster_state.flags),
 				normalized,
 				attr,
+				hires_draw_calls_total + 1,
 				attr.s >> 16,
 				attr.t >> 16,
 				prim_bounds.valid,

@@ -344,30 +344,30 @@ static void test_subtype_filter_blocks_nonmatching_overrides()
 	attr.b = 255 << 16;
 	attr.a = 255 << 16;
 
-	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(matched.clear_force_blend, "matching subtype should preserve overrides");
 
 	normalized.combiner[0].alpha.muladd = AlphaAddSub::Texel0Alpha;
 	normalized.combiner[0].alpha.mul = AlphaMul::ShadeAlpha;
 	normalized.combiner[0].alpha.add = AlphaAddSub::CombinedAlpha;
-	auto filtered = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
+	auto filtered = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(!filtered.clear_force_blend, "nonmatching subtype should clear overrides");
 
 	normalized.combiner[0].alpha.muladd = AlphaAddSub::Zero;
 	normalized.combiner[0].alpha.mul = AlphaMul::Zero;
 	normalized.combiner[0].alpha.add = AlphaAddSub::Texel0Alpha;
 	attr.r = 193 << 16;
-	auto wrong_shade = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
+	auto wrong_shade = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(!wrong_shade.clear_force_blend, "wrong shade should clear overrides");
 
 	attr.r = 255 << 16;
-	auto wrong_raster = filter_hires_debug_draw_overrides(overrides, subtype, 0x01804108u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
+	auto wrong_raster = filter_hires_debug_draw_overrides(overrides, subtype, 0x01804108u, normalized, attr, 0, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(!wrong_raster.clear_force_blend, "wrong raster should clear overrides");
 
-	auto wrong_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 464u, 1172u, 3037u, 3548u);
+	auto wrong_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, 0, true, 464u, 1172u, 3037u, 3548u);
 	check(!wrong_bounds.clear_force_blend, "wrong screen bounds should clear overrides");
 
-	auto wrong_x_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, true, 0u, 463u, 2800u, 3036u);
+	auto wrong_x_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 0, 0, true, 0u, 463u, 2800u, 3036u);
 	check(!wrong_x_bounds.clear_force_blend, "wrong screen x bounds should clear overrides");
 }
 
@@ -395,16 +395,16 @@ static void test_subtype_filter_can_force_suppress_without_descriptors()
 	StaticRasterizationState normalized = {};
 	AttributeSetup attr = {};
 
-	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr, 0, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(matched.suppress_draw, "matched subtype should force suppress_draw without bound descriptors");
 
-	auto wrong = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844118u, normalized, attr, 0, 0, true, 464u, 1172u, 2800u, 3036u);
+	auto wrong = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844118u, normalized, attr, 0, 0, 0, true, 464u, 1172u, 2800u, 3036u);
 	check(!wrong.suppress_draw, "nonmatching subtype should not force suppress_draw");
 
-	auto wrong_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr, 0, 0, true, 464u, 1172u, 3037u, 3548u);
+	auto wrong_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr, 0, 0, 0, true, 464u, 1172u, 3037u, 3548u);
 	check(!wrong_bounds.suppress_draw, "nonmatching screen bounds should not force suppress_draw");
 
-	auto wrong_x_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr, 0, 0, true, 0u, 463u, 2800u, 3036u);
+	auto wrong_x_bounds = filter_hires_debug_draw_overrides(overrides, subtype, 0x21840010u, normalized, attr, 0, 0, 0, true, 0u, 463u, 2800u, 3036u);
 	check(!wrong_x_bounds.suppress_draw, "nonmatching screen x bounds should not force suppress_draw");
 }
 
@@ -428,14 +428,43 @@ static void test_subtype_filter_matches_st_bounds()
 	StaticRasterizationState normalized = {};
 	AttributeSetup attr = {};
 
-	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 828, 69, true, 640u, 1073u, 3536u, 3676u);
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 828, 69, true, 640u, 1073u, 3536u, 3676u);
 	check(matched.suppress_draw, "matching st bounds should force suppress_draw");
 
-	auto wrong_s = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 829, 69, true, 640u, 1073u, 3536u, 3676u);
+	auto wrong_s = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 829, 69, true, 640u, 1073u, 3536u, 3676u);
 	check(!wrong_s.suppress_draw, "wrong st.s should clear suppress_draw");
 
-	auto wrong_t = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 828, 70, true, 640u, 1073u, 3536u, 3676u);
+	auto wrong_t = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr, 0, 828, 70, true, 640u, 1073u, 3536u, 3676u);
 	check(!wrong_t.suppress_draw, "wrong st.t should clear suppress_draw");
+}
+
+static void test_subtype_filter_matches_call_modulus_and_remainder()
+{
+	EnvGuard suppress_match("PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW");
+	EnvGuard match_call_modulus("PARALLEL_HIRES_MATCH_CALL_MODULUS");
+	EnvGuard match_call_remainder("PARALLEL_HIRES_MATCH_CALL_REMAINDER");
+	setenv(suppress_match.name, "1", 1);
+	setenv(match_call_modulus.name, "4", 1);
+	setenv(match_call_remainder.name, "2", 1);
+
+	std::array<uint32_t, 8> descs = {};
+	auto overrides = derive_hires_debug_draw_overrides(descs, 0);
+	auto subtype = derive_hires_debug_subtype_match();
+
+	check(hires_debug_subtype_match_active(subtype), "call modulus/remainder should activate subtype match");
+	check(subtype.has_call_modulus && subtype.call_modulus == 4u, "call modulus should parse");
+	check(subtype.has_call_remainder && subtype.call_remainder == 2u, "call remainder should parse");
+
+	StaticRasterizationState normalized = {};
+	AttributeSetup attr = {};
+
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
+	                                                 6, 0, 0, true, 640u, 1073u, 3536u, 3676u);
+	check(matched.suppress_draw, "matching call modulus/remainder should force suppress_draw");
+
+	auto wrong_remainder = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
+	                                                         5, 0, 0, true, 640u, 1073u, 3536u, 3676u);
+	check(!wrong_remainder.suppress_draw, "wrong call remainder should clear suppress_draw");
 }
 
 static void test_apply_overrides_mutates_expected_state_bits()
@@ -649,6 +678,7 @@ int main()
 	test_subtype_filter_blocks_nonmatching_overrides();
 	test_subtype_filter_can_force_suppress_without_descriptors();
 	test_subtype_filter_matches_st_bounds();
+	test_subtype_filter_matches_call_modulus_and_remainder();
 	test_apply_overrides_mutates_expected_state_bits();
 	test_force_upscaled_texrect_wins_last();
 	std::cout << "emu_unit_hires_debug_policy_test: PASS" << std::endl;

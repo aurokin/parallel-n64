@@ -90,6 +90,10 @@ struct HiresDebugSubtypeMatch
 	uint32_t call_modulus = 0;
 	bool has_call_remainder = false;
 	uint32_t call_remainder = 0;
+	bool has_call_remainder_min = false;
+	uint32_t call_remainder_min = 0;
+	bool has_call_remainder_max = false;
+	uint32_t call_remainder_max = 0;
 };
 
 enum HiresDepthBlendDebugBit : uint8_t
@@ -330,6 +334,10 @@ inline HiresDebugSubtypeMatch derive_hires_debug_subtype_match()
 	                                                   match.call_modulus);
 	match.has_call_remainder = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_REMAINDER",
 	                                                     match.call_remainder);
+	match.has_call_remainder_min = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_REMAINDER_MIN",
+	                                                         match.call_remainder_min);
+	match.has_call_remainder_max = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_REMAINDER_MAX",
+	                                                         match.call_remainder_max);
 	return match;
 }
 
@@ -340,7 +348,8 @@ inline bool hires_debug_subtype_match_active(const HiresDebugSubtypeMatch &match
 	       match.has_screen_x_min || match.has_screen_x_max ||
 	       match.has_st_s_min || match.has_st_s_max ||
 	       match.has_st_t_min || match.has_st_t_max ||
-	       match.has_call_modulus || match.has_call_remainder;
+	       match.has_call_modulus || match.has_call_remainder ||
+	       match.has_call_remainder_min || match.has_call_remainder_max;
 }
 
 inline bool hires_debug_subtype_matches(const HiresDebugSubtypeMatch &match,
@@ -408,8 +417,12 @@ inline bool hires_debug_subtype_matches(const HiresDebugSubtypeMatch &match,
 			if (remainder != match.call_remainder)
 				return false;
 		}
+		if (match.has_call_remainder_min && remainder < match.call_remainder_min)
+			return false;
+		if (match.has_call_remainder_max && remainder > match.call_remainder_max)
+			return false;
 	}
-	else if (match.has_call_remainder)
+	else if (match.has_call_remainder || match.has_call_remainder_min || match.has_call_remainder_max)
 	{
 		return false;
 	}

@@ -467,6 +467,45 @@ static void test_subtype_filter_matches_call_modulus_and_remainder()
 	check(!wrong_remainder.suppress_draw, "wrong call remainder should clear suppress_draw");
 }
 
+static void test_subtype_filter_matches_call_remainder_range()
+{
+	EnvGuard suppress_match("PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW");
+	EnvGuard match_call_modulus("PARALLEL_HIRES_MATCH_CALL_MODULUS");
+	EnvGuard match_call_remainder_min("PARALLEL_HIRES_MATCH_CALL_REMAINDER_MIN");
+	EnvGuard match_call_remainder_max("PARALLEL_HIRES_MATCH_CALL_REMAINDER_MAX");
+	setenv(suppress_match.name, "1", 1);
+	setenv(match_call_modulus.name, "233", 1);
+	setenv(match_call_remainder_min.name, "4", 1);
+	setenv(match_call_remainder_max.name, "11", 1);
+
+	std::array<uint32_t, 8> descs = {};
+	auto overrides = derive_hires_debug_draw_overrides(descs, 0);
+	auto subtype = derive_hires_debug_subtype_match();
+
+	check(hires_debug_subtype_match_active(subtype), "call remainder range should activate subtype match");
+	check(subtype.has_call_remainder_min && subtype.call_remainder_min == 4u, "call remainder min should parse");
+	check(subtype.has_call_remainder_max && subtype.call_remainder_max == 11u, "call remainder max should parse");
+
+	StaticRasterizationState normalized = {};
+	AttributeSetup attr = {};
+
+	auto matched_low = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
+	                                                     1169, 0, 0, true, 209u, 1068u, 0u, 700u);
+	check(matched_low.suppress_draw, "low remainder in range should match");
+
+	auto matched_high = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
+	                                                      1176, 0, 0, true, 209u, 1068u, 0u, 700u);
+	check(matched_high.suppress_draw, "high remainder in range should match");
+
+	auto wrong_below = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
+	                                                     1168, 0, 0, true, 209u, 1068u, 0u, 700u);
+	check(!wrong_below.suppress_draw, "remainder below range should not match");
+
+	auto wrong_above = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
+	                                                     1177, 0, 0, true, 209u, 1068u, 0u, 700u);
+	check(!wrong_above.suppress_draw, "remainder above range should not match");
+}
+
 static void test_apply_overrides_mutates_expected_state_bits()
 {
 	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
@@ -679,6 +718,7 @@ int main()
 	test_subtype_filter_can_force_suppress_without_descriptors();
 	test_subtype_filter_matches_st_bounds();
 	test_subtype_filter_matches_call_modulus_and_remainder();
+	test_subtype_filter_matches_call_remainder_range();
 	test_apply_overrides_mutates_expected_state_bits();
 	test_force_upscaled_texrect_wins_last();
 	std::cout << "emu_unit_hires_debug_policy_test: PASS" << std::endl;

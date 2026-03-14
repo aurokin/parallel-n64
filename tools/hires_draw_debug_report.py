@@ -49,7 +49,8 @@ def norm_key(value: str | None) -> str:
     return f"0x{int(value, 16):016x}"
 
 
-def collect_records(path: pathlib.Path, desc_filter: set[int], repl_key_filter: set[str]):
+def collect_records(path: pathlib.Path, desc_filter: set[int], repl_key_filter: set[str],
+                    call_min: int | None, call_max: int | None):
     records = []
     counter: collections.Counter = collections.Counter()
     pending_program = None
@@ -92,6 +93,14 @@ def collect_records(path: pathlib.Path, desc_filter: set[int], repl_key_filter: 
                 pending_program = None
                 pending_derived = None
                 continue
+            if call_min is not None and int(record["call"]) < call_min:
+                pending_program = None
+                pending_derived = None
+                continue
+            if call_max is not None and int(record["call"]) > call_max:
+                pending_program = None
+                pending_derived = None
+                continue
 
             records.append(record)
             pending_program = None
@@ -100,9 +109,10 @@ def collect_records(path: pathlib.Path, desc_filter: set[int], repl_key_filter: 
     return records
 
 
-def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int], repl_key_filter: set[str]):
+def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int],
+                  repl_key_filter: set[str], call_min: int | None, call_max: int | None):
     counter: collections.Counter = collections.Counter()
-    records = collect_records(path, desc_filter, repl_key_filter)
+    records = collect_records(path, desc_filter, repl_key_filter, call_min, call_max)
     for record in records:
         key = tuple(record[field] for field in group_by)
         counter[key] += 1
@@ -114,8 +124,62 @@ def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filt
         print(f"{count:6d}  " + " ".join(parts))
 
 
-def dump_records(path: pathlib.Path, fields: list[str], limit: int, desc_filter: set[int], repl_key_filter: set[str]):
-    records = collect_records(path, desc_filter, repl_key_filter)
+def summarize_spatial(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int],
+                      repl_key_filter: set[str], call_min: int | None, call_max: int | None):
+    groups: dict[tuple[str, ...], dict[str, object]] = {}
+    records = collect_records(path, desc_filter, repl_key_filter, call_min, call_max)
+    for record in records:
+        key = tuple(record[field] for field in group_by)
+        group = groups.setdefault(key, {
+            "count": 0,
+            "x_slots": set(),
+            "y_slots": set(),
+            "prims": set(),
+            "calls": [],
+        })
+        group["count"] += 1
+        group["x_slots"].add(record["screen_x"])
+        group["y_slots"].add(record["screen_y"])
+        group["prims"].add(record["prim"])
+        group["calls"].append(int(record["call"]))
+
+    def slot_key(slot: str):
+        try:
+            lo, _ = slot.split("..", 1)
+            return int(lo)
+        except Exception:
+            return 0
+
+    def prim_key(prim: str):
+        try:
+            return int(prim, 16)
+        except Exception:
+            return 0
+
+    ranked = sorted(groups.items(), key=lambda item: int(item[1]["count"]), reverse=True)
+    print(f"\n## {path}")
+    print(f"matched_draws={len(records)}")
+    for key, group in ranked[:limit]:
+        x_slots = sorted(group["x_slots"], key=slot_key)
+        y_slots = sorted(group["y_slots"], key=slot_key)
+        prims = sorted(group["prims"], key=prim_key)
+        calls = sorted(group["calls"])
+        parts = [f"{field}={value}" for field, value in zip(group_by, key)]
+        parts.extend([
+            f"x_slots={','.join(x_slots)}",
+            f"y_slots={','.join(y_slots)}",
+            f"unique_x={len(x_slots)}",
+            f"unique_y={len(y_slots)}",
+            f"prim_range={prims[0]}..{prims[-1]}",
+            f"unique_prim={len(prims)}",
+            f"call_range={calls[0]}..{calls[-1]}",
+        ])
+        print(f"{int(group['count']):6d}  " + " ".join(parts))
+
+
+def dump_records(path: pathlib.Path, fields: list[str], limit: int, desc_filter: set[int],
+                 repl_key_filter: set[str], call_min: int | None, call_max: int | None):
+    records = collect_records(path, desc_filter, repl_key_filter, call_min, call_max)
     print(f"\n## {path}")
     print(f"matched_draws={len(records)}")
     for record in records[:limit]:
@@ -133,8 +197,12 @@ def main() -> int:
     )
     parser.add_argument("--desc", action="append", type=int, default=[], help="Filter by desc. Repeatable.")
     parser.add_argument("--repl-key", action="append", default=[], help="Filter by replacement checksum64 key. Repeatable.")
+    parser.add_argument("--call-min", type=int, help="Filter by minimum draw call index.")
+    parser.add_argument("--call-max", type=int, help="Filter by maximum draw call index.")
     parser.add_argument("--limit", type=int, default=25, help="Rows per log.")
     parser.add_argument("--dump-records", action="store_true", help="Dump matched records in call order instead of grouped counts.")
+    parser.add_argument("--spatial-summary", action="store_true",
+                        help="Summarize matched records by unique screen-slot reuse, prim range, and call range.")
     args = parser.parse_args()
 
     group_by = [field.strip() for field in args.group_by.split(",") if field.strip()]
@@ -150,9 +218,11 @@ def main() -> int:
             print(f"Missing log: {path}", file=sys.stderr)
             return 1
         if args.dump_records:
-            dump_records(path, group_by, args.limit, desc_filter, repl_key_filter)
+            dump_records(path, group_by, args.limit, desc_filter, repl_key_filter, args.call_min, args.call_max)
+        elif args.spatial_summary:
+            summarize_spatial(path, group_by, args.limit, desc_filter, repl_key_filter, args.call_min, args.call_max)
         else:
-            summarize_log(path, group_by, args.limit, desc_filter, repl_key_filter)
+            summarize_log(path, group_by, args.limit, desc_filter, repl_key_filter, args.call_min, args.call_max)
 
     return 0
 

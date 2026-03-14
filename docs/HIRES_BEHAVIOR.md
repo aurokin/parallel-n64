@@ -154,7 +154,11 @@
   - for composition-model work, use:
     - `./tools/hires_draw_debug_report.py --log <run.log> [filters...]`
     - this joins `Hi-res debug program`, `Hi-res derived constants`, and `Hi-res draw state` into one reportable record
+    - `PARALLEL_HIRES_LOG_MATCHED_DRAW=1` logs subtype-matched draws even when they have no replacement descriptors
+    - `PARALLEL_HIRES2_LOG_MATCHED_DRAW=1` does the same for the second debug scope
     - `--dump-records` emits matched records in call order, which is useful for repeated-strip / stitching investigation
+    - `--spatial-summary` groups matched draws by row/slot reuse, unique `screen_x`/`screen_y`, prim range, and call range
+    - `--call-min/--call-max` isolate one repeated pass phase or one strip bundle for order-sensitive debugging
   - current important finding:
     - Paper Mario’s `CI16 -> RGBA16 lookup_tile=0` family cannot be separated by raw raster flags alone
     - intro22’s useful clusters and noinput16’s bad clusters both include:
@@ -173,6 +177,19 @@
     - newer sequence-level finding:
       - some shared `16x16 -> 100x100` keys are spatially reused across multiple strip slots in intro22, while the same keys stay spatially fixed in noinput16
       - that points toward strip-order / overlap behavior as a remaining root-cause class
+    - newest canonical intro22 result:
+      - for the shared `16x16 -> 100x100` `desc81` family, suppressing different strip-slot subgroups (`x=312..376`, `944..1008`, or lower-row `756..820`) yields the exact same probe image
+      - suppressing only the early `21864010` phase or only the late `218640d4` phase of the same slot also yields that same image
+      - so the producer slot/pass itself is probably not the root problem; the remaining washout is more likely in a later shared consumer/compositor that treats those writes as equivalent
+    - newest downstream row finding:
+      - matched-draw logging on the problematic intro22 strip rows exposes a descriptorless consumer at:
+        - `desc=0`
+        - `raster=0x21840010`
+        - `x=464..1172`
+        - `y=3024..3036`
+      - it follows a replacement-backed `desc64` row with the same screen box and prim ladder
+      - suppressing that descriptorless row changes only `story_text` and `bottom_stage_grid`
+      - that makes it a real seam/compositor lane and a better root-cause target than any one upstream `desc81` slot
     - this is the current breakpoint:
       - investigate composition clusters, not just fallback family acceptance
 

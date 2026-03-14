@@ -76,7 +76,11 @@ Co-Authored-By: Codex <noreply@openai.com>
         - normalized raster program
         - derived constants
         - final draw-state for the same draw
+      - `PARALLEL_HIRES_LOG_MATCHED_DRAW=1` logs any subtype-matched draw, even when it has no replacement descriptors
+      - `PARALLEL_HIRES2_LOG_MATCHED_DRAW=1` does the same for the second independent debug scope
       - `--dump-records` prints matched draws in call order instead of grouped counts
+      - `--spatial-summary` groups matched draws by row/slot reuse, unique `screen_x`/`screen_y`, prim range, and call range
+      - `--call-min/--call-max` let you isolate one repeated pass phase or one strip bundle without grepping logs manually
       - useful filters:
         - `--load-fs 0x202`
         - `--lookup-fs 0x02`
@@ -124,6 +128,18 @@ Co-Authored-By: Codex <noreply@openai.com>
         - whether a secondary `repl1` binding is present
         - and the spatial reuse/order of the same `repl_key` inside a strip sequence
       - debugging should now pivot from “which asset was matched?” to “how is this matched asset being composed in this lane?”
+      - newest strip-order breakpoint on canonical `intro22-state + 1f`:
+        - for the shared `16x16 -> 100x100` `desc81` family, suppressing different slot subgroups (`x=312..376`, `944..1008`, or lower-row `756..820`) produces the exact same PNG
+        - suppressing only the early `21864010` phase or only the late `218640d4` phase of the same slot also produces that same PNG
+        - that means the producer slot itself is probably not the root; the corruption is likely in a later shared consumer/compositor that treats these strip writes as equivalent inputs
+      - newest downstream seam finding:
+        - row-scoped matched-draw logging on intro22 exposes a descriptorless consumer:
+          - `desc=0`
+          - `raster=0x21840010`
+          - `x=464..1172`
+          - `y=3024..3036`
+        - it follows the replacement-backed `desc64` row with the same screen box and prim ladder
+        - suppressing that descriptorless row changes only `story_text` and `bottom_stage_grid`, so it is a real seam/compositor lane rather than just upstream producer noise
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`

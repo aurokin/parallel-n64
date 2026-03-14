@@ -55,6 +55,33 @@ namespace
 {
 constexpr uint32_t HIRES_DESCRIPTOR_CAPACITY = 4096u;
 
+const char *lookup_source_name(detail::HiresLookupSource source)
+{
+	switch (source)
+	{
+	case detail::HiresLookupSource::None:
+		return "none";
+	case detail::HiresLookupSource::Primary:
+		return "primary";
+	case detail::HiresLookupSource::CiLow32:
+		return "ci_low32";
+	case detail::HiresLookupSource::TileMask:
+		return "tile_mask";
+	case detail::HiresLookupSource::TileStride:
+		return "tile_stride";
+	case detail::HiresLookupSource::BlockTile:
+		return "block_tile";
+	case detail::HiresLookupSource::BlockShape:
+		return "block_shape";
+	case detail::HiresLookupSource::PendingBlockRetry:
+		return "pending_block_retry";
+	case detail::HiresLookupSource::AliasPropagated:
+		return "alias";
+	}
+
+	return "unknown";
+}
+
 static void zero_transparent_replacement_rgb(std::vector<uint8_t> &rgba8)
 {
 	for (size_t i = 0; i + 3 < rgba8.size(); i += 4)
@@ -2210,6 +2237,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			const unsigned tile1 = (tile0 + 1u) & 7u;
 			const auto &repl0 = tiles[tile0].replacement;
 			const auto &repl1 = tiles[tile1].replacement;
+			const auto &repl0_state = replacement_tiles[tile0];
+			const auto &repl1_state = replacement_tiles[tile1];
 			const auto &tile0_info = tiles[tile0];
 			const auto &tile1_info = tiles[tile1];
 			const auto prim_bounds = compute_debug_primitive_bounds(setup, stream.scissor_state, int(caps.upscaling));
@@ -2217,7 +2246,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     "screen={valid=%d x=%d..%d y=%d..%d} st={s=%d t=%d dsdx=%d dtdy=%d dsde=%d dtde=%d} "
 			     "tile0_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
 			     "tile1_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
-			     "repl0_desc=%u repl0_orig=%ux%u repl0=%ux%u repl1_desc=%u repl1_orig=%ux%u repl1=%ux%u.\n",
+			     "repl0_desc=%u repl0_source=%s repl0_orig=%ux%u repl0=%ux%u "
+			     "repl1_desc=%u repl1_source=%s repl1_orig=%ux%u repl1=%ux%u.\n",
 			     static_cast<unsigned long long>(hires_draw_calls_total),
 			     unsigned(setup.tile),
 			     tile0,
@@ -2268,11 +2298,13 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     unsigned(tile1_info.size.shi >> 2),
 			     unsigned(tile1_info.size.thi >> 2),
 			     unsigned(repl0.repl_desc_index),
+			     lookup_source_name(repl0_state.lookup_source),
 			     unsigned(repl0.repl_orig_w),
 			     unsigned(repl0.repl_orig_h),
 			     unsigned(repl0.repl_w),
 			     unsigned(repl0.repl_h),
 			     unsigned(repl1.repl_desc_index),
+			     lookup_source_name(repl1_state.lookup_source),
 			     unsigned(repl1.repl_orig_w),
 			     unsigned(repl1.repl_orig_h),
 			     unsigned(repl1.repl_w),
@@ -4086,7 +4118,8 @@ void Renderer::retry_pending_hires_block_lookup(unsigned tile_index)
 				repl_meta.repl_w,
 				repl_meta.repl_h,
 				repl_meta.has_mips,
-				true);
+				true,
+				detail::HiresLookupSource::PendingBlockRetry);
 		if (detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks))
 		{
 			detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
@@ -4679,6 +4712,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			ReplacementMeta repl_meta = {};
 			uint64_t checksum64 = detail::compose_hires_checksum64(texture_crc, 0);
 			bool hit = false;
+			detail::HiresLookupSource lookup_source = detail::HiresLookupSource::None;
 			bool used_ci_low32 = false;
 			const bool ci_uses_palette_candidates = detail::should_try_hires_ci_palette_candidates(
 					meta.fmt,
@@ -4792,6 +4826,9 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			if (hit)
 			{
 				hires_lookup_primary_hits++;
+				lookup_source = used_ci_low32 ?
+						detail::HiresLookupSource::CiLow32 :
+						detail::HiresLookupSource::Primary;
 				if (used_ci_low32)
 					hires_lookup_ci_low32_hits++;
 			}
@@ -4833,6 +4870,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						texture_crc = masked_texture_crc;
 						lookup_width_pixels = masked_width_pixels;
 						lookup_height_pixels = masked_height_pixels;
+						lookup_source = detail::HiresLookupSource::TileMask;
 						hires_lookup_tile_mask_hits++;
 						if (used_ci_low32)
 							hires_lookup_ci_low32_hits++;
@@ -4875,6 +4913,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					{
 						hit = true;
 						texture_crc = alt_texture_crc;
+						lookup_source = detail::HiresLookupSource::TileStride;
 						hires_lookup_tile_stride_hits++;
 						if (used_ci_low32)
 							hires_lookup_ci_low32_hits++;
@@ -4911,6 +4950,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						&used_ci_low32);
 				if (hit)
 				{
+					lookup_source = detail::HiresLookupSource::BlockTile;
 					hires_lookup_block_tile_hits++;
 					if (used_ci_low32)
 						hires_lookup_ci_low32_hits++;
@@ -4958,6 +4998,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					texture_crc = candidate_texture_crc;
 					lookup_width_pixels = candidate_width;
 					lookup_height_pixels = candidate_height;
+					lookup_source = detail::HiresLookupSource::BlockShape;
 					hires_lookup_block_shape_hits++;
 					if (used_ci_low32)
 						hires_lookup_ci_low32_hits++;
@@ -5016,7 +5057,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					repl_meta.repl_w,
 					repl_meta.repl_h,
 					repl_meta.has_mips,
-					true);
+					true,
+					lookup_source);
 			if (detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks))
 			{
 				detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);

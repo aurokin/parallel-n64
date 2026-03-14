@@ -15,6 +15,19 @@ enum class HiresConfigureOutcome
 	LoadSucceeded
 };
 
+enum class HiresLookupSource : uint8_t
+{
+	None = 0,
+	Primary,
+	CiLow32,
+	TileMask,
+	TileStride,
+	BlockTile,
+	BlockShape,
+	PendingBlockRetry,
+	AliasPropagated
+};
+
 inline std::string resolve_hires_cache_path(const std::string &configured_path, const char *env_path)
 {
 	if (!configured_path.empty())

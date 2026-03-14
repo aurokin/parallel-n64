@@ -25,6 +25,7 @@
 #include "rdp_data_structures.hpp"
 #include "device.hpp"
 #include "rdp_common.hpp"
+#include "rdp_hires_runtime_policy.hpp"
 #include "rdp_hires_registry_policy.hpp"
 #include "rdp_hires_sampling_policy.hpp"
 #include "worker_thread.hpp"
@@ -248,6 +249,7 @@ private:
 		uint16_t repl_w = 0;
 		uint16_t repl_h = 0;
 		uint32_t vk_image_index = 0xffffffffu;
+		detail::HiresLookupSource lookup_source = detail::HiresLookupSource::None;
 		bool valid = false;
 		bool hit = false;
 		bool has_mips = false;

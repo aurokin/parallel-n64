@@ -125,6 +125,7 @@ inline void propagate_hires_alias_group_binding(unsigned owner_tile,
 		if (should_apply_hires_propagated_binding(owner_meta, tile_infos[i].meta))
 		{
 			tile_states[i] = tile_states[owner_tile];
+			write_hires_lookup_tile_source(tile_states[i], HiresLookupSource::AliasPropagated, 0);
 			if (tile_states[i].allow_tile_sampling_expansion &&
 			    !should_alias_hires_tile_binding(owner_meta, tile_infos[i].meta) &&
 			    should_alias_hires_load_binding(owner_meta, tile_infos[i].meta))

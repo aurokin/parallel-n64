@@ -88,6 +88,10 @@ struct HiresDebugSubtypeMatch
 	int32_t st_t_max = 0;
 	bool has_call_modulus = false;
 	uint32_t call_modulus = 0;
+	bool has_call_min = false;
+	uint32_t call_min = 0;
+	bool has_call_max = false;
+	uint32_t call_max = 0;
 	bool has_call_remainder = false;
 	uint32_t call_remainder = 0;
 	bool has_call_remainder_min = false;
@@ -332,6 +336,10 @@ inline HiresDebugSubtypeMatch derive_hires_debug_subtype_match()
 	                                               match.st_t_max);
 	match.has_call_modulus = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_MODULUS",
 	                                                   match.call_modulus);
+	match.has_call_min = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_MIN",
+	                                               match.call_min);
+	match.has_call_max = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_MAX",
+	                                               match.call_max);
 	match.has_call_remainder = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_REMAINDER",
 	                                                     match.call_remainder);
 	match.has_call_remainder_min = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_REMAINDER_MIN",
@@ -348,7 +356,8 @@ inline bool hires_debug_subtype_match_active(const HiresDebugSubtypeMatch &match
 	       match.has_screen_x_min || match.has_screen_x_max ||
 	       match.has_st_s_min || match.has_st_s_max ||
 	       match.has_st_t_min || match.has_st_t_max ||
-	       match.has_call_modulus || match.has_call_remainder ||
+	       match.has_call_modulus || match.has_call_min || match.has_call_max ||
+	       match.has_call_remainder ||
 	       match.has_call_remainder_min || match.has_call_remainder_max;
 }
 
@@ -406,6 +415,10 @@ inline bool hires_debug_subtype_matches(const HiresDebugSubtypeMatch &match,
 	if (match.has_st_t_min && st_t < match.st_t_min)
 		return false;
 	if (match.has_st_t_max && st_t > match.st_t_max)
+		return false;
+	if (match.has_call_min && draw_call_index < match.call_min)
+		return false;
+	if (match.has_call_max && draw_call_index > match.call_max)
 		return false;
 	if (match.has_call_modulus)
 	{

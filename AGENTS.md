@@ -200,7 +200,14 @@ Co-Authored-By: Codex <noreply@openai.com>
   - when enabled, keep the VI lane narrowly scoped to documented VI behavior: baseline reconstruction stays intact and the only committed adjustment is field-relative source-Y handling for serrated/interlaced scanout
   - do not reintroduce the old row-phase tables, skewed 4-tap footprints, or per-phase seam heuristics unless they can be tied back to hardware docs or new tests
   - the plugin-level `interlacing` flag is now wired into scanout (`blend_previous_frame = true`, `upscale_deinterlacing = false` when enabled), but on the current Paper Mario save-state it only perturbs the left-side variance region and does not explain the main horizontal split
-  - newer finding: the file-select center backdrop is assembled from repeated `copy=1` horizontal strips, but the scene also uses non-copy texrect composition; treat texrect composition as an active lane, not just copy-cycle strips
+- newer finding: the file-select center backdrop is assembled from repeated `copy=1` horizontal strips, but the scene also uses non-copy texrect composition; treat texrect composition as an active lane, not just copy-cycle strips
+- newer intro22 banner finding on the standardized `state + 1f` path:
+  - use absolute `call` matching when debugging the remaining `desc68` banner washout
+  - old timed-frame call indices are not safe unless revalidated on the standardized state path
+  - the bright banner redraw stack has 22 repeated groups; groups `1..16` are redundant
+  - the final visible banner is preserved by either of the last two late trios (`17..19` or `20..22`)
+  - that means the remaining washout is already present within each late trio, not caused by the early stack
+  - the best current sandbox is the final trio (`20..22`): changing its blend path moves only `top_banner` while the earlier late trio preserves baseline content
   - the texrect lane is now separately switchable with `parallel-n64-parallel-rdp-experimental-texrect = auto|enabled|disabled`
   - `auto` for the texrect lane follows `scaling-mode=experimental`; plain experimental mode now means texrect fix on, VI lane off
   - current experimental upscaled path forces `native_tex_rect` on because the improvement comes from broad texrect handling, not a copy-cycle-only subset

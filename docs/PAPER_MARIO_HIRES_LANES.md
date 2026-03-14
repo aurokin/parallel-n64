@@ -58,6 +58,8 @@ Rules:
   - `desc68`
 - Current best read:
   - repeated-pass / composition issue in the remaining `desc68` path
+  - use absolute `call` matching on the standardized `intro22-state + 1f` frame; old
+    timed-frame call indices are not trustworthy for this lane unless revalidated
 - Known dead directions:
   - dither
   - image-read
@@ -66,8 +68,16 @@ Rules:
   - simple dark-subtype `c1_mul` or `c1_add` tweaks
 - Known live direction:
   - bright subtype cycle-1 modulation was real and already fixed
-  - remaining issue likely needs repeated-pass composition analysis, not another
-    scalar constant sweep
+  - remaining issue is in the bright repeated redraw stack, not the dark subtype
+  - on the current standardized frame there are `22` bright redraw groups
+  - groups `1..16` are fully redundant
+  - groups `17..19` are also redundant by themselves
+  - groups `20..22` are also redundant by themselves
+  - the final visible banner is preserved as long as either late trio (`17..19` or
+    `20..22`) remains, so the washout is already present within each late trio
+  - the best current composition sandbox is the final trio (`20..22`): changing its
+    blend path moves only `top_banner`, while the earlier late trio preserves the
+    baseline image underneath
 
 ### left_stage_grid
 

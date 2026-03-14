@@ -442,9 +442,13 @@ static void test_subtype_filter_matches_call_modulus_and_remainder()
 {
 	EnvGuard suppress_match("PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW");
 	EnvGuard match_call_modulus("PARALLEL_HIRES_MATCH_CALL_MODULUS");
+	EnvGuard match_call_min("PARALLEL_HIRES_MATCH_CALL_MIN");
+	EnvGuard match_call_max("PARALLEL_HIRES_MATCH_CALL_MAX");
 	EnvGuard match_call_remainder("PARALLEL_HIRES_MATCH_CALL_REMAINDER");
 	setenv(suppress_match.name, "1", 1);
 	setenv(match_call_modulus.name, "4", 1);
+	setenv(match_call_min.name, "6", 1);
+	setenv(match_call_max.name, "10", 1);
 	setenv(match_call_remainder.name, "2", 1);
 
 	std::array<uint32_t, 8> descs = {};
@@ -453,6 +457,8 @@ static void test_subtype_filter_matches_call_modulus_and_remainder()
 
 	check(hires_debug_subtype_match_active(subtype), "call modulus/remainder should activate subtype match");
 	check(subtype.has_call_modulus && subtype.call_modulus == 4u, "call modulus should parse");
+	check(subtype.has_call_min && subtype.call_min == 6u, "call min should parse");
+	check(subtype.has_call_max && subtype.call_max == 10u, "call max should parse");
 	check(subtype.has_call_remainder && subtype.call_remainder == 2u, "call remainder should parse");
 
 	StaticRasterizationState normalized = {};
@@ -465,6 +471,10 @@ static void test_subtype_filter_matches_call_modulus_and_remainder()
 	auto wrong_remainder = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
 	                                                         5, 0, 0, true, 640u, 1073u, 3536u, 3676u);
 	check(!wrong_remainder.suppress_draw, "wrong call remainder should clear suppress_draw");
+
+	auto wrong_max = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
+	                                                   14, 0, 0, true, 640u, 1073u, 3536u, 3676u);
+	check(!wrong_max.suppress_draw, "call index above max should clear suppress_draw");
 }
 
 static void test_subtype_filter_matches_call_remainder_range()

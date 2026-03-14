@@ -15,7 +15,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Keep `parallel` as the active graphics path for local validation.
 - Treat HIRES-off behavior as invariant: no provider/registry/shader replacement path changes when HIRES is disabled.
 - Current root-cause probe for HIRES lookup/composition bugs:
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp|narrow-32x32|narrow-16x16|narrow-32x16|narrow-32x32-16x16|narrow-32x32-32x16|narrow-reinterp-phase-16x16`
   - `strict` means:
     - exact checksum + exact formatsize only
     - no CI low32 fallback
@@ -114,6 +114,23 @@ Co-Authored-By: Codex <noreply@openai.com>
             - roughly flat `today_text`
             - worse `top_banner` and `left_stage_grid`
           - keep it as a static-priority alternate probe, not the main shared probe
+        - shared phase-aware consumer probe:
+          - `narrow-reinterp-phase-16x16`
+          - keeps the full `narrow-reinterp` birth-pattern set, but only consumes `0x202 -> 0x02`, `16x16 -> 100x100` replacements on the primary `0x21864010` raster phase
+          - canonical intro22 result:
+            - `top_banner 10.0760`
+            - `story_text 30.1757`
+            - `bottom_stage_grid 40.3594`
+            - `left_stage_grid 9.9755`
+          - corrected `noinput16` result:
+            - `top_banner 7.8705`
+            - `today_text 11.9162`
+            - `bottom_stage_grid 5.5456`
+            - `left_stage_grid 5.6218`
+          - provenance check:
+            - intro22 `16x16 -> 100x100` matched draws drop from mixed `0x21864010/0x218640d4` to `0x21864010` only
+            - corrected `noinput16` stays `0x21864010` only
+          - this is the current best shared redesign probe because it removes a bad second consumer phase instead of suppressing scene-specific descriptors
   - `no-reinterp` means:
     - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
     - disable block-tile fallback
@@ -161,6 +178,7 @@ Co-Authored-By: Codex <noreply@openai.com>
         - normalized raster program
         - derived constants
         - final draw-state for the same draw
+      - `--repl-source` / `--repl-origin` filter joined records by replacement provenance
       - `PARALLEL_HIRES_LOG_MATCHED_DRAW=1` logs any subtype-matched draw, even when it has no replacement descriptors
       - `PARALLEL_HIRES2_LOG_MATCHED_DRAW=1` does the same for the second independent debug scope
       - `--dump-records` prints matched draws in call order instead of grouped counts

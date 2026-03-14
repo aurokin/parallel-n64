@@ -151,6 +151,7 @@ static void test_lookup_mode_policy_contract()
 	const auto narrow_32x16 = resolve_hires_lookup_mode_policy(8);
 	const auto narrow_32x32_16x16 = resolve_hires_lookup_mode_policy(9);
 	const auto narrow_32x32_32x16 = resolve_hires_lookup_mode_policy(10);
+	const auto narrow_phase_16x16 = resolve_hires_lookup_mode_policy(11);
 	check(!narrow_reinterp.allow_ci_low32, "narrow-reinterp mode should reject CI low32 fallback");
 	check(!narrow_reinterp.allow_tile_mask, "narrow-reinterp mode should reject tile-mask fallback");
 	check(!narrow_reinterp.allow_tile_stride, "narrow-reinterp mode should reject tile-stride fallback");
@@ -177,6 +178,12 @@ static void test_lookup_mode_policy_contract()
 	check(narrow_32x32_32x16.reinterpretation_birth_pattern_mode ==
 	              HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross32x16Probe,
 	      "narrow-32x32-32x16 mode should isolate the 32x32 + 32x16 birth-pattern filter");
+	check(narrow_phase_16x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe,
+	      "narrow-reinterp-phase-16x16 mode should keep the full Paper Mario birth-pattern filter");
+	check(narrow_phase_16x16.consumer_pattern_mode ==
+	              HiresConsumerPatternMode::CrossFormatsize16x16PrimaryPhaseOnlyProbe,
+	      "narrow-reinterp-phase-16x16 mode should enable the 16x16 primary-phase consumer filter");
 }
 }
 

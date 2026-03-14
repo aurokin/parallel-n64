@@ -25,6 +25,7 @@
 #include "rdp_hires_ci_palette_policy.hpp"
 #include "rdp_hires_debug_policy.hpp"
 #include "rdp_hires_binding_policy.hpp"
+#include "rdp_hires_consumer_policy.hpp"
 #include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_lookup_policy.hpp"
 #include "rdp_hires_sampling_policy.hpp"
@@ -1991,6 +1992,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 {
 	auto draw_setup = setup;
 	unsigned num_tiles = compute_conservative_max_num_tiles(setup);
+	TileInfo draw_tiles[Limits::MaxNumTiles] = {};
+	std::copy(std::begin(tiles), std::end(tiles), std::begin(draw_tiles));
 
 #if 0
 	// Don't exit early, throws off seeding of noise channels.
@@ -2001,10 +2004,13 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	if (!caps.ubershader)
 		stream.max_shaded_tiles += num_tiles;
 
+	const uint32_t raw_raster_flags = uint32_t(stream.static_raster_state.flags);
+	detail::apply_hires_draw_consumer_policy(hires_lookup_mode_policy, raw_raster_flags, replacement_tiles, draw_tiles);
+
 	bool draw_has_replacement = false;
 	std::array<uint32_t, 8> draw_replacement_descs = {};
 	size_t draw_replacement_desc_count = 0;
-	for (const auto &tile_info : tiles)
+	for (const auto &tile_info : draw_tiles)
 	{
 		const auto &repl = tile_info.replacement;
 		if (detail::hires_descriptor_index_valid(repl.repl_desc_index) &&
@@ -2025,8 +2031,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				draw_replacement_descs[draw_replacement_desc_count++] = repl.repl_desc_index;
 		}
 	}
-
-	const uint32_t raw_raster_flags = uint32_t(stream.static_raster_state.flags);
 	const auto prim_bounds = compute_debug_primitive_bounds(setup, stream.scissor_state, int(caps.upscaling));
 
 	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
@@ -2118,7 +2122,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		                                         stream.depth_blend_state);
 		if (merged_debug_overrides.force_hires_nearest_sample)
 		{
-			for (auto &tile_info : tiles)
+			for (auto &tile_info : draw_tiles)
 				tile_info.meta.flags |= TILE_INFO_DEBUG_FORCE_HIRES_NEAREST_BIT;
 		}
 		normalized = normalize_static_state(stream.static_raster_state);
@@ -2287,12 +2291,12 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		{
 			const unsigned tile0 = setup.tile & 7u;
 			const unsigned tile1 = (tile0 + 1u) & 7u;
-			const auto &repl0 = tiles[tile0].replacement;
-			const auto &repl1 = tiles[tile1].replacement;
+			const auto &repl0 = draw_tiles[tile0].replacement;
+			const auto &repl1 = draw_tiles[tile1].replacement;
 			const auto &repl0_state = replacement_tiles[tile0];
 			const auto &repl1_state = replacement_tiles[tile1];
-			const auto &tile0_info = tiles[tile0];
-			const auto &tile1_info = tiles[tile1];
+			const auto &tile0_info = draw_tiles[tile0];
+			const auto &tile1_info = draw_tiles[tile1];
 			const auto prim_bounds = compute_debug_primitive_bounds(setup, stream.scissor_state, int(caps.upscaling));
 			LOGI("Hi-res draw state: call=%llu setup_tile=%u tile0=%u tile1=%u max_lod=%u flags=0x%08x copy=%d tex0=%d tex1=%d pipe1=%d "
 			     "screen={valid=%d x=%d..%d y=%d..%d} st={s=%d t=%d dsdx=%d dtdy=%d dsde=%d dtde=%d} "
@@ -2385,7 +2389,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);
 	indices.tile_instance_index = uint8_t(stream.tmem_upload_infos.size());
 	for (unsigned i = 0; i < 8; i++)
-		indices.tile_indices[i] = stream.tile_info_state_cache.add(tiles[i]);
+		indices.tile_indices[i] = stream.tile_info_state_cache.add(draw_tiles[i]);
 	stream.state_indices.add(indices);
 
 	fb.color_write_pending = true;

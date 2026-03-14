@@ -39,6 +39,12 @@ enum class HiresReinterpretationBirthPatternMode : uint8_t
 	NarrowSame32x32Cross32x16Probe
 };
 
+enum class HiresConsumerPatternMode : uint8_t
+{
+	AllowAll = 0,
+	CrossFormatsize16x16PrimaryPhaseOnlyProbe
+};
+
 struct HiresLookupModePolicy
 {
 	bool allow_ci_low32 = true;
@@ -51,6 +57,7 @@ struct HiresLookupModePolicy
 	uint8_t reinterpretation_birth_family_mask = 0x0fu;
 	HiresReinterpretationBirthPatternMode reinterpretation_birth_pattern_mode =
 		HiresReinterpretationBirthPatternMode::AllowAll;
+	HiresConsumerPatternMode consumer_pattern_mode = HiresConsumerPatternMode::AllowAll;
 };
 
 inline std::string resolve_hires_cache_path(const std::string &configured_path, const char *env_path)
@@ -168,19 +175,24 @@ inline bool hires_lookup_narrow_reinterpretation_32x32_32x16_enabled(unsigned mo
 	return mode == 10;
 }
 
+inline bool hires_lookup_narrow_reinterpretation_phase_16x16_enabled(unsigned mode)
+{
+	return mode == 11;
+}
+
 inline bool hires_lookup_fallbacks_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 3 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10;
+	return mode == 0 || mode == 3 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10 || mode == 11;
 }
 
 inline bool hires_lookup_block_reinterpretation_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10;
+	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10 || mode == 11;
 }
 
 inline bool hires_lookup_pending_block_retry_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10;
+	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10 || mode == 11;
 }
 
 inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
@@ -305,6 +317,19 @@ inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
 		policy.reinterpretation_birth_family_mask = 0x0fu;
 		policy.reinterpretation_birth_pattern_mode =
 			HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross32x16Probe;
+		break;
+
+	case 11:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode = HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe;
+		policy.consumer_pattern_mode = HiresConsumerPatternMode::CrossFormatsize16x16PrimaryPhaseOnlyProbe;
 		break;
 
 	default:

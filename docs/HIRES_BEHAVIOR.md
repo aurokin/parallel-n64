@@ -64,7 +64,7 @@
 - Optional tuning:
   - `parallel-n64-parallel-rdp-hirestex-filter = linear|nearest|trilinear`
   - `parallel-n64-parallel-rdp-hirestex-srgb = auto|on|off`
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp|narrow-32x32|narrow-16x16|narrow-32x16|narrow-32x32-16x16|narrow-32x32-32x16|narrow-reinterp-phase-16x16`
   - `parallel-n64-parallel-rdp-hirestex-budget-mb = 0|128|256|512|1024|2048|4096`
 - Place packs in the RetroArch system directory used by the core.
 - Current limitation:
@@ -209,6 +209,24 @@
       - roughly flat `today_text`
       - worse `top_banner` and `left_stage_grid`
     - so keep it as a static-priority alternate probe, not the main shared probe
+  - `narrow-reinterp-phase-16x16` is the first phase-aware consumer probe:
+    - keeps the full `narrow-reinterp` birth-pattern set
+    - but only consumes `0x202 -> 0x02`, `16x16 -> 100x100` replacements on the primary `0x21864010` raster phase
+    - `intro22-state + 1f`:
+      - `top_banner 10.0760`
+      - `story_text 30.1757`
+      - `bottom_stage_grid 40.3594`
+      - `left_stage_grid 9.9755`
+    - corrected `noinput16`:
+      - `top_banner 7.8705`
+      - `today_text 11.9162`
+      - `bottom_stage_grid 5.5456`
+      - `left_stage_grid 5.6218`
+    - provenance check:
+      - intro22 `16x16 -> 100x100` matched draws drop from mixed `0x21864010/0x218640d4` to `0x21864010` only
+      - corrected `noinput16` stays `0x21864010` only
+    - current conclusion:
+      - this is the best shared redesign probe so far because it removes a bad second consumer phase instead of suppressing scene-specific descriptors
 - Provenance census workflow:
   - `PARALLEL_RDP_HIRES_DEBUG=1` logs draw-state birth metadata for replacement-backed draws
   - draw-state logs now also preserve exact checksum keys for `repl0` and `repl1`

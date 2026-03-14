@@ -142,6 +142,30 @@ That split is now partially measured:
     - it regresses `top_banner` (`7.8969` vs `7.5956`) and `left_stage_grid` (`5.7267` vs `5.5722`)
   - keep treating it as a static-priority alternate probe, not the main shared replacement for `narrow-reinterp`
 
+The next redesign layer is now alive too:
+- `parallel-n64-parallel-rdp-hirestex-lookup = narrow-reinterp-phase-16x16`
+- it keeps the full `narrow-reinterp` birth-pattern set
+- but it only consumes `0x202 -> 0x02`, `16x16 -> 100x100` replacements on the primary `0x21864010` raster phase
+
+Current result:
+- on canonical intro22:
+  - `top_banner 10.0760`
+  - `story_text 30.1757`
+  - `bottom_stage_grid 40.3594`
+  - `left_stage_grid 9.9755`
+- on corrected `noinput16`:
+  - `top_banner 7.8705`
+  - `today_text 11.9162`
+  - `bottom_stage_grid 5.5456`
+  - `left_stage_grid 5.6218`
+
+And the provenance effect is exact:
+- intro22 `16x16 -> 100x100` draws now survive only on `0x21864010`
+- the bad `0x218640d4` second phase is gone
+- corrected `noinput16` was already `0x21864010` only, and stays that way
+
+That makes this the first probe that improves both scenes by changing consumer semantics rather than narrowing lookup alone. The next redesign work should stay in that consumer/binding layer.
+
 ## Redesign Stages
 ### Stage 1: Make ownership explicit
 - Keep current behavior.

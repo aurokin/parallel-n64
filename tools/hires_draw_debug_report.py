@@ -35,11 +35,15 @@ DRAW_RE = re.compile(
     r".*?st=\{s=(?P<s>-?\d+) t=(?P<t>-?\d+) dsdx=(?P<dsdx>-?\d+) dtdy=(?P<dtdy>-?\d+)"
     r".*?repl0_desc=(?P<repl0_desc>\d+)"
     r"(?: repl0_key=0x(?P<repl_key>[0-9a-fA-F]+))?"
+    r" repl0_source=(?P<repl_source>\w+)"
+    r" repl0_origin=(?P<repl_origin>\w+)"
     r".*?key=(?P<key_wh>\d+x\d+)\}"
     r" repl0_orig=(?P<orig_wh>\d+x\d+)"
     r" repl0=(?P<repl_wh>\d+x\d+)"
     r" repl1_desc=(?P<repl1_desc>\d+)"
     r"(?: repl1_key=0x(?P<repl1_key>[0-9a-fA-F]+))?"
+    r" repl1_source=(?P<repl1_source>\w+)"
+    r" repl1_origin=(?P<repl1_origin>\w+)"
 )
 
 
@@ -49,8 +53,13 @@ def norm_key(value: str | None) -> str:
     return f"0x{int(value, 16):016x}"
 
 
-def collect_records(path: pathlib.Path, desc_filter: set[int], repl_key_filter: set[str],
-                    call_min: int | None, call_max: int | None):
+def collect_records(path: pathlib.Path,
+                    desc_filter: set[int],
+                    repl_key_filter: set[str],
+                    repl_source_filter: set[str],
+                    repl_origin_filter: set[str],
+                    call_min: int | None,
+                    call_max: int | None):
     records = []
     counter: collections.Counter = collections.Counter()
     pending_program = None
@@ -93,6 +102,14 @@ def collect_records(path: pathlib.Path, desc_filter: set[int], repl_key_filter: 
                 pending_program = None
                 pending_derived = None
                 continue
+            if repl_source_filter and record.get("repl_source") not in repl_source_filter:
+                pending_program = None
+                pending_derived = None
+                continue
+            if repl_origin_filter and record.get("repl_origin") not in repl_origin_filter:
+                pending_program = None
+                pending_derived = None
+                continue
             if call_min is not None and int(record["call"]) < call_min:
                 pending_program = None
                 pending_derived = None
@@ -110,9 +127,10 @@ def collect_records(path: pathlib.Path, desc_filter: set[int], repl_key_filter: 
 
 
 def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int],
-                  repl_key_filter: set[str], call_min: int | None, call_max: int | None):
+                  repl_key_filter: set[str], repl_source_filter: set[str],
+                  repl_origin_filter: set[str], call_min: int | None, call_max: int | None):
     counter: collections.Counter = collections.Counter()
-    records = collect_records(path, desc_filter, repl_key_filter, call_min, call_max)
+    records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter, call_min, call_max)
     for record in records:
         key = tuple(record[field] for field in group_by)
         counter[key] += 1
@@ -125,9 +143,10 @@ def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filt
 
 
 def summarize_spatial(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int],
-                      repl_key_filter: set[str], call_min: int | None, call_max: int | None):
+                      repl_key_filter: set[str], repl_source_filter: set[str],
+                      repl_origin_filter: set[str], call_min: int | None, call_max: int | None):
     groups: dict[tuple[str, ...], dict[str, object]] = {}
-    records = collect_records(path, desc_filter, repl_key_filter, call_min, call_max)
+    records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter, call_min, call_max)
     for record in records:
         key = tuple(record[field] for field in group_by)
         group = groups.setdefault(key, {
@@ -178,8 +197,9 @@ def summarize_spatial(path: pathlib.Path, group_by: list[str], limit: int, desc_
 
 
 def dump_records(path: pathlib.Path, fields: list[str], limit: int, desc_filter: set[int],
-                 repl_key_filter: set[str], call_min: int | None, call_max: int | None):
-    records = collect_records(path, desc_filter, repl_key_filter, call_min, call_max)
+                 repl_key_filter: set[str], repl_source_filter: set[str],
+                 repl_origin_filter: set[str], call_min: int | None, call_max: int | None):
+    records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter, call_min, call_max)
     print(f"\n## {path}")
     print(f"matched_draws={len(records)}")
     for record in records[:limit]:
@@ -197,6 +217,8 @@ def main() -> int:
     )
     parser.add_argument("--desc", action="append", type=int, default=[], help="Filter by desc. Repeatable.")
     parser.add_argument("--repl-key", action="append", default=[], help="Filter by replacement checksum64 key. Repeatable.")
+    parser.add_argument("--repl-source", action="append", default=[], help="Filter by repl_source. Repeatable.")
+    parser.add_argument("--repl-origin", action="append", default=[], help="Filter by repl_origin. Repeatable.")
     parser.add_argument("--call-min", type=int, help="Filter by minimum draw call index.")
     parser.add_argument("--call-max", type=int, help="Filter by maximum draw call index.")
     parser.add_argument("--limit", type=int, default=25, help="Rows per log.")
@@ -211,6 +233,8 @@ def main() -> int:
 
     desc_filter = set(args.desc)
     repl_key_filter = {norm_key(value.removeprefix("0x")) for value in args.repl_key}
+    repl_source_filter = set(args.repl_source)
+    repl_origin_filter = set(args.repl_origin)
 
     for path_str in args.log:
         path = pathlib.Path(path_str)
@@ -218,11 +242,14 @@ def main() -> int:
             print(f"Missing log: {path}", file=sys.stderr)
             return 1
         if args.dump_records:
-            dump_records(path, group_by, args.limit, desc_filter, repl_key_filter, args.call_min, args.call_max)
+            dump_records(path, group_by, args.limit, desc_filter, repl_key_filter,
+                         repl_source_filter, repl_origin_filter, args.call_min, args.call_max)
         elif args.spatial_summary:
-            summarize_spatial(path, group_by, args.limit, desc_filter, repl_key_filter, args.call_min, args.call_max)
+            summarize_spatial(path, group_by, args.limit, desc_filter, repl_key_filter,
+                              repl_source_filter, repl_origin_filter, args.call_min, args.call_max)
         else:
-            summarize_log(path, group_by, args.limit, desc_filter, repl_key_filter, args.call_min, args.call_max)
+            summarize_log(path, group_by, args.limit, desc_filter, repl_key_filter,
+                          repl_source_filter, repl_origin_filter, args.call_min, args.call_max)
 
     return 0
 

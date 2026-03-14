@@ -83,6 +83,7 @@ static void test_strict_lookup_gate_contract()
 	const auto narrow_32x16_policy = resolve_hires_lookup_mode_policy(8);
 	const auto narrow_32x32_16x16_policy = resolve_hires_lookup_mode_policy(9);
 	const auto narrow_32x32_32x16_policy = resolve_hires_lookup_mode_policy(10);
+	const auto narrow_phase_16x16_policy = resolve_hires_lookup_mode_policy(11);
 	const auto pattern_policy = resolve_hires_reinterpretation_birth_pattern_policy(narrow_reinterp_policy);
 	const auto pattern_32x32_policy = resolve_hires_reinterpretation_birth_pattern_policy(narrow_32x32_policy);
 	const auto pattern_16x16_policy = resolve_hires_reinterpretation_birth_pattern_policy(narrow_16x16_policy);
@@ -125,11 +126,13 @@ static void test_strict_lookup_gate_contract()
 	check(!hires_lookup_narrow_reinterpretation_enabled(8), "lookup mode 8 should not be the combined narrow-reinterp mode");
 	check(!hires_lookup_narrow_reinterpretation_enabled(9), "lookup mode 9 should not be the combined narrow-reinterp mode");
 	check(!hires_lookup_narrow_reinterpretation_enabled(10), "lookup mode 10 should not be the combined narrow-reinterp mode");
+	check(!hires_lookup_narrow_reinterpretation_enabled(11), "lookup mode 11 should not be the combined narrow-reinterp mode");
 	check(hires_lookup_narrow_reinterpretation_same_32x32_enabled(6), "lookup mode 6 should be narrow-32x32");
 	check(hires_lookup_narrow_reinterpretation_cross_16x16_enabled(7), "lookup mode 7 should be narrow-16x16");
 	check(hires_lookup_narrow_reinterpretation_cross_32x16_enabled(8), "lookup mode 8 should be narrow-32x16");
 	check(hires_lookup_narrow_reinterpretation_32x32_16x16_enabled(9), "lookup mode 9 should be narrow-32x32-16x16");
 	check(hires_lookup_narrow_reinterpretation_32x32_32x16_enabled(10), "lookup mode 10 should be narrow-32x32-32x16");
+	check(hires_lookup_narrow_reinterpretation_phase_16x16_enabled(11), "lookup mode 11 should be narrow-reinterp-phase-16x16");
 	check(hires_lookup_fallbacks_enabled(0), "lookup mode 0 should keep fallbacks enabled");
 	check(!hires_lookup_fallbacks_enabled(1), "lookup mode 1 should disable fallbacks");
 	check(!hires_lookup_fallbacks_enabled(2), "lookup mode 2 should disable fallbacks");
@@ -141,6 +144,7 @@ static void test_strict_lookup_gate_contract()
 	check(hires_lookup_fallbacks_enabled(8), "lookup mode 8 should keep reinterpretation fallbacks enabled");
 	check(hires_lookup_fallbacks_enabled(9), "lookup mode 9 should keep reinterpretation fallbacks enabled");
 	check(hires_lookup_fallbacks_enabled(10), "lookup mode 10 should keep reinterpretation fallbacks enabled");
+	check(hires_lookup_fallbacks_enabled(11), "lookup mode 11 should keep reinterpretation fallbacks enabled");
 	check(hires_lookup_block_reinterpretation_enabled(0), "lookup mode 0 should allow block reinterpretation");
 	check(!hires_lookup_block_reinterpretation_enabled(1), "lookup mode 1 should disable block reinterpretation");
 	check(!hires_lookup_block_reinterpretation_enabled(2), "lookup mode 2 should disable block reinterpretation");
@@ -152,6 +156,7 @@ static void test_strict_lookup_gate_contract()
 	check(hires_lookup_block_reinterpretation_enabled(8), "lookup mode 8 should allow block reinterpretation");
 	check(hires_lookup_block_reinterpretation_enabled(9), "lookup mode 9 should allow block reinterpretation");
 	check(hires_lookup_block_reinterpretation_enabled(10), "lookup mode 10 should allow block reinterpretation");
+	check(hires_lookup_block_reinterpretation_enabled(11), "lookup mode 11 should allow block reinterpretation");
 	check(hires_lookup_pending_block_retry_enabled(0), "lookup mode 0 should allow pending block retry");
 	check(!hires_lookup_pending_block_retry_enabled(1), "lookup mode 1 should disable pending block retry");
 	check(!hires_lookup_pending_block_retry_enabled(2), "lookup mode 2 should disable pending block retry");
@@ -163,6 +168,7 @@ static void test_strict_lookup_gate_contract()
 	check(hires_lookup_pending_block_retry_enabled(8), "lookup mode 8 should allow pending block retry");
 	check(hires_lookup_pending_block_retry_enabled(9), "lookup mode 9 should allow pending block retry");
 	check(hires_lookup_pending_block_retry_enabled(10), "lookup mode 10 should allow pending block retry");
+	check(hires_lookup_pending_block_retry_enabled(11), "lookup mode 11 should allow pending block retry");
 	check(should_try_hires_ci_low32_fallback(permissive_policy), "permissive lookup should allow CI low32 fallback");
 	check(!should_try_hires_ci_low32_fallback(strict_policy), "strict lookup should reject CI low32 fallback");
 	check(!should_try_hires_ci_low32_fallback(owner_policy), "owner lookup should reject CI low32 fallback");
@@ -174,6 +180,7 @@ static void test_strict_lookup_gate_contract()
 	check(!should_try_hires_ci_low32_fallback(narrow_32x16_policy), "narrow-32x16 lookup should reject CI low32 fallback");
 	check(!should_try_hires_ci_low32_fallback(narrow_32x32_16x16_policy), "narrow-32x32-16x16 lookup should reject CI low32 fallback");
 	check(!should_try_hires_ci_low32_fallback(narrow_32x32_32x16_policy), "narrow-32x32-32x16 lookup should reject CI low32 fallback");
+	check(!should_try_hires_ci_low32_fallback(narrow_phase_16x16_policy), "narrow-reinterp-phase-16x16 lookup should reject CI low32 fallback");
 	check(should_try_hires_tile_mask_fallback(permissive_policy, true),
 	      "permissive lookup should allow tile-mask fallback");
 	check(!should_try_hires_tile_mask_fallback(strict_policy, true),

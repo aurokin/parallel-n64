@@ -66,13 +66,29 @@ Co-Authored-By: Codex <noreply@openai.com>
       - lookup tile
       - lookup formatsize
       - key width/height
+    - reusable census helper:
+      - `./run-paper-mario-hires-provenance-report.sh --log <run.log> [filters...]`
+      - useful filters:
+        - `--load-fs 0x202`
+        - `--lookup-fs 0x02`
+        - `--lookup-tile 0`
+        - `--repl-source alias`
+        - `--repl-origin block_tile`
+      - default grouping:
+        - `desc,flags,repl_source,repl_origin,key_wh,repl_wh`
   - current lookup-time `block_tile` probe envs:
     - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOAD_FS`
     - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOOKUP_TILE`
     - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOOKUP_FS`
     - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_WIDTH`
     - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_HEIGHT`
-    - they only filter `block_tile` hits; primary hits and HIRES-off behavior stay unchanged
+    - second independent scope for union probes:
+      - `PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_LOAD_FS`
+      - `PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_LOOKUP_TILE`
+      - `PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_LOOKUP_FS`
+      - `PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_KEY_WIDTH`
+      - `PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_KEY_HEIGHT`
+    - both scopes filter `block_tile` and `block_shape` reinterpretation hits; primary hits and HIRES-off behavior stay unchanged
   - current provenance findings:
     - intro22 visible fallback-backed lanes are mostly `alias` draws whose origin source is `block_tile`, not pure alias-only content
     - intro22 dominant `block_tile` origin classes are a subset of the noinput16 classes
@@ -83,6 +99,12 @@ Co-Authored-By: Codex <noreply@openai.com>
     - those three runs all collapsed to the same PNG, while still differing from the normal permissive baseline
     - `block_shape` recreated the same fallback-born signatures when `block_tile` was filtered away
     - that means the root issue is the broader block reinterpretation family, not any single `block_tile` class in isolation
+    - newer census result:
+      - the `CI16 -> RGBA16` `lookup_tile=0` family is not separable by raw raster flags alone
+      - on current Paper Mario probes, both intro22’s useful clusters and noinput16’s bad clusters share:
+        - `flags=0x21844118` with `32x16 -> 512x256`
+        - `flags=0x21864010/0x218640d4` with `16x16 -> 100x100`
+      - start from provenance clusters (`desc`, origin source, birth signature, replacement dimensions), not `raster=` alone
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`
@@ -156,6 +178,9 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=owner`
   - no-reinterp lookup probe:
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=no-reinterp`
+  - provenance census for run logs:
+    - `./run-paper-mario-hires-provenance-report.sh --log <capture_dir>/run.log`
+    - compare the same filter across intro22 and noinput before changing lookup rules
   - current strict-probe result on the canonical intro22 state:
     - zero replacement hits, so use this mode as an architecture probe, not as a validation baseline
   - current owner-probe result on the canonical intro22 state:

@@ -146,6 +146,59 @@ static bool block_tile_probe_matches(uint16_t configured_load_formatsize,
 		return false;
 	return true;
 }
+
+static bool block_tile_probe_matches_any(bool probe1_active,
+                                         uint16_t probe1_load_formatsize,
+                                         uint16_t probe1_lookup_formatsize,
+                                         uint32_t probe1_lookup_tile,
+                                         uint32_t probe1_key_width,
+                                         uint32_t probe1_key_height,
+                                         bool probe2_active,
+                                         uint16_t probe2_load_formatsize,
+                                         uint16_t probe2_lookup_formatsize,
+                                         uint32_t probe2_lookup_tile,
+                                         uint32_t probe2_key_width,
+                                         uint32_t probe2_key_height,
+                                         uint16_t load_formatsize,
+                                         uint16_t lookup_formatsize,
+                                         uint32_t lookup_tile,
+                                         uint32_t key_width,
+                                         uint32_t key_height)
+{
+	if (!probe1_active && !probe2_active)
+		return true;
+
+	if (probe1_active &&
+	    block_tile_probe_matches(
+			    probe1_load_formatsize,
+			    probe1_lookup_formatsize,
+			    probe1_lookup_tile,
+			    probe1_key_width,
+			    probe1_key_height,
+			    load_formatsize,
+			    lookup_formatsize,
+			    lookup_tile,
+			    key_width,
+			    key_height))
+		return true;
+
+	if (probe2_active &&
+	    block_tile_probe_matches(
+			    probe2_load_formatsize,
+			    probe2_lookup_formatsize,
+			    probe2_lookup_tile,
+			    probe2_key_width,
+			    probe2_key_height,
+			    load_formatsize,
+			    lookup_formatsize,
+			    lookup_tile,
+			    key_width,
+			    key_height))
+		return true;
+
+	return false;
+}
+
 }
 
 Renderer::Renderer(CommandProcessor &processor_)
@@ -822,6 +875,11 @@ void Renderer::set_hires_lookup_mode(unsigned mode)
 	hires_block_tile_probe_lookup_tile = 0xffffffffu;
 	hires_block_tile_probe_key_width = 0;
 	hires_block_tile_probe_key_height = 0;
+	hires_block_tile_probe2_load_formatsize = 0;
+	hires_block_tile_probe2_lookup_formatsize = 0;
+	hires_block_tile_probe2_lookup_tile = 0xffffffffu;
+	hires_block_tile_probe2_key_width = 0;
+	hires_block_tile_probe2_key_height = 0;
 	uint32_t parsed = 0;
 	const bool has_load_fs = parse_optional_u32_env("PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOAD_FS", parsed);
 	if (has_load_fs)
@@ -839,6 +897,22 @@ void Renderer::set_hires_lookup_mode(unsigned mode)
 	if (has_key_height)
 		hires_block_tile_probe_key_height = parsed;
 	hires_block_tile_probe_active = has_load_fs || has_lookup_fs || has_lookup_tile || has_key_width || has_key_height;
+	const bool has2_load_fs = parse_optional_u32_env("PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_LOAD_FS", parsed);
+	if (has2_load_fs)
+		hires_block_tile_probe2_load_formatsize = uint16_t(parsed);
+	const bool has2_lookup_fs = parse_optional_u32_env("PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_LOOKUP_FS", parsed);
+	if (has2_lookup_fs)
+		hires_block_tile_probe2_lookup_formatsize = uint16_t(parsed);
+	const bool has2_lookup_tile = parse_optional_u32_env("PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_LOOKUP_TILE", parsed);
+	if (has2_lookup_tile)
+		hires_block_tile_probe2_lookup_tile = parsed;
+	const bool has2_key_width = parse_optional_u32_env("PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_KEY_WIDTH", parsed);
+	if (has2_key_width)
+		hires_block_tile_probe2_key_width = parsed;
+	const bool has2_key_height = parse_optional_u32_env("PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_KEY_HEIGHT", parsed);
+	if (has2_key_height)
+		hires_block_tile_probe2_key_height = parsed;
+	hires_block_tile_probe2_active = has2_load_fs || has2_lookup_fs || has2_lookup_tile || has2_key_width || has2_key_height;
 }
 
 void Renderer::set_hires_debug(bool enable)
@@ -4071,13 +4145,19 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 					continue;
 				}
 
-				if (hires_block_tile_probe_active &&
-				    !block_tile_probe_matches(
+				if (!block_tile_probe_matches_any(
+						    hires_block_tile_probe_active,
 						    hires_block_tile_probe_load_formatsize,
 						    hires_block_tile_probe_lookup_formatsize,
 						    hires_block_tile_probe_lookup_tile,
 						    hires_block_tile_probe_key_width,
 						    hires_block_tile_probe_key_height,
+						    hires_block_tile_probe2_active,
+						    hires_block_tile_probe2_load_formatsize,
+						    hires_block_tile_probe2_lookup_formatsize,
+						    hires_block_tile_probe2_lookup_tile,
+						    hires_block_tile_probe2_key_width,
+						    hires_block_tile_probe2_key_height,
 						    formatsize_key(tiles[bounded_load_tile_index].meta.fmt, tiles[bounded_load_tile_index].meta.size),
 						    probe_formatsize,
 						    probe_tile,
@@ -5101,6 +5181,26 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							candidate_height,
 							candidate_row_stride_bytes,
 							false))
+						continue;
+
+					if (!block_tile_probe_matches_any(
+						    hires_block_tile_probe_active,
+						    hires_block_tile_probe_load_formatsize,
+						    hires_block_tile_probe_lookup_formatsize,
+						    hires_block_tile_probe_lookup_tile,
+						    hires_block_tile_probe_key_width,
+						    hires_block_tile_probe_key_height,
+						    hires_block_tile_probe2_active,
+						    hires_block_tile_probe2_load_formatsize,
+						    hires_block_tile_probe2_lookup_formatsize,
+						    hires_block_tile_probe2_lookup_tile,
+						    hires_block_tile_probe2_key_width,
+						    hires_block_tile_probe2_key_height,
+						    formatsize_key(info.fmt, info.size),
+						    formatsize,
+						    0,
+						    candidate_width,
+						    candidate_height))
 						continue;
 
 					hit = true;

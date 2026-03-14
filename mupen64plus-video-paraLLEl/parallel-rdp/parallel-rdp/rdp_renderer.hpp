@@ -185,6 +185,12 @@ private:
 	uint32_t hires_block_tile_probe_lookup_tile = 0;
 	uint32_t hires_block_tile_probe_key_width = 0;
 	uint32_t hires_block_tile_probe_key_height = 0;
+	bool hires_block_tile_probe2_active = false;
+	uint16_t hires_block_tile_probe2_load_formatsize = 0;
+	uint16_t hires_block_tile_probe2_lookup_formatsize = 0;
+	uint32_t hires_block_tile_probe2_lookup_tile = 0;
+	uint32_t hires_block_tile_probe2_key_width = 0;
+	uint32_t hires_block_tile_probe2_key_height = 0;
 
 	bool init_caps();
 	void init_blender_lut();

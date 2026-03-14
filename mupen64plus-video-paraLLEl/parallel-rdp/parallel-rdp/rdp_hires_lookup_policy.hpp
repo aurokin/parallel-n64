@@ -55,6 +55,43 @@ inline bool should_accept_hires_reinterpretation_birth_family(const HiresLookupM
 	return (policy.reinterpretation_birth_family_mask & hires_lookup_birth_family_bit(family)) != 0;
 }
 
+inline bool matches_hires_narrow_reinterpretation_birth_pattern(const HiresLookupBirthSignature &signature)
+{
+	if (signature.load_formatsize == 0x300u &&
+	    signature.lookup_formatsize == 0x300u &&
+	    signature.key_width == 32u &&
+	    signature.key_height == 32u)
+	{
+		return true;
+	}
+
+	if (signature.load_formatsize == 0x202u &&
+	    signature.lookup_formatsize == 0x02u &&
+	    ((signature.key_width == 16u && signature.key_height == 16u) ||
+	     (signature.key_width == 32u && signature.key_height == 16u)))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+inline bool should_accept_hires_reinterpretation_birth_pattern(const HiresLookupModePolicy &policy,
+                                                               const HiresLookupBirthSignature &signature)
+{
+	switch (policy.reinterpretation_birth_pattern_mode)
+	{
+	case 0:
+		return true;
+
+	case 1:
+		return matches_hires_narrow_reinterpretation_birth_pattern(signature);
+
+	default:
+		return false;
+	}
+}
+
 inline bool hires_rdram_view_valid(const void *cpu_rdram, size_t rdram_size)
 {
 	return cpu_rdram && rdram_size && ((rdram_size & (rdram_size - 1)) == 0);

@@ -15,7 +15,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Keep `parallel` as the active graphics path for local validation.
 - Treat HIRES-off behavior as invariant: no provider/registry/shader replacement path changes when HIRES is disabled.
 - Current root-cause probe for HIRES lookup/composition bugs:
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp`
   - `strict` means:
     - exact checksum + exact formatsize only
     - no CI low32 fallback
@@ -77,6 +77,24 @@ Co-Authored-By: Codex <noreply@openai.com>
           - useful permissive births like `32x32 0x300->0x300 lookup_tile=0` and `16x16 0x202->0x02 lookup_tile=0` disappeared entirely
         - conclusion:
           - the coarse four-family split is a useful vocabulary, but it is not yet a sufficient acceptance rule
+      - current strongest redesign probe:
+        - `narrow-reinterp`
+        - it allows only these reinterpretation birth tuples:
+          - `0x300 -> 0x300`, `32x32`
+          - `0x202 -> 0x02`, `16x16`
+          - `0x202 -> 0x02`, `32x16`
+        - it keeps block reinterpretation, pending retry, and alias propagation for those tuples only
+        - canonical intro22 result:
+          - `top_banner 10.0760`
+          - `story_text 30.0980`
+          - `bottom_stage_grid 43.0492`
+          - `left_stage_grid 9.9755`
+        - noinput16 result:
+          - `top_banner 7.5935`
+          - `today_text 12.3790`
+          - `bottom_stage_grid 5.8594`
+          - `left_stage_grid 5.5722`
+        - this is now the leading shared architecture probe, because it improves both intro22 and noinput16 without returning to scene-specific renderer overrides
   - `no-reinterp` means:
     - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
     - disable block-tile fallback
@@ -88,6 +106,14 @@ Co-Authored-By: Codex <noreply@openai.com>
     - keep block reinterpretation, deferred block retry, and alias propagation
     - only allow reinterpretation births in the coarse owner-tile families
     - use this to test whether the remaining valid reinterpretation content is already separable by coarse provenance families
+  - `narrow-reinterp` means:
+    - disable CI low32, tile-mask, and tile-stride fallback
+    - keep block reinterpretation, deferred block retry, and alias propagation
+    - allow only these reinterpretation birth tuples:
+      - `0x300 -> 0x300`, `32x32`
+      - `0x202 -> 0x02`, `16x16`
+      - `0x202 -> 0x02`, `32x16`
+    - use this as the current best architecture probe for whether the remaining useful reinterpretation content is concentrated in a small birth-pattern set
   - current `no-reinterp` data points:
     - on canonical `intro22-state + 1f`, `no-reinterp` produced:
       - `lookups=4043 hits=2123 primary_hits=2123 ci_low32_hits=0 tile_mask_hits=0 tile_stride_hits=0 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=28301 draw_with_replacement=3612`

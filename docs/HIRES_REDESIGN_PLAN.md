@@ -90,6 +90,28 @@ The first live family-driven probe is also in place:
 
 That is useful because it tells us the coarse four-family split is not yet enough to preserve the valid reinterpretation classes. The next redesign layer needs to be narrower than family alone: a birth-pattern rule built on top of `HiresLookupBirthSignature`, not a return to scene-specific draw overrides.
 
+That next layer is now in place too:
+- `parallel-n64-parallel-rdp-hirestex-lookup = narrow-reinterp`
+- it preserves only this small reinterpretation birth-pattern set:
+  - `0x300 -> 0x300`, `32x32`
+  - `0x202 -> 0x02`, `16x16`
+  - `0x202 -> 0x02`, `32x16`
+- it still keeps alias propagation and pending retry for those births
+
+Current result:
+- on canonical intro22, it reproduces the earlier strongest structural probe:
+  - `top_banner 10.0760`
+  - `story_text 30.0980`
+  - `bottom_stage_grid 43.0492`
+  - `left_stage_grid 9.9755`
+- on `noinput16`, it also improves materially over the broader owner/no-reinterp probes:
+  - `top_banner 7.5935`
+  - `today_text 12.3790`
+  - `bottom_stage_grid 5.8594`
+  - `left_stage_grid 5.5722`
+
+That makes `narrow-reinterp` the first redesign probe that is strong across both validation scenes. The next architectural step should narrow that birth-pattern set into an explicit policy object instead of leaving it as a hard-coded mode experiment forever.
+
 ## Redesign Stages
 ### Stage 1: Make ownership explicit
 - Keep current behavior.

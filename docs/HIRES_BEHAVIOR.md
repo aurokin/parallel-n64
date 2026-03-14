@@ -64,7 +64,7 @@
 - Optional tuning:
   - `parallel-n64-parallel-rdp-hirestex-filter = linear|nearest|trilinear`
   - `parallel-n64-parallel-rdp-hirestex-srgb = auto|on|off`
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp`
   - `parallel-n64-parallel-rdp-hirestex-budget-mb = 0|128|256|512|1024|2048|4096`
 - Place packs in the RetroArch system directory used by the core.
 - Current limitation:
@@ -168,6 +168,28 @@
     - useful permissive births like `32x32 0x300->0x300 lookup_tile=0` and `16x16 0x202->0x02 lookup_tile=0` still disappear entirely
   - conclusion:
     - coarse `HiresLookupBirthFamily` is the right vocabulary for redesign, but it is not yet a sufficient acceptance rule
+- `narrow-reinterp` lookup is the first strong birth-pattern redesign probe:
+  - disable CI low32, tile-mask, and tile-stride fallback
+  - keep block reinterpretation, deferred block retry, and alias propagation
+  - allow only these reinterpretation birth tuples:
+    - `0x300 -> 0x300`, `32x32`
+    - `0x202 -> 0x02`, `16x16`
+    - `0x202 -> 0x02`, `32x16`
+  - current Paper Mario results:
+    - `intro22-state + 1f`:
+      - `lookups=3994 hits=3422 primary_hits=2074 ci_low32_hits=0 tile_mask_hits=0 tile_stride_hits=0 block_tile_hits=1320 block_shape_hits=0 pending_block_retry_hits=24 alias_bindings=27958 draw_with_replacement=5510`
+      - `top_banner 10.0760`
+      - `story_text 30.0980`
+      - `bottom_stage_grid 43.0492`
+      - `left_stage_grid 9.9755`
+    - `noinput16`:
+      - `top_banner 7.5935`
+      - `today_text 12.3790`
+      - `bottom_stage_grid 5.8594`
+      - `left_stage_grid 5.5722`
+  - current conclusion:
+    - valid reinterpretation content is concentrated in a small birth-pattern set
+    - this is the strongest shared architecture probe so far
 - Provenance census workflow:
   - `PARALLEL_RDP_HIRES_DEBUG=1` logs draw-state birth metadata for replacement-backed draws
   - draw-state logs now also preserve exact checksum keys for `repl0` and `repl1`
@@ -202,7 +224,8 @@
       - cross-formatsize owner tile
       - cross-formatsize alias tile
     - `owner-reinterp` is the first live probe built on that family vocabulary
-    - future reinterpretation narrowing should start from those family terms, then add a narrower birth-pattern layer where the coarse families prove insufficient
+    - `narrow-reinterp` is the first live probe built on a smaller birth-pattern layer above those families
+    - future reinterpretation narrowing should start from those family terms, then add narrower birth-pattern rules where the coarse families prove insufficient
     - intro22’s useful clusters and noinput16’s bad clusters both include:
       - `0x21844118` `32x16 -> 512x256`
       - `0x21864010/0x218640d4` `16x16 -> 100x100`

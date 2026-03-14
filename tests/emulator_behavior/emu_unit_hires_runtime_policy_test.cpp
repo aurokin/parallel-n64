@@ -144,6 +144,19 @@ static void test_lookup_mode_policy_contract()
 	check(owner_reinterp.allow_alias_group_binding, "owner-reinterp mode should keep alias-group binding");
 	check(owner_reinterp.reinterpretation_birth_family_mask == 0x5u,
 	      "owner-reinterp mode should allow only owner reinterpretation families");
+
+	const auto narrow_reinterp = resolve_hires_lookup_mode_policy(5);
+	check(!narrow_reinterp.allow_ci_low32, "narrow-reinterp mode should reject CI low32 fallback");
+	check(!narrow_reinterp.allow_tile_mask, "narrow-reinterp mode should reject tile-mask fallback");
+	check(!narrow_reinterp.allow_tile_stride, "narrow-reinterp mode should reject tile-stride fallback");
+	check(narrow_reinterp.allow_block_tile, "narrow-reinterp mode should allow block-tile fallback");
+	check(narrow_reinterp.allow_block_shape, "narrow-reinterp mode should allow block-shape fallback");
+	check(narrow_reinterp.allow_pending_block_retry, "narrow-reinterp mode should allow pending block retry");
+	check(narrow_reinterp.allow_alias_group_binding, "narrow-reinterp mode should keep alias-group binding");
+	check(narrow_reinterp.reinterpretation_birth_family_mask == 0x0fu,
+	      "narrow-reinterp mode should let the birth-pattern filter govern reinterpretation families");
+	check(narrow_reinterp.reinterpretation_birth_pattern_mode == 1u,
+	      "narrow-reinterp mode should enable the first narrow birth-pattern filter");
 }
 }
 

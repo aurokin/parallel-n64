@@ -77,47 +77,62 @@ static void test_strict_lookup_gate_contract()
 	const auto owner_policy = resolve_hires_lookup_mode_policy(2);
 	const auto no_reinterp_policy = resolve_hires_lookup_mode_policy(3);
 	const auto owner_reinterp_policy = resolve_hires_lookup_mode_policy(4);
+	const auto narrow_reinterp_policy = resolve_hires_lookup_mode_policy(5);
 
 	check(!hires_lookup_strict_enabled(0), "lookup mode 0 should be permissive");
 	check(hires_lookup_strict_enabled(1), "lookup mode 1 should be strict");
 	check(!hires_lookup_strict_enabled(2), "lookup mode 2 should not force strict provider matching");
 	check(!hires_lookup_strict_enabled(3), "lookup mode 3 should not force strict provider matching");
 	check(!hires_lookup_strict_enabled(4), "lookup mode 4 should not force strict provider matching");
+	check(!hires_lookup_strict_enabled(5), "lookup mode 5 should not force strict provider matching");
 	check(!hires_lookup_owner_only_enabled(0), "lookup mode 0 should not be owner-only");
 	check(!hires_lookup_owner_only_enabled(1), "lookup mode 1 should not be owner-only");
 	check(hires_lookup_owner_only_enabled(2), "lookup mode 2 should be owner-only");
 	check(!hires_lookup_owner_only_enabled(3), "lookup mode 3 should not be owner-only");
 	check(!hires_lookup_owner_only_enabled(4), "lookup mode 4 should not be owner-only");
+	check(!hires_lookup_owner_only_enabled(5), "lookup mode 5 should not be owner-only");
 	check(!hires_lookup_no_reinterpretation_enabled(0), "lookup mode 0 should allow reinterpretation");
 	check(!hires_lookup_no_reinterpretation_enabled(1), "lookup mode 1 should not be the no-reinterp mode");
 	check(!hires_lookup_no_reinterpretation_enabled(2), "lookup mode 2 should not be the no-reinterp mode");
 	check(hires_lookup_no_reinterpretation_enabled(3), "lookup mode 3 should be no-reinterp");
 	check(!hires_lookup_no_reinterpretation_enabled(4), "lookup mode 4 should not be the no-reinterp mode");
+	check(!hires_lookup_no_reinterpretation_enabled(5), "lookup mode 5 should not be the no-reinterp mode");
 	check(!hires_lookup_owner_reinterpretation_enabled(0), "lookup mode 0 should not be owner-reinterp");
 	check(!hires_lookup_owner_reinterpretation_enabled(1), "lookup mode 1 should not be owner-reinterp");
 	check(!hires_lookup_owner_reinterpretation_enabled(2), "lookup mode 2 should not be owner-reinterp");
 	check(!hires_lookup_owner_reinterpretation_enabled(3), "lookup mode 3 should not be owner-reinterp");
 	check(hires_lookup_owner_reinterpretation_enabled(4), "lookup mode 4 should be owner-reinterp");
+	check(!hires_lookup_owner_reinterpretation_enabled(5), "lookup mode 5 should not be owner-reinterp");
+	check(!hires_lookup_narrow_reinterpretation_enabled(0), "lookup mode 0 should not be narrow-reinterp");
+	check(!hires_lookup_narrow_reinterpretation_enabled(1), "lookup mode 1 should not be narrow-reinterp");
+	check(!hires_lookup_narrow_reinterpretation_enabled(2), "lookup mode 2 should not be narrow-reinterp");
+	check(!hires_lookup_narrow_reinterpretation_enabled(3), "lookup mode 3 should not be narrow-reinterp");
+	check(!hires_lookup_narrow_reinterpretation_enabled(4), "lookup mode 4 should not be narrow-reinterp");
+	check(hires_lookup_narrow_reinterpretation_enabled(5), "lookup mode 5 should be narrow-reinterp");
 	check(hires_lookup_fallbacks_enabled(0), "lookup mode 0 should keep fallbacks enabled");
 	check(!hires_lookup_fallbacks_enabled(1), "lookup mode 1 should disable fallbacks");
 	check(!hires_lookup_fallbacks_enabled(2), "lookup mode 2 should disable fallbacks");
 	check(hires_lookup_fallbacks_enabled(3), "lookup mode 3 should keep non-reinterpretation fallbacks enabled");
 	check(hires_lookup_fallbacks_enabled(4), "lookup mode 4 should keep reinterpretation fallbacks enabled");
+	check(hires_lookup_fallbacks_enabled(5), "lookup mode 5 should keep reinterpretation fallbacks enabled");
 	check(hires_lookup_block_reinterpretation_enabled(0), "lookup mode 0 should allow block reinterpretation");
 	check(!hires_lookup_block_reinterpretation_enabled(1), "lookup mode 1 should disable block reinterpretation");
 	check(!hires_lookup_block_reinterpretation_enabled(2), "lookup mode 2 should disable block reinterpretation");
 	check(!hires_lookup_block_reinterpretation_enabled(3), "lookup mode 3 should disable block reinterpretation");
 	check(hires_lookup_block_reinterpretation_enabled(4), "lookup mode 4 should allow block reinterpretation");
+	check(hires_lookup_block_reinterpretation_enabled(5), "lookup mode 5 should allow block reinterpretation");
 	check(hires_lookup_pending_block_retry_enabled(0), "lookup mode 0 should allow pending block retry");
 	check(!hires_lookup_pending_block_retry_enabled(1), "lookup mode 1 should disable pending block retry");
 	check(!hires_lookup_pending_block_retry_enabled(2), "lookup mode 2 should disable pending block retry");
 	check(!hires_lookup_pending_block_retry_enabled(3), "lookup mode 3 should disable pending block retry");
 	check(hires_lookup_pending_block_retry_enabled(4), "lookup mode 4 should allow pending block retry");
+	check(hires_lookup_pending_block_retry_enabled(5), "lookup mode 5 should allow pending block retry");
 	check(should_try_hires_ci_low32_fallback(permissive_policy), "permissive lookup should allow CI low32 fallback");
 	check(!should_try_hires_ci_low32_fallback(strict_policy), "strict lookup should reject CI low32 fallback");
 	check(!should_try_hires_ci_low32_fallback(owner_policy), "owner lookup should reject CI low32 fallback");
 	check(!should_try_hires_ci_low32_fallback(no_reinterp_policy), "no-reinterp lookup should reject CI low32 fallback");
 	check(!should_try_hires_ci_low32_fallback(owner_reinterp_policy), "owner-reinterp lookup should reject CI low32 fallback");
+	check(!should_try_hires_ci_low32_fallback(narrow_reinterp_policy), "narrow-reinterp lookup should reject CI low32 fallback");
 	check(should_try_hires_tile_mask_fallback(permissive_policy, true),
 	      "permissive lookup should allow tile-mask fallback");
 	check(!should_try_hires_tile_mask_fallback(strict_policy, true),
@@ -128,6 +143,8 @@ static void test_strict_lookup_gate_contract()
 	      "no-reinterp lookup should reject tile-mask fallback");
 	check(!should_try_hires_tile_mask_fallback(owner_reinterp_policy, true),
 	      "owner-reinterp lookup should reject tile-mask fallback");
+	check(!should_try_hires_tile_mask_fallback(narrow_reinterp_policy, true),
+	      "narrow-reinterp lookup should reject tile-mask fallback");
 	check(should_try_hires_tile_stride_fallback(permissive_policy, true),
 	      "permissive lookup should allow tile-stride fallback");
 	check(!should_try_hires_tile_stride_fallback(strict_policy, true),
@@ -138,6 +155,8 @@ static void test_strict_lookup_gate_contract()
 	      "no-reinterp lookup should reject tile-stride fallback");
 	check(!should_try_hires_tile_stride_fallback(owner_reinterp_policy, true),
 	      "owner-reinterp lookup should reject tile-stride fallback");
+	check(!should_try_hires_tile_stride_fallback(narrow_reinterp_policy, true),
+	      "narrow-reinterp lookup should reject tile-stride fallback");
 	check(should_try_hires_block_tile_fallback(permissive_policy, true),
 	      "permissive lookup should allow block-tile fallback");
 	check(!should_try_hires_block_tile_fallback(strict_policy, true),
@@ -148,6 +167,8 @@ static void test_strict_lookup_gate_contract()
 	      "no-reinterp lookup should reject block-tile fallback");
 	check(should_try_hires_block_tile_fallback(owner_reinterp_policy, true),
 	      "owner-reinterp lookup should allow block-tile fallback");
+	check(should_try_hires_block_tile_fallback(narrow_reinterp_policy, true),
+	      "narrow-reinterp lookup should allow block-tile fallback");
 	check(should_try_hires_block_shape_fallback(permissive_policy, true),
 	      "permissive lookup should allow block-shape fallback");
 	check(!should_try_hires_block_shape_fallback(strict_policy, true),
@@ -158,6 +179,8 @@ static void test_strict_lookup_gate_contract()
 	      "no-reinterp lookup should reject block-shape fallback");
 	check(should_try_hires_block_shape_fallback(owner_reinterp_policy, true),
 	      "owner-reinterp lookup should allow block-shape fallback");
+	check(should_try_hires_block_shape_fallback(narrow_reinterp_policy, true),
+	      "narrow-reinterp lookup should allow block-shape fallback");
 }
 
 static void test_lookup_birth_family_contract()
@@ -196,6 +219,7 @@ static void test_lookup_birth_family_contract()
 
 	const auto permissive_policy = resolve_hires_lookup_mode_policy(0);
 	const auto owner_reinterp_policy = resolve_hires_lookup_mode_policy(4);
+	const auto narrow_reinterp_policy = resolve_hires_lookup_mode_policy(5);
 	check(should_accept_hires_reinterpretation_birth_family(permissive_policy, same_owner),
 	      "permissive policy should allow same-format owner reinterpretation families");
 	check(should_accept_hires_reinterpretation_birth_family(permissive_policy, same_alias),
@@ -212,6 +236,46 @@ static void test_lookup_birth_family_contract()
 	      "owner-reinterp policy should allow cross-format owner reinterpretation families");
 	check(!should_accept_hires_reinterpretation_birth_family(owner_reinterp_policy, cross_alias),
 	      "owner-reinterp policy should reject cross-format alias reinterpretation families");
+	check(should_accept_hires_reinterpretation_birth_family(narrow_reinterp_policy, same_owner),
+	      "narrow-reinterp policy should allow same-format owner reinterpretation families");
+	check(should_accept_hires_reinterpretation_birth_family(narrow_reinterp_policy, same_alias),
+	      "narrow-reinterp family mask should accept same-format alias families");
+	check(should_accept_hires_reinterpretation_birth_family(narrow_reinterp_policy, cross_owner),
+	      "narrow-reinterp policy should allow cross-format owner reinterpretation families");
+	check(should_accept_hires_reinterpretation_birth_family(narrow_reinterp_policy, cross_alias),
+	      "narrow-reinterp family mask should accept cross-format alias families");
+	check(should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, same_owner),
+	      "narrow-reinterp policy should allow the 32x32 same-format owner pattern");
+	check(!should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, same_alias),
+	      "narrow-reinterp policy should reject same-format 4x32 alias patterns");
+	check(should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, cross_owner),
+	      "narrow-reinterp policy should allow the 16x16 cross-format owner pattern");
+	check(should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, cross_alias),
+	      "narrow-reinterp policy should allow the 32x16 cross-format alias pattern");
+
+	const auto cross_owner_32x16 = make_hires_lookup_birth_signature(7, 0x202, 0, 0x02, 32, 16);
+	check(should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, cross_owner_32x16),
+	      "narrow-reinterp policy should allow the 32x16 cross-format owner pattern");
+
+	const auto same_alias_32x32 = make_hires_lookup_birth_signature(7, 0x300, 7, 0x300, 32, 32);
+	check(should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, same_alias_32x32),
+	      "narrow-reinterp policy should allow the 32x32 same-format alias pattern");
+
+	const auto cross_alias_16x16 = make_hires_lookup_birth_signature(7, 0x202, 7, 0x02, 16, 16);
+	check(should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, cross_alias_16x16),
+	      "narrow-reinterp policy should allow the 16x16 cross-format alias pattern");
+
+	const auto bad_cross_alias_8x16 = make_hires_lookup_birth_signature(7, 0x202, 7, 0x02, 8, 16);
+	check(!should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, bad_cross_alias_8x16),
+	      "narrow-reinterp policy should reject cross-format 8x16 alias patterns");
+
+	const auto bad_same_owner = make_hires_lookup_birth_signature(7, 0x204, 0, 0x204, 4, 32);
+	check(!should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, bad_same_owner),
+	      "narrow-reinterp policy should reject 4x32 same-format owner patterns");
+
+	const auto bad_cross_owner = make_hires_lookup_birth_signature(7, 0x202, 0, 0x202, 8, 16);
+	check(!should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, bad_cross_owner),
+	      "narrow-reinterp policy should reject 8x16 non-cross-format owner patterns");
 }
 
 static void test_hires_key_base_addr_contract()

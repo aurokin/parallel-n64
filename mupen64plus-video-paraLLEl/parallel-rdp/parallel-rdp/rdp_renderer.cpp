@@ -4232,10 +4232,7 @@ void Renderer::retry_pending_hires_block_lookup(unsigned tile_index)
 			for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
 			{
 				if (alias_tile != lookup_tile_index &&
-				    !detail::should_apply_hires_propagated_binding(
-						    tiles[lookup_tile_index].meta,
-						    tiles[alias_tile].meta,
-						    replacement_tiles[lookup_tile_index]))
+				    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
 					continue;
 				detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
 				if (alias_tile != lookup_tile_index)
@@ -5106,20 +5103,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							false))
 						continue;
 
-					if (hires_block_tile_probe_active &&
-					    !block_tile_probe_matches(
-							hires_block_tile_probe_load_formatsize,
-							hires_block_tile_probe_lookup_formatsize,
-							hires_block_tile_probe_lookup_tile,
-							hires_block_tile_probe_key_width,
-							hires_block_tile_probe_key_height,
-							formatsize_key(meta.fmt, meta.size),
-							formatsize,
-							tile_index,
-							candidate_width,
-							candidate_height))
-						continue;
-
 					hit = true;
 					texture_crc = candidate_texture_crc;
 					lookup_width_pixels = candidate_width;
@@ -5201,10 +5184,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
 				{
 					if (alias_tile != lookup_tile_index &&
-					    !detail::should_apply_hires_propagated_binding(
-							    tiles[lookup_tile_index].meta,
-							    tiles[alias_tile].meta,
-							    replacement_tiles[lookup_tile_index]))
+					    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
 						continue;
 					detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
 					if (alias_tile != lookup_tile_index)

@@ -4,7 +4,6 @@
 #include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_runtime_policy.hpp"
 #include "rdp_hires_sampling_policy.hpp"
-#include "texture_keying.hpp"
 
 #include <cstddef>
 
@@ -52,47 +51,6 @@ inline bool should_propagate_hires_alias_group_binding(bool strict_lookup)
 }
 
 template <typename ReplacementTileStateType>
-inline auto read_hires_lookup_tile_source_load_formatsize(const ReplacementTileStateType &state,
-                                                          int) -> decltype(state.source_load_formatsize)
-{
-	return state.source_load_formatsize;
-}
-
-template <typename ReplacementTileStateType>
-inline uint16_t read_hires_lookup_tile_source_load_formatsize(const ReplacementTileStateType &,
-                                                              long)
-{
-	return 0;
-}
-
-inline bool should_guard_reinterpret_cross_formatsize_alias(HiresLookupSource source)
-{
-	return source == HiresLookupSource::BlockTile ||
-	       source == HiresLookupSource::BlockShape ||
-	       source == HiresLookupSource::PendingBlockRetry;
-}
-
-template <typename ReplacementTileStateType>
-inline bool should_apply_hires_propagated_binding(const TileMeta &source_meta,
-                                                  const TileMeta &target_meta,
-                                                  const ReplacementTileStateType &state)
-{
-	if (!should_apply_hires_propagated_binding(source_meta, target_meta))
-		return false;
-
-	const HiresLookupSource origin = read_hires_lookup_tile_origin_source(state, 0);
-	if (!should_guard_reinterpret_cross_formatsize_alias(origin))
-		return true;
-
-	const uint16_t source_load_formatsize = read_hires_lookup_tile_source_load_formatsize(state, 0);
-	if (source_load_formatsize == 0)
-		return true;
-
-	const uint16_t target_formatsize = formatsize_key(target_meta.fmt, target_meta.size);
-	return source_load_formatsize == target_formatsize;
-}
-
-template <typename ReplacementTileStateType>
 inline bool hires_tile_state_is_bindable(const ReplacementTileStateType &state)
 {
 	return state.valid &&
@@ -114,7 +72,7 @@ inline int find_hires_alias_source_tile(unsigned dst_tile,
 			continue;
 		if (!hires_tile_state_is_bindable(tile_states[i]))
 			continue;
-		if (should_apply_hires_propagated_binding(tile_infos[i].meta, dst_meta, tile_states[i]))
+		if (should_apply_hires_propagated_binding(tile_infos[i].meta, dst_meta))
 			return int(i);
 	}
 
@@ -164,7 +122,7 @@ inline void propagate_hires_alias_group_binding(unsigned owner_tile,
 	{
 		if (i == owner_tile)
 			continue;
-		if (should_apply_hires_propagated_binding(owner_meta, tile_infos[i].meta, tile_states[owner_tile]))
+		if (should_apply_hires_propagated_binding(owner_meta, tile_infos[i].meta))
 		{
 			tile_states[i] = tile_states[owner_tile];
 			write_hires_lookup_tile_source(tile_states[i], HiresLookupSource::AliasPropagated, 0);

@@ -137,19 +137,6 @@
     - that makes `no-reinterp` the strongest shared-mode result so far:
       - alias propagation can still carry valid content
       - block reinterpretation is the broader corruption source
-- Current shared fix direction after the `no-reinterp` probe:
-  - keep reinterpretation alive only within the same formatsize family at alias-application time
-  - reject alias propagation for reinterpretation-born replacements when:
-    - origin source is `block_tile`, `block_shape`, or `pending_block_retry`
-    - and the source load formatsize differs from the live target formatsize
-  - stable Paper Mario `intro22-state + 1f` result on current `master`:
-    - `top_banner 8.5749`
-    - `story_text 32.0115`
-    - `bottom_stage_grid 41.4898`
-    - `left_stage_grid 11.5353`
-  - interpretation:
-    - same-family reinterpretation still carries valid content such as the `32x32` banner lane
-    - cross-family reinterpretation was the broader washout/corruption source
 
 ## Core Behavior With HIRES Off
 - Provider lookup is bypassed.
@@ -172,16 +159,6 @@
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=owner`
   - no-reinterp lookup probe:
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=no-reinterp`
-  - block-reinterpretation class probe envs:
-    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOAD_FS`
-    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOOKUP_TILE`
-    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOOKUP_FS`
-    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_WIDTH`
-    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_HEIGHT`
-    - despite the historical name, they now filter:
-      - `block_tile`
-      - `block_shape`
-      - pending retry through the shared block fallback path
   - for intro/title captures without controller input:
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
   - timed intro22 oracle scene:
@@ -267,9 +244,6 @@
 - Refresh GLideN64 only when the oracle scene or workflow changes materially:
   - `./run-paper-mario-gliden64-capture.sh --tag <tag>`
 - Current validation is strongest on Paper Mario.
-- Current timed-scene caveat:
-  - `noinput16` remains useful as a secondary sanity scene, but repeated timed captures can drift enough to change PNG hashes even when the renderer logic is unchanged
-  - use the standardized `intro22-state + 1f` path as the exact-truth scene for architectural probes
 - Current known gap:
   - Paper Mario still diverges from the GLide oracle on file-select stage/frame scaling and minification
 

@@ -139,7 +139,9 @@ Co-Authored-By: Codex <noreply@openai.com>
           - `x=464..1172`
           - `y=3024..3036`
         - it follows the replacement-backed `desc64` row with the same screen box and prim ladder
-        - suppressing that descriptorless row changes only `story_text` and `bottom_stage_grid`, so it is a real seam/compositor lane rather than just upstream producer noise
+        - suppressing that descriptorless row changes only `story_text` and `bottom_stage_grid`
+        - suppressing the paired `desc64` row is an exact no-op
+        - so the live seam owner is the descriptorless consumer itself, not the paired HIRES strip
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`

@@ -189,7 +189,8 @@
         - `y=3024..3036`
       - it follows a replacement-backed `desc64` row with the same screen box and prim ladder
       - suppressing that descriptorless row changes only `story_text` and `bottom_stage_grid`
-      - that makes it a real seam/compositor lane and a better root-cause target than any one upstream `desc81` slot
+      - suppressing the paired `desc64` row is an exact no-op
+      - that makes the descriptorless row the live seam/compositor lane and a better root-cause target than either the paired HIRES strip or any one upstream `desc81` slot
     - this is the current breakpoint:
       - investigate composition clusters, not just fallback family acceptance
 

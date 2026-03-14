@@ -25,6 +25,10 @@
   - CI/TLUT-aware lookup with palette-hint fallback
   - native `I`-format semantic normalization in the shader
   - transparent replacement RGB sanitization before upload
+- Current redesign direction:
+  - treat lookup provenance and tile binding as separate systems
+  - the first explicit post-lookup binding layer now lives in `rdp_hires_binding_policy.hpp`
+  - redesign roadmap: `docs/HIRES_REDESIGN_PLAN.md`
 
 ## Supported Formats
 - Pack containers:
@@ -86,6 +90,9 @@
   - bind replacements through the existing shader bank
   - remap N64 coordinates into replacement texture space at fetch time
   - preserve native combiner and blender behavior after replacement texels are produced
+  - current refactor note:
+    - post-lookup tile binding now has its own policy layer
+    - this is the first architectural cut toward upload-owner binding and narrower reinterpretation rules
 
 ## Core Behavior With HIRES On
 - The core attempts to load replacement packs from the system directory during configure time.

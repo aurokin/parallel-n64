@@ -24,6 +24,7 @@
 #include "rdp_device.hpp"
 #include "rdp_hires_ci_palette_policy.hpp"
 #include "rdp_hires_debug_policy.hpp"
+#include "rdp_hires_binding_policy.hpp"
 #include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_lookup_policy.hpp"
 #include "rdp_hires_sampling_policy.hpp"
@@ -4317,55 +4318,26 @@ void Renderer::retry_pending_hires_block_lookup(unsigned tile_index)
 
 		resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
 
-		const auto &lookup_tile = tiles[lookup_tile_index];
-		const uint32_t sampling_orig_w = detail::select_hires_sampling_orig_width_for_tile(
-				lookup_width_pixels,
-				lookup_tile);
-		const uint32_t sampling_orig_h = detail::select_hires_sampling_orig_height_for_tile(
-				lookup_height_pixels,
-				lookup_tile);
-
-		auto &repl_state = replacement_tiles[lookup_tile_index];
-		detail::write_hires_lookup_tile_state(
-				repl_state,
-				true,
-				checksum64,
-				formatsize,
-				sampling_orig_w,
-				sampling_orig_h,
-				repl_meta.vk_image_index,
-				repl_meta.repl_w,
-				repl_meta.repl_h,
-				repl_meta.has_mips,
-				true,
-				detail::HiresLookupSource::PendingBlockRetry);
-		detail::write_hires_lookup_tile_provenance(
-				repl_state,
+		const auto binding_decision = detail::build_hires_lookup_binding_decision(
 				load_tile_index,
 				formatsize_key(tiles[load_tile_index].meta.fmt, tiles[load_tile_index].meta.size),
 				lookup_tile_index,
 				formatsize,
 				lookup_width_pixels,
 				lookup_height_pixels,
-				0);
-		if (detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks))
-		{
-			detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
-
-			for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
-			{
-				if (alias_tile != lookup_tile_index &&
-				    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
-					continue;
-				detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
-				if (alias_tile != lookup_tile_index)
-					hires_alias_binding_applications++;
-			}
-		}
-		else
-		{
-			detail::apply_hires_tile_replacement_binding(tiles[lookup_tile_index], replacement_tiles[lookup_tile_index]);
-		}
+				checksum64,
+				true,
+				repl_meta,
+				true,
+				detail::HiresLookupSource::PendingBlockRetry,
+				tiles[lookup_tile_index]);
+		detail::apply_hires_lookup_binding_decision(
+				binding_decision,
+				detail::resolve_hires_binding_policy_mode(
+						detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks)),
+				tiles,
+				replacement_tiles,
+				hires_alias_binding_applications);
 
 		const bool descriptor_bound = detail::did_hires_lookup_bind_descriptor(true, repl_meta.vk_image_index);
 		detail::record_hires_lookup_binding_result(
@@ -5289,55 +5261,26 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			// Use the lookup dimensions as the upper bound, but still tighten against the
 			// tile span and mask that the draw actually samples from.
-			const auto &lookup_tile = tiles[lookup_tile_index];
-			const uint32_t sampling_orig_w = detail::select_hires_sampling_orig_width_for_tile(
-					lookup_width_pixels,
-					lookup_tile);
-			const uint32_t sampling_orig_h = detail::select_hires_sampling_orig_height_for_tile(
-					lookup_height_pixels,
-					lookup_tile);
-
-			auto &repl_state = replacement_tiles[lookup_tile_index];
-			detail::write_hires_lookup_tile_state(
-					repl_state,
-					hit,
-					checksum64,
-					formatsize,
-					sampling_orig_w,
-					sampling_orig_h,
-					repl_meta.vk_image_index,
-					repl_meta.repl_w,
-					repl_meta.repl_h,
-					repl_meta.has_mips,
-					true,
-					lookup_source);
-			detail::write_hires_lookup_tile_provenance(
-					repl_state,
+			const auto binding_decision = detail::build_hires_lookup_binding_decision(
 					tile_index,
 					formatsize_key(meta.fmt, meta.size),
 					lookup_tile_index,
 					formatsize,
 					lookup_width_pixels,
 					lookup_height_pixels,
-					0);
-			if (detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks))
-			{
-				detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
-
-				for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
-				{
-					if (alias_tile != lookup_tile_index &&
-					    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
-						continue;
-					detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
-					if (alias_tile != lookup_tile_index)
-						hires_alias_binding_applications++;
-				}
-			}
-			else
-			{
-				detail::apply_hires_tile_replacement_binding(tiles[lookup_tile_index], replacement_tiles[lookup_tile_index]);
-			}
+					checksum64,
+					hit,
+					repl_meta,
+					true,
+					lookup_source,
+					tiles[lookup_tile_index]);
+			detail::apply_hires_lookup_binding_decision(
+					binding_decision,
+					detail::resolve_hires_binding_policy_mode(
+							detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks)),
+					tiles,
+					replacement_tiles,
+					hires_alias_binding_applications);
 
 			const bool descriptor_bound = detail::did_hires_lookup_bind_descriptor(hit, repl_meta.vk_image_index);
 			detail::record_hires_lookup_binding_result(
@@ -5360,8 +5303,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					unsigned(meta.size),
 					lookup_width_pixels,
 					lookup_height_pixels,
-					sampling_orig_w,
-					sampling_orig_h,
+					binding_decision.sampling_orig_w,
+					binding_decision.sampling_orig_h,
 					repl_meta.repl_w,
 					repl_meta.repl_h,
 					static_cast<unsigned long long>(checksum64),

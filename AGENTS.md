@@ -142,6 +142,11 @@ Co-Authored-By: Codex <noreply@openai.com>
         - suppressing that descriptorless row changes only `story_text` and `bottom_stage_grid`
         - suppressing the paired `desc64` row is an exact no-op
         - so the live seam owner is the descriptorless consumer itself, not the paired HIRES strip
+  - redesign direction:
+    - keep lookup provenance and tile binding as separate concepts
+    - the first architectural cut now lives in `rdp_hires_binding_policy.hpp`
+    - future behavior changes should go through that binding-policy layer instead of adding more direct binding/application logic in `rdp_renderer.cpp`
+    - redesign roadmap: `docs/HIRES_REDESIGN_PLAN.md`
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`
@@ -198,6 +203,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 ## Testing Docs
 - Emulator test tiers: `docs/EMU_TESTING.md`
 - HIRES behavior and roadmap: `docs/HIRES_BEHAVIOR.md`
+- HIRES redesign roadmap: `docs/HIRES_REDESIGN_PLAN.md`
 - HIRES cross-emulator reference notes: `docs/HIRES_REFERENCE_NOTES.md`
 - Paper Mario scene manifest: `docs/PAPER_MARIO_SCENES.md`
 - Paper Mario HIRES debug matrix: `docs/PAPER_MARIO_HIRES_MATRIX.md`

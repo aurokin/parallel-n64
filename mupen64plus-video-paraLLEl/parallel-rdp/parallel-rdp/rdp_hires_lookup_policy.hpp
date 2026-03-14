@@ -4,12 +4,45 @@
 #include <cstddef>
 #include <cstdint>
 #include "rdp_common.hpp"
+#include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_runtime_policy.hpp"
 
 namespace RDP
 {
 namespace detail
 {
+enum class HiresLookupBirthFamily : uint8_t
+{
+	SameFormatsizeOwnerTile = 0,
+	SameFormatsizeAliasTile,
+	CrossFormatsizeOwnerTile,
+	CrossFormatsizeAliasTile
+};
+
+inline bool is_hires_lookup_birth_cross_formatsize(const HiresLookupBirthSignature &signature)
+{
+	return signature.load_formatsize != signature.lookup_formatsize;
+}
+
+inline bool is_hires_lookup_birth_owner_tile(const HiresLookupBirthSignature &signature)
+{
+	return signature.lookup_tile_index == 0;
+}
+
+inline HiresLookupBirthFamily classify_hires_lookup_birth_family(const HiresLookupBirthSignature &signature)
+{
+	if (is_hires_lookup_birth_cross_formatsize(signature))
+	{
+		return is_hires_lookup_birth_owner_tile(signature) ?
+		               HiresLookupBirthFamily::CrossFormatsizeOwnerTile :
+		               HiresLookupBirthFamily::CrossFormatsizeAliasTile;
+	}
+
+	return is_hires_lookup_birth_owner_tile(signature) ?
+	               HiresLookupBirthFamily::SameFormatsizeOwnerTile :
+	               HiresLookupBirthFamily::SameFormatsizeAliasTile;
+}
+
 inline bool hires_rdram_view_valid(const void *cpu_rdram, size_t rdram_size)
 {
 	return cpu_rdram && rdram_size && ((rdram_size & (rdram_size - 1)) == 0);

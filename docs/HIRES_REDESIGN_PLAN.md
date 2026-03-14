@@ -70,6 +70,15 @@ The next provenance step is now in place too:
 
 That is the bridge to provenance-family rules: the next narrowing cut can classify or filter whole birth-signature families without rebuilding that data shape again.
 
+The first family layer is also now explicit:
+- `HiresLookupBirthFamily`
+  - same-formatsize owner tile
+  - same-formatsize alias tile
+  - cross-formatsize owner tile
+  - cross-formatsize alias tile
+
+That classification is intentionally coarse. It is the first stable vocabulary for provenance-family redesign work, and the next filtering step should be expressed in terms of these families before adding narrower scene-specific exceptions.
+
 ## Redesign Stages
 ### Stage 1: Make ownership explicit
 - Keep current behavior.

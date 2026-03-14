@@ -61,6 +61,14 @@ Co-Authored-By: Codex <noreply@openai.com>
       - binding decisions and reinterpretation probes use that typed signature instead of loose `load_fs/lookup_fs/lookup_tile/key_wh` scalars
       - canonical intro22 permissive recheck after that refactor stayed exact-baseline identical
       - use that signature as the next unit of redesign when classifying valid vs corrupt reinterpretation families
+    - newest family checkpoint:
+      - provenance families are now classified explicitly with `HiresLookupBirthFamily`
+      - current coarse families:
+        - same-formatsize owner tile
+        - same-formatsize alias tile
+        - cross-formatsize owner tile
+        - cross-formatsize alias tile
+      - use those families as the first redesign vocabulary before adding narrower per-scene filters
   - `no-reinterp` means:
     - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
     - disable block-tile fallback

@@ -184,6 +184,12 @@
     - birth metadata is now a typed `HiresLookupBirthSignature`
     - binding decisions and reinterpretation probes use that signature instead of ad hoc scalar bundles
     - canonical intro22 permissive recheck stayed exact-baseline identical after this refactor
+    - family classification is now explicit via `HiresLookupBirthFamily`
+      - same-formatsize owner tile
+      - same-formatsize alias tile
+      - cross-formatsize owner tile
+      - cross-formatsize alias tile
+    - future reinterpretation narrowing should be expressed in those family terms before adding narrower rules
     - intro22’s useful clusters and noinput16’s bad clusters both include:
       - `0x21844118` `32x16 -> 512x256`
       - `0x21864010/0x218640d4` `16x16 -> 100x100`

@@ -139,6 +139,41 @@ static void test_strict_lookup_gate_contract()
 	      "no-reinterp lookup should reject block-shape fallback");
 }
 
+static void test_lookup_birth_family_contract()
+{
+	const auto same_owner = make_hires_lookup_birth_signature(7, 0x300, 0, 0x300, 32, 32);
+	check(!is_hires_lookup_birth_cross_formatsize(same_owner),
+	      "same formatsize signature should not be cross-formatsize");
+	check(is_hires_lookup_birth_owner_tile(same_owner),
+	      "lookup tile zero should be owner-tile family");
+	check(classify_hires_lookup_birth_family(same_owner) == HiresLookupBirthFamily::SameFormatsizeOwnerTile,
+	      "same-format owner signature family mismatch");
+
+	const auto same_alias = make_hires_lookup_birth_signature(7, 0x204, 7, 0x204, 4, 32);
+	check(!is_hires_lookup_birth_cross_formatsize(same_alias),
+	      "same formatsize alias signature should not be cross-formatsize");
+	check(!is_hires_lookup_birth_owner_tile(same_alias),
+	      "non-zero lookup tile should be alias-tile family");
+	check(classify_hires_lookup_birth_family(same_alias) == HiresLookupBirthFamily::SameFormatsizeAliasTile,
+	      "same-format alias signature family mismatch");
+
+	const auto cross_owner = make_hires_lookup_birth_signature(7, 0x202, 0, 0x02, 16, 16);
+	check(is_hires_lookup_birth_cross_formatsize(cross_owner),
+	      "cross formatsize owner signature should be cross-formatsize");
+	check(is_hires_lookup_birth_owner_tile(cross_owner),
+	      "cross owner signature should still be owner-tile");
+	check(classify_hires_lookup_birth_family(cross_owner) == HiresLookupBirthFamily::CrossFormatsizeOwnerTile,
+	      "cross-format owner signature family mismatch");
+
+	const auto cross_alias = make_hires_lookup_birth_signature(7, 0x202, 7, 0x02, 32, 16);
+	check(is_hires_lookup_birth_cross_formatsize(cross_alias),
+	      "cross formatsize alias signature should be cross-formatsize");
+	check(!is_hires_lookup_birth_owner_tile(cross_alias),
+	      "cross alias signature should not be owner-tile");
+	check(classify_hires_lookup_birth_family(cross_alias) == HiresLookupBirthFamily::CrossFormatsizeAliasTile,
+	      "cross-format alias signature family mismatch");
+}
+
 static void test_hires_key_base_addr_contract()
 {
 	const uint32_t tex_addr = 0x1000u;
@@ -338,6 +373,7 @@ int main()
 	test_ci_palette_candidate_gate_contract();
 	test_ci_ambiguous_fallback_gate_contract();
 	test_strict_lookup_gate_contract();
+	test_lookup_birth_family_contract();
 	test_hires_key_base_addr_contract();
 	test_hires_texture_byte_layout_contract();
 	test_hires_tile_lookup_dim_contract();

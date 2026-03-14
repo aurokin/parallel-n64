@@ -190,6 +190,16 @@
   - current conclusion:
     - valid reinterpretation content is concentrated in a small birth-pattern set
     - this is the strongest shared architecture probe so far
+  - latest intro22 split:
+    - `narrow-32x32` keeps the banner class but mostly falls back toward the `owner` / `no-reinterp` image elsewhere
+    - `narrow-16x16` carries most of the `story_text` improvement
+    - `narrow-32x16` carries the stronger `bottom_stage_grid` / `left_stage_grid` improvement
+    - `narrow-32x32-32x16` is currently the best intro22 static-region pair:
+      - `top_banner 10.0760`
+      - `story_text 30.1998`
+      - `bottom_stage_grid 40.2088`
+      - `left_stage_grid 9.9755`
+    - do not promote that pair to the main shared probe yet; the first `noinput16` split sweep produced no screenshots and is not trustworthy
 - Provenance census workflow:
   - `PARALLEL_RDP_HIRES_DEBUG=1` logs draw-state birth metadata for replacement-backed draws
   - draw-state logs now also preserve exact checksum keys for `repl0` and `repl1`

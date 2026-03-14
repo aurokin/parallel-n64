@@ -119,6 +119,25 @@ That refactor is now in progress too:
 
 So the next redesign move can refine the pattern set by editing policy data and policy resolution, not by reopening the draw-time lookup path.
 
+That split is now partially measured:
+- `narrow-32x32`
+  - preserves the banner class
+  - mostly collapses the other regions toward the `owner` / `no-reinterp` image class
+- `narrow-16x16`
+  - carries most of the `story_text` improvement
+  - does not preserve the banner class
+- `narrow-32x16`
+  - carries the stronger `bottom_stage_grid` / `left_stage_grid` improvement
+  - does not preserve the banner class
+- `narrow-32x32-32x16`
+  - is currently the best intro22 static-region pair:
+    - `top_banner 10.0760`
+    - `story_text 30.1998`
+    - `bottom_stage_grid 40.2088`
+    - `left_stage_grid 9.9755`
+  - that is a better static-region tradeoff than the older three-pattern `narrow-reinterp` set on intro22
+  - but it still needs a clean secondary-scene recheck before it replaces the broader shared probe
+
 ## Redesign Stages
 ### Stage 1: Make ownership explicit
 - Keep current behavior.

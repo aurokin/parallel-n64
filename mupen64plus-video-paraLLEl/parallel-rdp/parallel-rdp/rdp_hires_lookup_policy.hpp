@@ -109,6 +109,23 @@ inline HiresReinterpretationBirthPatternPolicy resolve_hires_reinterpretation_bi
 		make_hires_lookup_birth_pattern(0x202u, 0x02u, 16u, 16u),
 		make_hires_lookup_birth_pattern(0x202u, 0x02u, 32u, 16u),
 	};
+	static const HiresLookupBirthPattern narrow_same_formatsize_32x32_patterns[] = {
+		make_hires_lookup_birth_pattern(0x300u, 0x300u, 32u, 32u),
+	};
+	static const HiresLookupBirthPattern narrow_cross_formatsize_16x16_patterns[] = {
+		make_hires_lookup_birth_pattern(0x202u, 0x02u, 16u, 16u),
+	};
+	static const HiresLookupBirthPattern narrow_cross_formatsize_32x16_patterns[] = {
+		make_hires_lookup_birth_pattern(0x202u, 0x02u, 32u, 16u),
+	};
+	static const HiresLookupBirthPattern narrow_same_32x32_cross_16x16_patterns[] = {
+		make_hires_lookup_birth_pattern(0x300u, 0x300u, 32u, 32u),
+		make_hires_lookup_birth_pattern(0x202u, 0x02u, 16u, 16u),
+	};
+	static const HiresLookupBirthPattern narrow_same_32x32_cross_32x16_patterns[] = {
+		make_hires_lookup_birth_pattern(0x300u, 0x300u, 32u, 32u),
+		make_hires_lookup_birth_pattern(0x202u, 0x02u, 32u, 16u),
+	};
 
 	switch (policy.reinterpretation_birth_pattern_mode)
 	{
@@ -119,6 +136,31 @@ inline HiresReinterpretationBirthPatternPolicy resolve_hires_reinterpretation_bi
 		return make_hires_reinterpretation_birth_pattern_policy(
 				narrow_paper_mario_patterns,
 				sizeof(narrow_paper_mario_patterns) / sizeof(narrow_paper_mario_patterns[0]));
+
+	case HiresReinterpretationBirthPatternMode::NarrowSameFormatsize32x32Probe:
+		return make_hires_reinterpretation_birth_pattern_policy(
+				narrow_same_formatsize_32x32_patterns,
+				sizeof(narrow_same_formatsize_32x32_patterns) / sizeof(narrow_same_formatsize_32x32_patterns[0]));
+
+	case HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize16x16Probe:
+		return make_hires_reinterpretation_birth_pattern_policy(
+				narrow_cross_formatsize_16x16_patterns,
+				sizeof(narrow_cross_formatsize_16x16_patterns) / sizeof(narrow_cross_formatsize_16x16_patterns[0]));
+
+	case HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize32x16Probe:
+		return make_hires_reinterpretation_birth_pattern_policy(
+				narrow_cross_formatsize_32x16_patterns,
+				sizeof(narrow_cross_formatsize_32x16_patterns) / sizeof(narrow_cross_formatsize_32x16_patterns[0]));
+
+	case HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross16x16Probe:
+		return make_hires_reinterpretation_birth_pattern_policy(
+				narrow_same_32x32_cross_16x16_patterns,
+				sizeof(narrow_same_32x32_cross_16x16_patterns) / sizeof(narrow_same_32x32_cross_16x16_patterns[0]));
+
+	case HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross32x16Probe:
+		return make_hires_reinterpretation_birth_pattern_policy(
+				narrow_same_32x32_cross_32x16_patterns,
+				sizeof(narrow_same_32x32_cross_32x16_patterns) / sizeof(narrow_same_32x32_cross_32x16_patterns[0]));
 
 	default:
 		return {};

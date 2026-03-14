@@ -31,7 +31,12 @@ enum class HiresLookupSource : uint8_t
 enum class HiresReinterpretationBirthPatternMode : uint8_t
 {
 	AllowAll = 0,
-	NarrowPaperMarioProbe
+	NarrowPaperMarioProbe,
+	NarrowSameFormatsize32x32Probe,
+	NarrowCrossFormatsize16x16Probe,
+	NarrowCrossFormatsize32x16Probe,
+	NarrowSame32x32Cross16x16Probe,
+	NarrowSame32x32Cross32x16Probe
 };
 
 struct HiresLookupModePolicy
@@ -138,19 +143,44 @@ inline bool hires_lookup_narrow_reinterpretation_enabled(unsigned mode)
 	return mode == 5;
 }
 
+inline bool hires_lookup_narrow_reinterpretation_same_32x32_enabled(unsigned mode)
+{
+	return mode == 6;
+}
+
+inline bool hires_lookup_narrow_reinterpretation_cross_16x16_enabled(unsigned mode)
+{
+	return mode == 7;
+}
+
+inline bool hires_lookup_narrow_reinterpretation_cross_32x16_enabled(unsigned mode)
+{
+	return mode == 8;
+}
+
+inline bool hires_lookup_narrow_reinterpretation_32x32_16x16_enabled(unsigned mode)
+{
+	return mode == 9;
+}
+
+inline bool hires_lookup_narrow_reinterpretation_32x32_32x16_enabled(unsigned mode)
+{
+	return mode == 10;
+}
+
 inline bool hires_lookup_fallbacks_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 3 || mode == 4 || mode == 5;
+	return mode == 0 || mode == 3 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10;
 }
 
 inline bool hires_lookup_block_reinterpretation_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 4 || mode == 5;
+	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10;
 }
 
 inline bool hires_lookup_pending_block_retry_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 4 || mode == 5;
+	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10;
 }
 
 inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
@@ -210,6 +240,71 @@ inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
 		policy.allow_alias_group_binding = true;
 		policy.reinterpretation_birth_family_mask = 0x0fu;
 		policy.reinterpretation_birth_pattern_mode = HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe;
+		break;
+
+	case 6:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode =
+			HiresReinterpretationBirthPatternMode::NarrowSameFormatsize32x32Probe;
+		break;
+
+	case 7:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode =
+			HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize16x16Probe;
+		break;
+
+	case 8:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode =
+			HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize32x16Probe;
+		break;
+
+	case 9:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode =
+			HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross16x16Probe;
+		break;
+
+	case 10:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode =
+			HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross32x16Probe;
 		break;
 
 	default:

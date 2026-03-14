@@ -95,6 +95,16 @@ Co-Authored-By: Codex <noreply@openai.com>
           - `bottom_stage_grid 5.8594`
           - `left_stage_grid 5.5722`
         - this is now the leading shared architecture probe, because it improves both intro22 and noinput16 without returning to scene-specific renderer overrides
+        - intro22 split:
+          - `narrow-32x32` carries the banner class
+          - `narrow-16x16` carries most of the `story_text` improvement
+          - `narrow-32x16` carries the stronger `bottom_stage_grid` / `left_stage_grid` improvement
+          - `narrow-32x32-32x16` is currently the best intro22 static-region pair:
+            - `top_banner 10.0760`
+            - `story_text 30.1998`
+            - `bottom_stage_grid 40.2088`
+            - `left_stage_grid 9.9755`
+          - do not replace the shared `narrow-reinterp` probe with that pair until the secondary-scene check is rerun cleanly; the first `noinput16` split sweep produced no screenshots and is not trustworthy
   - `no-reinterp` means:
     - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
     - disable block-tile fallback

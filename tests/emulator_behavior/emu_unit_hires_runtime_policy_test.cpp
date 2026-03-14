@@ -146,6 +146,11 @@ static void test_lookup_mode_policy_contract()
 	      "owner-reinterp mode should allow only owner reinterpretation families");
 
 	const auto narrow_reinterp = resolve_hires_lookup_mode_policy(5);
+	const auto narrow_32x32 = resolve_hires_lookup_mode_policy(6);
+	const auto narrow_16x16 = resolve_hires_lookup_mode_policy(7);
+	const auto narrow_32x16 = resolve_hires_lookup_mode_policy(8);
+	const auto narrow_32x32_16x16 = resolve_hires_lookup_mode_policy(9);
+	const auto narrow_32x32_32x16 = resolve_hires_lookup_mode_policy(10);
 	check(!narrow_reinterp.allow_ci_low32, "narrow-reinterp mode should reject CI low32 fallback");
 	check(!narrow_reinterp.allow_tile_mask, "narrow-reinterp mode should reject tile-mask fallback");
 	check(!narrow_reinterp.allow_tile_stride, "narrow-reinterp mode should reject tile-stride fallback");
@@ -157,6 +162,21 @@ static void test_lookup_mode_policy_contract()
 	      "narrow-reinterp mode should let the birth-pattern filter govern reinterpretation families");
 	check(narrow_reinterp.reinterpretation_birth_pattern_mode == HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe,
 	      "narrow-reinterp mode should enable the first narrow birth-pattern filter");
+	check(narrow_32x32.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowSameFormatsize32x32Probe,
+	      "narrow-32x32 mode should isolate the same-format 32x32 birth-pattern filter");
+	check(narrow_16x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize16x16Probe,
+	      "narrow-16x16 mode should isolate the cross-format 16x16 birth-pattern filter");
+	check(narrow_32x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize32x16Probe,
+	      "narrow-32x16 mode should isolate the cross-format 32x16 birth-pattern filter");
+	check(narrow_32x32_16x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross16x16Probe,
+	      "narrow-32x32-16x16 mode should isolate the 32x32 + 16x16 birth-pattern filter");
+	check(narrow_32x32_32x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross32x16Probe,
+	      "narrow-32x32-32x16 mode should isolate the 32x32 + 32x16 birth-pattern filter");
 }
 }
 

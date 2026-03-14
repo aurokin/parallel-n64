@@ -64,7 +64,7 @@
 - Optional tuning:
   - `parallel-n64-parallel-rdp-hirestex-filter = linear|nearest|trilinear`
   - `parallel-n64-parallel-rdp-hirestex-srgb = auto|on|off`
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp`
   - `parallel-n64-parallel-rdp-hirestex-budget-mb = 0|128|256|512|1024|2048|4096`
 - Place packs in the RetroArch system directory used by the core.
 - Current limitation:
@@ -156,6 +156,18 @@
     - that makes `no-reinterp` the strongest shared-mode result so far:
       - alias propagation can still carry valid content
       - block reinterpretation is the broader corruption source
+- `owner-reinterp` lookup is the first live provenance-family redesign probe:
+  - disable CI low32, tile-mask, and tile-stride fallback
+  - keep block reinterpretation, deferred block retry, and alias propagation
+  - only allow reinterpretation births in the coarse owner-tile families:
+    - `SameFormatsizeOwnerTile`
+    - `CrossFormatsizeOwnerTile`
+  - current canonical intro22 result:
+    - it collapses to the same image class as `owner`
+    - `lookups=4133 hits=2133 primary_hits=2133 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=28931 draw_with_replacement=3596`
+    - useful permissive births like `32x32 0x300->0x300 lookup_tile=0` and `16x16 0x202->0x02 lookup_tile=0` still disappear entirely
+  - conclusion:
+    - coarse `HiresLookupBirthFamily` is the right vocabulary for redesign, but it is not yet a sufficient acceptance rule
 - Provenance census workflow:
   - `PARALLEL_RDP_HIRES_DEBUG=1` logs draw-state birth metadata for replacement-backed draws
   - draw-state logs now also preserve exact checksum keys for `repl0` and `repl1`
@@ -189,7 +201,8 @@
       - same-formatsize alias tile
       - cross-formatsize owner tile
       - cross-formatsize alias tile
-    - future reinterpretation narrowing should be expressed in those family terms before adding narrower rules
+    - `owner-reinterp` is the first live probe built on that family vocabulary
+    - future reinterpretation narrowing should start from those family terms, then add a narrower birth-pattern layer where the coarse families prove insufficient
     - intro22’s useful clusters and noinput16’s bad clusters both include:
       - `0x21844118` `32x16 -> 512x256`
       - `0x21864010/0x218640d4` `16x16 -> 100x100`

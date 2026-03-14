@@ -19,6 +19,11 @@ enum class HiresLookupBirthFamily : uint8_t
 	CrossFormatsizeAliasTile
 };
 
+inline uint8_t hires_lookup_birth_family_bit(HiresLookupBirthFamily family)
+{
+	return uint8_t(1u << unsigned(family));
+}
+
 inline bool is_hires_lookup_birth_cross_formatsize(const HiresLookupBirthSignature &signature)
 {
 	return signature.load_formatsize != signature.lookup_formatsize;
@@ -41,6 +46,13 @@ inline HiresLookupBirthFamily classify_hires_lookup_birth_family(const HiresLook
 	return is_hires_lookup_birth_owner_tile(signature) ?
 	               HiresLookupBirthFamily::SameFormatsizeOwnerTile :
 	               HiresLookupBirthFamily::SameFormatsizeAliasTile;
+}
+
+inline bool should_accept_hires_reinterpretation_birth_family(const HiresLookupModePolicy &policy,
+                                                              const HiresLookupBirthSignature &signature)
+{
+	const auto family = classify_hires_lookup_birth_family(signature);
+	return (policy.reinterpretation_birth_family_mask & hires_lookup_birth_family_bit(family)) != 0;
 }
 
 inline bool hires_rdram_view_valid(const void *cpu_rdram, size_t rdram_size)

@@ -133,6 +133,17 @@ static void test_lookup_mode_policy_contract()
 	check(!no_reinterp.allow_block_shape, "no-reinterp mode should reject block-shape fallback");
 	check(!no_reinterp.allow_pending_block_retry, "no-reinterp mode should reject pending block retry");
 	check(no_reinterp.allow_alias_group_binding, "no-reinterp mode should keep alias-group binding");
+
+	const auto owner_reinterp = resolve_hires_lookup_mode_policy(4);
+	check(!owner_reinterp.allow_ci_low32, "owner-reinterp mode should reject CI low32 fallback");
+	check(!owner_reinterp.allow_tile_mask, "owner-reinterp mode should reject tile-mask fallback");
+	check(!owner_reinterp.allow_tile_stride, "owner-reinterp mode should reject tile-stride fallback");
+	check(owner_reinterp.allow_block_tile, "owner-reinterp mode should allow block-tile fallback");
+	check(owner_reinterp.allow_block_shape, "owner-reinterp mode should allow block-shape fallback");
+	check(owner_reinterp.allow_pending_block_retry, "owner-reinterp mode should allow pending block retry");
+	check(owner_reinterp.allow_alias_group_binding, "owner-reinterp mode should keep alias-group binding");
+	check(owner_reinterp.reinterpretation_birth_family_mask == 0x5u,
+	      "owner-reinterp mode should allow only owner reinterpretation families");
 }
 }
 

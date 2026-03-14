@@ -37,6 +37,7 @@ struct HiresLookupModePolicy
 	bool allow_block_shape = true;
 	bool allow_pending_block_retry = true;
 	bool allow_alias_group_binding = true;
+	uint8_t reinterpretation_birth_family_mask = 0x0fu;
 };
 
 inline std::string resolve_hires_cache_path(const std::string &configured_path, const char *env_path)
@@ -119,19 +120,24 @@ inline bool hires_lookup_no_reinterpretation_enabled(unsigned mode)
 	return mode == 3;
 }
 
+inline bool hires_lookup_owner_reinterpretation_enabled(unsigned mode)
+{
+	return mode == 4;
+}
+
 inline bool hires_lookup_fallbacks_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 3;
+	return mode == 0 || mode == 3 || mode == 4;
 }
 
 inline bool hires_lookup_block_reinterpretation_enabled(unsigned mode)
 {
-	return mode == 0;
+	return mode == 0 || mode == 4;
 }
 
 inline bool hires_lookup_pending_block_retry_enabled(unsigned mode)
 {
-	return mode == 0;
+	return mode == 0 || mode == 4;
 }
 
 inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
@@ -168,6 +174,17 @@ inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
 		policy.allow_block_shape = false;
 		policy.allow_pending_block_retry = false;
 		policy.allow_alias_group_binding = true;
+		break;
+
+	case 4:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x5u;
 		break;
 
 	default:

@@ -4055,6 +4055,12 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 						probe_formatsize,
 						candidate_probe_w,
 						probe_h);
+				if (!detail::should_accept_hires_reinterpretation_birth_family(
+						    hires_lookup_mode_policy,
+						    probe_signature))
+				{
+					continue;
+				}
 				if (!block_tile_probe_matches_any(
 						    hires_block_tile_probe_active,
 						    hires_block_tile_probe_load_formatsize,
@@ -5085,6 +5091,10 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							formatsize,
 							candidate_width,
 							candidate_height);
+					if (!detail::should_accept_hires_reinterpretation_birth_family(
+						    hires_lookup_mode_policy,
+						    probe_signature))
+						continue;
 					if (!block_tile_probe_matches_any(
 						    hires_block_tile_probe_active,
 						    hires_block_tile_probe_load_formatsize,

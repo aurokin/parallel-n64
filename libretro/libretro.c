@@ -414,7 +414,7 @@ static void setup_variables(void)
       { "parallel-n64-parallel-rdp-hirestex-srgb",
          "(ParaLLEl-RDP) Hi-res texture color space; auto|on|off" },
       { "parallel-n64-parallel-rdp-hirestex-lookup",
-         "(ParaLLEl-RDP) Hi-res texture lookup mode; permissive|strict|owner|no-reinterp" },
+         "(ParaLLEl-RDP) Hi-res texture lookup mode; permissive|strict|owner|no-reinterp|owner-reinterp" },
       { "parallel-n64-parallel-rdp-hirestex-budget-mb",
          "(ParaLLEl-RDP) Hi-res texture cache budget (MB); 0|128|256|512|1024|2048|4096" },
 #endif
@@ -1327,6 +1327,8 @@ void update_variables(bool startup)
            parallel_set_hires_lookup_mode(2);
        else if (!strcmp(var.value, "no-reinterp"))
            parallel_set_hires_lookup_mode(3);
+       else if (!strcmp(var.value, "owner-reinterp"))
+           parallel_set_hires_lookup_mode(4);
        else
            parallel_set_hires_lookup_mode(0);
    }

@@ -79,6 +79,17 @@ The first family layer is also now explicit:
 
 That classification is intentionally coarse. It is the first stable vocabulary for provenance-family redesign work, and the next filtering step should be expressed in terms of these families before adding narrower scene-specific exceptions.
 
+The first live family-driven probe is also in place:
+- `parallel-n64-parallel-rdp-hirestex-lookup = owner-reinterp`
+- it keeps block reinterpretation, pending retry, and alias propagation
+- but only allows reinterpretation births in the coarse owner-tile families
+- on canonical intro22, it collapses to the same image class as `owner`, with:
+  - `block_tile_hits=0`
+  - `block_shape_hits=0`
+  - `pending_block_retry_hits=0`
+
+That is useful because it tells us the coarse four-family split is not yet enough to preserve the valid reinterpretation classes. The next redesign layer needs to be narrower than family alone: a birth-pattern rule built on top of `HiresLookupBirthSignature`, not a return to scene-specific draw overrides.
+
 ## Redesign Stages
 ### Stage 1: Make ownership explicit
 - Keep current behavior.

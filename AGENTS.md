@@ -15,7 +15,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Keep `parallel` as the active graphics path for local validation.
 - Treat HIRES-off behavior as invariant: no provider/registry/shader replacement path changes when HIRES is disabled.
 - Current root-cause probe for HIRES lookup/composition bugs:
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp`
   - `strict` means:
     - exact checksum + exact formatsize only
     - no CI low32 fallback
@@ -69,12 +69,25 @@ Co-Authored-By: Codex <noreply@openai.com>
         - cross-formatsize owner tile
         - cross-formatsize alias tile
       - use those families as the first redesign vocabulary before adding narrower per-scene filters
+      - first coarse-family redesign probe:
+        - `owner-reinterp` keeps alias propagation plus block reinterpretation, but only for the coarse owner-tile birth families
+        - canonical intro22 recheck:
+          - it still collapsed to the same image class as `owner`
+          - `block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0`
+          - useful permissive births like `32x32 0x300->0x300 lookup_tile=0` and `16x16 0x202->0x02 lookup_tile=0` disappeared entirely
+        - conclusion:
+          - the coarse four-family split is a useful vocabulary, but it is not yet a sufficient acceptance rule
   - `no-reinterp` means:
     - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
     - disable block-tile fallback
     - disable block-shape fallback
     - disable deferred block retry
     - use this to test whether block reinterpretation is the dominant corruption source without discarding alias-backed valid content
+  - `owner-reinterp` means:
+    - disable CI low32, tile-mask, and tile-stride fallback
+    - keep block reinterpretation, deferred block retry, and alias propagation
+    - only allow reinterpretation births in the coarse owner-tile families
+    - use this to test whether the remaining valid reinterpretation content is already separable by coarse provenance families
   - current `no-reinterp` data points:
     - on canonical `intro22-state + 1f`, `no-reinterp` produced:
       - `lookups=4043 hits=2123 primary_hits=2123 ci_low32_hits=0 tile_mask_hits=0 tile_stride_hits=0 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=28301 draw_with_replacement=3612`

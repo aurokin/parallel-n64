@@ -31,12 +31,7 @@ struct HiresLookupBindingDecision
 {
 	bool provider_hit = false;
 	uint64_t checksum64 = 0;
-	uint16_t load_formatsize = 0;
-	uint16_t lookup_formatsize = 0;
-	uint32_t lookup_tile_index = 0;
-	uint32_t load_tile_index = 0;
-	uint32_t lookup_key_width = 0;
-	uint32_t lookup_key_height = 0;
+	HiresLookupBirthSignature birth = {};
 	uint32_t sampling_orig_w = 0;
 	uint32_t sampling_orig_h = 0;
 	uint32_t descriptor_index = hires_invalid_descriptor_index();
@@ -64,12 +59,13 @@ inline HiresLookupBindingDecision build_hires_lookup_binding_decision(unsigned l
 	HiresLookupBindingDecision decision = {};
 	decision.provider_hit = provider_hit;
 	decision.checksum64 = checksum64;
-	decision.load_formatsize = load_formatsize;
-	decision.lookup_formatsize = lookup_formatsize;
-	decision.lookup_tile_index = lookup_tile_index;
-	decision.load_tile_index = load_tile_index;
-	decision.lookup_key_width = lookup_key_width;
-	decision.lookup_key_height = lookup_key_height;
+	decision.birth = make_hires_lookup_birth_signature(
+			load_tile_index,
+			load_formatsize,
+			lookup_tile_index,
+			lookup_formatsize,
+			lookup_key_width,
+			lookup_key_height);
 	decision.sampling_orig_w = select_hires_sampling_orig_width_for_tile(lookup_key_width, lookup_tile);
 	decision.sampling_orig_h = select_hires_sampling_orig_height_for_tile(lookup_key_height, lookup_tile);
 	decision.descriptor_index = repl_meta.vk_image_index;
@@ -88,12 +84,12 @@ inline void apply_hires_lookup_binding_decision(const HiresLookupBindingDecision
                                                 ReplacementTileStateType (&tile_states)[NumTiles],
                                                 uint64_t &alias_binding_applications)
 {
-	auto &repl_state = tile_states[decision.lookup_tile_index];
+	auto &repl_state = tile_states[decision.birth.lookup_tile_index];
 	write_hires_lookup_tile_state(
 			repl_state,
 			decision.provider_hit,
 			decision.checksum64,
-			decision.lookup_formatsize,
+			decision.birth.lookup_formatsize,
 			decision.sampling_orig_w,
 			decision.sampling_orig_h,
 			decision.descriptor_index,
@@ -102,34 +98,26 @@ inline void apply_hires_lookup_binding_decision(const HiresLookupBindingDecision
 			decision.has_mips,
 			decision.allow_tile_sampling_expansion,
 			decision.lookup_source);
-	write_hires_lookup_tile_provenance(
-			repl_state,
-			decision.load_tile_index,
-			decision.load_formatsize,
-			decision.lookup_tile_index,
-			decision.lookup_formatsize,
-			decision.lookup_key_width,
-			decision.lookup_key_height,
-			0);
+	write_hires_lookup_tile_provenance(repl_state, decision.birth, 0);
 
 	if (policy_mode == HiresBindingPolicyMode::PropagateAliasGroup)
 	{
-		propagate_hires_alias_group_binding(decision.lookup_tile_index, tile_infos, tile_states);
+		propagate_hires_alias_group_binding(decision.birth.lookup_tile_index, tile_infos, tile_states);
 
 		for (unsigned alias_tile = 0; alias_tile < NumTiles; alias_tile++)
 		{
-			if (alias_tile != decision.lookup_tile_index &&
-			    !should_apply_hires_propagated_binding(tile_infos[decision.lookup_tile_index].meta,
+			if (alias_tile != decision.birth.lookup_tile_index &&
+			    !should_apply_hires_propagated_binding(tile_infos[decision.birth.lookup_tile_index].meta,
 			                                           tile_infos[alias_tile].meta))
 				continue;
 			apply_hires_tile_replacement_binding(tile_infos[alias_tile], tile_states[alias_tile]);
-			if (alias_tile != decision.lookup_tile_index)
+			if (alias_tile != decision.birth.lookup_tile_index)
 				alias_binding_applications++;
 		}
 	}
 	else
 	{
-		apply_hires_tile_replacement_binding(tile_infos[decision.lookup_tile_index], tile_states[decision.lookup_tile_index]);
+		apply_hires_tile_replacement_binding(tile_infos[decision.birth.lookup_tile_index], tile_states[decision.birth.lookup_tile_index]);
 	}
 }
 

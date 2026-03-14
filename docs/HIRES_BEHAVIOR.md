@@ -180,6 +180,10 @@
     - `--call-min/--call-max` isolate one repeated pass phase or one strip bundle for order-sensitive debugging
   - current important finding:
     - Paper Mario’s `CI16 -> RGBA16 lookup_tile=0` family cannot be separated by raw raster flags alone
+  - redesign support:
+    - birth metadata is now a typed `HiresLookupBirthSignature`
+    - binding decisions and reinterpretation probes use that signature instead of ad hoc scalar bundles
+    - canonical intro22 permissive recheck stayed exact-baseline identical after this refactor
     - intro22’s useful clusters and noinput16’s bad clusters both include:
       - `0x21844118` `32x16 -> 512x256`
       - `0x21864010/0x218640d4` `16x16 -> 100x100`

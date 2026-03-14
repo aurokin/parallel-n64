@@ -63,6 +63,13 @@ The next supporting step is also in place:
 - the renderer no longer relies on one broad `hires_lookup_fallbacks` boolean to decide which provenance families are legal
 - future reinterpretation redesigns should change that policy object, then let lookup/binding code consume it
 
+The next provenance step is now in place too:
+- birth metadata is represented as `HiresLookupBirthSignature`
+- binding decisions carry that typed signature instead of loose `load_fs/lookup_fs/lookup_tile/key_wh` scalars
+- reinterpretation probes now match against that signature object
+
+That is the bridge to provenance-family rules: the next narrowing cut can classify or filter whole birth-signature families without rebuilding that data shape again.
+
 ## Redesign Stages
 ### Stage 1: Make ownership explicit
 - Keep current behavior.

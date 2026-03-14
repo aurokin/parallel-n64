@@ -129,21 +129,17 @@ static bool block_tile_probe_matches(uint16_t configured_load_formatsize,
                                      uint32_t configured_lookup_tile,
                                      uint32_t configured_key_width,
                                      uint32_t configured_key_height,
-                                     uint16_t load_formatsize,
-                                     uint16_t lookup_formatsize,
-                                     uint32_t lookup_tile,
-                                     uint32_t key_width,
-                                     uint32_t key_height)
+                                     const RDP::detail::HiresLookupBirthSignature &signature)
 {
-	if (configured_load_formatsize != 0 && configured_load_formatsize != load_formatsize)
+	if (configured_load_formatsize != 0 && configured_load_formatsize != signature.load_formatsize)
 		return false;
-	if (configured_lookup_formatsize != 0 && configured_lookup_formatsize != lookup_formatsize)
+	if (configured_lookup_formatsize != 0 && configured_lookup_formatsize != signature.lookup_formatsize)
 		return false;
-	if (configured_lookup_tile != 0xffffffffu && configured_lookup_tile != lookup_tile)
+	if (configured_lookup_tile != 0xffffffffu && configured_lookup_tile != signature.lookup_tile_index)
 		return false;
-	if (configured_key_width != 0 && configured_key_width != key_width)
+	if (configured_key_width != 0 && configured_key_width != signature.key_width)
 		return false;
-	if (configured_key_height != 0 && configured_key_height != key_height)
+	if (configured_key_height != 0 && configured_key_height != signature.key_height)
 		return false;
 	return true;
 }
@@ -160,11 +156,7 @@ static bool block_tile_probe_matches_any(bool probe1_active,
                                          uint32_t probe2_lookup_tile,
                                          uint32_t probe2_key_width,
                                          uint32_t probe2_key_height,
-                                         uint16_t load_formatsize,
-                                         uint16_t lookup_formatsize,
-                                         uint32_t lookup_tile,
-                                         uint32_t key_width,
-                                         uint32_t key_height)
+                                         const RDP::detail::HiresLookupBirthSignature &signature)
 {
 	if (!probe1_active && !probe2_active)
 		return true;
@@ -176,11 +168,7 @@ static bool block_tile_probe_matches_any(bool probe1_active,
 			    probe1_lookup_tile,
 			    probe1_key_width,
 			    probe1_key_height,
-			    load_formatsize,
-			    lookup_formatsize,
-			    lookup_tile,
-			    key_width,
-			    key_height))
+			    signature))
 		return true;
 
 	if (probe2_active &&
@@ -190,11 +178,7 @@ static bool block_tile_probe_matches_any(bool probe1_active,
 			    probe2_lookup_tile,
 			    probe2_key_width,
 			    probe2_key_height,
-			    load_formatsize,
-			    lookup_formatsize,
-			    lookup_tile,
-			    key_width,
-			    key_height))
+			    signature))
 		return true;
 
 	return false;
@@ -4189,6 +4173,13 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 					continue;
 				}
 
+				const auto probe_signature = detail::make_hires_lookup_birth_signature(
+						bounded_load_tile_index,
+						formatsize_key(tiles[bounded_load_tile_index].meta.fmt, tiles[bounded_load_tile_index].meta.size),
+						probe_tile,
+						probe_formatsize,
+						candidate_probe_w,
+						probe_h);
 				if (!block_tile_probe_matches_any(
 						    hires_block_tile_probe_active,
 						    hires_block_tile_probe_load_formatsize,
@@ -4202,11 +4193,7 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 						    hires_block_tile_probe2_lookup_tile,
 						    hires_block_tile_probe2_key_width,
 						    hires_block_tile_probe2_key_height,
-						    formatsize_key(tiles[bounded_load_tile_index].meta.fmt, tiles[bounded_load_tile_index].meta.size),
-						    probe_formatsize,
-						    probe_tile,
-						    candidate_probe_w,
-						    probe_h))
+						    probe_signature))
 				{
 					continue;
 				}
@@ -5216,6 +5203,13 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							false))
 						continue;
 
+					const auto probe_signature = detail::make_hires_lookup_birth_signature(
+							tile_index,
+							formatsize_key(info.fmt, info.size),
+							0,
+							formatsize,
+							candidate_width,
+							candidate_height);
 					if (!block_tile_probe_matches_any(
 						    hires_block_tile_probe_active,
 						    hires_block_tile_probe_load_formatsize,
@@ -5229,11 +5223,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						    hires_block_tile_probe2_lookup_tile,
 						    hires_block_tile_probe2_key_width,
 						    hires_block_tile_probe2_key_height,
-						    formatsize_key(info.fmt, info.size),
-						    formatsize,
-						    0,
-						    candidate_width,
-						    candidate_height))
+						    probe_signature))
 						continue;
 
 					hit = true;

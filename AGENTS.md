@@ -56,6 +56,11 @@ Co-Authored-By: Codex <noreply@openai.com>
         - permissive/default remained exact-baseline identical
         - owner remained exact-owner identical
       - future provenance-family redesigns should update `HiresLookupModePolicy` first, then let lookup/binding code consume it
+    - newest provenance checkpoint:
+      - birth metadata is now carried as `HiresLookupBirthSignature`
+      - binding decisions and reinterpretation probes use that typed signature instead of loose `load_fs/lookup_fs/lookup_tile/key_wh` scalars
+      - canonical intro22 permissive recheck after that refactor stayed exact-baseline identical
+      - use that signature as the next unit of redesign when classifying valid vs corrupt reinterpretation families
   - `no-reinterp` means:
     - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
     - disable block-tile fallback

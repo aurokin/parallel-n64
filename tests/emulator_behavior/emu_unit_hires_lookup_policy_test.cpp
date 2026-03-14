@@ -78,6 +78,7 @@ static void test_strict_lookup_gate_contract()
 	const auto no_reinterp_policy = resolve_hires_lookup_mode_policy(3);
 	const auto owner_reinterp_policy = resolve_hires_lookup_mode_policy(4);
 	const auto narrow_reinterp_policy = resolve_hires_lookup_mode_policy(5);
+	const auto pattern_policy = resolve_hires_reinterpretation_birth_pattern_policy(narrow_reinterp_policy);
 
 	check(!hires_lookup_strict_enabled(0), "lookup mode 0 should be permissive");
 	check(hires_lookup_strict_enabled(1), "lookup mode 1 should be strict");
@@ -220,6 +221,7 @@ static void test_lookup_birth_family_contract()
 	const auto permissive_policy = resolve_hires_lookup_mode_policy(0);
 	const auto owner_reinterp_policy = resolve_hires_lookup_mode_policy(4);
 	const auto narrow_reinterp_policy = resolve_hires_lookup_mode_policy(5);
+	const auto pattern_policy = resolve_hires_reinterpretation_birth_pattern_policy(narrow_reinterp_policy);
 	check(should_accept_hires_reinterpretation_birth_family(permissive_policy, same_owner),
 	      "permissive policy should allow same-format owner reinterpretation families");
 	check(should_accept_hires_reinterpretation_birth_family(permissive_policy, same_alias),
@@ -276,6 +278,12 @@ static void test_lookup_birth_family_contract()
 	const auto bad_cross_owner = make_hires_lookup_birth_signature(7, 0x202, 0, 0x202, 8, 16);
 	check(!should_accept_hires_reinterpretation_birth_pattern(narrow_reinterp_policy, bad_cross_owner),
 	      "narrow-reinterp policy should reject 8x16 non-cross-format owner patterns");
+	check(pattern_policy.pattern_count == 3u,
+	      "narrow-reinterp policy should expose the expected number of birth patterns");
+	check(pattern_policy.patterns != nullptr,
+	      "narrow-reinterp policy should expose a concrete birth-pattern table");
+	check(matches_hires_lookup_birth_pattern(same_owner, pattern_policy.patterns[0]),
+	      "first birth-pattern entry should match the 32x32 same-format case");
 }
 
 static void test_hires_key_base_addr_contract()

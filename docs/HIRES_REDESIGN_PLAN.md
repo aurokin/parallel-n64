@@ -112,6 +112,13 @@ Current result:
 
 That makes `narrow-reinterp` the first redesign probe that is strong across both validation scenes. The next architectural step should narrow that birth-pattern set into an explicit policy object instead of leaving it as a hard-coded mode experiment forever.
 
+That refactor is now in progress too:
+- the narrow tuple set is no longer matched by one hard-coded helper branch
+- it resolves through an explicit `HiresReinterpretationBirthPatternPolicy`
+- canonical intro22 recheck after that extraction stayed exact-image identical to the prior `narrow-reinterp` capture
+
+So the next redesign move can refine the pattern set by editing policy data and policy resolution, not by reopening the draw-time lookup path.
+
 ## Redesign Stages
 ### Stage 1: Make ownership explicit
 - Keep current behavior.

@@ -28,6 +28,12 @@ enum class HiresLookupSource : uint8_t
 	AliasPropagated
 };
 
+enum class HiresReinterpretationBirthPatternMode : uint8_t
+{
+	AllowAll = 0,
+	NarrowPaperMarioProbe
+};
+
 struct HiresLookupModePolicy
 {
 	bool allow_ci_low32 = true;
@@ -38,7 +44,8 @@ struct HiresLookupModePolicy
 	bool allow_pending_block_retry = true;
 	bool allow_alias_group_binding = true;
 	uint8_t reinterpretation_birth_family_mask = 0x0fu;
-	uint8_t reinterpretation_birth_pattern_mode = 0;
+	HiresReinterpretationBirthPatternMode reinterpretation_birth_pattern_mode =
+		HiresReinterpretationBirthPatternMode::AllowAll;
 };
 
 inline std::string resolve_hires_cache_path(const std::string &configured_path, const char *env_path)
@@ -202,7 +209,7 @@ inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
 		policy.allow_pending_block_retry = true;
 		policy.allow_alias_group_binding = true;
 		policy.reinterpretation_birth_family_mask = 0x0fu;
-		policy.reinterpretation_birth_pattern_mode = 1u;
+		policy.reinterpretation_birth_pattern_mode = HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe;
 		break;
 
 	default:

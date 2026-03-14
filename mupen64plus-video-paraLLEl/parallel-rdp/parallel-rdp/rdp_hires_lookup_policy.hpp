@@ -19,6 +19,43 @@ enum class HiresLookupBirthFamily : uint8_t
 	CrossFormatsizeAliasTile
 };
 
+struct HiresLookupBirthPattern
+{
+	uint16_t load_formatsize = 0;
+	uint16_t lookup_formatsize = 0;
+	uint16_t key_width = 0;
+	uint16_t key_height = 0;
+};
+
+struct HiresReinterpretationBirthPatternPolicy
+{
+	const HiresLookupBirthPattern *patterns = nullptr;
+	size_t pattern_count = 0;
+};
+
+inline HiresLookupBirthPattern make_hires_lookup_birth_pattern(uint16_t load_formatsize,
+                                                               uint16_t lookup_formatsize,
+                                                               uint16_t key_width,
+                                                               uint16_t key_height)
+{
+	HiresLookupBirthPattern pattern = {};
+	pattern.load_formatsize = load_formatsize;
+	pattern.lookup_formatsize = lookup_formatsize;
+	pattern.key_width = key_width;
+	pattern.key_height = key_height;
+	return pattern;
+}
+
+inline HiresReinterpretationBirthPatternPolicy make_hires_reinterpretation_birth_pattern_policy(
+		const HiresLookupBirthPattern *patterns,
+		size_t pattern_count)
+{
+	HiresReinterpretationBirthPatternPolicy policy = {};
+	policy.patterns = patterns;
+	policy.pattern_count = pattern_count;
+	return policy;
+}
+
 inline uint8_t hires_lookup_birth_family_bit(HiresLookupBirthFamily family)
 {
 	return uint8_t(1u << unsigned(family));
@@ -55,41 +92,51 @@ inline bool should_accept_hires_reinterpretation_birth_family(const HiresLookupM
 	return (policy.reinterpretation_birth_family_mask & hires_lookup_birth_family_bit(family)) != 0;
 }
 
-inline bool matches_hires_narrow_reinterpretation_birth_pattern(const HiresLookupBirthSignature &signature)
+inline bool matches_hires_lookup_birth_pattern(const HiresLookupBirthSignature &signature,
+                                               const HiresLookupBirthPattern &pattern)
 {
-	if (signature.load_formatsize == 0x300u &&
-	    signature.lookup_formatsize == 0x300u &&
-	    signature.key_width == 32u &&
-	    signature.key_height == 32u)
-	{
-		return true;
-	}
+	return signature.load_formatsize == pattern.load_formatsize &&
+	       signature.lookup_formatsize == pattern.lookup_formatsize &&
+	       signature.key_width == pattern.key_width &&
+	       signature.key_height == pattern.key_height;
+}
 
-	if (signature.load_formatsize == 0x202u &&
-	    signature.lookup_formatsize == 0x02u &&
-	    ((signature.key_width == 16u && signature.key_height == 16u) ||
-	     (signature.key_width == 32u && signature.key_height == 16u)))
-	{
-		return true;
-	}
+inline HiresReinterpretationBirthPatternPolicy resolve_hires_reinterpretation_birth_pattern_policy(
+		const HiresLookupModePolicy &policy)
+{
+	static const HiresLookupBirthPattern narrow_paper_mario_patterns[] = {
+		make_hires_lookup_birth_pattern(0x300u, 0x300u, 32u, 32u),
+		make_hires_lookup_birth_pattern(0x202u, 0x02u, 16u, 16u),
+		make_hires_lookup_birth_pattern(0x202u, 0x02u, 32u, 16u),
+	};
 
-	return false;
+	switch (policy.reinterpretation_birth_pattern_mode)
+	{
+	case HiresReinterpretationBirthPatternMode::AllowAll:
+		return {};
+
+	case HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe:
+		return make_hires_reinterpretation_birth_pattern_policy(
+				narrow_paper_mario_patterns,
+				sizeof(narrow_paper_mario_patterns) / sizeof(narrow_paper_mario_patterns[0]));
+
+	default:
+		return {};
+	}
 }
 
 inline bool should_accept_hires_reinterpretation_birth_pattern(const HiresLookupModePolicy &policy,
                                                                const HiresLookupBirthSignature &signature)
 {
-	switch (policy.reinterpretation_birth_pattern_mode)
-	{
-	case 0:
+	const auto pattern_policy = resolve_hires_reinterpretation_birth_pattern_policy(policy);
+	if (pattern_policy.pattern_count == 0 || pattern_policy.patterns == nullptr)
 		return true;
 
-	case 1:
-		return matches_hires_narrow_reinterpretation_birth_pattern(signature);
+	for (size_t i = 0; i < pattern_policy.pattern_count; i++)
+		if (matches_hires_lookup_birth_pattern(signature, pattern_policy.patterns[i]))
+			return true;
 
-	default:
-		return false;
-	}
+	return false;
 }
 
 inline bool hires_rdram_view_valid(const void *cpu_rdram, size_t rdram_size)

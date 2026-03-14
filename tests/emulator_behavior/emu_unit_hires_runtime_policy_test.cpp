@@ -155,7 +155,7 @@ static void test_lookup_mode_policy_contract()
 	check(narrow_reinterp.allow_alias_group_binding, "narrow-reinterp mode should keep alias-group binding");
 	check(narrow_reinterp.reinterpretation_birth_family_mask == 0x0fu,
 	      "narrow-reinterp mode should let the birth-pattern filter govern reinterpretation families");
-	check(narrow_reinterp.reinterpretation_birth_pattern_mode == 1u,
+	check(narrow_reinterp.reinterpretation_birth_pattern_mode == HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe,
 	      "narrow-reinterp mode should enable the first narrow birth-pattern filter");
 }
 }

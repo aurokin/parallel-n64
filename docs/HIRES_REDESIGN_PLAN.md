@@ -136,7 +136,11 @@ That split is now partially measured:
     - `bottom_stage_grid 40.2088`
     - `left_stage_grid 9.9755`
   - that is a better static-region tradeoff than the older three-pattern `narrow-reinterp` set on intro22
-  - but it still needs a clean secondary-scene recheck before it replaces the broader shared probe
+  - secondary-scene recheck on `noinput16` is mixed:
+    - versus `narrow-reinterp`, it improves `bottom_stage_grid` (`5.4931` vs `5.8681`)
+    - it is roughly flat on `today_text` (`12.4083` vs `12.4307`)
+    - it regresses `top_banner` (`7.8969` vs `7.5956`) and `left_stage_grid` (`5.7267` vs `5.5722`)
+  - keep treating it as a static-priority alternate probe, not the main shared replacement for `narrow-reinterp`
 
 ## Redesign Stages
 ### Stage 1: Make ownership explicit

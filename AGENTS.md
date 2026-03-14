@@ -104,7 +104,16 @@ Co-Authored-By: Codex <noreply@openai.com>
             - `story_text 30.1998`
             - `bottom_stage_grid 40.2088`
             - `left_stage_grid 9.9755`
-          - do not replace the shared `narrow-reinterp` probe with that pair until the secondary-scene check is rerun cleanly; the first `noinput16` split sweep produced no screenshots and is not trustworthy
+          - corrected `noinput16` recheck for `narrow-32x32-32x16`:
+            - `top_banner 7.8969`
+            - `today_text 12.4083`
+            - `bottom_stage_grid 5.4931`
+            - `left_stage_grid 5.7267`
+          - versus corrected `narrow-reinterp` on the same timed path:
+            - better `bottom_stage_grid`
+            - roughly flat `today_text`
+            - worse `top_banner` and `left_stage_grid`
+          - keep it as a static-priority alternate probe, not the main shared probe
   - `no-reinterp` means:
     - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
     - disable block-tile fallback

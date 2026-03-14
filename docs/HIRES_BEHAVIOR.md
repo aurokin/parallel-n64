@@ -199,7 +199,16 @@
       - `story_text 30.1998`
       - `bottom_stage_grid 40.2088`
       - `left_stage_grid 9.9755`
-    - do not promote that pair to the main shared probe yet; the first `noinput16` split sweep produced no screenshots and is not trustworthy
+    - trustworthy `noinput16` recheck for `narrow-32x32-32x16`:
+      - `top_banner 7.8969`
+      - `today_text 12.4083`
+      - `bottom_stage_grid 5.4931`
+      - `left_stage_grid 5.7267`
+    - compared to `narrow-reinterp` on the same corrected timed path:
+      - better `bottom_stage_grid`
+      - roughly flat `today_text`
+      - worse `top_banner` and `left_stage_grid`
+    - so keep it as a static-priority alternate probe, not the main shared probe
 - Provenance census workflow:
   - `PARALLEL_RDP_HIRES_DEBUG=1` logs draw-state birth metadata for replacement-backed draws
   - draw-state logs now also preserve exact checksum keys for `repl0` and `repl1`

@@ -14,6 +14,7 @@ DRAW_STATE_RE = re.compile(
     r".*?pipe1=(?P<pipe1>\d)"
     r".*?screen=\{valid=(?P<screen_valid>\d) x=(?P<screen_x>[^ ]+) y=(?P<screen_y>[^ ]+)\}"
     r".*?repl0_desc=(?P<desc>\d+)"
+    r"(?: repl0_key=0x(?P<repl_key>[0-9a-fA-F]+))?"
     r" repl0_source=(?P<repl_source>\w+)"
     r" repl0_origin=(?P<repl_origin>\w+)"
     r" repl0_birth=\{load_tile=(?P<load_tile>\d+)"
@@ -23,6 +24,17 @@ DRAW_STATE_RE = re.compile(
     r" key=(?P<key_w>\d+)x(?P<key_h>\d+)\}"
     r" repl0_orig=(?P<orig_w>\d+)x(?P<orig_h>\d+)"
     r" repl0=(?P<repl_w>\d+)x(?P<repl_h>\d+)"
+    r" repl1_desc=(?P<repl1_desc>\d+)"
+    r"(?: repl1_key=0x(?P<repl1_key>[0-9a-fA-F]+))?"
+    r" repl1_source=(?P<repl1_source>\w+)"
+    r" repl1_origin=(?P<repl1_origin>\w+)"
+    r" repl1_birth=\{load_tile=(?P<repl1_load_tile>\d+)"
+    r" load_fs=0x(?P<repl1_load_fs>[0-9a-fA-F]+)"
+    r" lookup_tile=(?P<repl1_lookup_tile>\d+)"
+    r" lookup_fs=0x(?P<repl1_lookup_fs>[0-9a-fA-F]+)"
+    r" key=(?P<repl1_key_w>\d+)x(?P<repl1_key_h>\d+)\}"
+    r" repl1_orig=(?P<repl1_orig_w>\d+)x(?P<repl1_orig_h>\d+)"
+    r" repl1=(?P<repl1_w>\d+)x(?P<repl1_h>\d+)"
 )
 
 
@@ -49,13 +61,33 @@ def normalize_record(groups: dict[str, str]) -> dict[str, object]:
         "orig_h",
         "repl_w",
         "repl_h",
+        "repl1_desc",
+        "repl1_load_tile",
+        "repl1_lookup_tile",
+        "repl1_key_w",
+        "repl1_key_h",
+        "repl1_orig_w",
+        "repl1_orig_h",
+        "repl1_w",
+        "repl1_h",
     ):
         record[key] = int(record[key])
-    for key in ("flags", "load_fs", "lookup_fs"):
+    for key in ("flags", "load_fs", "lookup_fs", "repl1_load_fs", "repl1_lookup_fs"):
         record[key] = f"0x{int(str(record[key]), 16):x}"
     record["key_wh"] = f"{record['key_w']}x{record['key_h']}"
     record["orig_wh"] = f"{record['orig_w']}x{record['orig_h']}"
     record["repl_wh"] = f"{record['repl_w']}x{record['repl_h']}"
+    record["repl1_key_wh"] = f"{record['repl1_key_w']}x{record['repl1_key_h']}"
+    record["repl1_orig_wh"] = f"{record['repl1_orig_w']}x{record['repl1_orig_h']}"
+    record["repl1_wh"] = f"{record['repl1_w']}x{record['repl1_h']}"
+    if record["repl_key"] is None:
+        record["repl_key"] = "0x0000000000000000"
+    else:
+        record["repl_key"] = f"0x{int(str(record['repl_key']), 16):016x}"
+    if record["repl1_key"] is None:
+        record["repl1_key"] = "0x0000000000000000"
+    else:
+        record["repl1_key"] = f"0x{int(str(record['repl1_key']), 16):016x}"
     return record
 
 
@@ -69,6 +101,10 @@ def matches(record: dict[str, object], args: argparse.Namespace) -> bool:
     if args.repl_source and record["repl_source"] != args.repl_source:
         return False
     if args.repl_origin and record["repl_origin"] != args.repl_origin:
+        return False
+    if args.repl1_source and record["repl1_source"] != args.repl1_source:
+        return False
+    if args.repl1_origin and record["repl1_origin"] != args.repl1_origin:
         return False
     if args.desc is not None and record["desc"] != args.desc:
         return False
@@ -103,7 +139,7 @@ def main() -> int:
         description="Summarize HIRES draw-state provenance clusters from run.log files."
     )
     parser.add_argument("--log", action="append", required=True, help="Path to a run.log file. Repeat for multiple logs.")
-    parser.add_argument("--group-by", default="desc,flags,repl_source,repl_origin,key_wh,repl_wh",
+    parser.add_argument("--group-by", default="desc,repl_key,flags,repl_source,repl_origin,key_wh,repl_wh",
                         help="Comma-separated grouping fields.")
     parser.add_argument("--limit", type=int, default=25, help="Rows per log.")
     parser.add_argument("--load-fs", type=parse_optional_u32, help="Filter by replacement birth load formatsize.")
@@ -111,6 +147,8 @@ def main() -> int:
     parser.add_argument("--lookup-tile", type=int, help="Filter by replacement birth lookup tile.")
     parser.add_argument("--repl-source", help="Filter by repl0_source.")
     parser.add_argument("--repl-origin", help="Filter by repl0_origin.")
+    parser.add_argument("--repl1-source", help="Filter by repl1_source.")
+    parser.add_argument("--repl1-origin", help="Filter by repl1_origin.")
     parser.add_argument("--desc", type=int, help="Filter by repl0_desc.")
     parser.add_argument("--flags", help="Filter by draw raster flags, e.g. 0x21844118.")
     parser.add_argument("--key-wh", help="Filter by replacement birth key width/height, e.g. 32x16.")

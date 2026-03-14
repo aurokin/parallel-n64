@@ -2385,8 +2385,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     "screen={valid=%d x=%d..%d y=%d..%d} st={s=%d t=%d dsdx=%d dtdy=%d dsde=%d dtde=%d} "
 			     "tile0_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
 			     "tile1_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
-			     "repl0_desc=%u repl0_source=%s repl0_origin=%s repl0_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl0_orig=%ux%u repl0=%ux%u "
-			     "repl1_desc=%u repl1_source=%s repl1_origin=%s repl1_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl1_orig=%ux%u repl1=%ux%u.\n",
+			     "repl0_desc=%u repl0_key=0x%016llx repl0_source=%s repl0_origin=%s repl0_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl0_orig=%ux%u repl0=%ux%u "
+			     "repl1_desc=%u repl1_key=0x%016llx repl1_source=%s repl1_origin=%s repl1_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl1_orig=%ux%u repl1=%ux%u.\n",
 			     static_cast<unsigned long long>(hires_draw_calls_total),
 			     unsigned(setup.tile),
 			     tile0,
@@ -2437,6 +2437,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     unsigned(tile1_info.size.shi >> 2),
 			     unsigned(tile1_info.size.thi >> 2),
 			     unsigned(repl0.repl_desc_index),
+			     static_cast<unsigned long long>(repl0_state.checksum64),
 			     lookup_source_name(repl0_state.lookup_source),
 			     lookup_source_name(repl0_state.origin_lookup_source),
 			     unsigned(repl0_state.source_load_tile_index),
@@ -2450,6 +2451,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     unsigned(repl0.repl_w),
 			     unsigned(repl0.repl_h),
 			     unsigned(repl1.repl_desc_index),
+			     static_cast<unsigned long long>(repl1_state.checksum64),
 			     lookup_source_name(repl1_state.lookup_source),
 			     lookup_source_name(repl1_state.origin_lookup_source),
 			     unsigned(repl1_state.source_load_tile_index),

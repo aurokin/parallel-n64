@@ -139,22 +139,38 @@
       - block reinterpretation is the broader corruption source
 - Provenance census workflow:
   - `PARALLEL_RDP_HIRES_DEBUG=1` logs draw-state birth metadata for replacement-backed draws
+  - draw-state logs now also preserve exact checksum keys for `repl0` and `repl1`
   - two independent reinterpretation-family filter scopes are available for runtime probes:
     - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_*`
     - `PARALLEL_RDP_HIRES2_BLOCK_TILE_MATCH_*`
   - those scopes gate both `block_tile` and `block_shape` reinterpretation hits without changing primary hits or HIRES-off behavior
   - use `./run-paper-mario-hires-provenance-report.sh --log <run.log>` to group those draws by:
     - descriptor
+    - replacement checksum key
     - raster flags
     - replacement source/origin
     - birth key width/height
     - replacement dimensions
+  - for composition-model work, use:
+    - `./tools/hires_draw_debug_report.py --log <run.log> [filters...]`
+    - this joins `Hi-res debug program`, `Hi-res derived constants`, and `Hi-res draw state` into one reportable record
   - current important finding:
     - Paper Mario’s `CI16 -> RGBA16 lookup_tile=0` family cannot be separated by raw raster flags alone
     - intro22’s useful clusters and noinput16’s bad clusters both include:
       - `0x21844118` `32x16 -> 512x256`
       - `0x21864010/0x218640d4` `16x16 -> 100x100`
     - use provenance clusters first, not `raster=` greps, when narrowing reinterpretation rules
+  - current stronger finding:
+    - the major intro22/noinput shared families reuse the same exact `repl_key` values
+    - example shared classes:
+      - `32x16 -> 512x256`
+      - `16x16 -> 100x100`
+    - so lookup identity is not sufficient to explain the remaining corruption
+    - the actionable split is now composition-model based:
+      - some shared keys run under different raster/combiner/blender programs
+      - even when the program matches, repeated-pass structure and derived constants still differ by scene
+    - this is the current breakpoint:
+      - investigate composition clusters, not just fallback family acceptance
 
 ## Core Behavior With HIRES Off
 - Provider lookup is bypassed.

@@ -60,6 +60,7 @@ Co-Authored-By: Codex <noreply@openai.com>
       - block reinterpretation is the broader root bug class
   - current provenance tooling:
     - `PARALLEL_RDP_HIRES_DEBUG=1` draw logs now preserve both the current replacement source and the original lookup source through alias propagation
+    - draw logs also preserve exact replacement checksum keys for both `repl0` and `repl1`
     - draw logs also preserve replacement birth metadata:
       - load tile
       - load formatsize
@@ -68,6 +69,13 @@ Co-Authored-By: Codex <noreply@openai.com>
       - key width/height
     - reusable census helper:
       - `./run-paper-mario-hires-provenance-report.sh --log <run.log> [filters...]`
+      - this now groups by `repl_key` by default and can filter `repl1_source` / `repl1_origin`
+    - joined debug-triplet helper:
+      - `./tools/hires_draw_debug_report.py --log <run.log> [filters...]`
+      - use this when provenance alone is insufficient and you need:
+        - normalized raster program
+        - derived constants
+        - final draw-state for the same draw
       - useful filters:
         - `--load-fs 0x202`
         - `--lookup-fs 0x02`
@@ -105,6 +113,15 @@ Co-Authored-By: Codex <noreply@openai.com>
         - `flags=0x21844118` with `32x16 -> 512x256`
         - `flags=0x21864010/0x218640d4` with `16x16 -> 100x100`
       - start from provenance clusters (`desc`, origin source, birth signature, replacement dimensions), not `raster=` alone
+    - newer joined-debug result:
+      - the same exact `repl_key` values are reused across intro22 and noinput16 for the major `block_tile -> alias` families
+      - so lookup identity alone is not the root cause
+      - the remaining divergence is in composition model:
+        - raster program
+        - derived primitive/env constants
+        - repeated-pass structure
+        - whether a secondary `repl1` binding is present
+      - debugging should now pivot from “which asset was matched?” to “how is this matched asset being composed in this lane?”
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`

@@ -69,6 +69,14 @@ Co-Authored-By: Codex <noreply@openai.com>
     - GLideN64 and Dolphin replace at the texture-cache/resource layer before draw composition
     - this fork replaces inside the RDP draw path, with fallback matching and alias propagation
     - keep this difference in mind before adding more scene-specific composition fixes
+- Extra local emulator reference bundle:
+  - `/home/auro/code/emulator_references`
+  - most relevant for current HIRES re-architecture work:
+    - Dolphin
+    - DuckStation
+    - Flycast
+    - PCSX2
+    - PPSSPP
 - Read-only Paper Mario decomp/reference: `/home/auro/code/paper_mario/papermariodx`
 - Read-only Paper Mario pack source: `/home/auro/code/paper_mario/PAPER MARIO_HIRESTEXTURES.hts`
 - ROMs: `/home/auro/code/n64_roms`
@@ -76,6 +84,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 ## Testing Docs
 - Emulator test tiers: `docs/EMU_TESTING.md`
 - HIRES behavior and roadmap: `docs/HIRES_BEHAVIOR.md`
+- HIRES cross-emulator reference notes: `docs/HIRES_REFERENCE_NOTES.md`
 - Paper Mario scene manifest: `docs/PAPER_MARIO_SCENES.md`
 - Paper Mario HIRES debug matrix: `docs/PAPER_MARIO_HIRES_MATRIX.md`
 - Paper Mario HIRES lane ledger: `docs/PAPER_MARIO_HIRES_LANES.md`

@@ -236,6 +236,10 @@
   - GLideN64 and Dolphin both replace textures at the texture-cache/resource layer before draw composition
   - this fork replaces textures inside the RDP draw path, with fallback matching and alias propagation
   - current root-cause work should assume that this architectural difference may be the dominant source of the remaining washout/stitching bugs
+- Additional local cross-emulator reference bundle:
+  - `/home/auro/code/emulator_references`
+  - summary note:
+    - `docs/HIRES_REFERENCE_NOTES.md`
 - Read-only Paper Mario references:
   - `/home/auro/code/paper_mario/papermariodx`
   - `/home/auro/code/paper_mario/PAPER MARIO_HIRESTEXTURES.hts`

@@ -58,6 +58,11 @@ The verified result on the canonical `intro22-state + 1f` path is:
 
 That matters because the earlier `owner` probe could still be contaminated by open-coded alias-source rebinding in `rdp_renderer.cpp`. Future redesign work should treat `rdp_hires_binding_policy.hpp` as the single place where lookup provenance becomes live tile binding behavior.
 
+The next supporting step is also in place:
+- lookup mode semantics are now expressed as `HiresLookupModePolicy`
+- the renderer no longer relies on one broad `hires_lookup_fallbacks` boolean to decide which provenance families are legal
+- future reinterpretation redesigns should change that policy object, then let lookup/binding code consume it
+
 ## Redesign Stages
 ### Stage 1: Make ownership explicit
 - Keep current behavior.

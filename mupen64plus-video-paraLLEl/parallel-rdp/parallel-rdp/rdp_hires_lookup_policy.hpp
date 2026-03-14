@@ -51,29 +51,29 @@ inline bool should_accept_hires_ci_ambiguous_fallback(bool allow_without_palette
 	       matched_preferred_palette;
 }
 
-inline bool should_try_hires_ci_low32_fallback(bool strict_lookup)
+inline bool should_try_hires_ci_low32_fallback(const HiresLookupModePolicy &policy)
 {
-	return !strict_lookup;
+	return policy.allow_ci_low32;
 }
 
-inline bool should_try_hires_tile_mask_fallback(bool strict_lookup, bool is_tile_mode)
+inline bool should_try_hires_tile_mask_fallback(const HiresLookupModePolicy &policy, bool is_tile_mode)
 {
-	return !strict_lookup && is_tile_mode;
+	return policy.allow_tile_mask && is_tile_mode;
 }
 
-inline bool should_try_hires_tile_stride_fallback(bool strict_lookup, bool is_tile_mode)
+inline bool should_try_hires_tile_stride_fallback(const HiresLookupModePolicy &policy, bool is_tile_mode)
 {
-	return !strict_lookup && is_tile_mode;
+	return policy.allow_tile_stride && is_tile_mode;
 }
 
-inline bool should_try_hires_block_tile_fallback(bool strict_lookup, bool is_block_mode)
+inline bool should_try_hires_block_tile_fallback(const HiresLookupModePolicy &policy, bool is_block_mode)
 {
-	return !strict_lookup && is_block_mode;
+	return policy.allow_block_tile && is_block_mode;
 }
 
-inline bool should_try_hires_block_shape_fallback(bool strict_lookup, bool is_block_mode)
+inline bool should_try_hires_block_shape_fallback(const HiresLookupModePolicy &policy, bool is_block_mode)
 {
-	return !strict_lookup && is_block_mode;
+	return policy.allow_block_shape && is_block_mode;
 }
 
 inline uint32_t compute_hires_key_base_addr(uint32_t tex_addr,

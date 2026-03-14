@@ -137,6 +137,11 @@
       - owner stayed pixel-identical to the prior owner probe
       - current owner summary: `lookups=5093 hits=2613 primary_hits=2613 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=0 draw_with_replacement=4400`
     - this means owner mode is now a cleaner architecture probe: no fallback families and no alias-source rebinding leak through the live tile update path
+    - follow-up redesign step:
+      - lookup acceptance is now driven by `HiresLookupModePolicy` instead of a single `hires_lookup_fallbacks` boolean
+      - permissive/default stayed exact-baseline identical after that refactor
+      - owner stayed exact-image identical to the cleaned owner probe after that refactor
+      - use that policy object as the next place to narrow provenance families, instead of adding more scattered mode checks
 - `no-reinterp` lookup is the current preferred architecture probe mode:
   - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
   - disable block-tile fallback

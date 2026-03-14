@@ -28,6 +28,17 @@ enum class HiresLookupSource : uint8_t
 	AliasPropagated
 };
 
+struct HiresLookupModePolicy
+{
+	bool allow_ci_low32 = true;
+	bool allow_tile_mask = true;
+	bool allow_tile_stride = true;
+	bool allow_block_tile = true;
+	bool allow_block_shape = true;
+	bool allow_pending_block_retry = true;
+	bool allow_alias_group_binding = true;
+};
+
 inline std::string resolve_hires_cache_path(const std::string &configured_path, const char *env_path)
 {
 	if (!configured_path.empty())
@@ -121,6 +132,49 @@ inline bool hires_lookup_block_reinterpretation_enabled(unsigned mode)
 inline bool hires_lookup_pending_block_retry_enabled(unsigned mode)
 {
 	return mode == 0;
+}
+
+inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
+{
+	HiresLookupModePolicy policy = {};
+
+	switch (mode)
+	{
+	case 1:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = false;
+		policy.allow_block_shape = false;
+		policy.allow_pending_block_retry = false;
+		policy.allow_alias_group_binding = false;
+		break;
+
+	case 2:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = false;
+		policy.allow_block_shape = false;
+		policy.allow_pending_block_retry = false;
+		policy.allow_alias_group_binding = false;
+		break;
+
+	case 3:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = false;
+		policy.allow_block_shape = false;
+		policy.allow_pending_block_retry = false;
+		policy.allow_alias_group_binding = true;
+		break;
+
+	default:
+		break;
+	}
+
+	return policy;
 }
 }
 }

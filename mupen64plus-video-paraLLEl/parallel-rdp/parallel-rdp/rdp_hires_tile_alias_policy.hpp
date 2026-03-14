@@ -45,9 +45,9 @@ inline bool should_apply_hires_propagated_binding(const TileMeta &source_meta,
 	       should_alias_hires_load_binding(source_meta, target_meta);
 }
 
-inline bool should_propagate_hires_alias_group_binding(bool strict_lookup)
+inline bool should_propagate_hires_alias_group_binding(const HiresLookupModePolicy &policy)
 {
-	return !strict_lookup;
+	return policy.allow_alias_group_binding;
 }
 
 template <typename ReplacementTileStateType>

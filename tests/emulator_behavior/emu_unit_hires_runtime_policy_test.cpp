@@ -95,6 +95,45 @@ static void test_descriptor_index_sentinel_contract()
 	check(meta.vk_image_index == hires_invalid_descriptor_index(),
 	      "ReplacementMeta default descriptor index should match invalid sentinel");
 }
+
+static void test_lookup_mode_policy_contract()
+{
+	const auto permissive = resolve_hires_lookup_mode_policy(0);
+	check(permissive.allow_ci_low32, "permissive mode should allow CI low32 fallback");
+	check(permissive.allow_tile_mask, "permissive mode should allow tile-mask fallback");
+	check(permissive.allow_tile_stride, "permissive mode should allow tile-stride fallback");
+	check(permissive.allow_block_tile, "permissive mode should allow block-tile fallback");
+	check(permissive.allow_block_shape, "permissive mode should allow block-shape fallback");
+	check(permissive.allow_pending_block_retry, "permissive mode should allow pending block retry");
+	check(permissive.allow_alias_group_binding, "permissive mode should allow alias-group binding");
+
+	const auto strict = resolve_hires_lookup_mode_policy(1);
+	check(!strict.allow_ci_low32, "strict mode should reject CI low32 fallback");
+	check(!strict.allow_tile_mask, "strict mode should reject tile-mask fallback");
+	check(!strict.allow_tile_stride, "strict mode should reject tile-stride fallback");
+	check(!strict.allow_block_tile, "strict mode should reject block-tile fallback");
+	check(!strict.allow_block_shape, "strict mode should reject block-shape fallback");
+	check(!strict.allow_pending_block_retry, "strict mode should reject pending block retry");
+	check(!strict.allow_alias_group_binding, "strict mode should reject alias-group binding");
+
+	const auto owner = resolve_hires_lookup_mode_policy(2);
+	check(!owner.allow_ci_low32, "owner mode should reject CI low32 fallback");
+	check(!owner.allow_tile_mask, "owner mode should reject tile-mask fallback");
+	check(!owner.allow_tile_stride, "owner mode should reject tile-stride fallback");
+	check(!owner.allow_block_tile, "owner mode should reject block-tile fallback");
+	check(!owner.allow_block_shape, "owner mode should reject block-shape fallback");
+	check(!owner.allow_pending_block_retry, "owner mode should reject pending block retry");
+	check(!owner.allow_alias_group_binding, "owner mode should reject alias-group binding");
+
+	const auto no_reinterp = resolve_hires_lookup_mode_policy(3);
+	check(!no_reinterp.allow_ci_low32, "no-reinterp mode should reject CI low32 fallback");
+	check(!no_reinterp.allow_tile_mask, "no-reinterp mode should reject tile-mask fallback");
+	check(!no_reinterp.allow_tile_stride, "no-reinterp mode should reject tile-stride fallback");
+	check(!no_reinterp.allow_block_tile, "no-reinterp mode should reject block-tile fallback");
+	check(!no_reinterp.allow_block_shape, "no-reinterp mode should reject block-shape fallback");
+	check(!no_reinterp.allow_pending_block_retry, "no-reinterp mode should reject pending block retry");
+	check(no_reinterp.allow_alias_group_binding, "no-reinterp mode should keep alias-group binding");
+}
 }
 
 int main()
@@ -103,6 +142,7 @@ int main()
 	test_should_attempt_hires_cache_load_matrix();
 	test_classify_hires_configure_outcome_matrix();
 	test_descriptor_index_sentinel_contract();
+	test_lookup_mode_policy_contract();
 	std::cout << "emu_unit_hires_runtime_policy_test: PASS" << std::endl;
 	return 0;
 }

@@ -72,6 +72,11 @@ static void test_ci_ambiguous_fallback_gate_contract()
 
 static void test_strict_lookup_gate_contract()
 {
+	const auto permissive_policy = resolve_hires_lookup_mode_policy(0);
+	const auto strict_policy = resolve_hires_lookup_mode_policy(1);
+	const auto owner_policy = resolve_hires_lookup_mode_policy(2);
+	const auto no_reinterp_policy = resolve_hires_lookup_mode_policy(3);
+
 	check(!hires_lookup_strict_enabled(0), "lookup mode 0 should be permissive");
 	check(hires_lookup_strict_enabled(1), "lookup mode 1 should be strict");
 	check(!hires_lookup_strict_enabled(2), "lookup mode 2 should not force strict provider matching");
@@ -96,24 +101,42 @@ static void test_strict_lookup_gate_contract()
 	check(!hires_lookup_pending_block_retry_enabled(1), "lookup mode 1 should disable pending block retry");
 	check(!hires_lookup_pending_block_retry_enabled(2), "lookup mode 2 should disable pending block retry");
 	check(!hires_lookup_pending_block_retry_enabled(3), "lookup mode 3 should disable pending block retry");
-	check(should_try_hires_ci_low32_fallback(false), "permissive lookup should allow CI low32 fallback");
-	check(!should_try_hires_ci_low32_fallback(true), "strict lookup should reject CI low32 fallback");
-	check(should_try_hires_tile_mask_fallback(false, true),
+	check(should_try_hires_ci_low32_fallback(permissive_policy), "permissive lookup should allow CI low32 fallback");
+	check(!should_try_hires_ci_low32_fallback(strict_policy), "strict lookup should reject CI low32 fallback");
+	check(!should_try_hires_ci_low32_fallback(owner_policy), "owner lookup should reject CI low32 fallback");
+	check(!should_try_hires_ci_low32_fallback(no_reinterp_policy), "no-reinterp lookup should reject CI low32 fallback");
+	check(should_try_hires_tile_mask_fallback(permissive_policy, true),
 	      "permissive lookup should allow tile-mask fallback");
-	check(!should_try_hires_tile_mask_fallback(true, true),
+	check(!should_try_hires_tile_mask_fallback(strict_policy, true),
 	      "strict lookup should reject tile-mask fallback");
-	check(should_try_hires_tile_stride_fallback(false, true),
+	check(!should_try_hires_tile_mask_fallback(owner_policy, true),
+	      "owner lookup should reject tile-mask fallback");
+	check(!should_try_hires_tile_mask_fallback(no_reinterp_policy, true),
+	      "no-reinterp lookup should reject tile-mask fallback");
+	check(should_try_hires_tile_stride_fallback(permissive_policy, true),
 	      "permissive lookup should allow tile-stride fallback");
-	check(!should_try_hires_tile_stride_fallback(true, true),
+	check(!should_try_hires_tile_stride_fallback(strict_policy, true),
 	      "strict lookup should reject tile-stride fallback");
-	check(should_try_hires_block_tile_fallback(false, true),
+	check(!should_try_hires_tile_stride_fallback(owner_policy, true),
+	      "owner lookup should reject tile-stride fallback");
+	check(!should_try_hires_tile_stride_fallback(no_reinterp_policy, true),
+	      "no-reinterp lookup should reject tile-stride fallback");
+	check(should_try_hires_block_tile_fallback(permissive_policy, true),
 	      "permissive lookup should allow block-tile fallback");
-	check(!should_try_hires_block_tile_fallback(true, true),
+	check(!should_try_hires_block_tile_fallback(strict_policy, true),
 	      "strict lookup should reject block-tile fallback");
-	check(should_try_hires_block_shape_fallback(false, true),
+	check(!should_try_hires_block_tile_fallback(owner_policy, true),
+	      "owner lookup should reject block-tile fallback");
+	check(!should_try_hires_block_tile_fallback(no_reinterp_policy, true),
+	      "no-reinterp lookup should reject block-tile fallback");
+	check(should_try_hires_block_shape_fallback(permissive_policy, true),
 	      "permissive lookup should allow block-shape fallback");
-	check(!should_try_hires_block_shape_fallback(true, true),
+	check(!should_try_hires_block_shape_fallback(strict_policy, true),
 	      "strict lookup should reject block-shape fallback");
+	check(!should_try_hires_block_shape_fallback(owner_policy, true),
+	      "owner lookup should reject block-shape fallback");
+	check(!should_try_hires_block_shape_fallback(no_reinterp_policy, true),
+	      "no-reinterp lookup should reject block-shape fallback");
 }
 
 static void test_hires_key_base_addr_contract()

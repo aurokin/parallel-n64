@@ -864,7 +864,7 @@ void Renderer::set_hires_sampling(unsigned filter_mode, unsigned srgb_mode)
 void Renderer::set_hires_lookup_mode(unsigned mode)
 {
 	hires_lookup_strict = detail::hires_lookup_strict_enabled(mode);
-	hires_lookup_fallbacks = detail::hires_lookup_fallbacks_enabled(mode);
+	hires_lookup_mode_policy = detail::resolve_hires_lookup_mode_policy(mode);
 	hires_disable_block_reinterpretation = !detail::hires_lookup_block_reinterpretation_enabled(mode);
 	hires_disable_pending_block_retry = !detail::hires_lookup_pending_block_retry_enabled(mode);
 	if (getenv("PARALLEL_RDP_HIRES_DISABLE_BLOCK_REINTERPRETATION") != nullptr)
@@ -4130,7 +4130,7 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 
 				if (!candidate_hit &&
 				    probe_meta.fmt == TextureFormat::CI &&
-				    detail::should_try_hires_ci_low32_fallback(!hires_lookup_fallbacks))
+				    detail::should_try_hires_ci_low32_fallback(hires_lookup_mode_policy))
 				{
 					uint64_t ci_fallback_checksum64 = 0;
 					bool ci_fallback_matched_preferred_palette = false;
@@ -4270,7 +4270,7 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 void Renderer::retry_pending_hires_block_lookup(unsigned tile_index)
 {
 	const unsigned bounded_tile_index = tile_index & (Limits::MaxNumTiles - 1);
-	if (!hires_lookup_fallbacks ||
+	if (!hires_lookup_mode_policy.allow_pending_block_retry ||
 	    hires_disable_pending_block_retry ||
 	    !detail::hires_rdram_view_valid(cpu_rdram, rdram_size) ||
 	    !replacement_provider)
@@ -4331,10 +4331,10 @@ void Renderer::retry_pending_hires_block_lookup(unsigned tile_index)
 				true,
 				detail::HiresLookupSource::PendingBlockRetry,
 				tiles[lookup_tile_index]);
-		detail::apply_hires_lookup_binding_decision(
+			detail::apply_hires_lookup_binding_decision(
 				binding_decision,
 				detail::resolve_hires_binding_policy_mode(
-						detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks)),
+						detail::should_propagate_hires_alias_group_binding(hires_lookup_mode_policy)),
 				tiles,
 				replacement_tiles,
 				hires_alias_binding_applications);
@@ -4360,7 +4360,7 @@ void Renderer::set_tile(uint32_t tile, const TileMeta &meta)
 
 	const auto binding_policy_mode =
 			detail::resolve_hires_binding_policy_mode(
-					detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks));
+					detail::should_propagate_hires_alias_group_binding(hires_lookup_mode_policy));
 	if (detail::should_resolve_hires_alias_source_binding(binding_policy_mode))
 	{
 		int alias_source = detail::find_hires_alias_source_tile(tile, tiles, replacement_tiles);
@@ -4394,7 +4394,7 @@ void Renderer::set_tile_size(uint32_t tile, uint32_t slo, uint32_t shi, uint32_t
 
 	const auto binding_policy_mode =
 			detail::resolve_hires_binding_policy_mode(
-					detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks));
+					detail::should_propagate_hires_alias_group_binding(hires_lookup_mode_policy));
 	if (detail::should_resolve_hires_alias_source_binding(binding_policy_mode))
 	{
 		int alias_source = detail::find_hires_alias_source_tile(tile, tiles, replacement_tiles);
@@ -4978,7 +4978,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			if (!candidate_hit &&
 			    meta.fmt == TextureFormat::CI &&
-			    detail::should_try_hires_ci_low32_fallback(!hires_lookup_fallbacks))
+			    detail::should_try_hires_ci_low32_fallback(hires_lookup_mode_policy))
 			{
 					uint64_t ci_fallback_checksum64 = 0;
 					bool ci_fallback_matched_preferred_palette = false;
@@ -5053,7 +5053,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			uint32_t lookup_width_pixels = key_width_pixels;
 			uint32_t lookup_height_pixels = key_height_pixels;
-			if (!hit && detail::should_try_hires_tile_mask_fallback(!hires_lookup_fallbacks, is_tile_mode))
+			if (!hit && detail::should_try_hires_tile_mask_fallback(hires_lookup_mode_policy, is_tile_mode))
 			{
 				const uint32_t masked_width_pixels = detail::derive_hires_tile_lookup_dim(
 						key_width_pixels,
@@ -5107,7 +5107,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					}
 				}
 			}
-			if (!hit && detail::should_try_hires_tile_stride_fallback(!hires_lookup_fallbacks, is_tile_mode))
+			if (!hit && detail::should_try_hires_tile_stride_fallback(hires_lookup_mode_policy, is_tile_mode))
 			{
 				const uint32_t tile_row_stride_bytes = (meta.size == TextureSize::Bpp32) ?
 						(meta.stride << 1) :
@@ -5152,7 +5152,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			if (!hit &&
 			    !hires_disable_block_reinterpretation &&
-			    detail::should_try_hires_block_tile_fallback(!hires_lookup_fallbacks, is_block_mode))
+			    detail::should_try_hires_block_tile_fallback(hires_lookup_mode_policy, is_block_mode))
 			{
 				hit = try_hires_block_tile_fallback(
 						tile_index,
@@ -5179,7 +5179,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			if (!hit &&
 			    !hires_disable_block_reinterpretation &&
-			    detail::should_try_hires_block_shape_fallback(!hires_lookup_fallbacks, is_block_mode))
+			    detail::should_try_hires_block_shape_fallback(hires_lookup_mode_policy, is_block_mode))
 			{
 				const uint32_t total_bytes = detail::compute_hires_texture_total_bytes(
 						key_width_pixels,
@@ -5267,7 +5267,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					hires_ci_palette_hint = palette_crc;
 				resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
 			}
-			else if (hires_lookup_fallbacks && info.mode == UploadMode::Block)
+			else if (hires_lookup_mode_policy.allow_pending_block_retry && info.mode == UploadMode::Block)
 			{
 				store_pending_hires_block_lookup(
 						tile_index,
@@ -5295,7 +5295,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			detail::apply_hires_lookup_binding_decision(
 					binding_decision,
 					detail::resolve_hires_binding_policy_mode(
-							detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks)),
+							detail::should_propagate_hires_alias_group_binding(hires_lookup_mode_policy)),
 					tiles,
 					replacement_tiles,
 					hires_alias_binding_applications);

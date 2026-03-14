@@ -49,6 +49,13 @@ Co-Authored-By: Codex <noreply@openai.com>
         - owner is still exact-image identical to the prior owner probe
         - current owner summary: `lookups=5093 hits=2613 primary_hits=2613 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=0 draw_with_replacement=4400`
       - treat that as the first clean “owner path is actually narrower” checkpoint before changing reinterpretation rules
+    - next redesign checkpoint:
+      - lookup mode semantics now live in `HiresLookupModePolicy`
+      - the renderer no longer uses one broad `hires_lookup_fallbacks` boolean to decide which provenance families are legal
+      - canonical intro22 recheck after that refactor:
+        - permissive/default remained exact-baseline identical
+        - owner remained exact-owner identical
+      - future provenance-family redesigns should update `HiresLookupModePolicy` first, then let lookup/binding code consume it
   - `no-reinterp` means:
     - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
     - disable block-tile fallback

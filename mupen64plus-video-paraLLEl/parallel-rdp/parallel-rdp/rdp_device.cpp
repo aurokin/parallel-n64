@@ -798,7 +798,7 @@ void CommandProcessor::set_quirks(const Quirks &quirks_)
 	enqueue_command(2, words);
 }
 
-void CommandProcessor::configure_hires_replacement(bool enable, const char *cache_path, size_t budget_bytes, bool eviction_enabled, unsigned filter_mode, unsigned srgb_mode)
+void CommandProcessor::configure_hires_replacement(bool enable, const char *cache_path, size_t budget_bytes, bool eviction_enabled, unsigned filter_mode, unsigned srgb_mode, unsigned lookup_mode)
 {
 #ifndef PARALLEL_RDP_SHADER_DIR
 	const bool hires_shader_define_before =
@@ -818,9 +818,11 @@ void CommandProcessor::configure_hires_replacement(bool enable, const char *cach
 
 	replacement_provider.clear();
 	replacement_provider.set_enabled(enable);
+	replacement_provider.set_strict_lookup(detail::hires_lookup_strict_enabled(lookup_mode));
 	renderer.set_replacement_provider(nullptr);
 	renderer.set_hires_budget(budget_bytes, eviction_enabled);
 	renderer.set_hires_sampling(filter_mode, srgb_mode);
+	renderer.set_hires_lookup_mode(lookup_mode);
 
 	auto outcome = detail::classify_hires_configure_outcome(enable, cache_path, false);
 	if (outcome == detail::HiresConfigureOutcome::Disabled)

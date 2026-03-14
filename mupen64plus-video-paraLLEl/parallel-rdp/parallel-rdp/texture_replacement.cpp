@@ -175,6 +175,9 @@ const ReplacementProvider::Entry *ReplacementProvider::find_entry(uint64_t check
 			return &entry;
 	}
 
+	if (strict_lookup_)
+		return nullptr;
+
 	for (auto itr = indices.rbegin(); itr != indices.rend(); ++itr)
 	{
 		const Entry &entry = entries_[*itr];
@@ -186,6 +189,11 @@ const ReplacementProvider::Entry *ReplacementProvider::find_entry(uint64_t check
 		return &entries_[indices.back()];
 
 	return nullptr;
+}
+
+void ReplacementProvider::set_strict_lookup(bool enable)
+{
+	strict_lookup_ = enable;
 }
 
 bool ReplacementProvider::lookup(uint64_t checksum64, uint16_t formatsize, ReplacementMeta *out) const

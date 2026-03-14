@@ -79,5 +79,10 @@ inline bool hires_shader_descriptor_has_mips(uint32_t packed_index)
 {
 	return (packed_index & hires_shader_descriptor_mipmap_bit()) != 0;
 }
+
+inline bool hires_lookup_strict_enabled(unsigned mode)
+{
+	return mode != 0;
+}
 }
 }

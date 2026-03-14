@@ -14,6 +14,20 @@ Co-Authored-By: Codex <noreply@openai.com>
 ## Key Conventions
 - Keep `parallel` as the active graphics path for local validation.
 - Treat HIRES-off behavior as invariant: no provider/registry/shader replacement path changes when HIRES is disabled.
+- Current root-cause probe for HIRES lookup/composition bugs:
+  - `parallel-n64-parallel-rdp-hirestex-lookup = strict`
+  - strict mode means:
+    - exact checksum + exact formatsize only
+    - no CI low32 fallback
+    - no tile-mask fallback
+    - no tile-stride fallback
+    - no block-tile fallback
+    - no block-shape fallback
+    - no TMEM alias propagation
+  - use it to distinguish wrong-match / wrong-consumption bugs from later composition bugs
+  - current data point:
+    - on the canonical `intro22-state + 1f` frame, `strict` lookup produced `lookups=4738 hits=0 draw_with_replacement=0`
+    - that means the current renderer path is heavily dependent on permissive matching/fallbacks
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`
@@ -41,6 +55,20 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Read-only GLideN64 reference: `/home/auro/code/mupen/GLideN64-upstream`
   - branch: `master`
   - remote: `https://github.com/gonetz/GLideN64.git`
+- Official external HIRES reference surfaces worth revisiting:
+  - Dolphin:
+    - `Source/Core/VideoCommon/HiresTextures.cpp`
+    - `Source/Core/VideoCommon/TextureCacheBase.cpp`
+    - `Source/Core/VideoCommon/TextureInfo.cpp`
+    - `Source/Core/VideoCommon/Assets/TextureAssetUtils.cpp`
+  - GLideN64:
+    - `src/GLideNHQ/TxFilter.cpp`
+    - `src/Textures.cpp`
+    - `src/GLideNHQ/TxHiResNoCache.cpp`
+  - Architectural note:
+    - GLideN64 and Dolphin replace at the texture-cache/resource layer before draw composition
+    - this fork replaces inside the RDP draw path, with fallback matching and alias propagation
+    - keep this difference in mind before adding more scene-specific composition fixes
 - Read-only Paper Mario decomp/reference: `/home/auro/code/paper_mario/papermariodx`
 - Read-only Paper Mario pack source: `/home/auro/code/paper_mario/PAPER MARIO_HIRESTEXTURES.hts`
 - ROMs: `/home/auro/code/n64_roms`
@@ -58,6 +86,10 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Parallel capture:
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
   - the helper forces `parallel-n64-parallel-rdp-hirestex = enabled` by default; only override that on purpose
+  - strict lookup probe:
+    - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=strict`
+  - current strict-probe result on the canonical intro22 state:
+    - zero replacement hits, so use this mode as an architecture probe, not as a validation baseline
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
   - for the current standardized seeded intro22 state path, prefer `./run-paper-mario-hires-intro22-state-capture.sh`

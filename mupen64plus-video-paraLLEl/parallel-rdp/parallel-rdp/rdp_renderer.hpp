@@ -109,6 +109,7 @@ public:
 	void set_replacement_provider(const ReplacementProvider *provider);
 	void set_hires_budget(size_t budget_bytes, bool eviction_enabled);
 	void set_hires_sampling(unsigned filter_mode, unsigned srgb_mode);
+	void set_hires_lookup_mode(unsigned mode);
 	void set_hires_debug(bool enable);
 	void log_hires_summary() const;
 
@@ -173,6 +174,7 @@ private:
 	const ReplacementProvider *replacement_provider = nullptr;
 	bool hires_debug = false;
 	bool hires_shader_path_enabled = false;
+	bool hires_lookup_strict = false;
 
 	bool init_caps();
 	void init_blender_lut();

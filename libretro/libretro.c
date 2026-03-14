@@ -413,6 +413,8 @@ static void setup_variables(void)
          "(ParaLLEl-RDP) Hi-res texture filtering; linear|nearest|trilinear" },
       { "parallel-n64-parallel-rdp-hirestex-srgb",
          "(ParaLLEl-RDP) Hi-res texture color space; auto|on|off" },
+      { "parallel-n64-parallel-rdp-hirestex-lookup",
+         "(ParaLLEl-RDP) Hi-res texture lookup mode; permissive|strict" },
       { "parallel-n64-parallel-rdp-hirestex-budget-mb",
          "(ParaLLEl-RDP) Hi-res texture cache budget (MB); 0|128|256|512|1024|2048|4096" },
 #endif
@@ -1314,6 +1316,18 @@ void update_variables(bool startup)
    }
    else
        parallel_set_hires_srgb(0);
+
+   var.key = "parallel-n64-parallel-rdp-hirestex-lookup";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+       if (!strcmp(var.value, "strict"))
+           parallel_set_hires_lookup_mode(1);
+       else
+           parallel_set_hires_lookup_mode(0);
+   }
+   else
+       parallel_set_hires_lookup_mode(0);
 
    var.key = "parallel-n64-parallel-rdp-hirestex-budget-mb";
    var.value = NULL;

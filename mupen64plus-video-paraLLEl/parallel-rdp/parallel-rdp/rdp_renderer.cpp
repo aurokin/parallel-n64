@@ -735,6 +735,11 @@ void Renderer::set_hires_sampling(unsigned filter_mode, unsigned srgb_mode)
 	hires_srgb_mode = detail::sanitize_hires_srgb_mode(srgb_mode);
 }
 
+void Renderer::set_hires_lookup_mode(unsigned mode)
+{
+	hires_lookup_strict = detail::hires_lookup_strict_enabled(mode);
+}
+
 void Renderer::set_hires_debug(bool enable)
 {
 	hires_debug = enable;
@@ -830,10 +835,15 @@ Renderer::HiresRegistryEntry *Renderer::find_hires_registry_entry(uint64_t check
 	auto itr = hires_registry.entries_by_checksum.find(checksum64);
 	if (itr == hires_registry.entries_by_checksum.end())
 		return nullptr;
-	return detail::find_hires_registry_formatsize_match(
-			itr->second.data(),
-			itr->second.size(),
-			formatsize);
+	return hires_lookup_strict ?
+	       detail::find_hires_registry_formatsize_exact(
+			       itr->second.data(),
+			       itr->second.size(),
+			       formatsize) :
+	       detail::find_hires_registry_formatsize_match(
+			       itr->second.data(),
+			       itr->second.size(),
+			       formatsize);
 }
 
 Renderer::HiresRegistryEntry *Renderer::find_hires_registry_eviction_candidate(const HiresRegistryEntry *exclude_entry)
@@ -3867,7 +3877,9 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 							&probe_repl_meta);
 				}
 
-				if (!candidate_hit && probe_meta.fmt == TextureFormat::CI)
+				if (!candidate_hit &&
+				    probe_meta.fmt == TextureFormat::CI &&
+				    detail::should_try_hires_ci_low32_fallback(hires_lookup_strict))
 				{
 					uint64_t ci_fallback_checksum64 = 0;
 					bool ci_fallback_matched_preferred_palette = false;
@@ -4046,14 +4058,21 @@ void Renderer::retry_pending_hires_block_lookup(unsigned tile_index)
 				repl_meta.repl_h,
 				repl_meta.has_mips,
 				true);
-		detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
-
-		for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
+		if (detail::should_propagate_hires_alias_group_binding(hires_lookup_strict))
 		{
-			if (alias_tile != lookup_tile_index &&
-			    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
-				continue;
-			detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
+			detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
+
+			for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
+			{
+				if (alias_tile != lookup_tile_index &&
+				    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
+					continue;
+				detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
+			}
+		}
+		else
+		{
+			detail::apply_hires_tile_replacement_binding(tiles[lookup_tile_index], replacement_tiles[lookup_tile_index]);
 		}
 
 		const bool descriptor_bound = detail::did_hires_lookup_bind_descriptor(true, repl_meta.vk_image_index);
@@ -4555,6 +4574,8 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 	const bool rdram_view_ok = detail::hires_rdram_view_valid(cpu_rdram, rdram_size);
 	const bool is_tlut_mode = info.mode == UploadMode::TLUT;
+	const bool is_tile_mode = info.mode == UploadMode::Tile;
+	const bool is_block_mode = info.mode == UploadMode::Block;
 	const unsigned tile_index = tile & (Limits::MaxNumTiles - 1);
 	if (!is_tlut_mode)
 	{
@@ -4670,8 +4691,10 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					candidate_hit = replacement_provider->lookup(checksum64, formatsize, &repl_meta);
 				}
 
-				if (!candidate_hit && meta.fmt == TextureFormat::CI)
-				{
+			if (!candidate_hit &&
+			    meta.fmt == TextureFormat::CI &&
+			    detail::should_try_hires_ci_low32_fallback(hires_lookup_strict))
+			{
 					uint64_t ci_fallback_checksum64 = 0;
 					bool ci_fallback_matched_preferred_palette = false;
 					if (replacement_provider->lookup_ci_low32_unique(candidate_texture_crc, formatsize, &repl_meta, &ci_fallback_checksum64))
@@ -4731,7 +4754,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 			uint32_t lookup_width_pixels = key_width_pixels;
 			uint32_t lookup_height_pixels = key_height_pixels;
-			if (!hit && info.mode == UploadMode::Tile)
+			if (!hit && detail::should_try_hires_tile_mask_fallback(hires_lookup_strict, is_tile_mode))
 			{
 				const uint32_t masked_width_pixels = detail::derive_hires_tile_lookup_dim(
 						key_width_pixels,
@@ -4781,7 +4804,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					}
 				}
 			}
-			if (!hit && info.mode == UploadMode::Tile)
+			if (!hit && detail::should_try_hires_tile_stride_fallback(hires_lookup_strict, is_tile_mode))
 			{
 				const uint32_t tile_row_stride_bytes = (meta.size == TextureSize::Bpp32) ?
 						(meta.stride << 1) :
@@ -4820,7 +4843,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			}
 
 
-			if (!hit && info.mode == UploadMode::Block)
+			if (!hit && detail::should_try_hires_block_tile_fallback(hires_lookup_strict, is_block_mode))
 			{
 				hit = try_hires_block_tile_fallback(
 						tile_index,
@@ -4837,7 +4860,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						repl_meta);
 			}
 
-			if (!hit && info.mode == UploadMode::Block)
+			if (!hit && detail::should_try_hires_block_shape_fallback(hires_lookup_strict, is_block_mode))
 			{
 				const uint32_t total_bytes = detail::compute_hires_texture_total_bytes(
 						key_width_pixels,
@@ -4901,7 +4924,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					hires_ci_palette_hint = palette_crc;
 				resolve_hires_registry_descriptor(checksum64, formatsize, repl_meta);
 			}
-			else if (info.mode == UploadMode::Block)
+			else if (!hires_lookup_strict && info.mode == UploadMode::Block)
 			{
 				store_pending_hires_block_lookup(
 						tile_index,
@@ -4934,14 +4957,21 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					repl_meta.repl_h,
 					repl_meta.has_mips,
 					true);
-			detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
-
-			for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
+			if (detail::should_propagate_hires_alias_group_binding(hires_lookup_strict))
 			{
-				if (alias_tile != lookup_tile_index &&
-				    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
-					continue;
-				detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
+				detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
+
+				for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
+				{
+					if (alias_tile != lookup_tile_index &&
+					    !detail::should_apply_hires_propagated_binding(tiles[lookup_tile_index].meta, tiles[alias_tile].meta))
+						continue;
+					detail::apply_hires_tile_replacement_binding(tiles[alias_tile], replacement_tiles[alias_tile]);
+				}
+			}
+			else
+			{
+				detail::apply_hires_tile_replacement_binding(tiles[lookup_tile_index], replacement_tiles[lookup_tile_index]);
 			}
 
 			const bool descriptor_bound = detail::did_hires_lookup_bind_descriptor(hit, repl_meta.vk_image_index);

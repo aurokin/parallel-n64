@@ -11,6 +11,7 @@
   - `parallel-n64-parallel-rdp-hirestex`
   - `parallel-n64-parallel-rdp-hirestex-filter`
   - `parallel-n64-parallel-rdp-hirestex-srgb`
+  - `parallel-n64-parallel-rdp-hirestex-lookup`
   - `parallel-n64-parallel-rdp-hirestex-budget-mb`
 - The frontend passes the RetroArch system directory into the core.
 - The core currently scans that directory for `.hts` and `.htc` packs instead of selecting a pack by ROM identity.
@@ -59,6 +60,7 @@
 - Optional tuning:
   - `parallel-n64-parallel-rdp-hirestex-filter = linear|nearest|trilinear`
   - `parallel-n64-parallel-rdp-hirestex-srgb = auto|on|off`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict`
   - `parallel-n64-parallel-rdp-hirestex-budget-mb = 0|128|256|512|1024|2048|4096`
 - Place packs in the RetroArch system directory used by the core.
 - Current limitation:
@@ -91,8 +93,21 @@
 - Shader-bank state may rebuild when the effective `HIRES_REPLACEMENT` define changes.
 - Draws with a valid replacement binding sample replacement texels instead of native TMEM texels.
 - Filtering and sRGB behavior follow the HIRES core options.
+- Lookup behavior follows the HIRES lookup-mode core option.
 - `trilinear` uploads replacement textures with mipmaps.
 - `linear` and `nearest` keep the non-mipped upload path.
+- `strict` lookup is a root-cause probe mode:
+  - exact checksum + exact formatsize only
+  - no CI low32 fallback
+  - no tile-mask fallback
+  - no tile-stride fallback
+  - no block-tile fallback
+  - no block-shape fallback
+  - no TMEM alias propagation
+  - use this to distinguish wrong-match / wrong-consumption bugs from later composition bugs
+  - current Paper Mario intro22 result:
+    - `intro22-state + 1f` with `strict` lookup produced `lookups=4738 hits=0 draw_with_replacement=0`
+    - that confirms the present scene path depends on permissive fallback matching rather than exact-match-only replacement binding
 
 ## Core Behavior With HIRES Off
 - Provider lookup is bypassed.
@@ -109,6 +124,8 @@
   - `./run-n64-smoke-state.sh -- --verbose`
 - Comparable Paper Mario capture on `parallel`:
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
+  - strict lookup probe:
+    - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=strict`
   - for intro/title captures without controller input:
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
   - timed intro22 oracle scene:
@@ -205,6 +222,20 @@
   - `/home/auro/code/mupen/parallel-rdp-upstream`
   - `/home/auro/code/mupen/RetroArch-upstream`
   - `/home/auro/code/mupen/GLideN64-upstream`
+- Official external reference implementations researched for HIRES architecture:
+  - Dolphin custom textures:
+    - `Source/Core/VideoCommon/HiresTextures.cpp`
+    - `Source/Core/VideoCommon/TextureCacheBase.cpp`
+    - `Source/Core/VideoCommon/TextureInfo.cpp`
+    - `Source/Core/VideoCommon/Assets/TextureAssetUtils.cpp`
+  - GLideN64 custom textures:
+    - `src/GLideNHQ/TxFilter.cpp`
+    - `src/Textures.cpp`
+    - `src/GLideNHQ/TxHiResNoCache.cpp`
+- Architectural note from that comparison:
+  - GLideN64 and Dolphin both replace textures at the texture-cache/resource layer before draw composition
+  - this fork replaces textures inside the RDP draw path, with fallback matching and alias propagation
+  - current root-cause work should assume that this architectural difference may be the dominant source of the remaining washout/stitching bugs
 - Read-only Paper Mario references:
   - `/home/auro/code/paper_mario/papermariodx`
   - `/home/auro/code/paper_mario/PAPER MARIO_HIRESTEXTURES.hts`

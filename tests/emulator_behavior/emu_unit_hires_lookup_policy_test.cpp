@@ -70,6 +70,30 @@ static void test_ci_ambiguous_fallback_gate_contract()
 	      "mismatched preferred palette should reject ambiguous CI fallback");
 }
 
+static void test_strict_lookup_gate_contract()
+{
+	check(!hires_lookup_strict_enabled(0), "lookup mode 0 should be permissive");
+	check(hires_lookup_strict_enabled(1), "lookup mode 1 should be strict");
+	check(should_try_hires_ci_low32_fallback(false), "permissive lookup should allow CI low32 fallback");
+	check(!should_try_hires_ci_low32_fallback(true), "strict lookup should reject CI low32 fallback");
+	check(should_try_hires_tile_mask_fallback(false, true),
+	      "permissive lookup should allow tile-mask fallback");
+	check(!should_try_hires_tile_mask_fallback(true, true),
+	      "strict lookup should reject tile-mask fallback");
+	check(should_try_hires_tile_stride_fallback(false, true),
+	      "permissive lookup should allow tile-stride fallback");
+	check(!should_try_hires_tile_stride_fallback(true, true),
+	      "strict lookup should reject tile-stride fallback");
+	check(should_try_hires_block_tile_fallback(false, true),
+	      "permissive lookup should allow block-tile fallback");
+	check(!should_try_hires_block_tile_fallback(true, true),
+	      "strict lookup should reject block-tile fallback");
+	check(should_try_hires_block_shape_fallback(false, true),
+	      "permissive lookup should allow block-shape fallback");
+	check(!should_try_hires_block_shape_fallback(true, true),
+	      "strict lookup should reject block-shape fallback");
+}
+
 static void test_hires_key_base_addr_contract()
 {
 	const uint32_t tex_addr = 0x1000u;
@@ -268,6 +292,7 @@ int main()
 	test_hires_lookup_fast_path_gate();
 	test_ci_palette_candidate_gate_contract();
 	test_ci_ambiguous_fallback_gate_contract();
+	test_strict_lookup_gate_contract();
 	test_hires_key_base_addr_contract();
 	test_hires_texture_byte_layout_contract();
 	test_hires_tile_lookup_dim_contract();

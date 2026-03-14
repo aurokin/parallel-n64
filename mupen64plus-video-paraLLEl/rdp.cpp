@@ -50,6 +50,7 @@ bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, in
 bool hires_textures = false;
 unsigned hires_filter = 1;
 unsigned hires_srgb = 0;
+unsigned hires_lookup_mode = 0;
 unsigned hires_budget_mb = 0;
 string hires_cache_path;
 
@@ -254,8 +255,8 @@ bool init()
 	if (hires_capabilities_ok)
 	{
 		log_cb(RETRO_LOG_INFO,
-		       "Hi-res textures enabled (path=%s, filter=%u, srgb_mode=%u, budget_mb=%u, eviction=%s).\n",
-		       hires_cache_path.c_str(), hires_filter, hires_srgb, hires_budget_mb,
+		       "Hi-res textures enabled (path=%s, filter=%u, srgb_mode=%u, lookup_mode=%u, budget_mb=%u, eviction=%s).\n",
+		       hires_cache_path.c_str(), hires_filter, hires_srgb, hires_lookup_mode, hires_budget_mb,
 		       hires_budget_mb > 0 ? "on" : "off");
 	}
 
@@ -265,7 +266,8 @@ bool init()
 			size_t(hires_budget_mb) * 1024ull * 1024ull,
 			hires_budget_mb > 0,
 			hires_filter,
-			hires_srgb);
+			hires_srgb,
+			hires_lookup_mode);
 
 	timeline_value = 0;
 	pending_timeline_value = 0;

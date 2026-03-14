@@ -241,6 +241,11 @@ void parallel_set_hires_srgb(unsigned mode)
 	RDP::hires_srgb = mode;
 }
 
+void parallel_set_hires_lookup_mode(unsigned mode)
+{
+	RDP::hires_lookup_mode = mode;
+}
+
 void parallel_set_hires_budget_mb(unsigned mb)
 {
 	RDP::hires_budget_mb = mb;

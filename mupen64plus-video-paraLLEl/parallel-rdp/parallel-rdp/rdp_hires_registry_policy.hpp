@@ -118,6 +118,21 @@ inline Entry *find_hires_registry_formatsize_match(Entry *entries, size_t count,
 }
 
 template <typename Entry>
+inline Entry *find_hires_registry_formatsize_exact(Entry *entries, size_t count, uint16_t formatsize)
+{
+	if (!entries || count == 0)
+		return nullptr;
+
+	for (size_t i = 0; i < count; i++)
+	{
+		if (entries[i].formatsize == formatsize)
+			return &entries[i];
+	}
+
+	return nullptr;
+}
+
+template <typename Entry>
 inline const Entry *find_hires_registry_formatsize_match(const Entry *entries, size_t count, uint16_t formatsize)
 {
 	if (!entries || count == 0)
@@ -133,6 +148,21 @@ inline const Entry *find_hires_registry_formatsize_match(const Entry *entries, s
 	}
 
 	return wildcard_match;
+}
+
+template <typename Entry>
+inline const Entry *find_hires_registry_formatsize_exact(const Entry *entries, size_t count, uint16_t formatsize)
+{
+	if (!entries || count == 0)
+		return nullptr;
+
+	for (size_t i = 0; i < count; i++)
+	{
+		if (entries[i].formatsize == formatsize)
+			return &entries[i];
+	}
+
+	return nullptr;
 }
 
 struct HiresRegistryEntryResidentMeta

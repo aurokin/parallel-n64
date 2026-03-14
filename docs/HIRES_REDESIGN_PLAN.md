@@ -21,13 +21,13 @@ Move toward a cache-owner style HIRES system where:
 
 ## Current Direction
 The current preferred architecture probe is:
-- `parallel-n64-parallel-rdp-hirestex-lookup = no-reinterp`
+- `parallel-n64-parallel-rdp-hirestex-lookup = narrow-reinterp-phase-16x16-pending-32x16`
 
 Why:
-- it keeps primary/provider hits
-- it keeps alias propagation
-- it removes block reinterpretation classes
-- it has been the strongest shared signal that block reinterpretation is the broader corruption source
+- it keeps the validated `narrow-reinterp` birth-pattern set
+- it applies the proven `16x16` primary-phase consumer rule
+- it applies the stronger `32x16` pending-source consumer rule
+- it is currently the strongest shared signal across both intro22 and corrected `noinput16`
 
 ## First Refactor Cut
 Separate post-lookup binding from lookup itself.
@@ -165,6 +165,23 @@ And the provenance effect is exact:
 - corrected `noinput16` was already `0x21864010` only, and stays that way
 
 That makes this the first probe that improves both scenes by changing consumer semantics rather than narrowing lookup alone. The next redesign work should stay in that consumer/binding layer.
+
+The current best combined consumer probe is now:
+- `parallel-n64-parallel-rdp-hirestex-lookup = narrow-reinterp-phase-16x16-pending-32x16`
+
+Current result:
+- canonical intro22 `state + 1f`
+  - `top_banner 10.0760`
+  - `story_text 30.0980`
+  - `bottom_stage_grid 43.0492`
+  - `left_stage_grid 9.9389`
+- corrected `noinput16`
+  - `top_banner 7.8662`
+  - `today_text 11.3305`
+  - `bottom_stage_grid 5.5032`
+  - `left_stage_grid 5.1320`
+
+This is the first redesign probe that beat both the prior `narrow-reinterp` and the prior phase-only `16x16` consumer probe across the two validation scenes. Treat it as the current best shared baseline while redesign work continues.
 
 ## Redesign Stages
 ### Stage 1: Make ownership explicit

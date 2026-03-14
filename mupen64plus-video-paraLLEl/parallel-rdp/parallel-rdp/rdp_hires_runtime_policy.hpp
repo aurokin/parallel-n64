@@ -39,10 +39,11 @@ enum class HiresReinterpretationBirthPatternMode : uint8_t
 	NarrowSame32x32Cross32x16Probe
 };
 
-enum class HiresConsumerPatternMode : uint8_t
+enum class HiresCrossFormatsize32x16SourceFilter : uint8_t
 {
 	AllowAll = 0,
-	CrossFormatsize16x16PrimaryPhaseOnlyProbe
+	PendingOnly,
+	AliasOnly
 };
 
 struct HiresLookupModePolicy
@@ -57,7 +58,9 @@ struct HiresLookupModePolicy
 	uint8_t reinterpretation_birth_family_mask = 0x0fu;
 	HiresReinterpretationBirthPatternMode reinterpretation_birth_pattern_mode =
 		HiresReinterpretationBirthPatternMode::AllowAll;
-	HiresConsumerPatternMode consumer_pattern_mode = HiresConsumerPatternMode::AllowAll;
+	bool restrict_cross_formatsize_16x16_to_primary_phase = false;
+	HiresCrossFormatsize32x16SourceFilter cross_formatsize_32x16_source_filter =
+		HiresCrossFormatsize32x16SourceFilter::AllowAll;
 };
 
 inline std::string resolve_hires_cache_path(const std::string &configured_path, const char *env_path)
@@ -165,6 +168,36 @@ inline bool hires_lookup_narrow_reinterpretation_cross_32x16_enabled(unsigned mo
 	return mode == 8;
 }
 
+inline bool hires_lookup_narrow_reinterpretation_pending_32x16_enabled(unsigned mode)
+{
+	return mode == 12;
+}
+
+inline bool hires_lookup_narrow_reinterpretation_alias_32x16_enabled(unsigned mode)
+{
+	return mode == 13;
+}
+
+inline bool hires_lookup_narrow_reinterpretation_32x32_pending_32x16_enabled(unsigned mode)
+{
+	return mode == 14;
+}
+
+inline bool hires_lookup_narrow_reinterpretation_32x32_alias_32x16_enabled(unsigned mode)
+{
+	return mode == 15;
+}
+
+inline bool hires_lookup_narrow_reinterpretation_phase_16x16_pending_32x16_enabled(unsigned mode)
+{
+	return mode == 16;
+}
+
+inline bool hires_lookup_narrow_reinterpretation_phase_16x16_alias_32x16_enabled(unsigned mode)
+{
+	return mode == 17;
+}
+
 inline bool hires_lookup_narrow_reinterpretation_32x32_16x16_enabled(unsigned mode)
 {
 	return mode == 9;
@@ -182,17 +215,17 @@ inline bool hires_lookup_narrow_reinterpretation_phase_16x16_enabled(unsigned mo
 
 inline bool hires_lookup_fallbacks_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 3 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10 || mode == 11;
+	return mode == 0 || mode == 3 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10 || mode == 11 || mode == 12 || mode == 13 || mode == 14 || mode == 15 || mode == 16 || mode == 17;
 }
 
 inline bool hires_lookup_block_reinterpretation_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10 || mode == 11;
+	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10 || mode == 11 || mode == 12 || mode == 13 || mode == 14 || mode == 15 || mode == 16 || mode == 17;
 }
 
 inline bool hires_lookup_pending_block_retry_enabled(unsigned mode)
 {
-	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10 || mode == 11;
+	return mode == 0 || mode == 4 || mode == 5 || mode == 6 || mode == 7 || mode == 8 || mode == 9 || mode == 10 || mode == 11 || mode == 12 || mode == 13 || mode == 14 || mode == 15 || mode == 16 || mode == 17;
 }
 
 inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
@@ -329,7 +362,91 @@ inline HiresLookupModePolicy resolve_hires_lookup_mode_policy(unsigned mode)
 		policy.allow_alias_group_binding = true;
 		policy.reinterpretation_birth_family_mask = 0x0fu;
 		policy.reinterpretation_birth_pattern_mode = HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe;
-		policy.consumer_pattern_mode = HiresConsumerPatternMode::CrossFormatsize16x16PrimaryPhaseOnlyProbe;
+		policy.restrict_cross_formatsize_16x16_to_primary_phase = true;
+		break;
+
+	case 12:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode =
+			HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize32x16Probe;
+		policy.cross_formatsize_32x16_source_filter = HiresCrossFormatsize32x16SourceFilter::PendingOnly;
+		break;
+
+	case 13:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode =
+			HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize32x16Probe;
+		policy.cross_formatsize_32x16_source_filter = HiresCrossFormatsize32x16SourceFilter::AliasOnly;
+		break;
+
+	case 14:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode =
+			HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross32x16Probe;
+		policy.cross_formatsize_32x16_source_filter = HiresCrossFormatsize32x16SourceFilter::PendingOnly;
+		break;
+
+	case 15:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode =
+			HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross32x16Probe;
+		policy.cross_formatsize_32x16_source_filter = HiresCrossFormatsize32x16SourceFilter::AliasOnly;
+		break;
+
+	case 16:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode = HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe;
+		policy.restrict_cross_formatsize_16x16_to_primary_phase = true;
+		policy.cross_formatsize_32x16_source_filter = HiresCrossFormatsize32x16SourceFilter::PendingOnly;
+		break;
+
+	case 17:
+		policy.allow_ci_low32 = false;
+		policy.allow_tile_mask = false;
+		policy.allow_tile_stride = false;
+		policy.allow_block_tile = true;
+		policy.allow_block_shape = true;
+		policy.allow_pending_block_retry = true;
+		policy.allow_alias_group_binding = true;
+		policy.reinterpretation_birth_family_mask = 0x0fu;
+		policy.reinterpretation_birth_pattern_mode = HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe;
+		policy.restrict_cross_formatsize_16x16_to_primary_phase = true;
+		policy.cross_formatsize_32x16_source_filter = HiresCrossFormatsize32x16SourceFilter::AliasOnly;
 		break;
 
 	default:

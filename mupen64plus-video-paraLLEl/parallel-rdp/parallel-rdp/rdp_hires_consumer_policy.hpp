@@ -37,12 +37,46 @@ inline bool is_hires_cross_formatsize_16x16_100x100_consumer_candidate(const Rep
 }
 
 template <typename ReplacementTileStateType>
+inline bool is_hires_cross_formatsize_32x16_512x256_consumer_candidate(const ReplacementTileStateType &state,
+                                                                       const TileInfo &tile)
+{
+	if (!hires_descriptor_index_valid(tile.replacement.repl_desc_index))
+		return false;
+
+	const auto birth = read_hires_lookup_tile_provenance(state);
+	return birth.load_formatsize == 0x202u &&
+	       birth.lookup_formatsize == 0x02u &&
+	       birth.key_width == 32u &&
+	       birth.key_height == 16u &&
+	       tile.replacement.repl_w == 512u &&
+	       tile.replacement.repl_h == 256u;
+}
+
+template <typename ReplacementTileStateType>
 inline bool should_consume_hires_replacement_for_draw(const HiresLookupModePolicy &policy,
                                                       uint32_t raw_raster_flags,
                                                       const ReplacementTileStateType &state,
                                                       const TileInfo &tile)
 {
-	if (policy.consumer_pattern_mode != HiresConsumerPatternMode::CrossFormatsize16x16PrimaryPhaseOnlyProbe)
+	if (policy.cross_formatsize_32x16_source_filter != HiresCrossFormatsize32x16SourceFilter::AllowAll)
+	{
+		if (policy.cross_formatsize_32x16_source_filter == HiresCrossFormatsize32x16SourceFilter::PendingOnly)
+		{
+			if (!is_hires_cross_formatsize_32x16_512x256_consumer_candidate(state, tile))
+				return true;
+			return state.lookup_source == HiresLookupSource::PendingBlockRetry;
+		}
+		else if (policy.cross_formatsize_32x16_source_filter == HiresCrossFormatsize32x16SourceFilter::AliasOnly)
+		{
+			if (!is_hires_cross_formatsize_32x16_512x256_consumer_candidate(state, tile))
+				return true;
+			return state.lookup_source == HiresLookupSource::AliasPropagated ||
+			       state.lookup_source == HiresLookupSource::BlockTile ||
+			       state.origin_lookup_source == HiresLookupSource::BlockTile;
+		}
+	}
+
+	if (!policy.restrict_cross_formatsize_16x16_to_primary_phase)
 		return true;
 
 	if (!is_hires_cross_formatsize_16x16_100x100_consumer_candidate(state, tile))

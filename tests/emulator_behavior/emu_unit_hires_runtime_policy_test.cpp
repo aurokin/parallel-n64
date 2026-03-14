@@ -152,6 +152,12 @@ static void test_lookup_mode_policy_contract()
 	const auto narrow_32x32_16x16 = resolve_hires_lookup_mode_policy(9);
 	const auto narrow_32x32_32x16 = resolve_hires_lookup_mode_policy(10);
 	const auto narrow_phase_16x16 = resolve_hires_lookup_mode_policy(11);
+	const auto narrow_pending_32x16 = resolve_hires_lookup_mode_policy(12);
+	const auto narrow_alias_32x16 = resolve_hires_lookup_mode_policy(13);
+	const auto narrow_32x32_pending_32x16 = resolve_hires_lookup_mode_policy(14);
+	const auto narrow_32x32_alias_32x16 = resolve_hires_lookup_mode_policy(15);
+	const auto narrow_phase_16x16_pending_32x16 = resolve_hires_lookup_mode_policy(16);
+	const auto narrow_phase_16x16_alias_32x16 = resolve_hires_lookup_mode_policy(17);
 	check(!narrow_reinterp.allow_ci_low32, "narrow-reinterp mode should reject CI low32 fallback");
 	check(!narrow_reinterp.allow_tile_mask, "narrow-reinterp mode should reject tile-mask fallback");
 	check(!narrow_reinterp.allow_tile_stride, "narrow-reinterp mode should reject tile-stride fallback");
@@ -181,9 +187,48 @@ static void test_lookup_mode_policy_contract()
 	check(narrow_phase_16x16.reinterpretation_birth_pattern_mode ==
 	              HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe,
 	      "narrow-reinterp-phase-16x16 mode should keep the full Paper Mario birth-pattern filter");
-	check(narrow_phase_16x16.consumer_pattern_mode ==
-	              HiresConsumerPatternMode::CrossFormatsize16x16PrimaryPhaseOnlyProbe,
+	check(narrow_phase_16x16.restrict_cross_formatsize_16x16_to_primary_phase,
 	      "narrow-reinterp-phase-16x16 mode should enable the 16x16 primary-phase consumer filter");
+	check(narrow_pending_32x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize32x16Probe,
+	      "narrow-32x16-pending mode should keep the 32x16 birth-pattern filter");
+	check(narrow_pending_32x16.cross_formatsize_32x16_source_filter ==
+	              HiresCrossFormatsize32x16SourceFilter::PendingOnly,
+	      "narrow-32x16-pending mode should enable the pending-only 32x16 consumer filter");
+	check(narrow_alias_32x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowCrossFormatsize32x16Probe,
+	      "narrow-32x16-alias mode should keep the 32x16 birth-pattern filter");
+	check(narrow_alias_32x16.cross_formatsize_32x16_source_filter ==
+	              HiresCrossFormatsize32x16SourceFilter::AliasOnly,
+	      "narrow-32x16-alias mode should enable the alias-only 32x16 consumer filter");
+	check(narrow_32x32_pending_32x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross32x16Probe,
+	      "narrow-32x32-pending-32x16 mode should keep the 32x32 + 32x16 birth-pattern filter");
+	check(narrow_32x32_pending_32x16.cross_formatsize_32x16_source_filter ==
+	              HiresCrossFormatsize32x16SourceFilter::PendingOnly,
+	      "narrow-32x32-pending-32x16 mode should enable the pending-only 32x16 consumer filter");
+	check(narrow_32x32_alias_32x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowSame32x32Cross32x16Probe,
+	      "narrow-32x32-alias-32x16 mode should keep the 32x32 + 32x16 birth-pattern filter");
+	check(narrow_32x32_alias_32x16.cross_formatsize_32x16_source_filter ==
+	              HiresCrossFormatsize32x16SourceFilter::AliasOnly,
+	      "narrow-32x32-alias-32x16 mode should enable the alias-only 32x16 consumer filter");
+	check(narrow_phase_16x16_pending_32x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe,
+	      "narrow-reinterp-phase-16x16-pending-32x16 mode should keep the full Paper Mario birth-pattern filter");
+	check(narrow_phase_16x16_pending_32x16.restrict_cross_formatsize_16x16_to_primary_phase,
+	      "narrow-reinterp-phase-16x16-pending-32x16 mode should enable the 16x16 primary-phase consumer filter");
+	check(narrow_phase_16x16_pending_32x16.cross_formatsize_32x16_source_filter ==
+	              HiresCrossFormatsize32x16SourceFilter::PendingOnly,
+	      "narrow-reinterp-phase-16x16-pending-32x16 mode should enable the pending-only 32x16 consumer filter");
+	check(narrow_phase_16x16_alias_32x16.reinterpretation_birth_pattern_mode ==
+	              HiresReinterpretationBirthPatternMode::NarrowPaperMarioProbe,
+	      "narrow-reinterp-phase-16x16-alias-32x16 mode should keep the full Paper Mario birth-pattern filter");
+	check(narrow_phase_16x16_alias_32x16.restrict_cross_formatsize_16x16_to_primary_phase,
+	      "narrow-reinterp-phase-16x16-alias-32x16 mode should enable the 16x16 primary-phase consumer filter");
+	check(narrow_phase_16x16_alias_32x16.cross_formatsize_32x16_source_filter ==
+	              HiresCrossFormatsize32x16SourceFilter::AliasOnly,
+	      "narrow-reinterp-phase-16x16-alias-32x16 mode should enable the alias-only 32x16 consumer filter");
 }
 }
 

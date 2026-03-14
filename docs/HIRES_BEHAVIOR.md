@@ -64,7 +64,7 @@
 - Optional tuning:
   - `parallel-n64-parallel-rdp-hirestex-filter = linear|nearest|trilinear`
   - `parallel-n64-parallel-rdp-hirestex-srgb = auto|on|off`
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp|narrow-32x32|narrow-16x16|narrow-32x16|narrow-32x32-16x16|narrow-32x32-32x16|narrow-reinterp-phase-16x16`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp|narrow-32x32|narrow-16x16|narrow-32x16|narrow-32x32-16x16|narrow-32x32-32x16|narrow-reinterp-phase-16x16|narrow-32x16-pending|narrow-32x16-alias|narrow-32x32-pending-32x16|narrow-32x32-alias-32x16|narrow-reinterp-phase-16x16-pending-32x16|narrow-reinterp-phase-16x16-alias-32x16`
   - `parallel-n64-parallel-rdp-hirestex-budget-mb = 0|128|256|512|1024|2048|4096`
 - Place packs in the RetroArch system directory used by the core.
 - Current limitation:
@@ -227,6 +227,23 @@
       - corrected `noinput16` stays `0x21864010` only
     - current conclusion:
       - this is the best shared redesign probe so far because it removes a bad second consumer phase instead of suppressing scene-specific descriptors
+  - `narrow-reinterp-phase-16x16-pending-32x16` is the next combined consumer probe:
+    - keeps the full `narrow-reinterp` birth-pattern set
+    - restricts `16x16 -> 100x100` consumers to the primary `0x21864010` phase
+    - restricts `32x16 -> 512x256` consumers to the pending-retry source path
+    - `intro22-state + 1f`:
+      - `top_banner 10.0760`
+      - `story_text 30.0980`
+      - `bottom_stage_grid 43.0492`
+      - `left_stage_grid 9.9389`
+    - corrected `noinput16`:
+      - `top_banner 7.8662`
+      - `today_text 11.3305`
+      - `bottom_stage_grid 5.5032`
+      - `left_stage_grid 5.1320`
+    - current conclusion:
+      - this is the best shared redesign probe so far
+      - it improves on `narrow-reinterp-phase-16x16` in both validation scenes by combining the proven `16x16` phase rule with the stronger `32x16` pending-source rule
 - Provenance census workflow:
   - `PARALLEL_RDP_HIRES_DEBUG=1` logs draw-state birth metadata for replacement-backed draws
   - draw-state logs now also preserve exact checksum keys for `repl0` and `repl1`

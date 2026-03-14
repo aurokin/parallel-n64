@@ -45,6 +45,31 @@ latest_image() {
   find "$root" -mindepth 2 -maxdepth 2 -type f -name 'summary.png' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-
 }
 
+latest_profile_capture_png() {
+  local profile="$1"
+  local prefix=""
+  local capture_dir=""
+
+  case "$profile" in
+    intro22)
+      prefix="intro22"
+      ;;
+    noinput16)
+      prefix="noinput16"
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  capture_dir="$(find "$OUTPUT_ROOT" -mindepth 1 -maxdepth 1 -type d -name "${prefix}*" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)"
+  if [[ -z "$capture_dir" ]]; then
+    return 0
+  fi
+
+  find "$capture_dir" -maxdepth 1 -type f -name '*.png' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-
+}
+
 while (($#)); do
   case "$1" in
     --profile)
@@ -75,7 +100,12 @@ if [[ "$profile" == "intro22-probe" && -z "$image" ]]; then
   image="$COMPARE_ROOT/latest-intro22-probe/summary.png"
 elif [[ -n "$profile" && -z "$image" && -x "$COMPARE_RUNNER" ]]; then
   canonical_dir="$COMPARE_ROOT/latest-$profile"
-  "$COMPARE_RUNNER" --profile "$profile" --output-dir "$canonical_dir" >/dev/null
+  candidate_png="$(latest_profile_capture_png "$profile")"
+  if [[ -n "$candidate_png" && -f "$candidate_png" ]]; then
+    "$COMPARE_RUNNER" --profile "$profile" --candidate "$candidate_png" --output-dir "$canonical_dir" >/dev/null
+  else
+    "$COMPARE_RUNNER" --profile "$profile" --output-dir "$canonical_dir" >/dev/null
+  fi
   image="$canonical_dir/summary.png"
 elif [[ -z "$image" ]]; then
   image="$(latest_image "$COMPARE_ROOT" "$profile")"

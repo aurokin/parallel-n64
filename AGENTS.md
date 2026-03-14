@@ -15,7 +15,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Keep `parallel` as the active graphics path for local validation.
 - Treat HIRES-off behavior as invariant: no provider/registry/shader replacement path changes when HIRES is disabled.
 - Current root-cause probe for HIRES lookup/composition bugs:
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp|narrow-32x32|narrow-16x16|narrow-32x16|narrow-32x32-16x16|narrow-32x32-32x16|narrow-reinterp-phase-16x16`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp|narrow-32x32|narrow-16x16|narrow-32x16|narrow-32x32-16x16|narrow-32x32-32x16|narrow-reinterp-phase-16x16|narrow-32x16-pending|narrow-32x16-alias|narrow-32x32-pending-32x16|narrow-32x32-alias-32x16|narrow-reinterp-phase-16x16-pending-32x16|narrow-reinterp-phase-16x16-alias-32x16`
   - `strict` means:
     - exact checksum + exact formatsize only
     - no CI low32 fallback
@@ -116,6 +116,20 @@ Co-Authored-By: Codex <noreply@openai.com>
           - keep it as a static-priority alternate probe, not the main shared probe
         - shared phase-aware consumer probe:
           - `narrow-reinterp-phase-16x16`
+          - `narrow-reinterp-phase-16x16-pending-32x16`
+        - current best shared redesign probe:
+          - `narrow-reinterp-phase-16x16-pending-32x16`
+        - stable intro22 `state + 1f` result for that probe:
+          - `top_banner 10.0760`
+          - `story_text 30.0980`
+          - `bottom_stage_grid 43.0492`
+          - `left_stage_grid 9.9389`
+        - corrected `noinput16` sanity result for that probe:
+          - `top_banner 7.8662`
+          - `today_text 11.3305`
+          - `bottom_stage_grid 5.5032`
+          - `left_stage_grid 5.1320`
+        - `run-paper-mario-open-compare.sh --profile intro22` must rebuild from the newest `intro22*` capture, not the newest capture globally
           - keeps the full `narrow-reinterp` birth-pattern set, but only consumes `0x202 -> 0x02`, `16x16 -> 100x100` replacements on the primary `0x21864010` raster phase
           - canonical intro22 result:
             - `top_banner 10.0760`

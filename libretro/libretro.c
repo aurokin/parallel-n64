@@ -414,7 +414,7 @@ static void setup_variables(void)
       { "parallel-n64-parallel-rdp-hirestex-srgb",
          "(ParaLLEl-RDP) Hi-res texture color space; auto|on|off" },
       { "parallel-n64-parallel-rdp-hirestex-lookup",
-         "(ParaLLEl-RDP) Hi-res texture lookup mode; permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp|narrow-32x32|narrow-16x16|narrow-32x16|narrow-32x32-16x16|narrow-32x32-32x16|narrow-reinterp-phase-16x16" },
+         "(ParaLLEl-RDP) Hi-res texture lookup mode; permissive|strict|owner|no-reinterp|owner-reinterp|narrow-reinterp|narrow-32x32|narrow-16x16|narrow-32x16|narrow-32x32-16x16|narrow-32x32-32x16|narrow-reinterp-phase-16x16|narrow-32x16-pending|narrow-32x16-alias|narrow-32x32-pending-32x16|narrow-32x32-alias-32x16|narrow-reinterp-phase-16x16-pending-32x16|narrow-reinterp-phase-16x16-alias-32x16" },
       { "parallel-n64-parallel-rdp-hirestex-budget-mb",
          "(ParaLLEl-RDP) Hi-res texture cache budget (MB); 0|128|256|512|1024|2048|4096" },
 #endif
@@ -1343,6 +1343,18 @@ void update_variables(bool startup)
            parallel_set_hires_lookup_mode(10);
        else if (!strcmp(var.value, "narrow-reinterp-phase-16x16"))
            parallel_set_hires_lookup_mode(11);
+       else if (!strcmp(var.value, "narrow-32x16-pending"))
+           parallel_set_hires_lookup_mode(12);
+       else if (!strcmp(var.value, "narrow-32x16-alias"))
+           parallel_set_hires_lookup_mode(13);
+       else if (!strcmp(var.value, "narrow-32x32-pending-32x16"))
+           parallel_set_hires_lookup_mode(14);
+       else if (!strcmp(var.value, "narrow-32x32-alias-32x16"))
+           parallel_set_hires_lookup_mode(15);
+       else if (!strcmp(var.value, "narrow-reinterp-phase-16x16-pending-32x16"))
+           parallel_set_hires_lookup_mode(16);
+       else if (!strcmp(var.value, "narrow-reinterp-phase-16x16-alias-32x16"))
+           parallel_set_hires_lookup_mode(17);
        else
            parallel_set_hires_lookup_mode(0);
    }

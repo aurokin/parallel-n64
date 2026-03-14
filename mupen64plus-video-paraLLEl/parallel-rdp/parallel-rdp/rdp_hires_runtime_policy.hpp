@@ -103,7 +103,22 @@ inline bool hires_lookup_owner_only_enabled(unsigned mode)
 	return mode == 2;
 }
 
+inline bool hires_lookup_no_reinterpretation_enabled(unsigned mode)
+{
+	return mode == 3;
+}
+
 inline bool hires_lookup_fallbacks_enabled(unsigned mode)
+{
+	return mode == 0 || mode == 3;
+}
+
+inline bool hires_lookup_block_reinterpretation_enabled(unsigned mode)
+{
+	return mode == 0;
+}
+
+inline bool hires_lookup_pending_block_retry_enabled(unsigned mode)
 {
 	return mode == 0;
 }

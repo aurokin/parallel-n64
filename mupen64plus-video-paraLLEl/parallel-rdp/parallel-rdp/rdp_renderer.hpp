@@ -177,6 +177,8 @@ private:
 	bool hires_shader_path_enabled = false;
 	bool hires_lookup_strict = false;
 	bool hires_lookup_fallbacks = true;
+	bool hires_disable_block_reinterpretation = false;
+	bool hires_disable_pending_block_retry = false;
 	bool hires_block_tile_probe_active = false;
 	uint16_t hires_block_tile_probe_load_formatsize = 0;
 	uint16_t hires_block_tile_probe_lookup_formatsize = 0;

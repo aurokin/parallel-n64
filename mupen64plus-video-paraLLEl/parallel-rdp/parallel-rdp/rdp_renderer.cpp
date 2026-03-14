@@ -811,6 +811,12 @@ void Renderer::set_hires_lookup_mode(unsigned mode)
 {
 	hires_lookup_strict = detail::hires_lookup_strict_enabled(mode);
 	hires_lookup_fallbacks = detail::hires_lookup_fallbacks_enabled(mode);
+	hires_disable_block_reinterpretation = !detail::hires_lookup_block_reinterpretation_enabled(mode);
+	hires_disable_pending_block_retry = !detail::hires_lookup_pending_block_retry_enabled(mode);
+	if (getenv("PARALLEL_RDP_HIRES_DISABLE_BLOCK_REINTERPRETATION") != nullptr)
+		hires_disable_block_reinterpretation = true;
+	if (getenv("PARALLEL_RDP_HIRES_DISABLE_PENDING_BLOCK_RETRY") != nullptr)
+		hires_disable_pending_block_retry = true;
 	hires_block_tile_probe_load_formatsize = 0;
 	hires_block_tile_probe_lookup_formatsize = 0;
 	hires_block_tile_probe_lookup_tile = 0xffffffffu;
@@ -4141,6 +4147,7 @@ void Renderer::retry_pending_hires_block_lookup(unsigned tile_index)
 {
 	const unsigned bounded_tile_index = tile_index & (Limits::MaxNumTiles - 1);
 	if (!hires_lookup_fallbacks ||
+	    hires_disable_pending_block_retry ||
 	    !detail::hires_rdram_view_valid(cpu_rdram, rdram_size) ||
 	    !replacement_provider)
 		return;
@@ -5030,7 +5037,9 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			}
 
 
-			if (!hit && detail::should_try_hires_block_tile_fallback(!hires_lookup_fallbacks, is_block_mode))
+			if (!hit &&
+			    !hires_disable_block_reinterpretation &&
+			    detail::should_try_hires_block_tile_fallback(!hires_lookup_fallbacks, is_block_mode))
 			{
 				hit = try_hires_block_tile_fallback(
 						tile_index,
@@ -5055,7 +5064,9 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				}
 			}
 
-			if (!hit && detail::should_try_hires_block_shape_fallback(!hires_lookup_fallbacks, is_block_mode))
+			if (!hit &&
+			    !hires_disable_block_reinterpretation &&
+			    detail::should_try_hires_block_shape_fallback(!hires_lookup_fallbacks, is_block_mode))
 			{
 				const uint32_t total_bytes = detail::compute_hires_texture_total_bytes(
 						key_width_pixels,

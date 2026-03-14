@@ -15,7 +15,7 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Keep `parallel` as the active graphics path for local validation.
 - Treat HIRES-off behavior as invariant: no provider/registry/shader replacement path changes when HIRES is disabled.
 - Current root-cause probe for HIRES lookup/composition bugs:
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp`
   - `strict` means:
     - exact checksum + exact formatsize only
     - no CI low32 fallback
@@ -42,6 +42,22 @@ Co-Authored-By: Codex <noreply@openai.com>
     - on `noinput16`, `owner` produced `lookups=8169 hits=5836 primary_hits=5836 block_tile_hits=0 alias_bindings=0 draw_with_replacement=9725`
     - owner-mode visuals improved intro22 `story_text`, `bottom_stage_grid`, and `left_stage_grid`, but regressed `top_banner`
     - that means the dominant root problem includes permissive fallback/alias behavior, but some valid content is still only arriving through that path
+  - `no-reinterp` means:
+    - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
+    - disable block-tile fallback
+    - disable block-shape fallback
+    - disable deferred block retry
+    - use this to test whether block reinterpretation is the dominant corruption source without discarding alias-backed valid content
+  - current `no-reinterp` data points:
+    - on canonical `intro22-state + 1f`, `no-reinterp` produced:
+      - `lookups=4043 hits=2123 primary_hits=2123 ci_low32_hits=0 tile_mask_hits=0 tile_stride_hits=0 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=28301 draw_with_replacement=3612`
+      - same visual result as `owner`: `top_banner 16.9008`, `story_text 30.1998`, `bottom_stage_grid 40.2088`, `left_stage_grid 12.3734`
+    - on `noinput16`, `no-reinterp` produced:
+      - `lookups=38147 hits=23356 primary_hits=23356 ci_low32_hits=144 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=232047 draw_with_replacement=36751`
+      - and improved materially over `owner`: `top_banner 16.5673`, `today_text 12.1344`, `bottom_stage_grid 5.5668`, `left_stage_grid 9.9579`
+    - this is the strongest current architectural signal:
+      - alias propagation still carries valid content
+      - block reinterpretation is the broader root bug class
   - current provenance tooling:
     - `PARALLEL_RDP_HIRES_DEBUG=1` draw logs now preserve both the current replacement source and the original lookup source through alias propagation
     - draw logs also preserve replacement birth metadata:
@@ -65,7 +81,8 @@ Co-Authored-By: Codex <noreply@openai.com>
       - desc65 `4x32` class only
       - no `block_tile` at all
     - those three runs all collapsed to the same PNG, while still differing from the normal permissive baseline
-    - that means the current intro22 image is not controlled by any single `block_tile` class in isolation; the remaining difference is likely a combination of multiple fallback classes and/or `block_shape`
+    - `block_shape` recreated the same fallback-born signatures when `block_tile` was filtered away
+    - that means the root issue is the broader block reinterpretation family, not any single `block_tile` class in isolation
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`
@@ -137,11 +154,17 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=strict`
   - owner lookup probe:
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=owner`
+  - no-reinterp lookup probe:
+    - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=no-reinterp`
   - current strict-probe result on the canonical intro22 state:
     - zero replacement hits, so use this mode as an architecture probe, not as a validation baseline
   - current owner-probe result on the canonical intro22 state:
     - primary hits survive while all block fallbacks and alias propagation drop to zero
     - use this mode to test whether permissive draw-time reinterpretation is the dominant source of corruption
+  - current no-reinterp result on the canonical intro22 state:
+    - visually identical to `owner`
+    - but alias propagation remains active
+    - use this mode as the preferred architecture probe when you want to isolate block reinterpretation without discarding alias-backed content
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
   - for the current standardized seeded intro22 state path, prefer `./run-paper-mario-hires-intro22-state-capture.sh`

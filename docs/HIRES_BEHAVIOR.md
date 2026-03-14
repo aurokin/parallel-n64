@@ -60,7 +60,7 @@
 - Optional tuning:
   - `parallel-n64-parallel-rdp-hirestex-filter = linear|nearest|trilinear`
   - `parallel-n64-parallel-rdp-hirestex-srgb = auto|on|off`
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner|no-reinterp`
   - `parallel-n64-parallel-rdp-hirestex-budget-mb = 0|128|256|512|1024|2048|4096`
 - Place packs in the RetroArch system directory used by the core.
 - Current limitation:
@@ -123,6 +123,20 @@
     - `noinput16`: `lookups=8169 hits=5836 primary_hits=5836 block_tile_hits=0 alias_bindings=0 draw_with_replacement=9725`
     - visually, owner mode improves intro22 `story_text`, `bottom_stage_grid`, and `left_stage_grid`, but regresses `top_banner`
     - that strongly suggests permissive fallback/alias behavior is part of the root bug, while some valid content is still incorrectly dependent on that path
+- `no-reinterp` lookup is the current preferred architecture probe mode:
+  - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
+  - disable block-tile fallback
+  - disable block-shape fallback
+  - disable deferred block retry
+  - use this to isolate block reinterpretation as a root-cause class without discarding alias-backed valid content
+  - current Paper Mario results:
+    - `intro22-state + 1f`: `lookups=4043 hits=2123 primary_hits=2123 ci_low32_hits=0 tile_mask_hits=0 tile_stride_hits=0 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=28301 draw_with_replacement=3612`
+    - `noinput16`: `lookups=38147 hits=23356 primary_hits=23356 ci_low32_hits=144 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=232047 draw_with_replacement=36751`
+    - visually, `intro22-state + 1f` matches the `owner` image exactly
+    - visually, `noinput16` is materially better than `owner`
+    - that makes `no-reinterp` the strongest shared-mode result so far:
+      - alias propagation can still carry valid content
+      - block reinterpretation is the broader corruption source
 
 ## Core Behavior With HIRES Off
 - Provider lookup is bypassed.
@@ -143,6 +157,8 @@
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=strict`
   - owner lookup probe:
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=owner`
+  - no-reinterp lookup probe:
+    - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=no-reinterp`
   - for intro/title captures without controller input:
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
   - timed intro22 oracle scene:

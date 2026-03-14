@@ -42,6 +42,22 @@ The new policy layer should own:
 
 This is intentionally a refactor first, not a behavior change.
 
+## Binding Policy Breakpoint
+The next redesign cut must keep two invariants true:
+- permissive/default HIRES binding stays pixel-identical
+- owner-style binding becomes meaningfully narrower
+
+The binding-policy layer now owns both:
+- post-lookup owner-tile binding
+- alias-source rebinding after live tile metadata changes
+
+The verified result on the canonical `intro22-state + 1f` path is:
+- permissive/default remains exact-baseline identical
+- `owner` remains exact-image identical to the prior owner probe
+- `owner` now reports `alias_bindings=0`
+
+That matters because the earlier `owner` probe could still be contaminated by open-coded alias-source rebinding in `rdp_renderer.cpp`. Future redesign work should treat `rdp_hires_binding_policy.hpp` as the single place where lookup provenance becomes live tile binding behavior.
+
 ## Redesign Stages
 ### Stage 1: Make ownership explicit
 - Keep current behavior.

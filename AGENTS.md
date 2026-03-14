@@ -42,6 +42,13 @@ Co-Authored-By: Codex <noreply@openai.com>
     - on `noinput16`, `owner` produced `lookups=8169 hits=5836 primary_hits=5836 block_tile_hits=0 alias_bindings=0 draw_with_replacement=9725`
     - owner-mode visuals improved intro22 `story_text`, `bottom_stage_grid`, and `left_stage_grid`, but regressed `top_banner`
     - that means the dominant root problem includes permissive fallback/alias behavior, but some valid content is still only arriving through that path
+    - redesign breakpoint:
+      - alias-source rebinding after `set_tile` / `set_tile_size` now also goes through `rdp_hires_binding_policy.hpp`
+      - canonical intro22 recheck:
+        - permissive/default is still exact-baseline identical
+        - owner is still exact-image identical to the prior owner probe
+        - current owner summary: `lookups=5093 hits=2613 primary_hits=2613 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=0 draw_with_replacement=4400`
+      - treat that as the first clean “owner path is actually narrower” checkpoint before changing reinterpretation rules
   - `no-reinterp` means:
     - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
     - disable block-tile fallback
@@ -145,6 +152,9 @@ Co-Authored-By: Codex <noreply@openai.com>
   - redesign direction:
     - keep lookup provenance and tile binding as separate concepts
     - the first architectural cut now lives in `rdp_hires_binding_policy.hpp`
+    - the second cut is also there now:
+      - alias-source rebinding after live tile updates is policy-controlled instead of open-coded in `rdp_renderer.cpp`
+      - keep future owner/provenance behavior changes in that binding-policy layer
     - future behavior changes should go through that binding-policy layer instead of adding more direct binding/application logic in `rdp_renderer.cpp`
     - redesign roadmap: `docs/HIRES_REDESIGN_PLAN.md`
 - Prefer local helpers over ad hoc commands:

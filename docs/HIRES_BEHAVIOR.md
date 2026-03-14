@@ -130,6 +130,13 @@
     - `noinput16`: `lookups=8169 hits=5836 primary_hits=5836 block_tile_hits=0 alias_bindings=0 draw_with_replacement=9725`
     - visually, owner mode improves intro22 `story_text`, `bottom_stage_grid`, and `left_stage_grid`, but regresses `top_banner`
     - that strongly suggests permissive fallback/alias behavior is part of the root bug, while some valid content is still incorrectly dependent on that path
+  - redesign note:
+    - owner-mode alias-source rebinding is now routed through `rdp_hires_binding_policy.hpp` instead of open-coded in `rdp_renderer.cpp`
+    - canonical recheck on `intro22-state + 1f`:
+      - permissive/default stayed pixel-identical to baseline
+      - owner stayed pixel-identical to the prior owner probe
+      - current owner summary: `lookups=5093 hits=2613 primary_hits=2613 block_tile_hits=0 block_shape_hits=0 pending_block_retry_hits=0 alias_bindings=0 draw_with_replacement=4400`
+    - this means owner mode is now a cleaner architecture probe: no fallback families and no alias-source rebinding leak through the live tile update path
 - `no-reinterp` lookup is the current preferred architecture probe mode:
   - keep primary/provider hits, CI low32, tile-mask, tile-stride, and alias propagation
   - disable block-tile fallback

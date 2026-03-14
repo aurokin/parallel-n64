@@ -22,6 +22,11 @@ inline HiresBindingPolicyMode resolve_hires_binding_policy_mode(bool propagate_a
 	                               HiresBindingPolicyMode::OwnerTileOnly;
 }
 
+inline bool should_resolve_hires_alias_source_binding(HiresBindingPolicyMode policy_mode)
+{
+	return policy_mode == HiresBindingPolicyMode::PropagateAliasGroup;
+}
+
 struct HiresLookupBindingDecision
 {
 	bool provider_hit = false;
@@ -126,6 +131,21 @@ inline void apply_hires_lookup_binding_decision(const HiresLookupBindingDecision
 	{
 		apply_hires_tile_replacement_binding(tile_infos[decision.lookup_tile_index], tile_states[decision.lookup_tile_index]);
 	}
+}
+
+template <typename TileInfoType, typename ReplacementTileStateType, size_t NumTiles>
+inline void apply_hires_alias_source_binding(unsigned dst_tile,
+                                             unsigned source_tile,
+                                             TileInfoType (&tile_infos)[NumTiles],
+                                             ReplacementTileStateType (&tile_states)[NumTiles])
+{
+	tile_states[dst_tile] = tile_states[source_tile];
+	write_hires_lookup_tile_source(tile_states[dst_tile], HiresLookupSource::AliasPropagated, 0);
+	write_hires_lookup_tile_origin_source(
+			tile_states[dst_tile],
+			read_hires_lookup_tile_origin_source(tile_states[source_tile], 0),
+			0);
+	apply_hires_tile_replacement_binding(tile_infos[dst_tile], tile_states[dst_tile]);
 }
 }
 }

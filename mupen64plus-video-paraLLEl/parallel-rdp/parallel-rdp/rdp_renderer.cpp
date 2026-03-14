@@ -4358,12 +4358,21 @@ void Renderer::set_tile(uint32_t tile, const TileMeta &meta)
 {
 	tiles[tile].meta = meta;
 
-	int alias_source = detail::find_hires_alias_source_tile(tile, tiles, replacement_tiles);
-	if (alias_source >= 0)
+	const auto binding_policy_mode =
+			detail::resolve_hires_binding_policy_mode(
+					detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks));
+	if (detail::should_resolve_hires_alias_source_binding(binding_policy_mode))
 	{
-		replacement_tiles[tile] = replacement_tiles[unsigned(alias_source)];
-		detail::apply_hires_tile_replacement_binding(tiles[tile], replacement_tiles[tile]);
-		return;
+		int alias_source = detail::find_hires_alias_source_tile(tile, tiles, replacement_tiles);
+		if (alias_source >= 0)
+		{
+			detail::apply_hires_alias_source_binding(
+					tile,
+					unsigned(alias_source),
+					tiles,
+					replacement_tiles);
+			return;
+		}
 	}
 
 	replacement_tiles[tile] = {};
@@ -4383,12 +4392,21 @@ void Renderer::set_tile_size(uint32_t tile, uint32_t slo, uint32_t shi, uint32_t
 		return;
 	}
 
-	int alias_source = detail::find_hires_alias_source_tile(tile, tiles, replacement_tiles);
-	if (alias_source >= 0)
+	const auto binding_policy_mode =
+			detail::resolve_hires_binding_policy_mode(
+					detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks));
+	if (detail::should_resolve_hires_alias_source_binding(binding_policy_mode))
 	{
-		replacement_tiles[tile] = replacement_tiles[unsigned(alias_source)];
-		detail::apply_hires_tile_replacement_binding(tiles[tile], replacement_tiles[tile]);
-		return;
+		int alias_source = detail::find_hires_alias_source_tile(tile, tiles, replacement_tiles);
+		if (alias_source >= 0)
+		{
+			detail::apply_hires_alias_source_binding(
+					tile,
+					unsigned(alias_source),
+					tiles,
+					replacement_tiles);
+			return;
+		}
 	}
 
 	retry_pending_hires_block_lookup(tile);

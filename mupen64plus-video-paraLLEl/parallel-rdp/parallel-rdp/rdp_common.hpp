@@ -263,7 +263,8 @@ enum TileInfoFlagBits
 	TILE_INFO_CLAMP_S_BIT = 1 << 0,
 	TILE_INFO_MIRROR_S_BIT = 1 << 1,
 	TILE_INFO_CLAMP_T_BIT = 1 << 2,
-	TILE_INFO_MIRROR_T_BIT = 1 << 3
+	TILE_INFO_MIRROR_T_BIT = 1 << 3,
+	TILE_INFO_DEBUG_FORCE_HIRES_NEAREST_BIT = 1 << 7
 };
 using TileInfoFlags = uint8_t;
 

@@ -461,6 +461,8 @@ void depth_blend(int x, int y, uint primitive_index, ShadedData shaded)
 	const uint HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_SHADE_BIT = 1u << 1u;
 	const uint HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_FULL_BIT = 1u << 2u;
 	const uint HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_ZERO_BIT = 1u << 3u;
+	const uint HIRES_DBDBG1_FORCE_PIXEL_ALPHA_QUANT5_BIT = 1u << 4u;
+	const uint HIRES_DBDBG1_FORCE_PIXEL_ALPHA_BINARY_BIT = 1u << 5u;
 	int z = shaded.z_dith >> 9;
 	int dith = shaded.z_dith & 0x1ff;
 	int coverage_count = shaded.coverage_count;
@@ -492,6 +494,10 @@ void depth_blend(int x, int y, uint primitive_index, ShadedData shaded)
 		combined.a = U8_C(0xff);
 	if ((uint(depth_blend.padding0) & HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT) != 0u)
 		combined.a = U8_C(0x00);
+	if ((uint(depth_blend.padding1) & HIRES_DBDBG1_FORCE_PIXEL_ALPHA_QUANT5_BIT) != 0u)
+		combined.a = u8((((uint(combined.a) >> 3u) * 255u) + 15u) / 31u);
+	if ((uint(depth_blend.padding1) & HIRES_DBDBG1_FORCE_PIXEL_ALPHA_BINARY_BIT) != 0u)
+		combined.a = combined.a >= U8_C(0x80) ? U8_C(0xff) : U8_C(0x00);
 
 	bool blend_en;
 	bool coverage_wrap;

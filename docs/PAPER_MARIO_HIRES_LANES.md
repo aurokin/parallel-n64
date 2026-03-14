@@ -78,6 +78,12 @@ Rules:
   - the best current composition sandbox is the final trio (`20..22`): changing its
     blend path moves only `top_banner`, while the earlier late trio preserves the
     baseline image underneath
+  - latest root-cause read:
+    - forcing nearest HIRES sampling on the isolated late trio is an exact no-op
+    - forcing `pixel alpha` binary on the bright middle spans improves only `top_banner`
+    - forcing `pixel alpha` full is an exact no-op there
+    - so the remaining issue is stray low-alpha texels in the bright stitched spans,
+      not broad sampling blur and not a whole-layer transparency mismatch
 
 ### left_stage_grid
 
@@ -105,7 +111,7 @@ Rules:
 ## Current Metrics
 
 Trusted intro22 baseline after the latest committed fixes:
-- `top_banner 8.6935`
+- `top_banner 8.5749`
 - `story_text 38.7723`
 - `bottom_stage_grid 42.8426`
 - `left_stage_grid 14.0864`

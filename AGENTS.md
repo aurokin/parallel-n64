@@ -148,8 +148,13 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_ZERO_DESC`
     - `PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC`
     - `PARALLEL_HIRES_FORCE_PIXEL_ALPHA_ZERO_DESC`
+    - `PARALLEL_HIRES_FORCE_PIXEL_ALPHA_QUANT5_DESC`
+    - `PARALLEL_HIRES_FORCE_PIXEL_ALPHA_BINARY_DESC`
+    - `PARALLEL_HIRES_FORCE_HIRES_NEAREST_DESC`
     - `PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW`
     - `PARALLEL_HIRES_LOG_STATE_DESC`
+    - a second independent override/matcher scope is also available under the same suffixes with a `PARALLEL_HIRES2_` prefix
+      - use it when one repeated bundle must be suppressed while another is modified in the same capture
     - optional subtype filters for those same probes:
       - `PARALLEL_HIRES_MATCH_RASTER_FLAGS`
       - `PARALLEL_HIRES_MATCH_C0_A`
@@ -208,6 +213,10 @@ Co-Authored-By: Codex <noreply@openai.com>
   - the final visible banner is preserved by either of the last two late trios (`17..19` or `20..22`)
   - that means the remaining washout is already present within each late trio, not caused by the early stack
   - the best current sandbox is the final trio (`20..22`): changing its blend path moves only `top_banner` while the earlier late trio preserves baseline content
+  - latest banner root-cause finding:
+    - the remaining bright stitched banner spans do not want nearest HIRES sampling
+    - they do improve when `pixel alpha` is forced binary on the bright middle `desc68` spans (`x=209..1068`, `y=0..700`)
+    - `pixel alpha full` is a no-op there, so the issue is stray low-alpha texels washing detail out, not the whole layer being too transparent
   - the texrect lane is now separately switchable with `parallel-n64-parallel-rdp-experimental-texrect = auto|enabled|disabled`
   - `auto` for the texrect lane follows `scaling-mode=experimental`; plain experimental mode now means texrect fix on, VI lane off
   - current experimental upscaled path forces `native_tex_rect` on because the improvement comes from broad texrect handling, not a copy-cycle-only subset

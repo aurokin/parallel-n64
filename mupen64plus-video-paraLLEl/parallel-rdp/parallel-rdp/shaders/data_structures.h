@@ -211,6 +211,7 @@ const int TILE_INFO_CLAMP_S_BIT = 1 << 0;
 const int TILE_INFO_MIRROR_S_BIT = 1 << 1;
 const int TILE_INFO_CLAMP_T_BIT = 1 << 2;
 const int TILE_INFO_MIRROR_T_BIT = 1 << 3;
+const int TILE_INFO_DEBUG_FORCE_HIRES_NEAREST_BIT = 1 << 7;
 
 struct TileInfoMem
 {

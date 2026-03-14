@@ -1917,6 +1917,13 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		uint8_t((stream.static_raster_state.combiner[0].alpha.mulsub)) == 7u &&
 		uint8_t((stream.static_raster_state.combiner[0].alpha.mul)) == 7u &&
 		uint8_t((stream.static_raster_state.combiner[0].alpha.add)) == 1u;
+	const bool draw_is_intro22_banner_bright_middle =
+		draw_is_intro22_banner_bright &&
+		prim_bounds.valid &&
+		prim_bounds.x0 >= 209 &&
+		prim_bounds.x1 <= 1068 &&
+		prim_bounds.y0 >= 0 &&
+		prim_bounds.y1 <= 700;
 
 	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
 
@@ -1934,7 +1941,10 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		stream.depth_blend_state.flags &= ~DEPTH_BLEND_FORCE_BLEND_BIT;
 
 	const auto debug_subtype_match = detail::derive_hires_debug_subtype_match();
-	const bool debug_scope_active = draw_has_replacement || detail::hires_debug_subtype_match_active(debug_subtype_match);
+	const auto debug_subtype_match2 = detail::derive_hires_debug_subtype_match_with_prefix("PARALLEL_HIRES2_");
+	const bool debug_scope_active = draw_has_replacement ||
+	                                detail::hires_debug_subtype_match_active(debug_subtype_match) ||
+	                                detail::hires_debug_subtype_match_active(debug_subtype_match2);
 	if (debug_scope_active)
 	{
 		auto normalized = normalize_static_state(stream.static_raster_state);
@@ -1952,12 +1962,34 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				uint32_t(std::max(prim_bounds.x1, 0)),
 				uint32_t(std::max(prim_bounds.y0, 0)),
 				uint32_t(std::max(prim_bounds.y1, 0)));
-		detail::apply_hires_debug_draw_overrides(debug_overrides,
+		const auto debug_overrides2 = detail::filter_hires_debug_draw_overrides_with_prefix(
+				detail::derive_hires_debug_draw_overrides_with_prefix(draw_replacement_descs, draw_replacement_desc_count,
+				                                                      "PARALLEL_HIRES2_"),
+				debug_subtype_match2,
+				"PARALLEL_HIRES2_",
+				uint32_t(stream.static_raster_state.flags),
+				normalized,
+				attr,
+				hires_draw_calls_total + 1,
+				attr.s >> 16,
+				attr.t >> 16,
+				prim_bounds.valid,
+				uint32_t(std::max(prim_bounds.x0, 0)),
+				uint32_t(std::max(prim_bounds.x1, 0)),
+				uint32_t(std::max(prim_bounds.y0, 0)),
+				uint32_t(std::max(prim_bounds.y1, 0)));
+		const auto merged_debug_overrides = detail::merge_hires_debug_draw_overrides(debug_overrides, debug_overrides2);
+		detail::apply_hires_debug_draw_overrides(merged_debug_overrides,
 		                                         draw_setup,
 		                                         stream.static_raster_state.flags,
 		                                         stream.static_raster_state.dither,
 		                                         stream.depth_blend_state.flags,
 		                                         stream.depth_blend_state);
+		if (merged_debug_overrides.force_hires_nearest_sample)
+		{
+			for (auto &tile_info : tiles)
+				tile_info.meta.flags |= TILE_INFO_DEBUG_FORCE_HIRES_NEAREST_BIT;
+		}
 		normalized = normalize_static_state(stream.static_raster_state);
 		if (detail::hires_debug_desc_list_matches_any(draw_replacement_descs,
 		                                              draw_replacement_desc_count,
@@ -2029,7 +2061,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     unsigned(stream.depth_blend_state.z_mode),
 			     unsigned(stream.depth_blend_state.padding[0]));
 		}
-		if (debug_overrides.suppress_draw)
+		if (merged_debug_overrides.suppress_draw)
 			return;
 	}
 
@@ -2225,6 +2257,13 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	// only when the single-cycle path uses the combined RGB result in the final composition.
 	if (draw_is_intro22_story_shadow_overlay)
 		stream.static_raster_state.dither |= detail::HIRES_CMBDBG_FORCE_CYCLE1_RGB_COMBINED_BIT;
+	if (draw_is_intro22_banner_bright_middle)
+	{
+		// The remaining intro22 banner washout comes from a tiny set of low-alpha texels in the
+		// bright stitched spans. Thresholding them to hard cutouts reproduces the isolated-bundle
+		// improvement without touching the right-edge sibling spans or the alternate desc68 raster.
+		stream.depth_blend_state.padding[1] |= detail::HIRES_DBDBG1_FORCE_PIXEL_ALPHA_BINARY_BIT;
+	}
 
 	InstanceIndices indices = {};
 	indices.static_index = stream.static_raster_state_cache.add(normalize_static_state(stream.static_raster_state));

@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <string>
 
 namespace RDP
 {
@@ -25,6 +26,7 @@ struct HiresDebugDrawOverrides
 	bool clear_alpha_test = false;
 	bool force_native_texrect = false;
 	bool force_upscaled_texrect = false;
+	bool force_hires_nearest_sample = false;
 	bool force_blend_1a_memory = false;
 	bool force_blend_1a_pixel = false;
 	bool force_blend_1b_shade_alpha = false;
@@ -44,6 +46,8 @@ struct HiresDebugDrawOverrides
 	bool force_blend_shift_max = false;
 	bool force_pixel_alpha_full = false;
 	bool force_pixel_alpha_zero = false;
+	bool force_pixel_alpha_quant5 = false;
+	bool force_pixel_alpha_binary = false;
 	bool force_cycle0_alpha_full = false;
 	bool force_cycle0_alpha_zero = false;
 	bool force_cycle0_alpha_texel0 = false;
@@ -117,7 +121,9 @@ enum HiresDepthBlendDebugBit1 : uint8_t
 	HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_TEXEL0_BIT = 1 << 0,
 	HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_SHADE_BIT = 1 << 1,
 	HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_FULL_BIT = 1 << 2,
-	HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_ZERO_BIT = 1 << 3
+	HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_ZERO_BIT = 1 << 3,
+	HIRES_DBDBG1_FORCE_PIXEL_ALPHA_QUANT5_BIT = 1 << 4,
+	HIRES_DBDBG1_FORCE_PIXEL_ALPHA_BINARY_BIT = 1 << 5
 };
 
 enum HiresCombinerDitherDebugBit : uint32_t
@@ -231,6 +237,37 @@ inline bool hires_debug_env_enabled(const char *env_name)
 	return env && *env && !(env[0] == '0' && env[1] == '\0');
 }
 
+inline std::string hires_debug_env_name(const char *prefix, const char *suffix)
+{
+	std::string name = prefix ? prefix : "";
+	name += suffix;
+	return name;
+}
+
+inline bool hires_debug_env_enabled_prefixed(const char *prefix, const char *suffix)
+{
+	const auto name = hires_debug_env_name(prefix, suffix);
+	return hires_debug_env_enabled(name.c_str());
+}
+
+inline bool hires_debug_parse_u32_env_prefixed(const char *prefix, const char *suffix, uint32_t &value)
+{
+	const auto name = hires_debug_env_name(prefix, suffix);
+	return hires_debug_parse_u32_env(name.c_str(), value);
+}
+
+inline bool hires_debug_parse_i32_env_prefixed(const char *prefix, const char *suffix, int32_t &value)
+{
+	const auto name = hires_debug_env_name(prefix, suffix);
+	return hires_debug_parse_i32_env(name.c_str(), value);
+}
+
+inline bool hires_debug_parse_u8x4_env_prefixed(const char *prefix, const char *suffix, std::array<uint8_t, 4> &value)
+{
+	const auto name = hires_debug_env_name(prefix, suffix);
+	return hires_debug_parse_u8x4_env(name.c_str(), value);
+}
+
 template <size_t N>
 inline bool hires_debug_desc_list_matches_any(const std::array<uint32_t, N> &descs,
                                               size_t count,
@@ -254,99 +291,125 @@ inline bool hires_debug_desc_list_matches_any(const std::array<uint32_t, N> &des
 }
 
 template <size_t N>
+inline bool hires_debug_desc_list_matches_any_prefixed(const std::array<uint32_t, N> &descs,
+                                                       size_t count,
+                                                       const char *prefix,
+                                                       const char *suffix)
+{
+	const auto name = hires_debug_env_name(prefix, suffix);
+	return hires_debug_desc_list_matches_any(descs, count, name.c_str());
+}
+
+template <size_t N>
+inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides_with_prefix(const std::array<uint32_t, N> &descs,
+                                                                             size_t count,
+                                                                             const char *prefix)
+{
+	HiresDebugDrawOverrides overrides = {};
+	overrides.suppress_draw = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "SUPPRESS_DRAW_DESC");
+	overrides.clear_force_blend = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "CLEAR_FORCE_BLEND_DESC");
+	overrides.clear_multi_cycle = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "CLEAR_MULTI_CYCLE_DESC");
+	overrides.clear_image_read = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "CLEAR_IMAGE_READ_DESC");
+	overrides.force_image_read = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_IMAGE_READ_DESC");
+	overrides.clear_blend_dither = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "CLEAR_DITHER_DESC");
+	overrides.clear_depth_test = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "CLEAR_DEPTH_TEST_DESC");
+	overrides.clear_depth_update = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "CLEAR_DEPTH_UPDATE_DESC");
+	overrides.clear_color_on_coverage = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "CLEAR_COLOR_ON_CVG_DESC");
+	overrides.clear_aa = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "CLEAR_AA_DESC");
+	overrides.clear_alpha_test = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "CLEAR_ALPHA_TEST_DESC");
+	overrides.force_native_texrect = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_NATIVE_TEXRECT_DESC");
+	overrides.force_upscaled_texrect = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_UPSCALED_TEXRECT_DESC");
+	overrides.force_hires_nearest_sample = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_HIRES_NEAREST_DESC");
+	overrides.force_blend_1a_memory = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_1A_MEMORY_DESC");
+	overrides.force_blend_1a_pixel = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_1A_PIXEL_DESC");
+	overrides.force_blend_1b_shade_alpha = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_1B_SHADE_ALPHA_DESC");
+	overrides.force_blend_1b_pixel_alpha = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_1B_PIXEL_ALPHA_DESC");
+	overrides.force_blend_1b_zero = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_1B_ZERO_DESC");
+	overrides.force_blend_2a_memory = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_2A_MEMORY_DESC");
+	overrides.force_blend_2a_pixel = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_2A_PIXEL_DESC");
+	overrides.force_blend_2b_memory_alpha = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_2B_MEMORY_ALPHA_DESC");
+	overrides.force_blend_2b_inv_pixel_alpha = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_2B_INV_PIXEL_ALPHA_DESC");
+	overrides.force_blend_2b_one = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_2B_ONE_DESC");
+	overrides.force_blend_2b_zero = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "BLEND_2B_ZERO_DESC");
+	overrides.force_blend_en_on = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_BLEND_EN_ON_DESC");
+	overrides.force_blend_en_off = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_BLEND_EN_OFF_DESC");
+	overrides.force_coverage_wrap_on = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CVG_WRAP_ON_DESC");
+	overrides.force_coverage_wrap_off = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CVG_WRAP_OFF_DESC");
+	overrides.force_blend_shift_zero = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_BLEND_SHIFT_ZERO_DESC");
+	overrides.force_blend_shift_max = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_BLEND_SHIFT_MAX_DESC");
+	overrides.force_pixel_alpha_full = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_PIXEL_ALPHA_FULL_DESC");
+	overrides.force_pixel_alpha_zero = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_PIXEL_ALPHA_ZERO_DESC");
+	overrides.force_pixel_alpha_quant5 = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_PIXEL_ALPHA_QUANT5_DESC");
+	overrides.force_pixel_alpha_binary = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_PIXEL_ALPHA_BINARY_DESC");
+	overrides.force_cycle0_alpha_texel0 = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE0_ALPHA_TEXEL0_DESC");
+	overrides.force_cycle0_alpha_shade = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE0_ALPHA_SHADE_DESC");
+	overrides.force_cycle0_alpha_full = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE0_ALPHA_FULL_DESC");
+	overrides.force_cycle0_alpha_zero = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE0_ALPHA_ZERO_DESC");
+	overrides.force_cycle0_rgb_texel0 = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE0_RGB_TEXEL0_DESC");
+	overrides.force_cycle0_rgb_shade = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE0_RGB_SHADE_DESC");
+	overrides.force_cycle0_rgb_full = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE0_RGB_FULL_DESC");
+	overrides.force_cycle0_rgb_zero = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE0_RGB_ZERO_DESC");
+	overrides.force_cycle1_rgb_combined = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE1_RGB_COMBINED_DESC");
+	overrides.force_cycle1_rgb_texel0 = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE1_RGB_TEXEL0_DESC");
+	overrides.force_cycle1_rgb_full = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE1_RGB_FULL_DESC");
+	overrides.force_cycle1_rgb_zero = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE1_RGB_ZERO_DESC");
+	overrides.force_cycle1_alpha_texel0 = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE1_ALPHA_TEXEL0_DESC");
+	overrides.force_cycle1_alpha_shade = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE1_ALPHA_SHADE_DESC");
+	overrides.force_cycle1_alpha_full = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE1_ALPHA_FULL_DESC");
+	overrides.force_cycle1_alpha_zero = hires_debug_desc_list_matches_any_prefixed(descs, count, prefix, "FORCE_CYCLE1_ALPHA_ZERO_DESC");
+	return overrides;
+}
+
+template <size_t N>
 inline HiresDebugDrawOverrides derive_hires_debug_draw_overrides(const std::array<uint32_t, N> &descs,
                                                                  size_t count)
 {
-	HiresDebugDrawOverrides overrides = {};
-	overrides.suppress_draw = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_SUPPRESS_DRAW_DESC");
-	overrides.clear_force_blend = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
-	overrides.clear_multi_cycle = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_MULTI_CYCLE_DESC");
-	overrides.clear_image_read = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_IMAGE_READ_DESC");
-	overrides.force_image_read = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_IMAGE_READ_DESC");
-	overrides.clear_blend_dither = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_DITHER_DESC");
-	overrides.clear_depth_test = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
-	overrides.clear_depth_update = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_DEPTH_UPDATE_DESC");
-	overrides.clear_color_on_coverage = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_COLOR_ON_CVG_DESC");
-	overrides.clear_aa = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_AA_DESC");
-	overrides.clear_alpha_test = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_CLEAR_ALPHA_TEST_DESC");
-	overrides.force_native_texrect = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
-	overrides.force_upscaled_texrect = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC");
-	overrides.force_blend_1a_memory = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
-	overrides.force_blend_1a_pixel = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1A_PIXEL_DESC");
-	overrides.force_blend_1b_shade_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1B_SHADE_ALPHA_DESC");
-	overrides.force_blend_1b_pixel_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1B_PIXEL_ALPHA_DESC");
-	overrides.force_blend_1b_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_1B_ZERO_DESC");
-	overrides.force_blend_2a_memory = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2A_MEMORY_DESC");
-	overrides.force_blend_2a_pixel = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2A_PIXEL_DESC");
-	overrides.force_blend_2b_memory_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_MEMORY_ALPHA_DESC");
-	overrides.force_blend_2b_inv_pixel_alpha = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_INV_PIXEL_ALPHA_DESC");
-	overrides.force_blend_2b_one = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_ONE_DESC");
-	overrides.force_blend_2b_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_BLEND_2B_ZERO_DESC");
-	overrides.force_blend_en_on = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_EN_ON_DESC");
-	overrides.force_blend_en_off = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_EN_OFF_DESC");
-	overrides.force_coverage_wrap_on = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CVG_WRAP_ON_DESC");
-	overrides.force_coverage_wrap_off = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CVG_WRAP_OFF_DESC");
-	overrides.force_blend_shift_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_SHIFT_ZERO_DESC");
-	overrides.force_blend_shift_max = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_BLEND_SHIFT_MAX_DESC");
-	overrides.force_pixel_alpha_full = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC");
-	overrides.force_pixel_alpha_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_PIXEL_ALPHA_ZERO_DESC");
-	overrides.force_cycle0_alpha_texel0 = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_TEXEL0_DESC");
-	overrides.force_cycle0_alpha_shade = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_SHADE_DESC");
-	overrides.force_cycle0_alpha_full = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_FULL_DESC");
-	overrides.force_cycle0_alpha_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_ALPHA_ZERO_DESC");
-	overrides.force_cycle0_rgb_texel0 = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_RGB_TEXEL0_DESC");
-	overrides.force_cycle0_rgb_shade = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_RGB_SHADE_DESC");
-	overrides.force_cycle0_rgb_full = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_RGB_FULL_DESC");
-	overrides.force_cycle0_rgb_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE0_RGB_ZERO_DESC");
-	overrides.force_cycle1_rgb_combined = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE1_RGB_COMBINED_DESC");
-	overrides.force_cycle1_rgb_texel0 = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE1_RGB_TEXEL0_DESC");
-	overrides.force_cycle1_rgb_full = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE1_RGB_FULL_DESC");
-	overrides.force_cycle1_rgb_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE1_RGB_ZERO_DESC");
-	overrides.force_cycle1_alpha_texel0 = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_TEXEL0_DESC");
-	overrides.force_cycle1_alpha_shade = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_SHADE_DESC");
-	overrides.force_cycle1_alpha_full = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_FULL_DESC");
-	overrides.force_cycle1_alpha_zero = hires_debug_desc_list_matches_any(descs, count, "PARALLEL_HIRES_FORCE_CYCLE1_ALPHA_ZERO_DESC");
-	return overrides;
+	return derive_hires_debug_draw_overrides_with_prefix(descs, count, "PARALLEL_HIRES_");
+}
+
+inline HiresDebugSubtypeMatch derive_hires_debug_subtype_match_with_prefix(const char *prefix)
+{
+	HiresDebugSubtypeMatch match = {};
+	match.has_raw_raster_flags = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_RASTER_FLAGS",
+	                                                                match.raw_raster_flags);
+	match.has_c0_alpha = hires_debug_parse_u8x4_env_prefixed(prefix, "MATCH_C0_A",
+	                                                         match.c0_alpha);
+	match.has_shade = hires_debug_parse_u8x4_env_prefixed(prefix, "MATCH_SHADE",
+	                                                      match.shade);
+	match.has_screen_y_min = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_SCREEN_Y_MIN",
+	                                                            match.screen_y_min);
+	match.has_screen_y_max = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_SCREEN_Y_MAX",
+	                                                            match.screen_y_max);
+	match.has_screen_x_min = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_SCREEN_X_MIN",
+	                                                            match.screen_x_min);
+	match.has_screen_x_max = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_SCREEN_X_MAX",
+	                                                            match.screen_x_max);
+	match.has_st_s_min = hires_debug_parse_i32_env_prefixed(prefix, "MATCH_ST_S_MIN",
+	                                                        match.st_s_min);
+	match.has_st_s_max = hires_debug_parse_i32_env_prefixed(prefix, "MATCH_ST_S_MAX",
+	                                                        match.st_s_max);
+	match.has_st_t_min = hires_debug_parse_i32_env_prefixed(prefix, "MATCH_ST_T_MIN",
+	                                                        match.st_t_min);
+	match.has_st_t_max = hires_debug_parse_i32_env_prefixed(prefix, "MATCH_ST_T_MAX",
+	                                                        match.st_t_max);
+	match.has_call_modulus = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_CALL_MODULUS",
+	                                                            match.call_modulus);
+	match.has_call_min = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_CALL_MIN",
+	                                                        match.call_min);
+	match.has_call_max = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_CALL_MAX",
+	                                                        match.call_max);
+	match.has_call_remainder = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_CALL_REMAINDER",
+	                                                              match.call_remainder);
+	match.has_call_remainder_min = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_CALL_REMAINDER_MIN",
+	                                                                  match.call_remainder_min);
+	match.has_call_remainder_max = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_CALL_REMAINDER_MAX",
+	                                                                  match.call_remainder_max);
+	return match;
 }
 
 inline HiresDebugSubtypeMatch derive_hires_debug_subtype_match()
 {
-	HiresDebugSubtypeMatch match = {};
-	match.has_raw_raster_flags = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_RASTER_FLAGS",
-	                                                       match.raw_raster_flags);
-	match.has_c0_alpha = hires_debug_parse_u8x4_env("PARALLEL_HIRES_MATCH_C0_A",
-	                                                match.c0_alpha);
-	match.has_shade = hires_debug_parse_u8x4_env("PARALLEL_HIRES_MATCH_SHADE",
-	                                             match.shade);
-	match.has_screen_y_min = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_SCREEN_Y_MIN",
-	                                                   match.screen_y_min);
-	match.has_screen_y_max = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_SCREEN_Y_MAX",
-	                                                   match.screen_y_max);
-	match.has_screen_x_min = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_SCREEN_X_MIN",
-	                                                   match.screen_x_min);
-	match.has_screen_x_max = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_SCREEN_X_MAX",
-	                                                   match.screen_x_max);
-	match.has_st_s_min = hires_debug_parse_i32_env("PARALLEL_HIRES_MATCH_ST_S_MIN",
-	                                               match.st_s_min);
-	match.has_st_s_max = hires_debug_parse_i32_env("PARALLEL_HIRES_MATCH_ST_S_MAX",
-	                                               match.st_s_max);
-	match.has_st_t_min = hires_debug_parse_i32_env("PARALLEL_HIRES_MATCH_ST_T_MIN",
-	                                               match.st_t_min);
-	match.has_st_t_max = hires_debug_parse_i32_env("PARALLEL_HIRES_MATCH_ST_T_MAX",
-	                                               match.st_t_max);
-	match.has_call_modulus = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_MODULUS",
-	                                                   match.call_modulus);
-	match.has_call_min = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_MIN",
-	                                               match.call_min);
-	match.has_call_max = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_MAX",
-	                                               match.call_max);
-	match.has_call_remainder = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_REMAINDER",
-	                                                     match.call_remainder);
-	match.has_call_remainder_min = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_REMAINDER_MIN",
-	                                                         match.call_remainder_min);
-	match.has_call_remainder_max = hires_debug_parse_u32_env("PARALLEL_HIRES_MATCH_CALL_REMAINDER_MAX",
-	                                                         match.call_remainder_max);
-	return match;
+	return derive_hires_debug_subtype_match_with_prefix("PARALLEL_HIRES_");
 }
 
 inline bool hires_debug_subtype_match_active(const HiresDebugSubtypeMatch &match)
@@ -455,6 +518,21 @@ inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides(const HiresDebu
                                                                  uint32_t screen_x0 = 0,
                                                                  uint32_t screen_x1 = 0,
                                                                  uint32_t screen_y0 = 0,
+                                                                 uint32_t screen_y1 = 0);
+
+inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides_with_prefix(const HiresDebugDrawOverrides &overrides,
+                                                                 const HiresDebugSubtypeMatch &match,
+                                                                 const char *prefix,
+                                                                 uint32_t raw_raster_flags,
+                                                                 const StaticRasterizationState &normalized,
+                                                                 const AttributeSetup &attr,
+                                                                 uint64_t draw_call_index = 0,
+                                                                 int32_t st_s = 0,
+                                                                 int32_t st_t = 0,
+                                                                 bool has_screen_bounds = false,
+                                                                 uint32_t screen_x0 = 0,
+                                                                 uint32_t screen_x1 = 0,
+                                                                 uint32_t screen_y0 = 0,
                                                                  uint32_t screen_y1 = 0)
 {
 	if (!hires_debug_subtype_match_active(match))
@@ -463,11 +541,92 @@ inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides(const HiresDebu
 	                                has_screen_bounds, screen_x0, screen_x1, screen_y0, screen_y1))
 	{
 		auto filtered = overrides;
-		if (hires_debug_env_enabled("PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW"))
+		if (hires_debug_env_enabled_prefixed(prefix, "SUPPRESS_MATCHED_DRAW"))
 			filtered.suppress_draw = true;
 		return filtered;
 	}
 	return {};
+}
+
+inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides(const HiresDebugDrawOverrides &overrides,
+                                                                 const HiresDebugSubtypeMatch &match,
+                                                                 uint32_t raw_raster_flags,
+                                                                 const StaticRasterizationState &normalized,
+                                                                 const AttributeSetup &attr,
+                                                                 uint64_t draw_call_index,
+                                                                 int32_t st_s,
+                                                                 int32_t st_t,
+                                                                 bool has_screen_bounds,
+                                                                 uint32_t screen_x0,
+                                                                 uint32_t screen_x1,
+                                                                 uint32_t screen_y0,
+                                                                 uint32_t screen_y1)
+{
+	return filter_hires_debug_draw_overrides_with_prefix(overrides, match, "PARALLEL_HIRES_",
+	                                                     raw_raster_flags, normalized, attr,
+	                                                     draw_call_index, st_s, st_t,
+	                                                     has_screen_bounds, screen_x0, screen_x1,
+	                                                     screen_y0, screen_y1);
+}
+
+inline HiresDebugDrawOverrides merge_hires_debug_draw_overrides(const HiresDebugDrawOverrides &a,
+                                                                const HiresDebugDrawOverrides &b)
+{
+	HiresDebugDrawOverrides merged = {};
+#define HIRES_DEBUG_OR_FIELD(field) merged.field = a.field || b.field
+	HIRES_DEBUG_OR_FIELD(suppress_draw);
+	HIRES_DEBUG_OR_FIELD(clear_force_blend);
+	HIRES_DEBUG_OR_FIELD(clear_multi_cycle);
+	HIRES_DEBUG_OR_FIELD(clear_image_read);
+	HIRES_DEBUG_OR_FIELD(force_image_read);
+	HIRES_DEBUG_OR_FIELD(clear_blend_dither);
+	HIRES_DEBUG_OR_FIELD(clear_depth_test);
+	HIRES_DEBUG_OR_FIELD(clear_depth_update);
+	HIRES_DEBUG_OR_FIELD(clear_color_on_coverage);
+	HIRES_DEBUG_OR_FIELD(clear_aa);
+	HIRES_DEBUG_OR_FIELD(clear_alpha_test);
+	HIRES_DEBUG_OR_FIELD(force_native_texrect);
+	HIRES_DEBUG_OR_FIELD(force_upscaled_texrect);
+	HIRES_DEBUG_OR_FIELD(force_hires_nearest_sample);
+	HIRES_DEBUG_OR_FIELD(force_blend_1a_memory);
+	HIRES_DEBUG_OR_FIELD(force_blend_1a_pixel);
+	HIRES_DEBUG_OR_FIELD(force_blend_1b_shade_alpha);
+	HIRES_DEBUG_OR_FIELD(force_blend_1b_pixel_alpha);
+	HIRES_DEBUG_OR_FIELD(force_blend_1b_zero);
+	HIRES_DEBUG_OR_FIELD(force_blend_2a_memory);
+	HIRES_DEBUG_OR_FIELD(force_blend_2a_pixel);
+	HIRES_DEBUG_OR_FIELD(force_blend_2b_memory_alpha);
+	HIRES_DEBUG_OR_FIELD(force_blend_2b_inv_pixel_alpha);
+	HIRES_DEBUG_OR_FIELD(force_blend_2b_one);
+	HIRES_DEBUG_OR_FIELD(force_blend_2b_zero);
+	HIRES_DEBUG_OR_FIELD(force_blend_en_on);
+	HIRES_DEBUG_OR_FIELD(force_blend_en_off);
+	HIRES_DEBUG_OR_FIELD(force_coverage_wrap_on);
+	HIRES_DEBUG_OR_FIELD(force_coverage_wrap_off);
+	HIRES_DEBUG_OR_FIELD(force_blend_shift_zero);
+	HIRES_DEBUG_OR_FIELD(force_blend_shift_max);
+	HIRES_DEBUG_OR_FIELD(force_pixel_alpha_full);
+	HIRES_DEBUG_OR_FIELD(force_pixel_alpha_zero);
+	HIRES_DEBUG_OR_FIELD(force_pixel_alpha_quant5);
+	HIRES_DEBUG_OR_FIELD(force_pixel_alpha_binary);
+	HIRES_DEBUG_OR_FIELD(force_cycle0_alpha_full);
+	HIRES_DEBUG_OR_FIELD(force_cycle0_alpha_zero);
+	HIRES_DEBUG_OR_FIELD(force_cycle0_alpha_texel0);
+	HIRES_DEBUG_OR_FIELD(force_cycle0_alpha_shade);
+	HIRES_DEBUG_OR_FIELD(force_cycle0_rgb_full);
+	HIRES_DEBUG_OR_FIELD(force_cycle0_rgb_zero);
+	HIRES_DEBUG_OR_FIELD(force_cycle0_rgb_texel0);
+	HIRES_DEBUG_OR_FIELD(force_cycle0_rgb_shade);
+	HIRES_DEBUG_OR_FIELD(force_cycle1_rgb_combined);
+	HIRES_DEBUG_OR_FIELD(force_cycle1_rgb_texel0);
+	HIRES_DEBUG_OR_FIELD(force_cycle1_rgb_full);
+	HIRES_DEBUG_OR_FIELD(force_cycle1_rgb_zero);
+	HIRES_DEBUG_OR_FIELD(force_cycle1_alpha_texel0);
+	HIRES_DEBUG_OR_FIELD(force_cycle1_alpha_shade);
+	HIRES_DEBUG_OR_FIELD(force_cycle1_alpha_full);
+	HIRES_DEBUG_OR_FIELD(force_cycle1_alpha_zero);
+#undef HIRES_DEBUG_OR_FIELD
+	return merged;
 }
 
 inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &overrides,
@@ -550,6 +709,10 @@ inline void apply_hires_debug_draw_overrides(const HiresDebugDrawOverrides &over
 	if (overrides.force_pixel_alpha_zero)
 		depth_blend_state.padding[0] |= HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT;
 	depth_blend_state.padding[1] = 0;
+	if (overrides.force_pixel_alpha_quant5)
+		depth_blend_state.padding[1] |= HIRES_DBDBG1_FORCE_PIXEL_ALPHA_QUANT5_BIT;
+	if (overrides.force_pixel_alpha_binary)
+		depth_blend_state.padding[1] |= HIRES_DBDBG1_FORCE_PIXEL_ALPHA_BINARY_BIT;
 	if (overrides.force_cycle1_alpha_texel0)
 		depth_blend_state.padding[1] |= HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_TEXEL0_BIT;
 	if (overrides.force_cycle1_alpha_shade)

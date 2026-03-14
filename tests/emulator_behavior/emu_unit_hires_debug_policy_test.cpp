@@ -68,6 +68,7 @@ static void test_no_env_means_no_overrides()
 	EnvGuard clear_alpha_test("PARALLEL_HIRES_CLEAR_ALPHA_TEST_DESC");
 	EnvGuard force_native("PARALLEL_HIRES_FORCE_NATIVE_TEXRECT_DESC");
 	EnvGuard force_upscaled("PARALLEL_HIRES_FORCE_UPSCALED_TEXRECT_DESC");
+	EnvGuard force_hires_nearest("PARALLEL_HIRES_FORCE_HIRES_NEAREST_DESC");
 	EnvGuard blend_1a_memory("PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
 	EnvGuard blend_2a_memory("PARALLEL_HIRES_BLEND_2A_MEMORY_DESC");
 	EnvGuard blend_2b_memory_alpha("PARALLEL_HIRES_BLEND_2B_MEMORY_ALPHA_DESC");
@@ -116,6 +117,7 @@ static void test_no_env_means_no_overrides()
 	unsetenv(clear_alpha_test.name);
 	unsetenv(force_native.name);
 	unsetenv(force_upscaled.name);
+	unsetenv(force_hires_nearest.name);
 	unsetenv(blend_1a_memory.name);
 	unsetenv(blend_2a_memory.name);
 	unsetenv(blend_2b_memory_alpha.name);
@@ -167,6 +169,7 @@ static void test_no_env_means_no_overrides()
 	check(!overrides.clear_alpha_test, "clear_alpha_test should default off");
 	check(!overrides.force_native_texrect, "force_native_texrect should default off");
 	check(!overrides.force_upscaled_texrect, "force_upscaled_texrect should default off");
+	check(!overrides.force_hires_nearest_sample, "force_hires_nearest_sample should default off");
 	check(!overrides.force_blend_1a_memory, "force_blend_1a_memory should default off");
 	check(!overrides.force_blend_1b_zero, "force_blend_1b_zero should default off");
 	check(!overrides.force_blend_2a_memory, "force_blend_2a_memory should default off");
@@ -208,6 +211,7 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	EnvGuard force_image("PARALLEL_HIRES_FORCE_IMAGE_READ_DESC");
 	EnvGuard clear_dither("PARALLEL_HIRES_CLEAR_DITHER_DESC");
 	EnvGuard clear_depth("PARALLEL_HIRES_CLEAR_DEPTH_TEST_DESC");
+	EnvGuard force_hires_nearest("PARALLEL_HIRES_FORCE_HIRES_NEAREST_DESC");
 	EnvGuard blend_1a_memory("PARALLEL_HIRES_BLEND_1A_MEMORY_DESC");
 	EnvGuard blend_2b_one("PARALLEL_HIRES_BLEND_2B_ONE_DESC");
 	EnvGuard blend_en_on("PARALLEL_HIRES_FORCE_BLEND_EN_ON_DESC");
@@ -234,6 +238,7 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	setenv(force_image.name, "40", 1);
 	setenv(clear_dither.name, "999,40", 1);
 	setenv(clear_depth.name, "40", 1);
+	setenv(force_hires_nearest.name, "40", 1);
 	setenv(blend_1a_memory.name, "40", 1);
 	setenv(blend_2b_one.name, "88", 1);
 	setenv(blend_en_on.name, "25", 1);
@@ -263,6 +268,7 @@ static void test_descriptor_lists_match_any_bound_replacement()
 	check(overrides.force_image_read, "matching force_image_read descriptor should trigger");
 	check(overrides.clear_blend_dither, "matching clear_blend_dither descriptor should trigger");
 	check(overrides.clear_depth_test, "matching clear_depth_test descriptor should trigger");
+	check(overrides.force_hires_nearest_sample, "matching force_hires_nearest descriptor should trigger");
 	check(overrides.force_blend_1a_memory, "matching blend_1a_memory descriptor should trigger");
 	check(overrides.force_blend_1b_zero, "matching blend_1b_zero descriptor should trigger");
 	check(!overrides.force_blend_2b_one, "non-matching blend_2b_one descriptor should not trigger");
@@ -536,6 +542,8 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	EnvGuard blend_shift_zero("PARALLEL_HIRES_FORCE_BLEND_SHIFT_ZERO_DESC");
 	EnvGuard pixel_alpha_full("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_FULL_DESC");
 	EnvGuard pixel_alpha_zero("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_ZERO_DESC");
+	EnvGuard pixel_alpha_quant5("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_QUANT5_DESC");
+	EnvGuard pixel_alpha_binary("PARALLEL_HIRES_FORCE_PIXEL_ALPHA_BINARY_DESC");
 	EnvGuard cycle0_rgb_texel0("PARALLEL_HIRES_FORCE_CYCLE0_RGB_TEXEL0_DESC");
 	EnvGuard cycle0_rgb_shade("PARALLEL_HIRES_FORCE_CYCLE0_RGB_SHADE_DESC");
 	EnvGuard cycle0_rgb_full("PARALLEL_HIRES_FORCE_CYCLE0_RGB_FULL_DESC");
@@ -570,6 +578,8 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	setenv(blend_shift_zero.name, "25", 1);
 	setenv(pixel_alpha_full.name, "25", 1);
 	setenv(pixel_alpha_zero.name, "25", 1);
+	setenv(pixel_alpha_quant5.name, "25", 1);
+	setenv(pixel_alpha_binary.name, "25", 1);
 	setenv(cycle0_rgb_texel0.name, "25", 1);
 	setenv(cycle0_rgb_shade.name, "25", 1);
 	setenv(cycle0_rgb_full.name, "25", 1);
@@ -662,6 +672,10 @@ static void test_apply_overrides_mutates_expected_state_bits()
 	      "pixel_alpha_full should set debug padding bit");
 	check((depth_state.padding[0] & HIRES_DBDBG_FORCE_PIXEL_ALPHA_ZERO_BIT) != 0,
 	      "pixel_alpha_zero should set debug padding bit");
+	check((depth_state.padding[1] & HIRES_DBDBG1_FORCE_PIXEL_ALPHA_QUANT5_BIT) != 0,
+	      "pixel_alpha_quant5 should set depth blend padding1");
+	check((depth_state.padding[1] & HIRES_DBDBG1_FORCE_PIXEL_ALPHA_BINARY_BIT) != 0,
+	      "pixel_alpha_binary should set depth blend padding1");
 	check((depth_state.padding[1] & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_TEXEL0_BIT) != 0,
 	      "cycle1_alpha_texel0 should set depth blend padding1");
 	check((depth_state.padding[1] & HIRES_DBDBG1_FORCE_CYCLE1_ALPHA_SHADE_BIT) != 0,
@@ -717,6 +731,60 @@ static void test_force_upscaled_texrect_wins_last()
 	check((setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) == 0,
 	      "force_upscaled_texrect should win over force_native_texrect");
 }
+
+static void test_secondary_scope_derives_and_filters_independently()
+{
+	EnvGuard primary_clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
+	EnvGuard secondary_clear_force("PARALLEL_HIRES2_CLEAR_FORCE_BLEND_DESC");
+	EnvGuard secondary_match_raster("PARALLEL_HIRES2_MATCH_RASTER_FLAGS");
+	EnvGuard secondary_match_c0_a("PARALLEL_HIRES2_MATCH_C0_A");
+	unsetenv(primary_clear_force.name);
+	setenv(secondary_clear_force.name, "40", 1);
+	setenv(secondary_match_raster.name, "0x21844108", 1);
+	setenv(secondary_match_c0_a.name, "7,7,7,1", 1);
+
+	auto descs = make_descs(25u, 40u);
+	auto primary_overrides = derive_hires_debug_draw_overrides(descs, 2);
+	auto secondary_overrides = derive_hires_debug_draw_overrides_with_prefix(descs, 2, "PARALLEL_HIRES2_");
+	auto primary_match = derive_hires_debug_subtype_match();
+	auto secondary_match = derive_hires_debug_subtype_match_with_prefix("PARALLEL_HIRES2_");
+
+	check(!primary_overrides.clear_force_blend, "primary scope should stay empty");
+	check(secondary_overrides.clear_force_blend, "secondary scope should parse descriptor overrides");
+	check(!hires_debug_subtype_match_active(primary_match), "primary subtype should stay inactive");
+	check(hires_debug_subtype_match_active(secondary_match), "secondary subtype should become active");
+
+	StaticRasterizationState normalized = {};
+	normalized.combiner[0].alpha.muladd = static_cast<AlphaAddSub>(7);
+	normalized.combiner[0].alpha.mulsub = static_cast<AlphaAddSub>(7);
+	normalized.combiner[0].alpha.mul = static_cast<AlphaMul>(7);
+	normalized.combiner[0].alpha.add = static_cast<AlphaAddSub>(1);
+	AttributeSetup attr = {};
+
+	auto filtered_primary = filter_hires_debug_draw_overrides(primary_overrides, primary_match,
+	                                                          0x21844108u, normalized, attr);
+	auto filtered_secondary = filter_hires_debug_draw_overrides_with_prefix(secondary_overrides, secondary_match,
+	                                                                        "PARALLEL_HIRES2_",
+	                                                                        0x21844108u, normalized, attr);
+	check(!filtered_primary.clear_force_blend, "primary filtered overrides should remain empty");
+	check(filtered_secondary.clear_force_blend, "secondary filtered overrides should match subtype");
+}
+
+static void test_merge_hires_debug_draw_overrides_combines_bits()
+{
+	HiresDebugDrawOverrides first = {};
+	first.clear_force_blend = true;
+	first.force_cycle1_alpha_full = true;
+	HiresDebugDrawOverrides second = {};
+	second.force_pixel_alpha_quant5 = true;
+	second.force_cycle1_rgb_combined = true;
+
+	auto merged = merge_hires_debug_draw_overrides(first, second);
+	check(merged.clear_force_blend, "merge should keep first-scope clear_force_blend");
+	check(merged.force_cycle1_alpha_full, "merge should keep first-scope alpha override");
+	check(merged.force_pixel_alpha_quant5, "merge should keep second-scope quant5 override");
+	check(merged.force_cycle1_rgb_combined, "merge should keep second-scope rgb override");
+}
 }
 
 int main()
@@ -731,6 +799,8 @@ int main()
 	test_subtype_filter_matches_call_remainder_range();
 	test_apply_overrides_mutates_expected_state_bits();
 	test_force_upscaled_texrect_wins_last();
+	test_secondary_scope_derives_and_filters_independently();
+	test_merge_hires_debug_draw_overrides_combines_bits();
 	std::cout << "emu_unit_hires_debug_policy_test: PASS" << std::endl;
 	return 0;
 }

@@ -692,6 +692,8 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 		bool hires_linear = tlut;
 		if (hires_direct_sample)
 			hires_linear = true;
+		if ((tile.flags & TILE_INFO_DEBUG_FORCE_HIRES_NEAREST_BIT) != 0)
+			hires_linear = false;
 		// TLUT-backed replacements stay on the native 3-point neighborhood path.
 		// For non-TLUT replacement art, sample the replacement directly instead of
 		// reapplying the native neighborhood interpolation, which introduces visible

@@ -2002,8 +2002,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		stream.max_shaded_tiles += num_tiles;
 
 	bool draw_has_replacement = false;
-	bool draw_has_intro22_story_glyph_replacement = false;
-	bool draw_has_intro22_story_overlay_replacement = false;
 	std::array<uint32_t, 8> draw_replacement_descs = {};
 	size_t draw_replacement_desc_count = 0;
 	for (const auto &tile_info : tiles)
@@ -2025,83 +2023,11 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			}
 			if (!seen && draw_replacement_desc_count < draw_replacement_descs.size())
 				draw_replacement_descs[draw_replacement_desc_count++] = repl.repl_desc_index;
-			if (repl.repl_desc_index >= 140u && repl.repl_desc_index <= 145u)
-				draw_has_intro22_story_glyph_replacement = true;
-			switch (repl.repl_desc_index)
-			{
-			case 81u:
-			case 84u:
-			case 85u:
-			case 86u:
-			case 87u:
-			case 88u:
-			case 89u:
-			case 90u:
-			case 91u:
-				draw_has_intro22_story_overlay_replacement = true;
-				break;
-			default:
-				break;
-			}
 		}
 	}
 
-	const bool uses_tex1 = (stream.static_raster_state.flags & RASTERIZATION_USES_TEXEL1_BIT) != 0;
-	const bool uses_pipe1 = (stream.static_raster_state.flags & RASTERIZATION_USES_PIPELINED_TEXEL1_BIT) != 0;
-	const unsigned tile0 = unsigned(setup.tile) & 7u;
-	const auto &tile0_info = tiles[tile0];
 	const uint32_t raw_raster_flags = uint32_t(stream.static_raster_state.flags);
 	const auto prim_bounds = compute_debug_primitive_bounds(setup, stream.scissor_state, int(caps.upscaling));
-	const bool draw_is_intro22_story_overlay_shape =
-		!uses_tex1 &&
-		!uses_pipe1 &&
-		(raw_raster_flags == 0x21864010u || raw_raster_flags == 0x218640d4u) &&
-		tile0_info.meta.fmt == TextureFormat::CI &&
-		tile0_info.meta.size == TextureSize::Bpp4 &&
-		tile0_info.size.slo == 0 &&
-		tile0_info.size.tlo == 0 &&
-		tile0_info.size.shi == ((16u - 1u) << 2u) &&
-		tile0_info.size.thi == ((16u - 1u) << 2u);
-	const bool draw_has_desc65 = std::find(draw_replacement_descs.begin(),
-	                                       draw_replacement_descs.begin() + draw_replacement_desc_count,
-	                                       65u) != (draw_replacement_descs.begin() + draw_replacement_desc_count);
-	const bool draw_has_desc68 = std::find(draw_replacement_descs.begin(),
-	                                       draw_replacement_descs.begin() + draw_replacement_desc_count,
-	                                       68u) != (draw_replacement_descs.begin() + draw_replacement_desc_count);
-	const bool draw_is_intro22_story_shadow_overlay =
-		draw_has_desc65 &&
-		!uses_tex1 &&
-		!uses_pipe1 &&
-		raw_raster_flags == 0x21844108u &&
-		prim_bounds.valid &&
-		prim_bounds.y0 >= 3536 &&
-		prim_bounds.y1 <= 3676 &&
-		prim_bounds.x1 <= 1075 &&
-		uint8_t((attr.r >> 16) & 0xff) == 3u &&
-		uint8_t((attr.g >> 16) & 0xff) == 3u &&
-		uint8_t((attr.b >> 16) & 0xff) == 2u &&
-		uint8_t((attr.a >> 16) & 0xff) == 255u;
-	const bool draw_is_intro22_banner_bright =
-		draw_has_desc68 &&
-		raw_raster_flags == 0x21844108u &&
-		uint8_t((stream.static_raster_state.combiner[0].alpha.muladd)) == 7u &&
-		uint8_t((stream.static_raster_state.combiner[0].alpha.mulsub)) == 7u &&
-		uint8_t((stream.static_raster_state.combiner[0].alpha.mul)) == 7u &&
-		uint8_t((stream.static_raster_state.combiner[0].alpha.add)) == 1u;
-	const bool draw_is_intro22_banner_bright_alt_raster =
-		draw_has_desc68 &&
-		raw_raster_flags == 0x01804108u &&
-		uint8_t((stream.static_raster_state.combiner[0].alpha.muladd)) == 7u &&
-		uint8_t((stream.static_raster_state.combiner[0].alpha.mulsub)) == 7u &&
-		uint8_t((stream.static_raster_state.combiner[0].alpha.mul)) == 7u &&
-		uint8_t((stream.static_raster_state.combiner[0].alpha.add)) == 1u;
-	const bool draw_is_intro22_banner_bright_middle =
-		draw_is_intro22_banner_bright &&
-		prim_bounds.valid &&
-		prim_bounds.x0 >= 209 &&
-		prim_bounds.x1 <= 1068 &&
-		prim_bounds.y0 >= 0 &&
-		prim_bounds.y1 <= 700;
 
 	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
 
@@ -2113,10 +2039,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	if (draw_has_replacement &&
 	    (stream.depth_blend_state.flags & DEPTH_BLEND_FORCE_BLEND_BIT) != 0)
 		stream.depth_blend_state.flags &= ~DEPTH_BLEND_DITHER_ENABLE_BIT;
-	if (draw_has_intro22_story_glyph_replacement)
-		stream.depth_blend_state.flags &= ~DEPTH_BLEND_FORCE_BLEND_BIT;
-	if (draw_has_intro22_story_overlay_replacement && draw_is_intro22_story_overlay_shape)
-		stream.depth_blend_state.flags &= ~DEPTH_BLEND_FORCE_BLEND_BIT;
 
 	const auto debug_subtype_match = detail::derive_hires_debug_subtype_match();
 	const auto debug_subtype_match2 = detail::derive_hires_debug_subtype_match_with_prefix("PARALLEL_HIRES2_");
@@ -2309,41 +2231,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	}
 
 	auto derived_setup = build_derived_attributes(attr);
-	if (draw_is_intro22_banner_bright)
-	{
-		// The intro22 banner bright subtype modulates too dark in cycle 1 on the HIRES path.
-		// A small lift here reproduces the proven debug result without affecting the noinput16 desc68 family,
-		// which uses a different raster/state signature.
-		derived_setup.constants[1].mul[0] = 196;
-		derived_setup.constants[1].mul[1] = 196;
-		derived_setup.constants[1].mul[2] = 196;
-	}
-	if (draw_is_intro22_banner_bright_alt_raster)
-	{
-		// The sibling intro22 bright desc68 raster shares the same modulation mismatch,
-		// but only contributes to the left-stage residue on this scene.
-		derived_setup.constants[1].mul[0] = 196;
-		derived_setup.constants[1].mul[1] = 196;
-		derived_setup.constants[1].mul[2] = 196;
-	}
-	if (draw_has_replacement &&
-	    draw_replacement_desc_count == 1u &&
-	    draw_replacement_descs[0] == 66u &&
-	    raw_raster_flags == 0x21844118u &&
-	    !uses_tex1 && !uses_pipe1 &&
-	    prim_bounds.valid &&
-	    prim_bounds.x0 <= 82u &&
-	    prim_bounds.x1 <= 120u &&
-	    prim_bounds.y0 >= 400u &&
-	    prim_bounds.y1 <= 3068u)
-	{
-		// The remaining intro22 desc66 residue lives inside this tight left-stage geometry
-		// cluster. All four repeated passes in the cluster respond the same way on the
-		// seeded intro22 frame, while noinput16 uses a different raw-raster signature.
-		derived_setup.constants[1].add[0] = 4;
-		derived_setup.constants[1].add[1] = 4;
-		derived_setup.constants[1].add[2] = 4;
-	}
 	if (debug_scope_active)
 	{
 		const bool log_state_by_desc = detail::hires_debug_desc_list_matches_any(draw_replacement_descs,
@@ -2493,18 +2380,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 
 		}
 	}
-	// On the seeded intro22 story card, this desc65 shadow/tint subgroup darkens correctly
-	// only when the single-cycle path uses the combined RGB result in the final composition.
-	if (draw_is_intro22_story_shadow_overlay)
-		stream.static_raster_state.dither |= detail::HIRES_CMBDBG_FORCE_CYCLE1_RGB_COMBINED_BIT;
-	if (draw_is_intro22_banner_bright_middle)
-	{
-		// The remaining intro22 banner washout comes from a tiny set of low-alpha texels in the
-		// bright stitched spans. Thresholding them to hard cutouts reproduces the isolated-bundle
-		// improvement without touching the right-edge sibling spans or the alternate desc68 raster.
-		stream.depth_blend_state.padding[1] |= detail::HIRES_DBDBG1_FORCE_PIXEL_ALPHA_BINARY_BIT;
-	}
-
 	InstanceIndices indices = {};
 	indices.static_index = stream.static_raster_state_cache.add(normalize_static_state(stream.static_raster_state));
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);

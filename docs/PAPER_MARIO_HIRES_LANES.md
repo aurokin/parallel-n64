@@ -110,11 +110,15 @@ Rules:
 
 ## Current Metrics
 
-Trusted intro22 baseline after the latest committed fixes:
-- `top_banner 8.5749`
-- `story_text 38.7723`
-- `bottom_stage_grid 42.8426`
-- `left_stage_grid 14.0864`
+Trusted untuned intro22 architectural baseline after disabling the earlier scene-specific renderer overrides:
+- `top_banner 10.0760`
+- `story_text 39.4943`
+- `bottom_stage_grid 44.4826`
+- `left_stage_grid 15.1125`
+
+Notes:
+- the earlier intro22 desc-specific tuning results are still useful as diagnostic breadcrumbs
+- they are no longer active renderer behavior and should not be treated as the live baseline
 
 ## Recommended Next Focus
 

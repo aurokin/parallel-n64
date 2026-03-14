@@ -306,11 +306,14 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `top_banner`: remaining `desc68` repeated-pass/composition issue
     - `left_stage_grid`: remaining `desc66` / `desc68` dark repeated-pass issue
     - `bottom_stage_grid`: secondary lane; do not debug it first
-  - current intro22 fixed lanes already on `master`:
-    - story overlay force-blend quads (`35256e77`)
-    - `desc65` shadow/tint subgroup (`b33d4e34`)
-    - `desc66` left-stage additive cluster (`3105881a`)
-    - `desc68` bright modulation and sibling bright raster (`3ce96eba`, `efe32b4b`)
+  - redesign note:
+    - the old intro22 scene-specific renderer overrides have been disabled again
+    - do not treat the earlier desc-specific intro22 tuning commits as active renderer truth
+    - current untuned architectural intro22 baseline is back to:
+      - `top_banner 10.0760`
+      - `story_text 39.4943`
+      - `bottom_stage_grid 44.4826`
+      - `left_stage_grid 15.1125`
   - for early draw-state sweeps on intro22 without patching renderer code, use descriptor-targeted env lists:
     - `PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC`
     - `PARALLEL_HIRES_SUPPRESS_DRAW_DESC`

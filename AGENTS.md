@@ -72,7 +72,11 @@ Co-Authored-By: Codex <noreply@openai.com>
     - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOOKUP_FS`
     - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_WIDTH`
     - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_HEIGHT`
-    - they only filter `block_tile` hits; primary hits and HIRES-off behavior stay unchanged
+    - they now filter the whole block-reinterpretation family:
+      - `block_tile`
+      - `block_shape`
+      - pending retry through `try_hires_block_tile_fallback()`
+    - primary hits and HIRES-off behavior stay unchanged
   - current provenance findings:
     - intro22 visible fallback-backed lanes are mostly `alias` draws whose origin source is `block_tile`, not pure alias-only content
     - intro22 dominant `block_tile` origin classes are a subset of the noinput16 classes
@@ -83,6 +87,23 @@ Co-Authored-By: Codex <noreply@openai.com>
     - those three runs all collapsed to the same PNG, while still differing from the normal permissive baseline
     - `block_shape` recreated the same fallback-born signatures when `block_tile` was filtered away
     - that means the root issue is the broader block reinterpretation family, not any single `block_tile` class in isolation
+  - current best shared HIRES-on rule:
+    - allow reinterpretation-born replacements to propagate only when their source load formatsize matches the live target formatsize
+    - reject cross-formatsize alias propagation for:
+      - `block_tile`
+      - `block_shape`
+      - `pending_block_retry`
+    - stable intro22 result on current `master`:
+      - `top_banner 8.5749`
+      - `story_text 32.0115`
+      - `bottom_stage_grid 41.4898`
+      - `left_stage_grid 11.5353`
+    - interpretation:
+      - same-family reinterpretation is still needed for valid content like the `32x32` banner lane
+      - cross-family reinterpretation was the broader washout/corruption source
+  - current secondary-scene warning:
+    - `noinput16` timed captures are still useful for sanity checks, but not exact truth for architectural probes
+    - if two captures from the same logic produce different PNG hashes there, treat it as timing drift before treating it as a renderer regression
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`

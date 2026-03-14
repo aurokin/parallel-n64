@@ -28,6 +28,7 @@ struct ReplacementTileState
 {
 	uint64_t checksum64 = 0;
 	uint16_t formatsize = 0;
+	uint16_t source_load_formatsize = 0;
 	uint16_t orig_w = 0;
 	uint16_t orig_h = 0;
 	uint16_t repl_w = 0;
@@ -37,6 +38,8 @@ struct ReplacementTileState
 	bool hit = false;
 	bool has_mips = false;
 	bool allow_tile_sampling_expansion = true;
+	HiresLookupSource lookup_source = HiresLookupSource::None;
+	HiresLookupSource origin_lookup_source = HiresLookupSource::None;
 };
 
 static void check(bool condition, const char *message)
@@ -69,6 +72,9 @@ static ReplacementTileState make_bindable_state(uint32_t desc)
 	state.repl_w = 128;
 	state.repl_h = 64;
 	state.vk_image_index = desc;
+	state.lookup_source = HiresLookupSource::Primary;
+	state.origin_lookup_source = HiresLookupSource::Primary;
+	state.source_load_formatsize = formatsize_key(TextureFormat::RGBA, TextureSize::Bpp16);
 	return state;
 }
 
@@ -120,6 +126,7 @@ static void test_should_apply_hires_propagated_binding_contract()
 	auto exact_match = make_meta(0x180, 0x40, TextureFormat::CI, TextureSize::Bpp8, 3);
 	auto load_alias_match = make_meta(0x180, 0x20, TextureFormat::RGBA, TextureSize::Bpp16, 0);
 	auto different_offset = make_meta(0x184, 0x40, TextureFormat::CI, TextureSize::Bpp8, 3);
+	auto state = make_bindable_state(1);
 
 	check(should_apply_hires_propagated_binding(exact_meta, exact_match),
 	      "exact TMEM descriptor aliases should receive propagated bindings");
@@ -127,6 +134,32 @@ static void test_should_apply_hires_propagated_binding_contract()
 	      "shared-offset load aliases should receive propagated bindings");
 	check(!should_apply_hires_propagated_binding(exact_meta, different_offset),
 	      "different-offset tiles should not receive propagated bindings");
+	check(should_apply_hires_propagated_binding(exact_meta, exact_match, state),
+	      "state-aware propagated binding should preserve exact TMEM descriptor aliases");
+	check(should_apply_hires_propagated_binding(exact_meta, load_alias_match, state),
+	      "state-aware propagated binding should preserve matching load aliases");
+	check(!should_apply_hires_propagated_binding(exact_meta, different_offset, state),
+	      "state-aware propagated binding should still reject different offsets");
+}
+
+static void test_should_reject_cross_formatsize_reinterpret_alias_contract()
+{
+	auto source_meta = make_meta(0x220, 0x20, TextureFormat::CI, TextureSize::Bpp16, 0);
+	auto target_same_formatsize = make_meta(0x220, 0x20, TextureFormat::CI, TextureSize::Bpp16, 0);
+	auto target_other_formatsize = make_meta(0x220, 0x10, TextureFormat::CI, TextureSize::Bpp4, 0);
+	auto state = make_bindable_state(2);
+	state.lookup_source = HiresLookupSource::AliasPropagated;
+	state.origin_lookup_source = HiresLookupSource::BlockTile;
+	state.source_load_formatsize = formatsize_key(TextureFormat::CI, TextureSize::Bpp16);
+
+	check(should_apply_hires_propagated_binding(source_meta, target_same_formatsize, state),
+	      "reinterpretation-born alias should survive when target formatsize matches the source load");
+	check(!should_apply_hires_propagated_binding(source_meta, target_other_formatsize, state),
+	      "reinterpretation-born alias should be rejected when target formatsize differs from the source load");
+
+	state.origin_lookup_source = HiresLookupSource::Primary;
+	check(should_apply_hires_propagated_binding(source_meta, target_other_formatsize, state),
+	      "primary-origin aliases should not be blocked by the cross-formatsize reinterpretation guard");
 }
 
 static void test_find_hires_alias_source_tile_contract()
@@ -302,6 +335,7 @@ int main()
 	test_should_invalidate_hires_binding_on_load_contract();
 	test_should_alias_hires_load_binding_contract();
 	test_should_apply_hires_propagated_binding_contract();
+	test_should_reject_cross_formatsize_reinterpret_alias_contract();
 	test_find_hires_alias_source_tile_contract();
 	test_hires_tile_state_is_bindable_contract();
 	test_invalidate_hires_alias_group_contract();

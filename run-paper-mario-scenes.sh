@@ -6,7 +6,7 @@ Paper Mario scenes
 
 intro22
   parallel: ./run-paper-mario-hires-intro22-capture.sh --tag <tag>
-  refresh:  ./run-paper-mario-hires-intro22-refresh.sh
+  refresh:  ./run-paper-mario-hires-intro22-refresh.sh --timed
   glide:    ./run-paper-mario-hires-intro22-capture.sh --glide --tag <tag>
   compare:  ./run-paper-mario-hires-intro22-compare.sh
   open:     ./run-paper-mario-open-compare.sh --profile intro22
@@ -14,6 +14,7 @@ intro22
 
 intro22-state
   parallel: ./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>
+  refresh:  ./run-paper-mario-hires-intro22-refresh.sh
   baseline: ./run-paper-mario-hires-intro22-baseline-capture.sh
   probe:    ./run-paper-mario-hires-intro22-probe-compare.sh --tag <tag>
   open:     ./run-paper-mario-open-compare.sh --profile intro22-probe

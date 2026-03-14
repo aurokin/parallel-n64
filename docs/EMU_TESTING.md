@@ -36,8 +36,14 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - Paper Mario timed intro22 capture:
   - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
   - use this only to maintain/refresh the preserved GLide oracle, not as the renderer truth path
+- Paper Mario timed intro22 refresh:
+  - `./run-paper-mario-hires-intro22-refresh.sh --timed`
+  - use this only when you intentionally want the timed oracle-maintenance path
 - Paper Mario standardized intro22 state capture:
   - `./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>`
+- Paper Mario standardized intro22 refresh:
+  - `./run-paper-mario-hires-intro22-refresh.sh`
+  - this is the default refresh path and uses load-state + pause + `1f`
 - Paper Mario canonical intro22 baseline capture:
   - `./run-paper-mario-hires-intro22-baseline-capture.sh`
 - Paper Mario intro22 probe-vs-baseline compare:

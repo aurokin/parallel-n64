@@ -333,6 +333,8 @@ Co-Authored-By: Codex <noreply@openai.com>
     - this uses fixed crop boxes with no alignment search
   - refresh capture+compare+viewer in one command:
     - `./run-paper-mario-hires-intro22-refresh.sh`
+    - this now defaults to the seeded `state+pause+1f` truth path
+    - use `./run-paper-mario-hires-intro22-refresh.sh --timed` only for timed-oracle maintenance
   - open latest compare in tmux/feh:
     - `./run-paper-mario-open-compare.sh --profile intro22`
     - rebuilds `/tmp/parallel-n64-paper-mario-hires-compare/latest-intro22` before opening so the viewer does not reuse stale summaries

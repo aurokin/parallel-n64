@@ -9,6 +9,8 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
   - Timed intro used only for preserving and refreshing the matched GLide oracle.
 - Parallel capture:
   - `./run-paper-mario-hires-intro22-capture.sh --tag <tag>`
+- Timed refresh:
+  - `./run-paper-mario-hires-intro22-refresh.sh --timed`
 - GLide oracle capture:
   - `./run-paper-mario-hires-intro22-capture.sh --glide --tag <tag>`
 - Timing:
@@ -28,6 +30,8 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
   - This is the primary HIRES truth path.
 - Parallel capture:
   - `./run-paper-mario-hires-intro22-state-capture.sh --tag <tag>`
+- Refresh current compare/viewer:
+  - `./run-paper-mario-hires-intro22-refresh.sh`
 - Canonical baseline capture:
   - `./run-paper-mario-hires-intro22-baseline-capture.sh`
 - Probe vs baseline compare:
@@ -39,6 +43,7 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
   - forces `--smoke-mode state --require-hires --state-pause`
   - standardized default is `--state-frame-advance 1`
 - Notes:
+  - `run-paper-mario-hires-intro22-refresh.sh` now uses this seeded state+pause flow by default
   - earlier intro22 state/debug captures without this standardized path should be treated as stale
   - do not refresh GLide for this workflow; keep the preserved timed intro22 oracle fixed
   - use probe-vs-baseline compare first, then GLide

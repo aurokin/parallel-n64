@@ -154,6 +154,7 @@
   - for composition-model work, use:
     - `./tools/hires_draw_debug_report.py --log <run.log> [filters...]`
     - this joins `Hi-res debug program`, `Hi-res derived constants`, and `Hi-res draw state` into one reportable record
+    - `--dump-records` emits matched records in call order, which is useful for repeated-strip / stitching investigation
   - current important finding:
     - Paper Mario’s `CI16 -> RGBA16 lookup_tile=0` family cannot be separated by raw raster flags alone
     - intro22’s useful clusters and noinput16’s bad clusters both include:
@@ -167,8 +168,11 @@
       - `16x16 -> 100x100`
     - so lookup identity is not sufficient to explain the remaining corruption
     - the actionable split is now composition-model based:
-      - some shared keys run under different raster/combiner/blender programs
-      - even when the program matches, repeated-pass structure and derived constants still differ by scene
+    - some shared keys run under different raster/combiner/blender programs
+    - even when the program matches, repeated-pass structure and derived constants still differ by scene
+    - newer sequence-level finding:
+      - some shared `16x16 -> 100x100` keys are spatially reused across multiple strip slots in intro22, while the same keys stay spatially fixed in noinput16
+      - that points toward strip-order / overlap behavior as a remaining root-cause class
     - this is the current breakpoint:
       - investigate composition clusters, not just fallback family acceptance
 

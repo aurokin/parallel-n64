@@ -49,9 +49,9 @@ def norm_key(value: str | None) -> str:
     return f"0x{int(value, 16):016x}"
 
 
-def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int], repl_key_filter: set[str]):
+def collect_records(path: pathlib.Path, desc_filter: set[int], repl_key_filter: set[str]):
+    records = []
     counter: collections.Counter = collections.Counter()
-    matched = 0
     pending_program = None
     pending_derived = None
 
@@ -93,17 +93,34 @@ def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filt
                 pending_derived = None
                 continue
 
-            matched += 1
-            key = tuple(record[field] for field in group_by)
-            counter[key] += 1
+            records.append(record)
             pending_program = None
             pending_derived = None
 
+    return records
+
+
+def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int], repl_key_filter: set[str]):
+    counter: collections.Counter = collections.Counter()
+    records = collect_records(path, desc_filter, repl_key_filter)
+    for record in records:
+        key = tuple(record[field] for field in group_by)
+        counter[key] += 1
+
     print(f"\n## {path}")
-    print(f"matched_draws={matched}")
+    print(f"matched_draws={len(records)}")
     for key, count in counter.most_common(limit):
         parts = [f"{field}={value}" for field, value in zip(group_by, key)]
         print(f"{count:6d}  " + " ".join(parts))
+
+
+def dump_records(path: pathlib.Path, fields: list[str], limit: int, desc_filter: set[int], repl_key_filter: set[str]):
+    records = collect_records(path, desc_filter, repl_key_filter)
+    print(f"\n## {path}")
+    print(f"matched_draws={len(records)}")
+    for record in records[:limit]:
+        parts = [f"{field}={record[field]}" for field in fields]
+        print(" ".join(parts))
 
 
 def main() -> int:
@@ -117,6 +134,7 @@ def main() -> int:
     parser.add_argument("--desc", action="append", type=int, default=[], help="Filter by desc. Repeatable.")
     parser.add_argument("--repl-key", action="append", default=[], help="Filter by replacement checksum64 key. Repeatable.")
     parser.add_argument("--limit", type=int, default=25, help="Rows per log.")
+    parser.add_argument("--dump-records", action="store_true", help="Dump matched records in call order instead of grouped counts.")
     args = parser.parse_args()
 
     group_by = [field.strip() for field in args.group_by.split(",") if field.strip()]
@@ -131,7 +149,10 @@ def main() -> int:
         if not path.is_file():
             print(f"Missing log: {path}", file=sys.stderr)
             return 1
-        summarize_log(path, group_by, args.limit, desc_filter, repl_key_filter)
+        if args.dump_records:
+            dump_records(path, group_by, args.limit, desc_filter, repl_key_filter)
+        else:
+            summarize_log(path, group_by, args.limit, desc_filter, repl_key_filter)
 
     return 0
 

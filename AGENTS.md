@@ -76,6 +76,7 @@ Co-Authored-By: Codex <noreply@openai.com>
         - normalized raster program
         - derived constants
         - final draw-state for the same draw
+      - `--dump-records` prints matched draws in call order instead of grouped counts
       - useful filters:
         - `--load-fs 0x202`
         - `--lookup-fs 0x02`
@@ -121,6 +122,7 @@ Co-Authored-By: Codex <noreply@openai.com>
         - derived primitive/env constants
         - repeated-pass structure
         - whether a secondary `repl1` binding is present
+        - and the spatial reuse/order of the same `repl_key` inside a strip sequence
       - debugging should now pivot from “which asset was matched?” to “how is this matched asset being composed in this lane?”
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`

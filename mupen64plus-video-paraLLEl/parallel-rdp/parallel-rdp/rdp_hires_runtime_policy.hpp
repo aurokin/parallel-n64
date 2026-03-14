@@ -82,7 +82,17 @@ inline bool hires_shader_descriptor_has_mips(uint32_t packed_index)
 
 inline bool hires_lookup_strict_enabled(unsigned mode)
 {
-	return mode != 0;
+	return mode == 1;
+}
+
+inline bool hires_lookup_owner_only_enabled(unsigned mode)
+{
+	return mode == 2;
+}
+
+inline bool hires_lookup_fallbacks_enabled(unsigned mode)
+{
+	return mode == 0;
 }
 }
 }

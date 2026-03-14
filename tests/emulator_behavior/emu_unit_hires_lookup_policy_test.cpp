@@ -74,6 +74,13 @@ static void test_strict_lookup_gate_contract()
 {
 	check(!hires_lookup_strict_enabled(0), "lookup mode 0 should be permissive");
 	check(hires_lookup_strict_enabled(1), "lookup mode 1 should be strict");
+	check(!hires_lookup_strict_enabled(2), "lookup mode 2 should not force strict provider matching");
+	check(!hires_lookup_owner_only_enabled(0), "lookup mode 0 should not be owner-only");
+	check(!hires_lookup_owner_only_enabled(1), "lookup mode 1 should not be owner-only");
+	check(hires_lookup_owner_only_enabled(2), "lookup mode 2 should be owner-only");
+	check(hires_lookup_fallbacks_enabled(0), "lookup mode 0 should keep fallbacks enabled");
+	check(!hires_lookup_fallbacks_enabled(1), "lookup mode 1 should disable fallbacks");
+	check(!hires_lookup_fallbacks_enabled(2), "lookup mode 2 should disable fallbacks");
 	check(should_try_hires_ci_low32_fallback(false), "permissive lookup should allow CI low32 fallback");
 	check(!should_try_hires_ci_low32_fallback(true), "strict lookup should reject CI low32 fallback");
 	check(should_try_hires_tile_mask_fallback(false, true),

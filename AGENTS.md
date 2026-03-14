@@ -15,8 +15,8 @@ Co-Authored-By: Codex <noreply@openai.com>
 - Keep `parallel` as the active graphics path for local validation.
 - Treat HIRES-off behavior as invariant: no provider/registry/shader replacement path changes when HIRES is disabled.
 - Current root-cause probe for HIRES lookup/composition bugs:
-  - `parallel-n64-parallel-rdp-hirestex-lookup = strict`
-  - strict mode means:
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner`
+  - `strict` means:
     - exact checksum + exact formatsize only
     - no CI low32 fallback
     - no tile-mask fallback
@@ -24,10 +24,24 @@ Co-Authored-By: Codex <noreply@openai.com>
     - no block-tile fallback
     - no block-shape fallback
     - no TMEM alias propagation
-  - use it to distinguish wrong-match / wrong-consumption bugs from later composition bugs
-  - current data point:
+  - `owner` means:
+    - exact upload-owner/provider lookup only
+    - provider wildcard formatsize still allowed
+    - no CI low32 fallback
+    - no tile-mask fallback
+    - no tile-stride fallback
+    - no block-tile fallback
+    - no block-shape fallback
+    - no deferred block retry
+    - no TMEM alias propagation
+  - use `strict` to see whether the scene can survive exact-match-only replacement binding at all
+  - use `owner` to approximate texture-cache/upload-owner binding without a full rearchitecture
+  - current data points:
     - on the canonical `intro22-state + 1f` frame, `strict` lookup produced `lookups=4738 hits=0 draw_with_replacement=0`
-    - that means the current renderer path is heavily dependent on permissive matching/fallbacks
+    - on the same frame, `owner` produced `lookups=1726 hits=926 primary_hits=926 block_tile_hits=0 alias_bindings=0 draw_with_replacement=1592`
+    - on `noinput16`, `owner` produced `lookups=8169 hits=5836 primary_hits=5836 block_tile_hits=0 alias_bindings=0 draw_with_replacement=9725`
+    - owner-mode visuals improved intro22 `story_text`, `bottom_stage_grid`, and `left_stage_grid`, but regressed `top_banner`
+    - that means the dominant root problem includes permissive fallback/alias behavior, but some valid content is still only arriving through that path
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`
@@ -97,8 +111,13 @@ Co-Authored-By: Codex <noreply@openai.com>
   - the helper forces `parallel-n64-parallel-rdp-hirestex = enabled` by default; only override that on purpose
   - strict lookup probe:
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=strict`
+  - owner lookup probe:
+    - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=owner`
   - current strict-probe result on the canonical intro22 state:
     - zero replacement hits, so use this mode as an architecture probe, not as a validation baseline
+  - current owner-probe result on the canonical intro22 state:
+    - primary hits survive while all block fallbacks and alias propagation drop to zero
+    - use this mode to test whether permissive draw-time reinterpretation is the dominant source of corruption
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
   - for the current standardized seeded intro22 state path, prefer `./run-paper-mario-hires-intro22-state-capture.sh`

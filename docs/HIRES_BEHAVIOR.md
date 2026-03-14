@@ -60,7 +60,7 @@
 - Optional tuning:
   - `parallel-n64-parallel-rdp-hirestex-filter = linear|nearest|trilinear`
   - `parallel-n64-parallel-rdp-hirestex-srgb = auto|on|off`
-  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict`
+  - `parallel-n64-parallel-rdp-hirestex-lookup = permissive|strict|owner`
   - `parallel-n64-parallel-rdp-hirestex-budget-mb = 0|128|256|512|1024|2048|4096`
 - Place packs in the RetroArch system directory used by the core.
 - Current limitation:
@@ -108,6 +108,21 @@
   - current Paper Mario intro22 result:
     - `intro22-state + 1f` with `strict` lookup produced `lookups=4738 hits=0 draw_with_replacement=0`
     - that confirms the present scene path depends on permissive fallback matching rather than exact-match-only replacement binding
+- `owner` lookup is a narrower architecture probe mode:
+  - provider wildcard formatsize still allowed
+  - no CI low32 fallback
+  - no tile-mask fallback
+  - no tile-stride fallback
+  - no block-tile fallback
+  - no block-shape fallback
+  - no deferred block retry
+  - no TMEM alias propagation
+  - use this to approximate texture-cache/upload-owner binding without a full rearchitecture
+  - current Paper Mario results:
+    - `intro22-state + 1f`: `lookups=1726 hits=926 primary_hits=926 block_tile_hits=0 alias_bindings=0 draw_with_replacement=1592`
+    - `noinput16`: `lookups=8169 hits=5836 primary_hits=5836 block_tile_hits=0 alias_bindings=0 draw_with_replacement=9725`
+    - visually, owner mode improves intro22 `story_text`, `bottom_stage_grid`, and `left_stage_grid`, but regresses `top_banner`
+    - that strongly suggests permissive fallback/alias behavior is part of the root bug, while some valid content is still incorrectly dependent on that path
 
 ## Core Behavior With HIRES Off
 - Provider lookup is bypassed.
@@ -126,6 +141,8 @@
   - `./run-paper-mario-hires-capture.sh --tag <tag>`
   - strict lookup probe:
     - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=strict`
+  - owner lookup probe:
+    - `./run-paper-mario-hires-capture.sh --tag <tag> --core-option parallel-n64-parallel-rdp-hirestex-lookup=owner`
   - for intro/title captures without controller input:
     - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --tag <tag> --require-hires`
   - timed intro22 oracle scene:

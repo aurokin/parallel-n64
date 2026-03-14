@@ -175,6 +175,7 @@ private:
 	bool hires_debug = false;
 	bool hires_shader_path_enabled = false;
 	bool hires_lookup_strict = false;
+	bool hires_lookup_fallbacks = true;
 
 	bool init_caps();
 	void init_blender_lut();
@@ -197,7 +198,8 @@ private:
 	                                   uint32_t &texture_crc,
 	                                   uint16_t &formatsize,
 	                                   uint64_t &checksum64,
-	                                   ReplacementMeta &repl_meta);
+	                                   ReplacementMeta &repl_meta,
+	                                   bool *used_ci_low32 = nullptr);
 	void retry_pending_hires_block_lookup(unsigned tile_index);
 
 	struct
@@ -267,6 +269,14 @@ private:
 	uint64_t hires_lookup_total = 0;
 	uint64_t hires_lookup_hits = 0;
 	uint64_t hires_lookup_misses = 0;
+	uint64_t hires_lookup_primary_hits = 0;
+	uint64_t hires_lookup_ci_low32_hits = 0;
+	uint64_t hires_lookup_tile_mask_hits = 0;
+	uint64_t hires_lookup_tile_stride_hits = 0;
+	uint64_t hires_lookup_block_tile_hits = 0;
+	uint64_t hires_lookup_block_shape_hits = 0;
+	uint64_t hires_lookup_pending_block_retry_hits = 0;
+	uint64_t hires_alias_binding_applications = 0;
 	uint64_t hires_descriptor_bound_hits = 0;
 	uint64_t hires_descriptor_unbound_hits = 0;
 	uint64_t hires_budget_evictions = 0;

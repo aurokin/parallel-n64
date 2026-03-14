@@ -42,6 +42,30 @@ Co-Authored-By: Codex <noreply@openai.com>
     - on `noinput16`, `owner` produced `lookups=8169 hits=5836 primary_hits=5836 block_tile_hits=0 alias_bindings=0 draw_with_replacement=9725`
     - owner-mode visuals improved intro22 `story_text`, `bottom_stage_grid`, and `left_stage_grid`, but regressed `top_banner`
     - that means the dominant root problem includes permissive fallback/alias behavior, but some valid content is still only arriving through that path
+  - current provenance tooling:
+    - `PARALLEL_RDP_HIRES_DEBUG=1` draw logs now preserve both the current replacement source and the original lookup source through alias propagation
+    - draw logs also preserve replacement birth metadata:
+      - load tile
+      - load formatsize
+      - lookup tile
+      - lookup formatsize
+      - key width/height
+  - current lookup-time `block_tile` probe envs:
+    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOAD_FS`
+    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOOKUP_TILE`
+    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOOKUP_FS`
+    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_WIDTH`
+    - `PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_HEIGHT`
+    - they only filter `block_tile` hits; primary hits and HIRES-off behavior stay unchanged
+  - current provenance findings:
+    - intro22 visible fallback-backed lanes are mostly `alias` draws whose origin source is `block_tile`, not pure alias-only content
+    - intro22 dominant `block_tile` origin classes are a subset of the noinput16 classes
+    - on intro22, allowing only one `block_tile` class at a time produced the same image as allowing none:
+      - banner `32x32` class only
+      - desc65 `4x32` class only
+      - no `block_tile` at all
+    - those three runs all collapsed to the same PNG, while still differing from the normal permissive baseline
+    - that means the current intro22 image is not controlled by any single `block_tile` class in isolation; the remaining difference is likely a combination of multiple fallback classes and/or `block_shape`
 - Prefer local helpers over ad hoc commands:
   - `./run-build.sh`
   - `./run-tests.sh`

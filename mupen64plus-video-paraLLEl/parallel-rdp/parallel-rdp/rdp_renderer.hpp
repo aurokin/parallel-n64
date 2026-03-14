@@ -177,6 +177,12 @@ private:
 	bool hires_shader_path_enabled = false;
 	bool hires_lookup_strict = false;
 	bool hires_lookup_fallbacks = true;
+	bool hires_block_tile_probe_active = false;
+	uint16_t hires_block_tile_probe_load_formatsize = 0;
+	uint16_t hires_block_tile_probe_lookup_formatsize = 0;
+	uint32_t hires_block_tile_probe_lookup_tile = 0;
+	uint32_t hires_block_tile_probe_key_width = 0;
+	uint32_t hires_block_tile_probe_key_height = 0;
 
 	bool init_caps();
 	void init_blender_lut();
@@ -244,12 +250,19 @@ private:
 	{
 		uint64_t checksum64 = 0;
 		uint16_t formatsize = 0;
+		uint16_t source_load_formatsize = 0;
+		uint16_t source_lookup_formatsize = 0;
 		uint16_t orig_w = 0;
 		uint16_t orig_h = 0;
 		uint16_t repl_w = 0;
 		uint16_t repl_h = 0;
+		uint16_t source_key_width = 0;
+		uint16_t source_key_height = 0;
 		uint32_t vk_image_index = 0xffffffffu;
 		detail::HiresLookupSource lookup_source = detail::HiresLookupSource::None;
+		detail::HiresLookupSource origin_lookup_source = detail::HiresLookupSource::None;
+		uint8_t source_load_tile_index = 0;
+		uint8_t source_lookup_tile_index = 0;
 		bool valid = false;
 		bool hit = false;
 		bool has_mips = false;

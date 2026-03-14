@@ -109,6 +109,43 @@ static const char *load_mode_to_string(UploadMode mode)
 		return "unknown";
 	}
 }
+
+static bool parse_optional_u32_env(const char *name, uint32_t &value)
+{
+	const char *env = getenv(name);
+	if (!env || !*env)
+		return false;
+	char *end = nullptr;
+	unsigned long parsed = strtoul(env, &end, 0);
+	if (end == env)
+		return false;
+	value = uint32_t(parsed);
+	return true;
+}
+
+static bool block_tile_probe_matches(uint16_t configured_load_formatsize,
+                                     uint16_t configured_lookup_formatsize,
+                                     uint32_t configured_lookup_tile,
+                                     uint32_t configured_key_width,
+                                     uint32_t configured_key_height,
+                                     uint16_t load_formatsize,
+                                     uint16_t lookup_formatsize,
+                                     uint32_t lookup_tile,
+                                     uint32_t key_width,
+                                     uint32_t key_height)
+{
+	if (configured_load_formatsize != 0 && configured_load_formatsize != load_formatsize)
+		return false;
+	if (configured_lookup_formatsize != 0 && configured_lookup_formatsize != lookup_formatsize)
+		return false;
+	if (configured_lookup_tile != 0xffffffffu && configured_lookup_tile != lookup_tile)
+		return false;
+	if (configured_key_width != 0 && configured_key_width != key_width)
+		return false;
+	if (configured_key_height != 0 && configured_key_height != key_height)
+		return false;
+	return true;
+}
 }
 
 Renderer::Renderer(CommandProcessor &processor_)
@@ -774,6 +811,28 @@ void Renderer::set_hires_lookup_mode(unsigned mode)
 {
 	hires_lookup_strict = detail::hires_lookup_strict_enabled(mode);
 	hires_lookup_fallbacks = detail::hires_lookup_fallbacks_enabled(mode);
+	hires_block_tile_probe_load_formatsize = 0;
+	hires_block_tile_probe_lookup_formatsize = 0;
+	hires_block_tile_probe_lookup_tile = 0xffffffffu;
+	hires_block_tile_probe_key_width = 0;
+	hires_block_tile_probe_key_height = 0;
+	uint32_t parsed = 0;
+	const bool has_load_fs = parse_optional_u32_env("PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOAD_FS", parsed);
+	if (has_load_fs)
+		hires_block_tile_probe_load_formatsize = uint16_t(parsed);
+	const bool has_lookup_fs = parse_optional_u32_env("PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOOKUP_FS", parsed);
+	if (has_lookup_fs)
+		hires_block_tile_probe_lookup_formatsize = uint16_t(parsed);
+	const bool has_lookup_tile = parse_optional_u32_env("PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_LOOKUP_TILE", parsed);
+	if (has_lookup_tile)
+		hires_block_tile_probe_lookup_tile = parsed;
+	const bool has_key_width = parse_optional_u32_env("PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_WIDTH", parsed);
+	if (has_key_width)
+		hires_block_tile_probe_key_width = parsed;
+	const bool has_key_height = parse_optional_u32_env("PARALLEL_RDP_HIRES_BLOCK_TILE_MATCH_KEY_HEIGHT", parsed);
+	if (has_key_height)
+		hires_block_tile_probe_key_height = parsed;
+	hires_block_tile_probe_active = has_load_fs || has_lookup_fs || has_lookup_tile || has_key_width || has_key_height;
 }
 
 void Renderer::set_hires_debug(bool enable)
@@ -2246,8 +2305,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     "screen={valid=%d x=%d..%d y=%d..%d} st={s=%d t=%d dsdx=%d dtdy=%d dsde=%d dtde=%d} "
 			     "tile0_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
 			     "tile1_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
-			     "repl0_desc=%u repl0_source=%s repl0_orig=%ux%u repl0=%ux%u "
-			     "repl1_desc=%u repl1_source=%s repl1_orig=%ux%u repl1=%ux%u.\n",
+			     "repl0_desc=%u repl0_source=%s repl0_origin=%s repl0_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl0_orig=%ux%u repl0=%ux%u "
+			     "repl1_desc=%u repl1_source=%s repl1_origin=%s repl1_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl1_orig=%ux%u repl1=%ux%u.\n",
 			     static_cast<unsigned long long>(hires_draw_calls_total),
 			     unsigned(setup.tile),
 			     tile0,
@@ -2299,12 +2358,26 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     unsigned(tile1_info.size.thi >> 2),
 			     unsigned(repl0.repl_desc_index),
 			     lookup_source_name(repl0_state.lookup_source),
+			     lookup_source_name(repl0_state.origin_lookup_source),
+			     unsigned(repl0_state.source_load_tile_index),
+			     unsigned(repl0_state.source_load_formatsize),
+			     unsigned(repl0_state.source_lookup_tile_index),
+			     unsigned(repl0_state.source_lookup_formatsize),
+			     unsigned(repl0_state.source_key_width),
+			     unsigned(repl0_state.source_key_height),
 			     unsigned(repl0.repl_orig_w),
 			     unsigned(repl0.repl_orig_h),
 			     unsigned(repl0.repl_w),
 			     unsigned(repl0.repl_h),
 			     unsigned(repl1.repl_desc_index),
 			     lookup_source_name(repl1_state.lookup_source),
+			     lookup_source_name(repl1_state.origin_lookup_source),
+			     unsigned(repl1_state.source_load_tile_index),
+			     unsigned(repl1_state.source_load_formatsize),
+			     unsigned(repl1_state.source_lookup_tile_index),
+			     unsigned(repl1_state.source_lookup_formatsize),
+			     unsigned(repl1_state.source_key_width),
+			     unsigned(repl1_state.source_key_height),
 			     unsigned(repl1.repl_orig_w),
 			     unsigned(repl1.repl_orig_h),
 			     unsigned(repl1.repl_w),
@@ -3992,6 +4065,22 @@ bool Renderer::try_hires_block_tile_fallback(unsigned load_tile_index,
 					continue;
 				}
 
+				if (hires_block_tile_probe_active &&
+				    !block_tile_probe_matches(
+						    hires_block_tile_probe_load_formatsize,
+						    hires_block_tile_probe_lookup_formatsize,
+						    hires_block_tile_probe_lookup_tile,
+						    hires_block_tile_probe_key_width,
+						    hires_block_tile_probe_key_height,
+						    formatsize_key(tiles[bounded_load_tile_index].meta.fmt, tiles[bounded_load_tile_index].meta.size),
+						    probe_formatsize,
+						    probe_tile,
+						    candidate_probe_w,
+						    probe_h))
+				{
+					continue;
+				}
+
 				probe_hit = true;
 				probe_w_used = candidate_probe_w;
 				probe_texture_crc = candidate_texture_crc;
@@ -4120,6 +4209,15 @@ void Renderer::retry_pending_hires_block_lookup(unsigned tile_index)
 				repl_meta.has_mips,
 				true,
 				detail::HiresLookupSource::PendingBlockRetry);
+		detail::write_hires_lookup_tile_provenance(
+				repl_state,
+				load_tile_index,
+				formatsize_key(tiles[load_tile_index].meta.fmt, tiles[load_tile_index].meta.size),
+				lookup_tile_index,
+				formatsize,
+				lookup_width_pixels,
+				lookup_height_pixels,
+				0);
 		if (detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks))
 		{
 			detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);
@@ -5059,6 +5157,15 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					repl_meta.has_mips,
 					true,
 					lookup_source);
+			detail::write_hires_lookup_tile_provenance(
+					repl_state,
+					tile_index,
+					formatsize_key(meta.fmt, meta.size),
+					lookup_tile_index,
+					formatsize,
+					lookup_width_pixels,
+					lookup_height_pixels,
+					0);
 			if (detail::should_propagate_hires_alias_group_binding(!hires_lookup_fallbacks))
 			{
 				detail::propagate_hires_alias_group_binding(lookup_tile_index, tiles, replacement_tiles);

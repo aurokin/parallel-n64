@@ -38,6 +38,7 @@ struct HiresLookupBindingDecision
 	uint32_t repl_w = 0;
 	uint32_t repl_h = 0;
 	bool has_mips = false;
+	HiresAlphaContentClass alpha_class = HiresAlphaContentClass::Unknown;
 	bool allow_tile_sampling_expansion = true;
 	HiresLookupSource lookup_source = HiresLookupSource::None;
 };
@@ -72,6 +73,7 @@ inline HiresLookupBindingDecision build_hires_lookup_binding_decision(unsigned l
 	decision.repl_w = repl_meta.repl_w;
 	decision.repl_h = repl_meta.repl_h;
 	decision.has_mips = repl_meta.has_mips;
+	decision.alpha_class = repl_meta.alpha_class;
 	decision.allow_tile_sampling_expansion = allow_tile_sampling_expansion;
 	decision.lookup_source = lookup_source;
 	return decision;
@@ -97,7 +99,8 @@ inline void apply_hires_lookup_binding_decision(const HiresLookupBindingDecision
 			decision.repl_h,
 			decision.has_mips,
 			decision.allow_tile_sampling_expansion,
-			decision.lookup_source);
+			decision.lookup_source,
+			decision.alpha_class);
 	write_hires_lookup_tile_provenance(repl_state, decision.birth, 0);
 
 	if (policy_mode == HiresBindingPolicyMode::PropagateAliasGroup)

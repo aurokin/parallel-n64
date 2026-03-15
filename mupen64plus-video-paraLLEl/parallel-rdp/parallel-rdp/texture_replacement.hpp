@@ -8,6 +8,14 @@
 
 namespace RDP
 {
+enum class HiresAlphaContentClass : uint8_t
+{
+	Unknown = 0,
+	Opaque,
+	MostlyBinary,
+	Soft
+};
+
 struct ReplacementMeta
 {
 	uint32_t repl_w = 0;
@@ -17,6 +25,7 @@ struct ReplacementMeta
 	uint32_t vk_image_index = 0xffffffffu;
 	bool has_mips = false;
 	bool srgb = false;
+	HiresAlphaContentClass alpha_class = HiresAlphaContentClass::Unknown;
 };
 
 struct ReplacementImage

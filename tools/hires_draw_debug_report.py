@@ -31,12 +31,16 @@ DRAW_RE = re.compile(
     r".*?tex0=(?P<tex0>\d)"
     r".*?tex1=(?P<tex1>\d)"
     r".*?pipe1=(?P<pipe1>\d)"
+    r"(?: draw_descs=(?P<draw_descs>\d+))?"
+    r"(?: draw_owner=(?P<draw_owner>\w+))?"
     r".*?screen=\{valid=(?P<screen_valid>\d) x=(?P<screen_x>[^ ]+) y=(?P<screen_y>[^ ]+)\}"
     r".*?st=\{s=(?P<s>-?\d+) t=(?P<t>-?\d+) dsdx=(?P<dsdx>-?\d+) dtdy=(?P<dtdy>-?\d+)"
     r".*?repl0_desc=(?P<repl0_desc>\d+)"
     r"(?: repl0_key=0x(?P<repl_key>[0-9a-fA-F]+))?"
     r" repl0_source=(?P<repl_source>\w+)"
     r" repl0_origin=(?P<repl_origin>\w+)"
+    r"(?: repl0_owner=(?P<repl0_owner>\w+))?"
+    r"(?: repl0_alpha=(?P<repl0_alpha>\d+))?"
     r".*?key=(?P<key_wh>\d+x\d+)\}"
     r" repl0_orig=(?P<orig_wh>\d+x\d+)"
     r" repl0=(?P<repl_wh>\d+x\d+)"
@@ -44,6 +48,8 @@ DRAW_RE = re.compile(
     r"(?: repl1_key=0x(?P<repl1_key>[0-9a-fA-F]+))?"
     r" repl1_source=(?P<repl1_source>\w+)"
     r" repl1_origin=(?P<repl1_origin>\w+)"
+    r"(?: repl1_owner=(?P<repl1_owner>\w+))?"
+    r"(?: repl1_alpha=(?P<repl1_alpha>\d+))?"
 )
 
 
@@ -212,7 +218,7 @@ def main() -> int:
     parser.add_argument("--log", action="append", required=True, help="Path to run.log. Repeat for multiple logs.")
     parser.add_argument(
         "--group-by",
-        default="desc,repl_key,raster,norm,depth,b0,b1,shade,prim,c1_mul,c1_add,repl1_desc,repl1_key,key_wh,repl_wh",
+        default="draw_owner,desc,repl0_owner,repl_key,raster,norm,depth,b0,b1,shade,prim,c1_mul,c1_add,repl1_desc,repl1_owner,repl1_key,key_wh,repl_wh",
         help="Comma-separated grouping fields.",
     )
     parser.add_argument("--desc", action="append", type=int, default=[], help="Filter by desc. Repeatable.")

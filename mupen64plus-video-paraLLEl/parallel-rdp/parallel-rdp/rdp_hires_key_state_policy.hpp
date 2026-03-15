@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include "rdp_hires_runtime_policy.hpp"
+#include "texture_replacement.hpp"
 
 namespace RDP
 {
@@ -140,6 +141,21 @@ inline void write_hires_lookup_tile_provenance(TileState &state,
 }
 
 template <typename TileState>
+inline auto write_hires_lookup_tile_alpha_class(TileState &state,
+                                                HiresAlphaContentClass alpha_class,
+                                                int) -> decltype(state.alpha_class = alpha_class, void())
+{
+	state.alpha_class = alpha_class;
+}
+
+template <typename TileState>
+inline void write_hires_lookup_tile_alpha_class(TileState &,
+                                                HiresAlphaContentClass,
+                                                long)
+{
+}
+
+template <typename TileState>
 inline void write_hires_lookup_tile_state(TileState &state,
                                           bool hit,
                                           uint64_t checksum64,
@@ -151,7 +167,8 @@ inline void write_hires_lookup_tile_state(TileState &state,
                                           uint32_t repl_h = 0,
                                           bool has_mips = false,
                                           bool allow_tile_sampling_expansion = true,
-                                          HiresLookupSource lookup_source = HiresLookupSource::None)
+                                          HiresLookupSource lookup_source = HiresLookupSource::None,
+                                          HiresAlphaContentClass alpha_class = HiresAlphaContentClass::Unknown)
 {
 	state.valid = true;
 	state.hit = hit;
@@ -163,6 +180,7 @@ inline void write_hires_lookup_tile_state(TileState &state,
 	state.repl_w = clamp_hires_dimension_u16(repl_w);
 	state.repl_h = clamp_hires_dimension_u16(repl_h);
 	state.has_mips = has_mips;
+	write_hires_lookup_tile_alpha_class(state, alpha_class, 0);
 	state.allow_tile_sampling_expansion = allow_tile_sampling_expansion;
 	write_hires_lookup_tile_source(state, lookup_source, 0);
 	write_hires_lookup_tile_provenance(

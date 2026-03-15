@@ -129,6 +129,22 @@ Co-Authored-By: Codex <noreply@openai.com>
           - `today_text 11.3305`
           - `bottom_stage_grid 5.5032`
           - `left_stage_grid 5.1320`
+        - ownership-class methodology:
+          - do not add new scene-specific HIRES renderer overrides unless they expose a shared policy rule
+          - use ownership classes as the primary diagnostic surface:
+            - binding ownership:
+              - `upload_owner`
+              - `fallback_owner`
+              - `alias_consumer`
+              - `unbound`
+            - draw ownership:
+              - `upload_owner`
+              - `fallback_owner`
+              - `alias_consumer`
+              - `descriptorless_consumer`
+              - `copy_consumer`
+              - `mixed`
+          - the temporary signature-specific `32x32` alpha probe was intentionally dropped; its runtime instrumentation was not trustworthy enough to guide redesign
         - `run-paper-mario-open-compare.sh --profile intro22` must rebuild from the newest `intro22*` capture, not the newest capture globally
           - keeps the full `narrow-reinterp` birth-pattern set, but only consumes `0x202 -> 0x02`, `16x16 -> 100x100` replacements on the primary `0x21864010` raster phase
           - canonical intro22 result:
@@ -192,6 +208,7 @@ Co-Authored-By: Codex <noreply@openai.com>
         - normalized raster program
         - derived constants
         - final draw-state for the same draw
+        - ownership classes for the draw and for `repl0` / `repl1`
       - `--repl-source` / `--repl-origin` filter joined records by replacement provenance
       - `PARALLEL_HIRES_LOG_MATCHED_DRAW=1` logs any subtype-matched draw, even when it has no replacement descriptors
       - `PARALLEL_HIRES2_LOG_MATCHED_DRAW=1` does the same for the second independent debug scope

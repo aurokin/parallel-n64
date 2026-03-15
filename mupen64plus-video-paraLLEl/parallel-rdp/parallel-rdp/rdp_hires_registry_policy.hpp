@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "texture_replacement.hpp"
 
 namespace RDP
 {
@@ -217,6 +218,49 @@ inline HiresRegistryBudgetDecision decide_hires_registry_budget(
 		return HiresRegistryBudgetDecision::EvictOldestThenAdmit;
 
 	return HiresRegistryBudgetDecision::RejectOverBudget;
+}
+
+struct HiresReplacementAlphaStats
+{
+	size_t total_pixels = 0;
+	size_t zero_alpha = 0;
+	size_t full_alpha = 0;
+	size_t partial_alpha = 0;
+};
+
+inline HiresReplacementAlphaStats analyze_hires_replacement_alpha(const uint8_t *rgba8, size_t size)
+{
+	HiresReplacementAlphaStats stats = {};
+	if (!rgba8 || size < 4)
+		return stats;
+
+	stats.total_pixels = size / 4;
+	for (size_t i = 0; i + 3 < size; i += 4)
+	{
+		const uint8_t alpha = rgba8[i + 3];
+		if (alpha == 0)
+			stats.zero_alpha++;
+		else if (alpha == 255)
+			stats.full_alpha++;
+		else
+			stats.partial_alpha++;
+	}
+
+	return stats;
+}
+
+inline HiresAlphaContentClass classify_hires_replacement_alpha_content(const HiresReplacementAlphaStats &stats)
+{
+	if (stats.total_pixels == 0)
+		return HiresAlphaContentClass::Unknown;
+
+	if (stats.zero_alpha == 0 && stats.partial_alpha == 0)
+		return HiresAlphaContentClass::Opaque;
+
+	if (stats.partial_alpha * 100u <= stats.total_pixels * 2u)
+		return HiresAlphaContentClass::MostlyBinary;
+
+	return HiresAlphaContentClass::Soft;
 }
 }
 }

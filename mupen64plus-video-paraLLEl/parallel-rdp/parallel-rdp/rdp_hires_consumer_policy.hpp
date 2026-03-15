@@ -8,6 +8,7 @@ namespace RDP
 {
 namespace detail
 {
+
 template <typename ReplacementTileStateType>
 inline HiresLookupBirthSignature read_hires_lookup_tile_provenance(const ReplacementTileStateType &state)
 {

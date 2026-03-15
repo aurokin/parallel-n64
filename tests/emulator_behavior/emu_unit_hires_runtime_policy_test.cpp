@@ -1,4 +1,5 @@
 #include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_hires_runtime_policy.hpp"
+#include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_hires_ownership_policy.hpp"
 #include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/texture_replacement.hpp"
 
 #include <cstdlib>
@@ -230,6 +231,86 @@ static void test_lookup_mode_policy_contract()
 	              HiresCrossFormatsize32x16SourceFilter::AliasOnly,
 	      "narrow-reinterp-phase-16x16-alias-32x16 mode should enable the alias-only 32x16 consumer filter");
 }
+
+struct StubReplacementTileState
+{
+	uint32_t vk_image_index = hires_invalid_descriptor_index();
+	HiresLookupSource lookup_source = HiresLookupSource::None;
+	uint8_t source_lookup_tile_index = 0;
+	bool valid = false;
+	bool hit = false;
+};
+
+struct StubTileInfo
+{
+	struct
+	{
+		uint32_t repl_desc_index = hires_invalid_descriptor_index();
+	} replacement;
+};
+
+static void test_hires_ownership_class_contract()
+{
+	StubReplacementTileState state = {};
+	check(classify_hires_binding_ownership_class(state) == HiresBindingOwnershipClass::None,
+	      "empty replacement state should classify as none");
+
+	state.valid = true;
+	state.hit = true;
+	check(classify_hires_binding_ownership_class(state) == HiresBindingOwnershipClass::UnboundProviderHit,
+	      "provider hit without descriptor should classify as unbound");
+
+	state.vk_image_index = 7;
+	state.lookup_source = HiresLookupSource::Primary;
+	check(classify_hires_binding_ownership_class(state) == HiresBindingOwnershipClass::UploadOwner,
+	      "primary owner hit should classify as upload_owner");
+
+	state.lookup_source = HiresLookupSource::PendingBlockRetry;
+	check(classify_hires_binding_ownership_class(state) == HiresBindingOwnershipClass::FallbackOwner,
+	      "fallback owner hit should classify as fallback_owner");
+
+	state.lookup_source = HiresLookupSource::AliasPropagated;
+	check(classify_hires_binding_ownership_class(state) == HiresBindingOwnershipClass::AliasConsumer,
+	      "alias-propagated hit should classify as alias_consumer");
+
+	state.lookup_source = HiresLookupSource::BlockTile;
+	state.source_lookup_tile_index = 7;
+	check(classify_hires_binding_ownership_class(state) == HiresBindingOwnershipClass::AliasConsumer,
+	      "non-owner tile lookup should classify as alias_consumer");
+
+	StubReplacementTileState draw_states[2] = {};
+	StubTileInfo draw_tiles[2] = {};
+	check(classify_hires_draw_ownership_class(false, 0, draw_states, draw_tiles) == HiresDrawOwnershipClass::None,
+	      "draw without HIRES state should classify as none");
+
+	draw_states[0] = state;
+	draw_tiles[0].replacement.repl_desc_index = 7;
+	check(classify_hires_draw_ownership_class(false, 1, draw_states, draw_tiles) == HiresDrawOwnershipClass::AliasConsumer,
+	      "descriptor-backed alias hit should classify as alias_consumer draw");
+
+	draw_states[0].lookup_source = HiresLookupSource::Primary;
+	draw_states[0].source_lookup_tile_index = 0;
+	check(classify_hires_draw_ownership_class(false, 1, draw_states, draw_tiles) == HiresDrawOwnershipClass::UploadOwner,
+	      "descriptor-backed primary owner hit should classify as upload_owner draw");
+
+	draw_states[0].lookup_source = HiresLookupSource::PendingBlockRetry;
+	check(classify_hires_draw_ownership_class(false, 1, draw_states, draw_tiles) == HiresDrawOwnershipClass::FallbackOwner,
+	      "descriptor-backed fallback owner hit should classify as fallback_owner draw");
+
+	check(classify_hires_draw_ownership_class(true, 1, draw_states, draw_tiles) == HiresDrawOwnershipClass::CopyConsumer,
+	      "copy-mode draw with HIRES state should classify as copy_consumer");
+
+	draw_tiles[0].replacement.repl_desc_index = hires_invalid_descriptor_index();
+	check(classify_hires_draw_ownership_class(false, 0, draw_states, draw_tiles) == HiresDrawOwnershipClass::DescriptorlessConsumer,
+	      "descriptorless HIRES draw should classify as descriptorless_consumer");
+
+	draw_tiles[0].replacement.repl_desc_index = 7;
+	draw_states[1] = draw_states[0];
+	draw_states[1].lookup_source = HiresLookupSource::AliasPropagated;
+	draw_tiles[1].replacement.repl_desc_index = 9;
+	check(classify_hires_draw_ownership_class(false, 2, draw_states, draw_tiles) == HiresDrawOwnershipClass::Mixed,
+	      "mixed ownership draw should classify as mixed");
+}
 }
 
 int main()
@@ -239,6 +320,7 @@ int main()
 	test_classify_hires_configure_outcome_matrix();
 	test_descriptor_index_sentinel_contract();
 	test_lookup_mode_policy_contract();
+	test_hires_ownership_class_contract();
 	std::cout << "emu_unit_hires_runtime_policy_test: PASS" << std::endl;
 	return 0;
 }

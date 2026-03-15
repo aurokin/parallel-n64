@@ -28,6 +28,7 @@
 #include "rdp_hires_runtime_policy.hpp"
 #include "rdp_hires_registry_policy.hpp"
 #include "rdp_hires_sampling_policy.hpp"
+#include "texture_replacement.hpp"
 #include "worker_thread.hpp"
 #include <unordered_map>
 #include <unordered_set>
@@ -267,6 +268,7 @@ private:
 		uint16_t source_key_width = 0;
 		uint16_t source_key_height = 0;
 		uint32_t vk_image_index = 0xffffffffu;
+		HiresAlphaContentClass alpha_class = HiresAlphaContentClass::Unknown;
 		detail::HiresLookupSource lookup_source = detail::HiresLookupSource::None;
 		detail::HiresLookupSource origin_lookup_source = detail::HiresLookupSource::None;
 		uint8_t source_load_tile_index = 0;
@@ -323,6 +325,7 @@ private:
 		bool pinned = false;
 		bool has_mips = false;
 		bool srgb = false;
+		HiresAlphaContentClass alpha_class = HiresAlphaContentClass::Unknown;
 		Vulkan::ImageHandle image;
 	};
 

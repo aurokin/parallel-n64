@@ -28,6 +28,19 @@
 - Current redesign direction:
   - treat lookup provenance and tile binding as separate systems
   - the first explicit post-lookup binding layer now lives in `rdp_hires_binding_policy.hpp`
+  - ownership class is now explicit in the debug surface:
+    - binding ownership:
+      - `upload_owner`
+      - `fallback_owner`
+      - `alias_consumer`
+      - `unbound`
+    - draw ownership:
+      - `upload_owner`
+      - `fallback_owner`
+      - `alias_consumer`
+      - `descriptorless_consumer`
+      - `copy_consumer`
+      - `mixed`
   - redesign roadmap: `docs/HIRES_REDESIGN_PLAN.md`
 
 ## Supported Formats
@@ -244,6 +257,10 @@
     - current conclusion:
       - this is the best shared redesign probe so far
       - it improves on `narrow-reinterp-phase-16x16` in both validation scenes by combining the proven `16x16` phase rule with the stronger `32x16` pending-source rule
+  - removed dead-end probe:
+    - the temporary signature-specific `32x32` binary-alpha probe was intentionally not kept
+    - its runtime instrumentation was not trustworthy enough to design around
+    - keep the alpha-class metadata plumbing, but do not build new policy on that removed matcher
 - Provenance census workflow:
   - `PARALLEL_RDP_HIRES_DEBUG=1` logs draw-state birth metadata for replacement-backed draws
   - draw-state logs now also preserve exact checksum keys for `repl0` and `repl1`
@@ -266,6 +283,13 @@
     - `--dump-records` emits matched records in call order, which is useful for repeated-strip / stitching investigation
     - `--spatial-summary` groups matched draws by row/slot reuse, unique `screen_x`/`screen_y`, prim range, and call range
     - `--call-min/--call-max` isolate one repeated pass phase or one strip bundle for order-sensitive debugging
+    - current draw-state logs also include:
+      - `draw_owner`
+      - `repl0_owner`
+      - `repl1_owner`
+      - `repl0_alpha`
+      - `repl1_alpha`
+    - default grouping in the tool now starts with ownership classes before descriptor/key fields
   - current important finding:
     - Paper Mario’s `CI16 -> RGBA16 lookup_tile=0` family cannot be separated by raw raster flags alone
   - redesign support:

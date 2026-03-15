@@ -16,6 +16,7 @@ That coupling made the earlier debugging productive, but it also made the system
 Move toward a cache-owner style HIRES system where:
 - lookup provenance is explicit
 - binding/application policy is explicit
+- ownership class is explicit
 - reinterpretation is narrow and justified
 - HIRES-off behavior remains unchanged
 
@@ -189,6 +190,22 @@ This is the first redesign probe that beat both the prior `narrow-reinterp` and 
 - Centralize the post-lookup binding decision.
 - Stop open-coding state writes and alias propagation in `rdp_renderer.cpp`.
 
+This stage now has a concrete vocabulary:
+- binding ownership classes:
+  - `upload_owner`
+  - `fallback_owner`
+  - `alias_consumer`
+  - `unbound`
+- draw ownership classes:
+  - `upload_owner`
+  - `fallback_owner`
+  - `alias_consumer`
+  - `descriptorless_consumer`
+  - `copy_consumer`
+  - `mixed`
+
+Use these classes in debug output and reports before introducing any new scene-specific probe.
+
 ### Stage 2: Split producer and consumer classes
 - Treat normal sampled tiles separately from:
   - copy/write style producers
@@ -218,6 +235,11 @@ This is the first redesign probe that beat both the prior `narrow-reinterp` and 
 
 ## Immediate Next Work
 1. Keep using the new binding-policy layer as the only place where lookup results become live tile bindings.
-2. Add explicit binding-policy modes behind that layer.
+2. Use ownership classes as the primary diagnostic surface for all remaining Paper Mario lanes.
 3. Rework reinterpretation acceptance at the lookup-provenance level, not in scattered draw-time branches.
 4. Revisit descriptorless consumer families once the ownership path is cleaner.
+
+## Methodology Guardrails
+- Do not add new scene-specific renderer overrides unless they expose a shared rule.
+- Do not trust ad hoc signature-matching probes unless their runtime instrumentation is independently validated.
+- Prefer structured ownership-class reporting over large free-form draw logs.

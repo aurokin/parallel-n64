@@ -44,6 +44,11 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - Paper Mario standardized intro22 refresh:
   - `./run-paper-mario-hires-intro22-refresh.sh`
   - this is the default refresh path and uses load-state + pause + `1f`
+- Paper Mario noinput16 state seeding:
+  - `./run-paper-mario-hires-noinput16-seed-state.sh`
+- Paper Mario standardized noinput16 state capture:
+  - `./run-paper-mario-hires-noinput16-state-capture.sh --tag <tag>`
+  - use this for renderer comparisons; the timed noinput16 path is now for reseeding/oracle maintenance only
 - Paper Mario canonical intro22 baseline capture:
   - `./run-paper-mario-hires-intro22-baseline-capture.sh`
 - Paper Mario intro22 probe-vs-baseline compare:
@@ -53,6 +58,7 @@ This repo uses tiered, local-only emulator-behavior test gates to separate requi
 - Paper Mario timed save-state seed on `parallel`:
   - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at <sec> --timed-save-state-at <sec> --savestate-dir <dir> --tag <tag> --require-hires`
   - writes slot `0` into the explicit savestate directory so the same scene can be replayed via `--smoke-mode state --savestate-dir <dir>`
+  - for `noinput16`, prefer the dedicated seed helper above because it copies the canonical state into `/tmp/parallel-n64-paper-mario-saves/noinput16-seed-r1` even if the timed helper fails to flush a screenshot
 - Paper Mario HIRES zoom compare on `parallel`:
   - `./run-paper-mario-hires-zoom-compare.sh`
   - `./run-paper-mario-hires-intro22-compare.sh`

@@ -54,11 +54,24 @@ Use it to avoid rediscovering timing, compare profiles, or oracle paths.
 ## noinput16
 
 - Purpose:
-  - Older no-input HIRES scene kept for historical comparisons and legacy crop alignment.
-- Parallel capture:
+  - Secondary HIRES validation scene.
+  - Use the seeded state path for renderer truth.
+  - Use the timed path only to reseed the canonical save state or refresh the older timed oracle.
+- Timed seed:
+  - `./run-paper-mario-hires-noinput16-seed-state.sh`
+- Seeded state capture:
+  - `./run-paper-mario-hires-noinput16-state-capture.sh --tag <tag>`
+- Legacy timed capture:
   - `./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at 16 --tag <tag> --require-hires`
 - Compare:
   - `./run-paper-mario-hires-zoom-compare.sh --profile noinput16`
+- Standardization:
+  - canonical seeded save state lives at `/tmp/parallel-n64-paper-mario-saves/noinput16-seed-r1`
+  - seeded state capture forces `--smoke-mode state --require-hires --state-pause`
+  - standardized default is `--state-frame-advance 1`
+- Notes:
+  - timed noinput16 captures are too noisy to use as exact renderer truth
+  - when noinput16 is part of a redesign acceptance check, use the seeded state path
 - Preserved GLide oracle:
   - `/home/auro/code/parallel-n64-paper-mario-backups/20260306-hires-audit/hires/oracle-gliden64-4x-hires-on-noinput-16s-1/Paper Mario (USA)-260308-011300.png`
 

@@ -397,14 +397,19 @@ Co-Authored-By: Codex <noreply@openai.com>
   - for HIRES validation runs, add `--require-hires` so the helper fails unless `run.log` proves `provider=on`, replacement hits, and replacement-bound draws
   - use `--smoke-mode timed --screenshot-at <sec>` for no-input intro/title captures; this launches `run-n64.sh` directly, waits, screenshots, and closes without virtual pad input
   - for the current standardized seeded intro22 state path, prefer `./run-paper-mario-hires-intro22-state-capture.sh`
+  - for the current standardized seeded noinput16 state path, prefer `./run-paper-mario-hires-noinput16-state-capture.sh`
+    - if the canonical state is missing, it auto-seeds from the timed noinput16 scene
+    - canonical seed dir: `/tmp/parallel-n64-paper-mario-saves/noinput16-seed-r1`
   - for current intro22 renderer debugging strategy, follow:
     - `docs/PAPER_MARIO_HIRES_MATRIX.md`
     - `docs/PAPER_MARIO_HIRES_LANES.md`
   - scene quick list: `./run-paper-mario-scenes.sh`
   - use timed intro22 only to maintain/refresh the preserved GLide oracle, not as renderer truth
+  - use timed noinput16 only to reseed the canonical save state or refresh the legacy timed oracle, not as exact renderer truth
   - timed mode also supports deterministic save-state seeding:
     - `--timed-save-state-at <sec> --savestate-dir <dir>` sends `SAVE_STATE` before the screenshot and writes slot `0` into the explicit savestate directory
     - after seeding, validate from the same directory with `--smoke-mode state --savestate-dir <dir>`
+    - for noinput16 specifically, prefer `./run-paper-mario-hires-noinput16-seed-state.sh`; it copies the resulting state into the canonical seed dir even if the timed helper fails after `SAVE_STATE`
   - state mode also supports optional pre-load pausing for stability checks:
     - `--state-pause-before-load`
     - `--state-pre-load-pause-delay <sec>`

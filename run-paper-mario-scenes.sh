@@ -22,8 +22,10 @@ intro22-state
 
 noinput16
   parallel: ./run-paper-mario-hires-capture.sh --smoke-mode timed --screenshot-at 16 --tag <tag> --require-hires
+  seed:     ./run-paper-mario-hires-noinput16-seed-state.sh
+  state:    ./run-paper-mario-hires-noinput16-state-capture.sh --tag <tag>
   compare:  ./run-paper-mario-hires-zoom-compare.sh --profile noinput16
-  purpose:  legacy no-input HIRES scene
+  purpose:  secondary HIRES scene; timed only for reseeding, state path for renderer truth
 
 file-select-state
   parallel: ./run-paper-mario-hires-capture.sh --smoke-mode state --tag <tag> --require-hires

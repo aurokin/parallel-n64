@@ -276,6 +276,24 @@ Use these classes in debug output and reports before introducing any new scene-s
   - seeded `noinput16` also collapses to those same 16 shared stitched shape signatures
   - the older timed `noinput16` `+426 extra shapes` finding was drift, not a stable redesign signal
   - next `32x32` redesign work should stay on the shared stitched bundle itself, not a timed-only extra-microshape branch
+  - stitched-bundle probing must now use stable occurrence ranges:
+    - `PARALLEL_HIRES_MATCH_OCCURRENCE_MIN`
+    - `PARALLEL_HIRES_MATCH_OCCURRENCE_MAX`
+  - do not use absolute `MATCH_CALL_MIN/MAX` for one-bundle probes; suppression renumbers later calls and contaminates the result
+  - stable family selector on intro22 and seeded `noinput16`:
+    - `*_DESC=66`
+    - `MATCH_RASTER_FLAGS=0x21844108`
+    - `MATCH_SCREEN_Y_MAX=800`
+  - current stitched-bundle finding:
+    - intro22: 27 bundles of 17 draws
+    - seeded `noinput16`: 24 bundles of 17 draws
+    - intro22: suppressing bundle 1, mid, or last produces the exact same image
+    - intro22: forcing binary pixel alpha on one selected bundle produces the exact same image as suppressing that bundle
+    - seeded `noinput16`: first-bundle suppression is a no-op, last-bundle suppression is only a tiny change, and the binary-alpha equivalence does not hold
+  - working interpretation:
+    - `same32x32_alias` is a shared stitched low-alpha composition family
+    - the unresolved bug is not lookup identity
+    - the remaining root is scene-dependent accumulation semantics inside that shared family
 
 ## Methodology Guardrails
 - Do not add new scene-specific renderer overrides unless they expose a shared rule.

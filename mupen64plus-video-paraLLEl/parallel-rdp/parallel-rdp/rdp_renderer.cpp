@@ -813,6 +813,8 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_budget_evictions = 0;
 	hires_budget_rejections = 0;
 	hires_draw_calls_total = 0;
+	hires_debug_match_occurrence_total = 0;
+	hires_debug_match2_occurrence_total = 0;
 	hires_draw_calls_with_replacement = 0;
 	hires_shader_dispatch_total = 0;
 	hires_shader_dispatch_with_define = 0;
@@ -2088,32 +2090,40 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		const auto debug_screen_x1 = uint32_t(std::max(prim_bounds.x1, 0));
 		const auto debug_screen_y0 = uint32_t(std::max(prim_bounds.y0, 0));
 		const auto debug_screen_y1 = uint32_t(std::max(prim_bounds.y1, 0));
-		const bool debug_subtype_hit = detail::hires_debug_subtype_match_active(debug_subtype_match) &&
-		                               detail::hires_debug_subtype_matches(debug_subtype_match,
-		                                                                  uint32_t(stream.static_raster_state.flags),
-		                                                                  normalized,
-		                                                                  attr,
-		                                                                  debug_call_index,
-		                                                                  attr.s >> 16,
-		                                                                  attr.t >> 16,
-		                                                                  prim_bounds.valid,
-		                                                                  debug_screen_x0,
-		                                                                  debug_screen_x1,
-		                                                                  debug_screen_y0,
-		                                                                  debug_screen_y1);
-		const bool debug_subtype_hit2 = detail::hires_debug_subtype_match_active(debug_subtype_match2) &&
-		                                detail::hires_debug_subtype_matches(debug_subtype_match2,
-		                                                                   uint32_t(stream.static_raster_state.flags),
-		                                                                   normalized,
-		                                                                   attr,
-		                                                                   debug_call_index,
-		                                                                   attr.s >> 16,
-		                                                                   attr.t >> 16,
-		                                                                   prim_bounds.valid,
-		                                                                   debug_screen_x0,
-		                                                                   debug_screen_x1,
-		                                                                   debug_screen_y0,
-		                                                                   debug_screen_y1);
+		const bool debug_subtype_candidate = detail::hires_debug_subtype_match_active(debug_subtype_match) &&
+		                                     detail::hires_debug_subtype_matches_base(debug_subtype_match,
+		                                                                                uint32_t(stream.static_raster_state.flags),
+		                                                                                normalized,
+		                                                                                attr,
+		                                                                                debug_call_index,
+		                                                                                attr.s >> 16,
+		                                                                                attr.t >> 16,
+		                                                                                prim_bounds.valid,
+		                                                                                debug_screen_x0,
+		                                                                                debug_screen_x1,
+		                                                                                debug_screen_y0,
+		                                                                                debug_screen_y1);
+		const uint64_t debug_occurrence_index = debug_subtype_candidate ? ++hires_debug_match_occurrence_total : 0;
+		const bool debug_subtype_hit = debug_subtype_candidate &&
+		                               detail::hires_debug_subtype_occurrence_matches(debug_subtype_match,
+		                                                                              debug_occurrence_index);
+		const bool debug_subtype_candidate2 = detail::hires_debug_subtype_match_active(debug_subtype_match2) &&
+		                                      detail::hires_debug_subtype_matches_base(debug_subtype_match2,
+		                                                                                 uint32_t(stream.static_raster_state.flags),
+		                                                                                 normalized,
+		                                                                                 attr,
+		                                                                                 debug_call_index,
+		                                                                                 attr.s >> 16,
+		                                                                                 attr.t >> 16,
+		                                                                                 prim_bounds.valid,
+		                                                                                 debug_screen_x0,
+		                                                                                 debug_screen_x1,
+		                                                                                 debug_screen_y0,
+		                                                                                 debug_screen_y1);
+		const uint64_t debug_occurrence_index2 = debug_subtype_candidate2 ? ++hires_debug_match2_occurrence_total : 0;
+		const bool debug_subtype_hit2 = debug_subtype_candidate2 &&
+		                                detail::hires_debug_subtype_occurrence_matches(debug_subtype_match2,
+		                                                                               debug_occurrence_index2);
 		const auto debug_overrides = detail::filter_hires_debug_draw_overrides(
 				detail::derive_hires_debug_draw_overrides(draw_replacement_descs, draw_replacement_desc_count),
 				debug_subtype_match,
@@ -2127,7 +2137,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				debug_screen_x0,
 				debug_screen_x1,
 				debug_screen_y0,
-				debug_screen_y1);
+				debug_screen_y1,
+				debug_occurrence_index);
 		const auto debug_overrides2 = detail::filter_hires_debug_draw_overrides_with_prefix(
 				detail::derive_hires_debug_draw_overrides_with_prefix(draw_replacement_descs, draw_replacement_desc_count,
 				                                                      "PARALLEL_HIRES2_"),
@@ -2143,7 +2154,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				debug_screen_x0,
 				debug_screen_x1,
 				debug_screen_y0,
-				debug_screen_y1);
+				debug_screen_y1,
+				debug_occurrence_index2);
 		const auto merged_debug_overrides = detail::merge_hires_debug_draw_overrides(debug_overrides, debug_overrides2);
 		detail::apply_hires_debug_draw_overrides(merged_debug_overrides,
 		                                         draw_setup,

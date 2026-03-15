@@ -307,6 +307,8 @@ private:
 	uint64_t hires_budget_evictions = 0;
 	uint64_t hires_budget_rejections = 0;
 	uint64_t hires_draw_calls_total = 0;
+	uint64_t hires_debug_match_occurrence_total = 0;
+	uint64_t hires_debug_match2_occurrence_total = 0;
 	uint64_t hires_draw_calls_with_replacement = 0;
 	uint64_t hires_shader_dispatch_total = 0;
 	uint64_t hires_shader_dispatch_with_define = 0;

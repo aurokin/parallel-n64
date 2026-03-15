@@ -104,6 +104,8 @@ static void test_no_env_means_no_overrides()
 	EnvGuard match_screen_y_max("PARALLEL_HIRES_MATCH_SCREEN_Y_MAX");
 	EnvGuard match_screen_x_min("PARALLEL_HIRES_MATCH_SCREEN_X_MIN");
 	EnvGuard match_screen_x_max("PARALLEL_HIRES_MATCH_SCREEN_X_MAX");
+	EnvGuard match_occurrence_min("PARALLEL_HIRES_MATCH_OCCURRENCE_MIN");
+	EnvGuard match_occurrence_max("PARALLEL_HIRES_MATCH_OCCURRENCE_MAX");
 	unsetenv(suppress_draw.name);
 	unsetenv(clear_force.name);
 	unsetenv(clear_multi.name);
@@ -153,6 +155,8 @@ static void test_no_env_means_no_overrides()
 	unsetenv(match_screen_y_max.name);
 	unsetenv(match_screen_x_min.name);
 	unsetenv(match_screen_x_max.name);
+	unsetenv(match_occurrence_min.name);
+	unsetenv(match_occurrence_max.name);
 
 	auto descs = make_descs(25u, 40u);
 	auto overrides = derive_hires_debug_draw_overrides(descs, 2);
@@ -522,6 +526,40 @@ static void test_subtype_filter_matches_call_remainder_range()
 	check(!wrong_above.suppress_draw, "remainder above range should not match");
 }
 
+static void test_subtype_filter_matches_occurrence_range()
+{
+	EnvGuard suppress_match("PARALLEL_HIRES_SUPPRESS_MATCHED_DRAW");
+	EnvGuard match_occurrence_min("PARALLEL_HIRES_MATCH_OCCURRENCE_MIN");
+	EnvGuard match_occurrence_max("PARALLEL_HIRES_MATCH_OCCURRENCE_MAX");
+	setenv(suppress_match.name, "1", 1);
+	setenv(match_occurrence_min.name, "18", 1);
+	setenv(match_occurrence_max.name, "34", 1);
+
+	std::array<uint32_t, 8> descs = {};
+	auto overrides = derive_hires_debug_draw_overrides(descs, 0);
+	auto subtype = derive_hires_debug_subtype_match();
+
+	check(hires_debug_subtype_match_active(subtype), "occurrence range should activate subtype match");
+	check(subtype.has_occurrence_min && subtype.occurrence_min == 18u, "occurrence min should parse");
+	check(subtype.has_occurrence_max && subtype.occurrence_max == 34u, "occurrence max should parse");
+
+	StaticRasterizationState normalized = {};
+	AttributeSetup attr = {};
+
+	check(!hires_debug_subtype_occurrence_matches(subtype, 17u), "occurrence below range should not match");
+	check(hires_debug_subtype_occurrence_matches(subtype, 18u), "occurrence at min should match");
+	check(hires_debug_subtype_occurrence_matches(subtype, 34u), "occurrence at max should match");
+	check(!hires_debug_subtype_occurrence_matches(subtype, 35u), "occurrence above range should not match");
+
+	auto matched = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
+	                                                 4249, 0, 0, true, 209u, 1068u, 0u, 700u, 18u);
+	check(matched.suppress_draw, "matching occurrence should force suppress_draw");
+
+	auto wrong = filter_hires_debug_draw_overrides(overrides, subtype, 0x21844108u, normalized, attr,
+	                                               4016, 0, 0, true, 209u, 1068u, 0u, 700u, 17u);
+	check(!wrong.suppress_draw, "nonmatching occurrence should clear suppress_draw");
+}
+
 static void test_apply_overrides_mutates_expected_state_bits()
 {
 	EnvGuard clear_force("PARALLEL_HIRES_CLEAR_FORCE_BLEND_DESC");
@@ -797,6 +835,7 @@ int main()
 	test_subtype_filter_matches_st_bounds();
 	test_subtype_filter_matches_call_modulus_and_remainder();
 	test_subtype_filter_matches_call_remainder_range();
+	test_subtype_filter_matches_occurrence_range();
 	test_apply_overrides_mutates_expected_state_bits();
 	test_force_upscaled_texrect_wins_last();
 	test_secondary_scope_derives_and_filters_independently();

@@ -327,6 +327,20 @@
         - seeded `noinput16` also collapses to those same 16 shared stitched shape signatures
         - the earlier timed `noinput16` `+426 extra shapes` result was scene drift, not a stable redesign signal
         - so the remaining `32x32` problem is a shared stitched-bundle composition lane, not a replacement-key or extra-microshape issue
+      - stitched-bundle probing now has a stable methodology:
+        - use `PARALLEL_HIRES_MATCH_OCCURRENCE_MIN/MAX` instead of raw `MATCH_CALL_MIN/MAX` for one-bundle probes
+        - raw absolute call ranges are not trustworthy once suppression starts renumbering later draws
+        - stable family selector on both intro22 and seeded `noinput16`:
+          - `*_DESC=66`
+          - `MATCH_RASTER_FLAGS=0x21844108`
+          - `MATCH_SCREEN_Y_MAX=800`
+      - current shared `same32x32_alias` bundle result:
+        - intro22: 27 bundles of 17 draws
+        - seeded `noinput16`: 24 bundles of 17 draws
+        - intro22: suppressing bundle 1, mid, or last gives the exact same image
+        - intro22: forcing binary pixel alpha on one selected bundle gives the exact same image as suppressing that bundle
+        - seeded `noinput16`: first-bundle suppression is a no-op, last-bundle suppression is only a tiny change, and binary-alpha-on-one-bundle does not collapse to suppression
+        - so the remaining `32x32` lane is a shared stitched low-alpha composition family, but its accumulation semantics still differ by scene
   - current important finding:
     - Paper Mario’s `CI16 -> RGBA16 lookup_tile=0` family cannot be separated by raw raster flags alone
   - redesign support:

@@ -167,6 +167,26 @@ Co-Authored-By: Codex <noreply@openai.com>
               - seeded noinput16 state collapses to the same 16 shared stitched signatures only
             - treat `same32x32_alias` as a shared stitched-bundle composition lane
             - do not use timed noinput16 shape differences as redesign evidence
+          - `same32x32_alias` bundle methodology:
+            - use the new stable occurrence matcher, not raw `MATCH_CALL_MIN/MAX`, when you need a single stitched bundle
+            - new envs:
+              - `PARALLEL_HIRES_MATCH_OCCURRENCE_MIN`
+              - `PARALLEL_HIRES_MATCH_OCCURRENCE_MAX`
+            - absolute `call_min/max` is unsafe for one-bundle probes because suppression renumbers later draws
+            - stable intro22 family selector:
+              - `PARALLEL_HIRES_*_DESC=66`
+              - `PARALLEL_HIRES_MATCH_RASTER_FLAGS=0x21844108`
+              - `PARALLEL_HIRES_MATCH_SCREEN_Y_MAX=800`
+            - stable seeded `noinput16` uses the same selector
+            - current stitched-bundle result:
+              - intro22 has 27 bundles of 17 draws
+              - seeded `noinput16` has 24 bundles of 17 draws
+              - intro22: suppressing bundle 1, 14, or 27 yields the exact same image
+              - intro22: forcing `FORCE_PIXEL_ALPHA_BINARY_DESC=66` on one selected bundle yields the exact same image as suppressing that bundle
+              - seeded `noinput16`: first-bundle suppression is a no-op, last-bundle suppression is only a tiny change, and the binary-alpha equivalence does not hold there
+            - interpretation:
+              - the remaining `32x32` issue is a shared low-alpha stitched-bundle composition bug
+              - but its accumulation semantics are still scene-dependent
           - the temporary signature-specific `32x32` alpha probe was intentionally dropped; its runtime instrumentation was not trustworthy enough to guide redesign
         - `run-paper-mario-open-compare.sh --profile intro22` must rebuild from the newest `intro22*` capture, not the newest capture globally
           - keeps the full `narrow-reinterp` birth-pattern set, but only consumes `0x202 -> 0x02`, `16x16 -> 100x100` replacements on the primary `0x21864010` raster phase

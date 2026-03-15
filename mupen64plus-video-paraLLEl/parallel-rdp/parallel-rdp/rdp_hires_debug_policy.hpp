@@ -102,6 +102,10 @@ struct HiresDebugSubtypeMatch
 	uint32_t call_remainder_min = 0;
 	bool has_call_remainder_max = false;
 	uint32_t call_remainder_max = 0;
+	bool has_occurrence_min = false;
+	uint64_t occurrence_min = 0;
+	bool has_occurrence_max = false;
+	uint64_t occurrence_max = 0;
 };
 
 enum HiresDepthBlendDebugBit : uint8_t
@@ -192,6 +196,20 @@ inline bool hires_debug_parse_u32_env(const char *env_name, uint32_t &value)
 	return true;
 }
 
+inline bool hires_debug_parse_u64_env(const char *env_name, uint64_t &value)
+{
+	const char *env = std::getenv(env_name);
+	if (!env || !*env)
+		return false;
+
+	char *end = nullptr;
+	unsigned long long parsed = std::strtoull(env, &end, 0);
+	if (end == env)
+		return false;
+	value = static_cast<uint64_t>(parsed);
+	return true;
+}
+
 inline bool hires_debug_parse_i32_env(const char *env_name, int32_t &value)
 {
 	const char *env = std::getenv(env_name);
@@ -254,6 +272,12 @@ inline bool hires_debug_parse_u32_env_prefixed(const char *prefix, const char *s
 {
 	const auto name = hires_debug_env_name(prefix, suffix);
 	return hires_debug_parse_u32_env(name.c_str(), value);
+}
+
+inline bool hires_debug_parse_u64_env_prefixed(const char *prefix, const char *suffix, uint64_t &value)
+{
+	const auto name = hires_debug_env_name(prefix, suffix);
+	return hires_debug_parse_u64_env(name.c_str(), value);
 }
 
 inline bool hires_debug_parse_i32_env_prefixed(const char *prefix, const char *suffix, int32_t &value)
@@ -404,6 +428,10 @@ inline HiresDebugSubtypeMatch derive_hires_debug_subtype_match_with_prefix(const
 	                                                                  match.call_remainder_min);
 	match.has_call_remainder_max = hires_debug_parse_u32_env_prefixed(prefix, "MATCH_CALL_REMAINDER_MAX",
 	                                                                  match.call_remainder_max);
+	match.has_occurrence_min = hires_debug_parse_u64_env_prefixed(prefix, "MATCH_OCCURRENCE_MIN",
+	                                                              match.occurrence_min);
+	match.has_occurrence_max = hires_debug_parse_u64_env_prefixed(prefix, "MATCH_OCCURRENCE_MAX",
+	                                                              match.occurrence_max);
 	return match;
 }
 
@@ -421,21 +449,22 @@ inline bool hires_debug_subtype_match_active(const HiresDebugSubtypeMatch &match
 	       match.has_st_t_min || match.has_st_t_max ||
 	       match.has_call_modulus || match.has_call_min || match.has_call_max ||
 	       match.has_call_remainder ||
-	       match.has_call_remainder_min || match.has_call_remainder_max;
+	       match.has_call_remainder_min || match.has_call_remainder_max ||
+	       match.has_occurrence_min || match.has_occurrence_max;
 }
 
-inline bool hires_debug_subtype_matches(const HiresDebugSubtypeMatch &match,
-                                        uint32_t raw_raster_flags,
-                                        const StaticRasterizationState &normalized,
-                                        const AttributeSetup &attr,
-                                        uint64_t draw_call_index,
-                                        int32_t st_s,
-                                        int32_t st_t,
-                                        bool has_screen_bounds,
-                                        uint32_t screen_x0,
-                                        uint32_t screen_x1,
-                                        uint32_t screen_y0,
-                                        uint32_t screen_y1)
+inline bool hires_debug_subtype_matches_base(const HiresDebugSubtypeMatch &match,
+                                             uint32_t raw_raster_flags,
+                                             const StaticRasterizationState &normalized,
+                                             const AttributeSetup &attr,
+                                             uint64_t draw_call_index,
+                                             int32_t st_s,
+                                             int32_t st_t,
+                                             bool has_screen_bounds,
+                                             uint32_t screen_x0,
+                                             uint32_t screen_x1,
+                                             uint32_t screen_y0,
+                                             uint32_t screen_y1)
 {
 	if (match.has_raw_raster_flags && match.raw_raster_flags != raw_raster_flags)
 		return false;
@@ -506,6 +535,41 @@ inline bool hires_debug_subtype_matches(const HiresDebugSubtypeMatch &match,
 	return true;
 }
 
+inline bool hires_debug_subtype_occurrence_matches(const HiresDebugSubtypeMatch &match,
+                                                   uint64_t occurrence_index)
+{
+	if (match.has_occurrence_min)
+	{
+		if (occurrence_index == 0 || occurrence_index < match.occurrence_min)
+			return false;
+	}
+	if (match.has_occurrence_max)
+	{
+		if (occurrence_index == 0 || occurrence_index > match.occurrence_max)
+			return false;
+	}
+	return true;
+}
+
+inline bool hires_debug_subtype_matches(const HiresDebugSubtypeMatch &match,
+                                        uint32_t raw_raster_flags,
+                                        const StaticRasterizationState &normalized,
+                                        const AttributeSetup &attr,
+                                        uint64_t draw_call_index,
+                                        int32_t st_s,
+                                        int32_t st_t,
+                                        bool has_screen_bounds,
+                                        uint32_t screen_x0,
+                                        uint32_t screen_x1,
+                                        uint32_t screen_y0,
+                                        uint32_t screen_y1,
+                                        uint64_t occurrence_index = 0)
+{
+	return hires_debug_subtype_matches_base(match, raw_raster_flags, normalized, attr, draw_call_index, st_s, st_t,
+	                                        has_screen_bounds, screen_x0, screen_x1, screen_y0, screen_y1) &&
+	       hires_debug_subtype_occurrence_matches(match, occurrence_index);
+}
+
 inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides(const HiresDebugDrawOverrides &overrides,
                                                                  const HiresDebugSubtypeMatch &match,
                                                                  uint32_t raw_raster_flags,
@@ -518,7 +582,8 @@ inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides(const HiresDebu
                                                                  uint32_t screen_x0 = 0,
                                                                  uint32_t screen_x1 = 0,
                                                                  uint32_t screen_y0 = 0,
-                                                                 uint32_t screen_y1 = 0);
+                                                                 uint32_t screen_y1 = 0,
+                                                                 uint64_t occurrence_index = 0);
 
 inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides_with_prefix(const HiresDebugDrawOverrides &overrides,
                                                                  const HiresDebugSubtypeMatch &match,
@@ -533,12 +598,14 @@ inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides_with_prefix(con
                                                                  uint32_t screen_x0 = 0,
                                                                  uint32_t screen_x1 = 0,
                                                                  uint32_t screen_y0 = 0,
-                                                                 uint32_t screen_y1 = 0)
+                                                                 uint32_t screen_y1 = 0,
+                                                                 uint64_t occurrence_index = 0)
 {
 	if (!hires_debug_subtype_match_active(match))
 		return overrides;
 	if (hires_debug_subtype_matches(match, raw_raster_flags, normalized, attr, draw_call_index, st_s, st_t,
-	                                has_screen_bounds, screen_x0, screen_x1, screen_y0, screen_y1))
+	                                has_screen_bounds, screen_x0, screen_x1, screen_y0, screen_y1,
+	                                occurrence_index))
 	{
 		auto filtered = overrides;
 		if (hires_debug_env_enabled_prefixed(prefix, "SUPPRESS_MATCHED_DRAW"))
@@ -560,13 +627,14 @@ inline HiresDebugDrawOverrides filter_hires_debug_draw_overrides(const HiresDebu
                                                                  uint32_t screen_x0,
                                                                  uint32_t screen_x1,
                                                                  uint32_t screen_y0,
-                                                                 uint32_t screen_y1)
+                                                                 uint32_t screen_y1,
+                                                                 uint64_t occurrence_index)
 {
 	return filter_hires_debug_draw_overrides_with_prefix(overrides, match, "PARALLEL_HIRES_",
 	                                                     raw_raster_flags, normalized, attr,
 	                                                     draw_call_index, st_s, st_t,
 	                                                     has_screen_bounds, screen_x0, screen_x1,
-	                                                     screen_y0, screen_y1);
+	                                                     screen_y0, screen_y1, occurrence_index);
 }
 
 inline HiresDebugDrawOverrides merge_hires_debug_draw_overrides(const HiresDebugDrawOverrides &a,

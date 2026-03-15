@@ -271,10 +271,11 @@ Use these classes in debug output and reports before introducing any new scene-s
   - reject `cross16x16_secondary_*`
   - allow `cross32x16_pending`
   - reject `cross32x16_alias`
-- Latest `same32x32_alias` shape result:
+- Latest `same32x32_alias` seeded-state result:
   - intro22 is fully covered by 16 shared stitched shape signatures
-  - noinput16 contains those same 16 signatures plus 426 extra shape signatures
-  - next `32x32` redesign work should target extra micro-shapes on top of the shared bundle, not replacement-key identity
+  - seeded `noinput16` also collapses to those same 16 shared stitched shape signatures
+  - the older timed `noinput16` `+426 extra shapes` finding was drift, not a stable redesign signal
+  - next `32x32` redesign work should stay on the shared stitched bundle itself, not a timed-only extra-microshape branch
 
 ## Methodology Guardrails
 - Do not add new scene-specific renderer overrides unless they expose a shared rule.

@@ -159,6 +159,12 @@ Co-Authored-By: Codex <noreply@openai.com>
               - keep `cross32x16_pending`
               - reject `cross32x16_alias`
             - use archetypes as the next redesign surface before adding any new scene-specific consumer filters
+          - `same32x32_alias` shape methodology:
+            - compare shape signatures with `tools/hires_draw_shape_compare.py`
+            - current finding:
+              - intro22 is fully covered by 16 shared stitched signatures
+              - noinput16 contains those same 16 signatures plus 426 extra signatures
+            - treat the remaining `32x32` work as a shared-bundle-vs-extra-microshape problem, not a replacement-key problem
           - the temporary signature-specific `32x32` alpha probe was intentionally dropped; its runtime instrumentation was not trustworthy enough to guide redesign
         - `run-paper-mario-open-compare.sh --profile intro22` must rebuild from the newest `intro22*` capture, not the newest capture globally
           - keeps the full `narrow-reinterp` birth-pattern set, but only consumes `0x202 -> 0x02`, `16x16 -> 100x100` replacements on the primary `0x21864010` raster phase

@@ -322,6 +322,10 @@
         - reject `cross16x16_secondary_*`
         - keep `cross32x16_pending`
         - reject `cross32x16_alias`
+      - `same32x32_alias` now has a clean shared-vs-extra shape split:
+        - intro22 is fully covered by 16 shared stitched shape signatures
+        - noinput16 contains those same 16 signatures plus 426 extra shape signatures
+        - this points the remaining `32x32` problem toward bundle-shape classification, not lookup identity
   - current important finding:
     - Paper Mario’s `CI16 -> RGBA16 lookup_tile=0` family cannot be separated by raw raster flags alone
   - redesign support:

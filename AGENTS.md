@@ -144,6 +144,21 @@ Co-Authored-By: Codex <noreply@openai.com>
               - `descriptorless_consumer`
               - `copy_consumer`
               - `mixed`
+          - consumer-archetype methodology:
+            - use these named lane classes before inventing more tuple-specific probes:
+              - `cross16x16_primary_alias`
+              - `cross16x16_secondary_alias`
+              - `cross16x16_primary_owner`
+              - `cross16x16_secondary_owner`
+              - `cross32x16_pending`
+              - `cross32x16_alias`
+              - `same32x32_alias`
+            - current best shared probe maps directly to archetypes:
+              - keep `cross16x16_primary_*`
+              - reject `cross16x16_secondary_*`
+              - keep `cross32x16_pending`
+              - reject `cross32x16_alias`
+            - use archetypes as the next redesign surface before adding any new scene-specific consumer filters
           - the temporary signature-specific `32x32` alpha probe was intentionally dropped; its runtime instrumentation was not trustworthy enough to guide redesign
         - `run-paper-mario-open-compare.sh --profile intro22` must rebuild from the newest `intro22*` capture, not the newest capture globally
           - keeps the full `narrow-reinterp` birth-pattern set, but only consumes `0x202 -> 0x02`, `16x16 -> 100x100` replacements on the primary `0x21864010` raster phase
@@ -216,6 +231,9 @@ Co-Authored-By: Codex <noreply@openai.com>
       - `--spatial-summary` groups matched draws by row/slot reuse, unique `screen_x`/`screen_y`, prim range, and call range
       - `--call-min/--call-max` let you isolate one repeated pass phase or one strip bundle without grepping logs manually
       - useful filters:
+        - `--draw-owner`
+        - `--repl-owner`
+        - `--repl-archetype`
         - `--load-fs 0x202`
         - `--lookup-fs 0x02`
         - `--lookup-tile 0`

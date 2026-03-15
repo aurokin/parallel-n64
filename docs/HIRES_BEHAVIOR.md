@@ -293,9 +293,18 @@
     - new ownership filters:
       - `--draw-owner`
       - `--repl-owner`
+      - `--repl-archetype`
       - `--key-wh`
       - `--repl-wh`
       - `--flags`
+    - new consumer-archetype vocabulary:
+      - `cross16x16_primary_alias`
+      - `cross16x16_secondary_alias`
+      - `cross16x16_primary_owner`
+      - `cross16x16_secondary_owner`
+      - `cross32x16_pending`
+      - `cross32x16_alias`
+      - `same32x32_alias`
     - current ownership-class finding:
       - the `32x16 -> 512x256` class has a stable split across intro22 and noinput16:
         - producer lane:
@@ -308,6 +317,11 @@
           - `repl_source=alias`
           - `repl_origin=block_tile`
       - the first ownership-only `32x16` probe was not promoted because it did not reproduce the stronger pending-source result closely enough
+      - the current best shared probe (`narrow-reinterp-phase-16x16-pending-32x16`) now reads cleanly in archetype terms:
+        - keep `cross16x16_primary_alias` / `cross16x16_primary_owner`
+        - reject `cross16x16_secondary_*`
+        - keep `cross32x16_pending`
+        - reject `cross32x16_alias`
   - current important finding:
     - Paper Mario’s `CI16 -> RGBA16 lookup_tile=0` family cannot be separated by raw raster flags alone
   - redesign support:

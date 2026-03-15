@@ -2331,12 +2331,14 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			const auto prim_bounds = compute_debug_primitive_bounds(setup, stream.scissor_state, int(caps.upscaling));
 			const auto repl0_owner_class = detail::classify_hires_binding_ownership_class(repl0_state);
 			const auto repl1_owner_class = detail::classify_hires_binding_ownership_class(repl1_state);
+			const auto repl0_archetype = detail::classify_hires_consumer_archetype(raster_flags, draw_ownership_class, repl0_state, tile0_info);
+			const auto repl1_archetype = detail::classify_hires_consumer_archetype(raster_flags, draw_ownership_class, repl1_state, tile1_info);
 			LOGI("Hi-res draw state: call=%llu setup_tile=%u tile0=%u tile1=%u max_lod=%u flags=0x%08x copy=%d tex0=%d tex1=%d pipe1=%d draw_descs=%u draw_owner=%s "
 			     "screen={valid=%d x=%d..%d y=%d..%d} st={s=%d t=%d dsdx=%d dtdy=%d dsde=%d dtde=%d} "
 			     "tile0_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
 			     "tile1_meta={ofs=%u stride=%u fmt=%u siz=%u pal=%u flags=0x%02x mask=%ux%u shift=%ux%u size=%u,%u->%u,%u} "
-			     "repl0_desc=%u repl0_key=0x%016llx repl0_source=%s repl0_origin=%s repl0_owner=%s repl0_alpha=%u repl0_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl0_orig=%ux%u repl0=%ux%u "
-			     "repl1_desc=%u repl1_key=0x%016llx repl1_source=%s repl1_origin=%s repl1_owner=%s repl1_alpha=%u repl1_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl1_orig=%ux%u repl1=%ux%u.\n",
+			     "repl0_desc=%u repl0_key=0x%016llx repl0_source=%s repl0_origin=%s repl0_owner=%s repl0_archetype=%s repl0_alpha=%u repl0_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl0_orig=%ux%u repl0=%ux%u "
+			     "repl1_desc=%u repl1_key=0x%016llx repl1_source=%s repl1_origin=%s repl1_owner=%s repl1_archetype=%s repl1_alpha=%u repl1_birth={load_tile=%u load_fs=0x%02x lookup_tile=%u lookup_fs=0x%02x key=%ux%u} repl1_orig=%ux%u repl1=%ux%u.\n",
 			     static_cast<unsigned long long>(hires_draw_calls_total),
 			     unsigned(setup.tile),
 			     tile0,
@@ -2393,6 +2395,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     lookup_source_name(repl0_state.lookup_source),
 			     lookup_source_name(repl0_state.origin_lookup_source),
 			     detail::hires_binding_ownership_class_name(repl0_owner_class),
+			     detail::hires_consumer_archetype_name(repl0_archetype),
 			     unsigned(repl0_state.alpha_class),
 			     unsigned(repl0_state.source_load_tile_index),
 			     unsigned(repl0_state.source_load_formatsize),
@@ -2409,6 +2412,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     lookup_source_name(repl1_state.lookup_source),
 			     lookup_source_name(repl1_state.origin_lookup_source),
 			     detail::hires_binding_ownership_class_name(repl1_owner_class),
+			     detail::hires_consumer_archetype_name(repl1_archetype),
 			     unsigned(repl1_state.alpha_class),
 			     unsigned(repl1_state.source_load_tile_index),
 			     unsigned(repl1_state.source_load_formatsize),

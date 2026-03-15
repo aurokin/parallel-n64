@@ -255,6 +255,23 @@ Use these classes in debug output and reports before introducing any new scene-s
   - the first ownership-only `32x16` probe was useful diagnostically, but it was not clearly good enough to promote as a shared mode
   - keep the ownership-class vocabulary, not the probe itself
 
+## Consumer-Archetype Layer
+- Ownership classes are now supplemented by named consumer archetypes in draw-time reporting:
+  - `cross16x16_primary_alias`
+  - `cross16x16_secondary_alias`
+  - `cross16x16_primary_owner`
+  - `cross16x16_secondary_owner`
+  - `cross32x16_pending`
+  - `cross32x16_alias`
+  - `same32x32_alias`
+- This is the first stable layer above raw birth tuples and raw raster flags.
+- Use it to express shared policy in terms of producer/consumer classes instead of more scene-specific tuple checks.
+- Current shared best probe (`narrow-reinterp-phase-16x16-pending-32x16`) is now explainable directly as:
+  - allow `cross16x16_primary_*`
+  - reject `cross16x16_secondary_*`
+  - allow `cross32x16_pending`
+  - reject `cross32x16_alias`
+
 ## Methodology Guardrails
 - Do not add new scene-specific renderer overrides unless they expose a shared rule.
 - Do not trust ad hoc signature-matching probes unless their runtime instrumentation is independently validated.

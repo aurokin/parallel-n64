@@ -1,4 +1,5 @@
 #include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_hires_runtime_policy.hpp"
+#include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_hires_consumer_policy.hpp"
 #include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_hires_ownership_policy.hpp"
 #include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/texture_replacement.hpp"
 
@@ -236,7 +237,13 @@ struct StubReplacementTileState
 {
 	uint32_t vk_image_index = hires_invalid_descriptor_index();
 	HiresLookupSource lookup_source = HiresLookupSource::None;
+	HiresLookupSource origin_lookup_source = HiresLookupSource::None;
+	uint8_t source_load_tile_index = 0;
+	uint16_t source_load_formatsize = 0;
 	uint8_t source_lookup_tile_index = 0;
+	uint16_t source_lookup_formatsize = 0;
+	uint32_t source_key_width = 0;
+	uint32_t source_key_height = 0;
 	bool valid = false;
 	bool hit = false;
 };
@@ -246,6 +253,8 @@ struct StubTileInfo
 	struct
 	{
 		uint32_t repl_desc_index = hires_invalid_descriptor_index();
+		uint32_t repl_w = 0;
+		uint32_t repl_h = 0;
 	} replacement;
 };
 
@@ -311,6 +320,65 @@ static void test_hires_ownership_class_contract()
 	check(classify_hires_draw_ownership_class(false, 2, draw_states, draw_tiles) == HiresDrawOwnershipClass::Mixed,
 	      "mixed ownership draw should classify as mixed");
 }
+
+static void test_hires_consumer_archetype_contract()
+{
+	StubReplacementTileState state = {};
+	StubTileInfo tile = {};
+	state.valid = true;
+	state.hit = true;
+	state.vk_image_index = 7;
+	state.source_load_tile_index = 7;
+	state.source_lookup_tile_index = 0;
+
+	tile.replacement.repl_desc_index = 7;
+
+	state.lookup_source = HiresLookupSource::AliasPropagated;
+	state.origin_lookup_source = HiresLookupSource::BlockTile;
+	state.source_load_formatsize = 0x202u;
+	state.source_lookup_formatsize = 0x02u;
+	state.source_key_width = 16u;
+	state.source_key_height = 16u;
+	tile.replacement.repl_w = 100u;
+	tile.replacement.repl_h = 100u;
+	check(classify_hires_consumer_archetype(0x21864010u, HiresDrawOwnershipClass::AliasConsumer, state, tile) ==
+	              HiresConsumerArchetype::CrossFormatsize16x16PrimaryAliasConsumer,
+	      "primary 16x16 alias consumer should classify as cross16x16_primary_alias");
+	check(classify_hires_consumer_archetype(0x218640d4u, HiresDrawOwnershipClass::AliasConsumer, state, tile) ==
+	              HiresConsumerArchetype::CrossFormatsize16x16SecondaryAliasConsumer,
+	      "secondary 16x16 alias consumer should classify as cross16x16_secondary_alias");
+	check(classify_hires_consumer_archetype(0x21864010u, HiresDrawOwnershipClass::Mixed, state, tile) ==
+	              HiresConsumerArchetype::CrossFormatsize16x16PrimaryOwnerLike,
+	      "primary 16x16 mixed draw should classify as cross16x16_primary_owner");
+	check(classify_hires_consumer_archetype(0x218640d4u, HiresDrawOwnershipClass::Mixed, state, tile) ==
+	              HiresConsumerArchetype::CrossFormatsize16x16SecondaryOwnerLike,
+	      "secondary 16x16 mixed draw should classify as cross16x16_secondary_owner");
+
+	state.source_key_width = 32u;
+	state.source_key_height = 16u;
+	tile.replacement.repl_w = 512u;
+	tile.replacement.repl_h = 256u;
+	state.lookup_source = HiresLookupSource::PendingBlockRetry;
+	state.origin_lookup_source = HiresLookupSource::PendingBlockRetry;
+	check(classify_hires_consumer_archetype(0x21844118u, HiresDrawOwnershipClass::Mixed, state, tile) ==
+	              HiresConsumerArchetype::CrossFormatsize32x16PendingProducer,
+	      "pending 32x16 owner draw should classify as cross32x16_pending");
+	state.lookup_source = HiresLookupSource::AliasPropagated;
+	state.origin_lookup_source = HiresLookupSource::BlockTile;
+	check(classify_hires_consumer_archetype(0x21844118u, HiresDrawOwnershipClass::DescriptorlessConsumer, state, tile) ==
+	              HiresConsumerArchetype::CrossFormatsize32x16AliasConsumer,
+	      "alias-backed 32x16 consumer should classify as cross32x16_alias");
+
+	state.source_load_formatsize = 0x300u;
+	state.source_lookup_formatsize = 0x300u;
+	state.source_key_width = 32u;
+	state.source_key_height = 32u;
+	tile.replacement.repl_w = 320u;
+	tile.replacement.repl_h = 320u;
+	check(classify_hires_consumer_archetype(0x21844108u, HiresDrawOwnershipClass::AliasConsumer, state, tile) ==
+	              HiresConsumerArchetype::SameFormatsize32x32AliasConsumer,
+	      "same-format 32x32 alias draw should classify as same32x32_alias");
+}
 }
 
 int main()
@@ -321,6 +389,7 @@ int main()
 	test_descriptor_index_sentinel_contract();
 	test_lookup_mode_policy_contract();
 	test_hires_ownership_class_contract();
+	test_hires_consumer_archetype_contract();
 	std::cout << "emu_unit_hires_runtime_policy_test: PASS" << std::endl;
 	return 0;
 }

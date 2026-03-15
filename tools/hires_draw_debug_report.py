@@ -40,6 +40,7 @@ DRAW_RE = re.compile(
     r" repl0_source=(?P<repl_source>\w+)"
     r" repl0_origin=(?P<repl_origin>\w+)"
     r"(?: repl0_owner=(?P<repl0_owner>\w+))?"
+    r"(?: repl0_archetype=(?P<repl0_archetype>[\w]+))?"
     r"(?: repl0_alpha=(?P<repl0_alpha>\d+))?"
     r".*?key=(?P<key_wh>\d+x\d+)\}"
     r" repl0_orig=(?P<orig_wh>\d+x\d+)"
@@ -49,6 +50,7 @@ DRAW_RE = re.compile(
     r" repl1_source=(?P<repl1_source>\w+)"
     r" repl1_origin=(?P<repl1_origin>\w+)"
     r"(?: repl1_owner=(?P<repl1_owner>\w+))?"
+    r"(?: repl1_archetype=(?P<repl1_archetype>[\w]+))?"
     r"(?: repl1_alpha=(?P<repl1_alpha>\d+))?"
 )
 
@@ -66,6 +68,7 @@ def collect_records(path: pathlib.Path,
                     repl_origin_filter: set[str],
                     draw_owner_filter: set[str],
                     repl_owner_filter: set[str],
+                    repl_archetype_filter: set[str],
                     key_wh_filter: set[str],
                     repl_wh_filter: set[str],
                     flags_filter: set[str],
@@ -145,6 +148,10 @@ def collect_records(path: pathlib.Path,
                 pending_program = None
                 pending_derived = None
                 continue
+            if repl_archetype_filter and record.get("repl0_archetype") not in repl_archetype_filter:
+                pending_program = None
+                pending_derived = None
+                continue
             if key_wh_filter and record.get("key_wh") not in key_wh_filter:
                 pending_program = None
                 pending_derived = None
@@ -176,12 +183,12 @@ def collect_records(path: pathlib.Path,
 def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int],
                   repl_key_filter: set[str], repl_source_filter: set[str],
                   repl_origin_filter: set[str], draw_owner_filter: set[str],
-                  repl_owner_filter: set[str], key_wh_filter: set[str],
+                  repl_owner_filter: set[str], repl_archetype_filter: set[str], key_wh_filter: set[str],
                   repl_wh_filter: set[str], flags_filter: set[str],
                   call_min: int | None, call_max: int | None):
     counter: collections.Counter = collections.Counter()
     records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter,
-                              draw_owner_filter, repl_owner_filter, key_wh_filter, repl_wh_filter,
+                              draw_owner_filter, repl_owner_filter, repl_archetype_filter, key_wh_filter, repl_wh_filter,
                               flags_filter, call_min, call_max)
     for record in records:
         key = tuple(record[field] for field in group_by)
@@ -197,12 +204,12 @@ def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filt
 def summarize_spatial(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int],
                       repl_key_filter: set[str], repl_source_filter: set[str],
                       repl_origin_filter: set[str], draw_owner_filter: set[str],
-                      repl_owner_filter: set[str], key_wh_filter: set[str],
+                      repl_owner_filter: set[str], repl_archetype_filter: set[str], key_wh_filter: set[str],
                       repl_wh_filter: set[str], flags_filter: set[str],
                       call_min: int | None, call_max: int | None):
     groups: dict[tuple[str, ...], dict[str, object]] = {}
     records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter,
-                              draw_owner_filter, repl_owner_filter, key_wh_filter, repl_wh_filter,
+                              draw_owner_filter, repl_owner_filter, repl_archetype_filter, key_wh_filter, repl_wh_filter,
                               flags_filter, call_min, call_max)
     for record in records:
         key = tuple(record[field] for field in group_by)
@@ -256,16 +263,16 @@ def summarize_spatial(path: pathlib.Path, group_by: list[str], limit: int, desc_
 def dump_records(path: pathlib.Path, fields: list[str], limit: int, desc_filter: set[int],
                  repl_key_filter: set[str], repl_source_filter: set[str],
                  repl_origin_filter: set[str], draw_owner_filter: set[str],
-                 repl_owner_filter: set[str], key_wh_filter: set[str],
+                 repl_owner_filter: set[str], repl_archetype_filter: set[str], key_wh_filter: set[str],
                  repl_wh_filter: set[str], flags_filter: set[str],
                  call_min: int | None, call_max: int | None):
     records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter,
-                              draw_owner_filter, repl_owner_filter, key_wh_filter, repl_wh_filter,
+                              draw_owner_filter, repl_owner_filter, repl_archetype_filter, key_wh_filter, repl_wh_filter,
                               flags_filter, call_min, call_max)
     print(f"\n## {path}")
     print(f"matched_draws={len(records)}")
     for record in records[:limit]:
-        parts = [f"{field}={record[field]}" for field in fields]
+        parts = [f"{field}={record.get(field, '')}" for field in fields]
         print(" ".join(parts))
 
 
@@ -274,7 +281,7 @@ def main() -> int:
     parser.add_argument("--log", action="append", required=True, help="Path to run.log. Repeat for multiple logs.")
     parser.add_argument(
         "--group-by",
-        default="draw_owner,desc,repl0_owner,repl_key,raster,norm,depth,b0,b1,shade,prim,c1_mul,c1_add,repl1_desc,repl1_owner,repl1_key,key_wh,repl_wh",
+        default="draw_owner,desc,repl0_owner,repl0_archetype,repl_key,raster,norm,depth,b0,b1,shade,prim,c1_mul,c1_add,repl1_desc,repl1_owner,repl1_archetype,repl1_key,key_wh,repl_wh",
         help="Comma-separated grouping fields.",
     )
     parser.add_argument("--desc", action="append", type=int, default=[], help="Filter by desc. Repeatable.")
@@ -283,6 +290,7 @@ def main() -> int:
     parser.add_argument("--repl-origin", action="append", default=[], help="Filter by repl_origin. Repeatable.")
     parser.add_argument("--draw-owner", action="append", default=[], help="Filter by draw_owner. Repeatable.")
     parser.add_argument("--repl-owner", action="append", default=[], help="Filter by repl0_owner. Repeatable.")
+    parser.add_argument("--repl-archetype", action="append", default=[], help="Filter by repl0_archetype. Repeatable.")
     parser.add_argument("--key-wh", action="append", default=[], help="Filter by birth key width/height, e.g. 32x16.")
     parser.add_argument("--repl-wh", action="append", default=[], help="Filter by replacement dimensions, e.g. 512x256.")
     parser.add_argument("--flags", action="append", default=[], help="Filter by raster flags, e.g. 21844118 or 0x21844118.")
@@ -304,6 +312,7 @@ def main() -> int:
     repl_origin_filter = set(args.repl_origin)
     draw_owner_filter = set(args.draw_owner)
     repl_owner_filter = set(args.repl_owner)
+    repl_archetype_filter = set(args.repl_archetype)
     key_wh_filter = set(args.key_wh)
     repl_wh_filter = set(args.repl_wh)
     flags_filter = {value.removeprefix("0x").lower() for value in args.flags}
@@ -316,17 +325,17 @@ def main() -> int:
         if args.dump_records:
             dump_records(path, group_by, args.limit, desc_filter, repl_key_filter,
                          repl_source_filter, repl_origin_filter, draw_owner_filter,
-                         repl_owner_filter, key_wh_filter, repl_wh_filter, flags_filter,
+                         repl_owner_filter, repl_archetype_filter, key_wh_filter, repl_wh_filter, flags_filter,
                          args.call_min, args.call_max)
         elif args.spatial_summary:
             summarize_spatial(path, group_by, args.limit, desc_filter, repl_key_filter,
                               repl_source_filter, repl_origin_filter, draw_owner_filter,
-                              repl_owner_filter, key_wh_filter, repl_wh_filter, flags_filter,
+                              repl_owner_filter, repl_archetype_filter, key_wh_filter, repl_wh_filter, flags_filter,
                               args.call_min, args.call_max)
         else:
             summarize_log(path, group_by, args.limit, desc_filter, repl_key_filter,
                           repl_source_filter, repl_origin_filter, draw_owner_filter,
-                          repl_owner_filter, key_wh_filter, repl_wh_filter, flags_filter,
+                          repl_owner_filter, repl_archetype_filter, key_wh_filter, repl_wh_filter, flags_filter,
                           args.call_min, args.call_max)
 
     return 0

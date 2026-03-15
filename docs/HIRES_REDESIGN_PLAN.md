@@ -239,6 +239,22 @@ Use these classes in debug output and reports before introducing any new scene-s
 3. Rework reinterpretation acceptance at the lookup-provenance level, not in scattered draw-time branches.
 4. Revisit descriptorless consumer families once the ownership path is cleaner.
 
+## Latest Ownership-Class Result
+- The `32x16 -> 512x256` class now has a stable ownership split across both `intro22` and `noinput16`:
+  - producer lane:
+    - `draw_owner=mixed`
+    - `repl0_owner=fallback_owner`
+    - `repl_source=pending_block_retry`
+  - downstream lane:
+    - `draw_owner=descriptorless_consumer`
+    - `repl0_owner=alias_consumer`
+    - `repl_source=alias`
+    - `repl_origin=block_tile`
+- Current read:
+  - this ownership-class split is real and should drive the next redesign cut
+  - the first ownership-only `32x16` probe was useful diagnostically, but it was not clearly good enough to promote as a shared mode
+  - keep the ownership-class vocabulary, not the probe itself
+
 ## Methodology Guardrails
 - Do not add new scene-specific renderer overrides unless they expose a shared rule.
 - Do not trust ad hoc signature-matching probes unless their runtime instrumentation is independently validated.

@@ -2002,6 +2002,35 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	unsigned num_tiles = compute_conservative_max_num_tiles(setup);
 	TileInfo draw_tiles[Limits::MaxNumTiles] = {};
 	std::copy(std::begin(tiles), std::end(tiles), std::begin(draw_tiles));
+	auto collect_hires_draw_descriptors = [&](const TileInfo (&candidate_tiles)[Limits::MaxNumTiles],
+	                                          bool &candidate_has_replacement,
+	                                          std::array<uint32_t, 8> &candidate_descs) -> size_t {
+		candidate_has_replacement = false;
+		candidate_descs.fill(0);
+		size_t candidate_desc_count = 0;
+		for (const auto &tile_info : candidate_tiles)
+		{
+			const auto &repl = tile_info.replacement;
+			if (detail::hires_descriptor_index_valid(repl.repl_desc_index) &&
+			    repl.repl_orig_w != 0 && repl.repl_orig_h != 0 &&
+			    repl.repl_w != 0 && repl.repl_h != 0)
+			{
+				candidate_has_replacement = true;
+				bool seen = false;
+				for (size_t i = 0; i < candidate_desc_count; i++)
+				{
+					if (candidate_descs[i] == repl.repl_desc_index)
+					{
+						seen = true;
+						break;
+					}
+				}
+				if (!seen && candidate_desc_count < candidate_descs.size())
+					candidate_descs[candidate_desc_count++] = repl.repl_desc_index;
+			}
+		}
+		return candidate_desc_count;
+	};
 
 #if 0
 	// Don't exit early, throws off seeding of noise channels.
@@ -2013,35 +2042,24 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		stream.max_shaded_tiles += num_tiles;
 
 	const uint32_t raw_raster_flags = uint32_t(stream.static_raster_state.flags);
-	detail::apply_hires_draw_consumer_policy(hires_lookup_mode_policy, raw_raster_flags, replacement_tiles, draw_tiles);
-
+	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
 	bool draw_has_replacement = false;
 	std::array<uint32_t, 8> draw_replacement_descs = {};
-	size_t draw_replacement_desc_count = 0;
-	for (const auto &tile_info : draw_tiles)
-	{
-		const auto &repl = tile_info.replacement;
-		if (detail::hires_descriptor_index_valid(repl.repl_desc_index) &&
-		    repl.repl_orig_w != 0 && repl.repl_orig_h != 0 &&
-		    repl.repl_w != 0 && repl.repl_h != 0)
-		{
-			draw_has_replacement = true;
-			bool seen = false;
-			for (size_t i = 0; i < draw_replacement_desc_count; i++)
-			{
-				if (draw_replacement_descs[i] == repl.repl_desc_index)
-				{
-					seen = true;
-					break;
-				}
-			}
-			if (!seen && draw_replacement_desc_count < draw_replacement_descs.size())
-				draw_replacement_descs[draw_replacement_desc_count++] = repl.repl_desc_index;
-		}
-	}
-	const auto prim_bounds = compute_debug_primitive_bounds(setup, stream.scissor_state, int(caps.upscaling));
+	size_t draw_replacement_desc_count = collect_hires_draw_descriptors(draw_tiles, draw_has_replacement, draw_replacement_descs);
+	const auto prefilter_draw_ownership_class = detail::classify_hires_draw_ownership_class(
+			copy_mode,
+			unsigned(draw_replacement_desc_count),
+			replacement_tiles,
+			draw_tiles);
+	detail::apply_hires_draw_consumer_policy(
+			hires_lookup_mode_policy,
+			raw_raster_flags,
+			prefilter_draw_ownership_class,
+			replacement_tiles,
+			draw_tiles);
 
-	const bool copy_mode = (stream.static_raster_state.flags & RASTERIZATION_COPY_BIT) != 0;
+	draw_replacement_desc_count = collect_hires_draw_descriptors(draw_tiles, draw_has_replacement, draw_replacement_descs);
+	const auto prim_bounds = compute_debug_primitive_bounds(setup, stream.scissor_state, int(caps.upscaling));
 	const auto draw_ownership_class = detail::classify_hires_draw_ownership_class(
 			copy_mode,
 			unsigned(draw_replacement_desc_count),

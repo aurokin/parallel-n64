@@ -70,6 +70,27 @@ inline const char *hires_draw_ownership_class_name(HiresDrawOwnershipClass klass
 	}
 }
 
+inline uint8_t hires_draw_ownership_class_mask_bit(HiresDrawOwnershipClass klass)
+{
+	switch (klass)
+	{
+	case HiresDrawOwnershipClass::CopyConsumer:
+		return 1u << 0;
+	case HiresDrawOwnershipClass::DescriptorlessConsumer:
+		return 1u << 1;
+	case HiresDrawOwnershipClass::UploadOwner:
+		return 1u << 2;
+	case HiresDrawOwnershipClass::FallbackOwner:
+		return 1u << 3;
+	case HiresDrawOwnershipClass::AliasConsumer:
+		return 1u << 4;
+	case HiresDrawOwnershipClass::Mixed:
+		return 1u << 5;
+	default:
+		return 0;
+	}
+}
+
 template <typename ReplacementTileStateType>
 inline HiresBindingOwnershipClass classify_hires_binding_ownership_class(const ReplacementTileStateType &state)
 {

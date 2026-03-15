@@ -290,6 +290,24 @@
       - `repl0_alpha`
       - `repl1_alpha`
     - default grouping in the tool now starts with ownership classes before descriptor/key fields
+    - new ownership filters:
+      - `--draw-owner`
+      - `--repl-owner`
+      - `--key-wh`
+      - `--repl-wh`
+      - `--flags`
+    - current ownership-class finding:
+      - the `32x16 -> 512x256` class has a stable split across intro22 and noinput16:
+        - producer lane:
+          - `draw_owner=mixed`
+          - `repl0_owner=fallback_owner`
+          - `repl_source=pending_block_retry`
+        - downstream lane:
+          - `draw_owner=descriptorless_consumer`
+          - `repl0_owner=alias_consumer`
+          - `repl_source=alias`
+          - `repl_origin=block_tile`
+      - the first ownership-only `32x16` probe was not promoted because it did not reproduce the stronger pending-source result closely enough
   - current important finding:
     - Paper Mario’s `CI16 -> RGBA16 lookup_tile=0` family cannot be separated by raw raster flags alone
   - redesign support:

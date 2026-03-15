@@ -61,6 +61,7 @@ struct HiresLookupModePolicy
 	bool restrict_cross_formatsize_16x16_to_primary_phase = false;
 	HiresCrossFormatsize32x16SourceFilter cross_formatsize_32x16_source_filter =
 		HiresCrossFormatsize32x16SourceFilter::AllowAll;
+	uint8_t cross_formatsize_32x16_draw_ownership_mask = 0xffu;
 };
 
 inline std::string resolve_hires_cache_path(const std::string &configured_path, const char *env_path)

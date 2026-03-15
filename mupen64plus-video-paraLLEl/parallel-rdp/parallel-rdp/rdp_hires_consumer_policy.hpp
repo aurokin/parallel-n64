@@ -2,6 +2,7 @@
 
 #include "rdp_common.hpp"
 #include "rdp_hires_key_state_policy.hpp"
+#include "rdp_hires_ownership_policy.hpp"
 #include "rdp_hires_runtime_policy.hpp"
 
 namespace RDP
@@ -56,6 +57,7 @@ inline bool is_hires_cross_formatsize_32x16_512x256_consumer_candidate(const Rep
 template <typename ReplacementTileStateType>
 inline bool should_consume_hires_replacement_for_draw(const HiresLookupModePolicy &policy,
                                                       uint32_t raw_raster_flags,
+                                                      HiresDrawOwnershipClass draw_ownership_class,
                                                       const ReplacementTileStateType &state,
                                                       const TileInfo &tile)
 {
@@ -77,6 +79,13 @@ inline bool should_consume_hires_replacement_for_draw(const HiresLookupModePolic
 		}
 	}
 
+	if (policy.cross_formatsize_32x16_draw_ownership_mask != 0xffu &&
+	    is_hires_cross_formatsize_32x16_512x256_consumer_candidate(state, tile))
+	{
+		return (policy.cross_formatsize_32x16_draw_ownership_mask &
+		        hires_draw_ownership_class_mask_bit(draw_ownership_class)) != 0;
+	}
+
 	if (!policy.restrict_cross_formatsize_16x16_to_primary_phase)
 		return true;
 
@@ -89,12 +98,14 @@ inline bool should_consume_hires_replacement_for_draw(const HiresLookupModePolic
 template <typename ReplacementTileStateType, size_t NumTiles>
 inline void apply_hires_draw_consumer_policy(const HiresLookupModePolicy &policy,
                                              uint32_t raw_raster_flags,
+                                             HiresDrawOwnershipClass draw_ownership_class,
                                              const ReplacementTileStateType (&replacement_states)[NumTiles],
                                              TileInfo (&draw_tiles)[NumTiles])
 {
 	for (size_t i = 0; i < NumTiles; i++)
 	{
-		if (!should_consume_hires_replacement_for_draw(policy, raw_raster_flags, replacement_states[i], draw_tiles[i]))
+		if (!should_consume_hires_replacement_for_draw(policy, raw_raster_flags, draw_ownership_class,
+		                                               replacement_states[i], draw_tiles[i]))
 			draw_tiles[i].replacement = {};
 	}
 }

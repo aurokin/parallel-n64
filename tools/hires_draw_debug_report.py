@@ -64,12 +64,33 @@ def collect_records(path: pathlib.Path,
                     repl_key_filter: set[str],
                     repl_source_filter: set[str],
                     repl_origin_filter: set[str],
+                    draw_owner_filter: set[str],
+                    repl_owner_filter: set[str],
+                    key_wh_filter: set[str],
+                    repl_wh_filter: set[str],
+                    flags_filter: set[str],
                     call_min: int | None,
                     call_max: int | None):
     records = []
-    counter: collections.Counter = collections.Counter()
     pending_program = None
     pending_derived = None
+
+    empty_program = {
+        "desc": "",
+        "raster": "",
+        "norm": "",
+        "depth": "",
+        "shade": "",
+        "b0": "",
+        "b1": "",
+    }
+    empty_derived = {
+        "c0_mul": "",
+        "c1_mul": "",
+        "c1_add": "",
+        "prim": "",
+        "env": "",
+    }
 
     with path.open("r", errors="ignore") as handle:
         for line in handle:
@@ -84,7 +105,7 @@ def collect_records(path: pathlib.Path,
                 pending_derived = match.groupdict() if match else None
                 continue
 
-            if pending_program is None or pending_derived is None or "Hi-res draw state:" not in line:
+            if "Hi-res draw state:" not in line:
                 continue
 
             match = DRAW_RE.search(line)
@@ -95,8 +116,8 @@ def collect_records(path: pathlib.Path,
 
             draw = match.groupdict()
             record = {}
-            record.update(pending_program)
-            record.update(pending_derived)
+            record.update(pending_program if pending_program is not None else empty_program)
+            record.update(pending_derived if pending_derived is not None else empty_derived)
             record.update(draw)
             record["repl_key"] = norm_key(record.get("repl_key"))
             record["repl1_key"] = norm_key(record.get("repl1_key"))
@@ -113,6 +134,26 @@ def collect_records(path: pathlib.Path,
                 pending_derived = None
                 continue
             if repl_origin_filter and record.get("repl_origin") not in repl_origin_filter:
+                pending_program = None
+                pending_derived = None
+                continue
+            if draw_owner_filter and record.get("draw_owner") not in draw_owner_filter:
+                pending_program = None
+                pending_derived = None
+                continue
+            if repl_owner_filter and record.get("repl0_owner") not in repl_owner_filter:
+                pending_program = None
+                pending_derived = None
+                continue
+            if key_wh_filter and record.get("key_wh") not in key_wh_filter:
+                pending_program = None
+                pending_derived = None
+                continue
+            if repl_wh_filter and record.get("repl_wh") not in repl_wh_filter:
+                pending_program = None
+                pending_derived = None
+                continue
+            if flags_filter and record.get("flags", "").lower() not in flags_filter:
                 pending_program = None
                 pending_derived = None
                 continue
@@ -134,9 +175,14 @@ def collect_records(path: pathlib.Path,
 
 def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int],
                   repl_key_filter: set[str], repl_source_filter: set[str],
-                  repl_origin_filter: set[str], call_min: int | None, call_max: int | None):
+                  repl_origin_filter: set[str], draw_owner_filter: set[str],
+                  repl_owner_filter: set[str], key_wh_filter: set[str],
+                  repl_wh_filter: set[str], flags_filter: set[str],
+                  call_min: int | None, call_max: int | None):
     counter: collections.Counter = collections.Counter()
-    records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter, call_min, call_max)
+    records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter,
+                              draw_owner_filter, repl_owner_filter, key_wh_filter, repl_wh_filter,
+                              flags_filter, call_min, call_max)
     for record in records:
         key = tuple(record[field] for field in group_by)
         counter[key] += 1
@@ -150,9 +196,14 @@ def summarize_log(path: pathlib.Path, group_by: list[str], limit: int, desc_filt
 
 def summarize_spatial(path: pathlib.Path, group_by: list[str], limit: int, desc_filter: set[int],
                       repl_key_filter: set[str], repl_source_filter: set[str],
-                      repl_origin_filter: set[str], call_min: int | None, call_max: int | None):
+                      repl_origin_filter: set[str], draw_owner_filter: set[str],
+                      repl_owner_filter: set[str], key_wh_filter: set[str],
+                      repl_wh_filter: set[str], flags_filter: set[str],
+                      call_min: int | None, call_max: int | None):
     groups: dict[tuple[str, ...], dict[str, object]] = {}
-    records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter, call_min, call_max)
+    records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter,
+                              draw_owner_filter, repl_owner_filter, key_wh_filter, repl_wh_filter,
+                              flags_filter, call_min, call_max)
     for record in records:
         key = tuple(record[field] for field in group_by)
         group = groups.setdefault(key, {
@@ -204,8 +255,13 @@ def summarize_spatial(path: pathlib.Path, group_by: list[str], limit: int, desc_
 
 def dump_records(path: pathlib.Path, fields: list[str], limit: int, desc_filter: set[int],
                  repl_key_filter: set[str], repl_source_filter: set[str],
-                 repl_origin_filter: set[str], call_min: int | None, call_max: int | None):
-    records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter, call_min, call_max)
+                 repl_origin_filter: set[str], draw_owner_filter: set[str],
+                 repl_owner_filter: set[str], key_wh_filter: set[str],
+                 repl_wh_filter: set[str], flags_filter: set[str],
+                 call_min: int | None, call_max: int | None):
+    records = collect_records(path, desc_filter, repl_key_filter, repl_source_filter, repl_origin_filter,
+                              draw_owner_filter, repl_owner_filter, key_wh_filter, repl_wh_filter,
+                              flags_filter, call_min, call_max)
     print(f"\n## {path}")
     print(f"matched_draws={len(records)}")
     for record in records[:limit]:
@@ -225,6 +281,11 @@ def main() -> int:
     parser.add_argument("--repl-key", action="append", default=[], help="Filter by replacement checksum64 key. Repeatable.")
     parser.add_argument("--repl-source", action="append", default=[], help="Filter by repl_source. Repeatable.")
     parser.add_argument("--repl-origin", action="append", default=[], help="Filter by repl_origin. Repeatable.")
+    parser.add_argument("--draw-owner", action="append", default=[], help="Filter by draw_owner. Repeatable.")
+    parser.add_argument("--repl-owner", action="append", default=[], help="Filter by repl0_owner. Repeatable.")
+    parser.add_argument("--key-wh", action="append", default=[], help="Filter by birth key width/height, e.g. 32x16.")
+    parser.add_argument("--repl-wh", action="append", default=[], help="Filter by replacement dimensions, e.g. 512x256.")
+    parser.add_argument("--flags", action="append", default=[], help="Filter by raster flags, e.g. 21844118 or 0x21844118.")
     parser.add_argument("--call-min", type=int, help="Filter by minimum draw call index.")
     parser.add_argument("--call-max", type=int, help="Filter by maximum draw call index.")
     parser.add_argument("--limit", type=int, default=25, help="Rows per log.")
@@ -241,6 +302,11 @@ def main() -> int:
     repl_key_filter = {norm_key(value.removeprefix("0x")) for value in args.repl_key}
     repl_source_filter = set(args.repl_source)
     repl_origin_filter = set(args.repl_origin)
+    draw_owner_filter = set(args.draw_owner)
+    repl_owner_filter = set(args.repl_owner)
+    key_wh_filter = set(args.key_wh)
+    repl_wh_filter = set(args.repl_wh)
+    flags_filter = {value.removeprefix("0x").lower() for value in args.flags}
 
     for path_str in args.log:
         path = pathlib.Path(path_str)
@@ -249,13 +315,19 @@ def main() -> int:
             return 1
         if args.dump_records:
             dump_records(path, group_by, args.limit, desc_filter, repl_key_filter,
-                         repl_source_filter, repl_origin_filter, args.call_min, args.call_max)
+                         repl_source_filter, repl_origin_filter, draw_owner_filter,
+                         repl_owner_filter, key_wh_filter, repl_wh_filter, flags_filter,
+                         args.call_min, args.call_max)
         elif args.spatial_summary:
             summarize_spatial(path, group_by, args.limit, desc_filter, repl_key_filter,
-                              repl_source_filter, repl_origin_filter, args.call_min, args.call_max)
+                              repl_source_filter, repl_origin_filter, draw_owner_filter,
+                              repl_owner_filter, key_wh_filter, repl_wh_filter, flags_filter,
+                              args.call_min, args.call_max)
         else:
             summarize_log(path, group_by, args.limit, desc_filter, repl_key_filter,
-                          repl_source_filter, repl_origin_filter, args.call_min, args.call_max)
+                          repl_source_filter, repl_origin_filter, draw_owner_filter,
+                          repl_owner_filter, key_wh_filter, repl_wh_filter, flags_filter,
+                          args.call_min, args.call_max)
 
     return 0
 

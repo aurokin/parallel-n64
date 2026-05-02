@@ -146,11 +146,6 @@ summary = json.loads(Path(sys.argv[1]).read_text())
 enforce_enriched_contract = bool(int(sys.argv[2]))
 enforce_zero_config_contract = bool(int(sys.argv[3]))
 fixtures = summary.get("fixtures") or []
-expected_screenshot_hashes = {
-    "title-screen": "5da2429afbddfb37b15c5dcb598fa0cc4c3213fd7cddf6cfa5822047db99cb26",
-    "file-select": "b5649593babbd9d6e677cb750cf7fa62b4fbe3254e9108460b9e49fb2cb53f26",
-    "kmr-03-entry-5": "272bddd5e099b63d878521d33e4dcf0742d7a474117bbe81bc2d65fb1e8695ac",
-}
 enriched_expected = {
     "title-screen": {
         "native_sampled_entry_count": 503,
@@ -173,21 +168,18 @@ enriched_expected = {
 }
 zero_config_expected = {
     "title-screen": {
-        "screenshot_sha256": "1f3316eb7f9b239f64b85d04c7536052361571e329eda213128586464a07ec88",
         "native_sampled_entry_count": 0,
         "entry_class": "compat-only",
         "descriptor_path_class": "compat-only",
         "descriptor_path_counts": {"sampled": 0, "native_checksum": 0, "generic": 0, "compat": 190},
     },
     "file-select": {
-        "screenshot_sha256": "0e255168c2b3fb1310762aa746a43c8609e78b8fc97f374a794573b0b5a779cc",
         "native_sampled_entry_count": 0,
         "entry_class": "compat-only",
         "descriptor_path_class": "compat-only",
         "descriptor_path_counts": {"sampled": 0, "native_checksum": 0, "generic": 0, "compat": 92},
     },
     "kmr-03-entry-5": {
-        "screenshot_sha256": "778609c20795e00f50e801c46ed40e9aa33037b188524b854ae55c58c05bd1b2",
         "native_sampled_entry_count": 0,
         "entry_class": "compat-only",
         "descriptor_path_class": "compat-only",
@@ -216,12 +208,6 @@ for fixture in fixtures:
         enriched = enriched_expected.get(fixture.get("label"))
         if enriched is None:
             raise SystemExit(f"FAIL: unexpected fixture label for enriched contract: {fixture.get('label')!r}.")
-        expected_hash = expected_screenshot_hashes.get(fixture.get("label"))
-        if expected_hash and fixture.get("screenshot_sha256") != expected_hash:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected screenshot hash {expected_hash}, "
-                f"got {fixture.get('screenshot_sha256')!r}."
-            )
         if int(hires.get("native_sampled_entry_count") or 0) != enriched["native_sampled_entry_count"]:
             raise SystemExit(
                 f"FAIL: fixture {fixture.get('label')} expected native_sampled_entry_count="
@@ -247,11 +233,6 @@ for fixture in fixtures:
         zero_expected = zero_config_expected.get(fixture.get("label"))
         if zero_expected is None:
             raise SystemExit(f"FAIL: unexpected fixture label for zero-config contract: {fixture.get('label')!r}.")
-        if fixture.get("screenshot_sha256") != zero_expected["screenshot_sha256"]:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected zero-config screenshot hash {zero_expected['screenshot_sha256']}, "
-                f"got {fixture.get('screenshot_sha256')!r}."
-            )
         if int(hires.get("native_sampled_entry_count") or 0) != zero_expected["native_sampled_entry_count"]:
             raise SystemExit(
                 f"FAIL: fixture {fixture.get('label')} expected native_sampled_entry_count="

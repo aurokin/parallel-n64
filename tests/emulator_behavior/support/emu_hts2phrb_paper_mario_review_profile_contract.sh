@@ -18,6 +18,35 @@ if [[ ! -f "$BUNDLE_PATH" ]]; then
   exit 77
 fi
 
+if ! python3 - "$BUNDLE_PATH" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary_path = Path(sys.argv[1])
+data = json.loads(summary_path.read_text())
+if data.get("all_passed") is not True and data.get("passed") is not True:
+    raise SystemExit(1)
+steps = data.get("steps") or []
+if not steps:
+    raise SystemExit(1)
+step = steps[0]
+if step.get("passed") is not True or not step.get("fixture_id"):
+    raise SystemExit(1)
+bundle_ref = step.get("on_bundle")
+if not bundle_ref:
+    raise SystemExit(1)
+bundle_path = Path(bundle_ref)
+if not bundle_path.is_absolute():
+    bundle_path = (summary_path.parent / bundle_path).resolve()
+if not (bundle_path / "traces" / "hires-evidence.json").is_file():
+    raise SystemExit(1)
+PY
+then
+  echo "SKIP: Paper Mario review-profile summary has no passed local evidence bundle."
+  exit 77
+fi
+
 if [[ ! -f "$REVIEW_PROFILE_PATH" ]]; then
   echo "SKIP: Paper Mario review profile not found at $REVIEW_PROFILE_PATH."
   exit 77

@@ -28,7 +28,7 @@ require_pattern "--profile cannot be combined with -R." \
   "-R/profile conflict guard message missing"
 
 # Required profile mappings.
-require_pattern "ctest_args+=(-R \"^emu\\\\.unit\\\\.\")" \
+require_pattern "ctest_args+=(-R \"^emu\\\\.(unit\\\\.|support\\\\.(paper_mario_selected_package_authority_validation_contract|paper_mario_phrb_authority_validation_contract|paper_mario_title_timeout_selected_package_validation_contract|hts2phrb_.*))\")" \
   "emu-required regex mapping missing"
 require_pattern "ctest_args+=(-R \"^emu\\\\.(conformance|dump)\\\\.\")" \
   "emu-optional regex mapping missing"
@@ -37,11 +37,13 @@ require_pattern "ctest_args+=(-R \"^emu\\\\.conformance\\\\.\")" \
 require_pattern "ctest_args+=(-R \"^emu\\\\.dump\\\\.\")" \
   "emu-dump regex mapping missing"
 
-# Runtime conformance profile should include all dedicated lavapipe/runtime-contract tests.
-require_pattern "ctest_args+=(-R \"^emu\\\\.conformance\\\\.(runtime_smoke_lavapipe|lavapipe_frame_hash|lavapipe_vi_filters_hash|lavapipe_vi_filters_mixed_hash|lavapipe_vi_downscale_hash|lavapipe_sm64_frame_hash|paper_mario_full_cache_phrb_authorities|paper_mario_full_cache_phrb_authorities_refresh|paper_mario_full_cache_phrb_authorities_zero_config_refresh|paper_mario_selected_package_authorities|paper_mario_selected_package_timeout_validation|paper_mario_selected_package_timeout_lookup_without_probe|sm64_hires_boot|oot_hires_boot)$\")" \
+# Runtime conformance profile should include semantic/evidence runtime-contract tests, not legacy screenshot-hash gates.
+require_pattern "ctest_args+=(-R \"^emu\\\\.conformance\\\\.(runtime_smoke_lavapipe|paper_mario_full_cache_phrb_authorities|paper_mario_full_cache_phrb_authorities_refresh|paper_mario_full_cache_phrb_authorities_zero_config_refresh|paper_mario_selected_package_authorities|paper_mario_selected_package_timeout_validation|paper_mario_selected_package_timeout_lookup_without_probe|sm64_hires_boot|sm64_hires_title_fixture|oot_hires_boot|oot_hires_title_fixture)$\")" \
   "emu-runtime-conformance regex mapping missing expected runtime tests"
 require_pattern "export EMU_ENABLE_RUNTIME_CONFORMANCE=1" \
   "emu-runtime-conformance env enablement missing"
+require_pattern 'make -C "$SCRIPT_DIR" -j"$PARALLEL_JOBS" -B HAVE_PARALLEL=1 parallel_n64_libretro.so' \
+  "emu-runtime-conformance libretro core build missing"
 
 # TSAN profile should stay scoped to race-sensitive unit tests.
 require_pattern "ctest_args+=(-R \"^emu\\\\.unit\\\\.(command_ring_policy|worker_thread)$\")" \

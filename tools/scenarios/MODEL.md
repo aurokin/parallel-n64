@@ -51,7 +51,7 @@ Every tracked scenario bundle should record:
 ## Reminting
 
 - reminting should happen through dedicated helper scripts, not ad hoc command sequences
-- remint helpers should verify the rebuilt state against a known canonical capture hash before replacing the tracked authority
+- authoritative remint helpers must verify the rebuilt baseline-off state against locked feature-off capture identity before replacing tracked authority; unverified remints are review-only and must not promote tracked output
 
 ## Build Rule
 

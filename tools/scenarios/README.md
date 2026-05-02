@@ -37,6 +37,9 @@ Current tracked scenario seeds:
 - [`paper-mario-full-cache-phrb-zero-config-refresh.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-zero-config-refresh.sh)
 - [`paper-mario-full-cache-phrb-authority-refresh.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-authority-refresh.sh)
 - [`paper-mario-selected-package-authority-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-selected-package-authority-validation.sh)
+- [`cross-game-hires-boot-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/cross-game-hires-boot-validation.sh)
+- [`cross-game-hires-savestate-fixture-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/cross-game-hires-savestate-fixture-validation.sh)
+- [`remint-cross-game-boot-state.sh`](/home/auro/code/parallel-n64/tools/scenarios/remint-cross-game-boot-state.sh)
 - [`paper-mario-savefile-start.runtime.env`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-savefile-start.runtime.env)
 - [`paper-mario-hos-05-entry-3.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-hos-05-entry-3.sh)
 - [`paper-mario-hos-05-entry-3.runtime.env`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-hos-05-entry-3.runtime.env)
@@ -55,10 +58,16 @@ Current tracked scenario seeds:
 - [`paper-mario-full-cache-phrb-authority-refresh.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-authority-refresh.sh) is the maintained promoted-baseline refresh workflow for the enriched authority-context lane.
 - [`paper-mario-title-timeout-selected-package-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-title-timeout-selected-package-validation.sh) is the main selected-package timeout review surface. It emits selector, pool, seam-register, and alternate-source artifacts when the needed inputs are present.
 
+## Active Cross-Game Lanes
+
+- [`cross-game-hires-boot-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/cross-game-hires-boot-validation.sh) is the shared SM64/OoT boot proof runner. It requires a `.phrb`, runs with hi-res enabled, and writes final capture, logs, extracted hi-res evidence, and `validation-summary.{json,md}`.
+- [`cross-game-hires-savestate-fixture-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/cross-game-hires-savestate-fixture-validation.sh) is the fixed-state SM64/OoT fixture runner. It verifies savestate identity, staged-state load acknowledgement, post-load paused frame, and semantic hi-res evidence. Capture digests are artifact identity only, not hi-res correctness gates.
+- [`remint-cross-game-boot-state.sh`](/home/auro/code/parallel-n64/tools/scenarios/remint-cross-game-boot-state.sh) mints baseline-off boot savestates for cross-game fixtures and requires `--expected-verify-capture-sha256` for authority remints; `--allow-unverified` writes review evidence only and does not promote to the final output path.
+
 ## Common Experimental Overrides
 
 - Use `RUNTIME_ENV_OVERRIDE=/abs/path/to/runtime.env` for temporary debug-only runs.
-- Use `DISABLE_SCREENSHOT_VERIFY=1` only when a controlled experiment is expected to diverge from locked hashes.
+- Screenshot verification is reserved for feature-off baseline parity and remint authority checks. Do not add hi-res-on capture digest gates; use semantic traces and hi-res evidence instead.
 - Runtime env overrides are auto-exported while sourcing, so `PARALLEL_RDP_*` toggles reach the RetroArch/core process.
 - Prefer the real `PARALLEL_RDP_HIRES_FILTER_*` variable names. The older `HIRES_FILTER_*` names remain compatibility fallbacks only.
 

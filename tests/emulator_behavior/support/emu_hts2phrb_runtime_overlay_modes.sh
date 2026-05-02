@@ -8,14 +8,17 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 CACHE_PATH="$TMP_DIR/sample.htc"
 BUNDLE_DIR="$TMP_DIR/bundle"
 TRACE_DIR="$BUNDLE_DIR/traces"
+SUMMARY_DIR="$TMP_DIR/summary"
+SUMMARY_JSON="$SUMMARY_DIR/validation-summary.json"
 OUT_NEVER="$TMP_DIR/out-never"
 OUT_ALWAYS="$TMP_DIR/out-always"
 OUT_AUTO_CONTEXT="$TMP_DIR/out-auto-context"
 
-mkdir -p "$TRACE_DIR"
+mkdir -p "$TRACE_DIR" "$SUMMARY_DIR"
 
-python3 - "$CACHE_PATH" "$TRACE_DIR/hires-evidence.json" <<'PY'
+python3 - "$CACHE_PATH" "$TRACE_DIR/hires-evidence.json" "$SUMMARY_JSON" <<'PY'
 import gzip
+import hashlib
 import json
 import struct
 import sys
@@ -23,6 +26,7 @@ from pathlib import Path
 
 cache_path = Path(sys.argv[1])
 evidence_path = Path(sys.argv[2])
+summary_path = Path(sys.argv[3])
 
 TXCACHE_FORMAT_VERSION = 0x08000000
 GL_RGBA = 0x1908
@@ -55,7 +59,64 @@ with gzip.open(cache_path, "wb") as fp:
         fp.write(struct.pack("<I", len(payload)))
         fp.write(payload)
 
+cache_sha = hashlib.sha256(cache_path.read_bytes()).hexdigest()
+rom_path = cache_path.with_name("synthetic-rom.z64")
+core_path = cache_path.with_name("synthetic-core.so")
+rom_path.write_bytes(b"synthetic-rom")
+core_path.write_bytes(b"synthetic-core")
+rom_sha = hashlib.sha256(rom_path.read_bytes()).hexdigest()
+core_sha = hashlib.sha256(core_path.read_bytes()).hexdigest()
+commands = ["WAIT_COMMAND_READY 120", "SCREENSHOT", "QUIT"]
+commands_text = "\n".join(commands) + "\n"
+command_signature = hashlib.sha256(commands_text.encode()).hexdigest()
+bundle_dir = evidence_path.parent.parent
+(bundle_dir / "bundle.json").write_text(json.dumps({
+    "fixture_id": "synthetic-runtime-overlay",
+    "inputs": {
+        "rom_path": str(rom_path),
+        "rom_sha256": rom_sha,
+        "hires_pack_path": str(cache_path),
+        "hires_pack_sha256": cache_sha,
+    },
+    "status": {"runtime_executed": True},
+}, indent=2) + "\n")
+(bundle_dir / "traces" / "fixture-verification.json").write_text(json.dumps({
+    "fixture_id": "synthetic-runtime-overlay",
+    "passed": True,
+    "failures": [],
+}, indent=2) + "\n")
+(bundle_dir / "logs").mkdir(exist_ok=True)
+(bundle_dir / "config.env").write_text("synthetic=1\n")
+(bundle_dir / "retroarch.expected.commands.log").write_text(commands_text)
+(bundle_dir / "retroarch.planned.commands.log").write_text(commands_text)
+(bundle_dir / "retroarch.executed.commands.log").write_text(commands_text)
+(bundle_dir / "logs" / "retroarch.commands.log").write_text(commands_text)
+(bundle_dir / "retroarch.session.env").write_text(
+    f"MODE=on\nROM_PATH={rom_path}\nROM_SHA256={rom_sha}\nCORE_PATH={core_path}\n"
+    f"CORE_SHA256={core_sha}\nHIRES_CACHE_PATH={cache_path}\nHIRES_CACHE_SHA256={cache_sha}\n"
+    f"COMMAND_SIGNATURE={command_signature}\n"
+)
+(bundle_dir / "retroarch.run.env").write_text(
+    "RUNTIME_EXECUTED=1\nRETROARCH_EXIT_STATUS=0\nFORCED_TERMINATION=0\n"
+)
 evidence = {
+    "available": True,
+    "cache_loaded": True,
+    "cache_path": str(cache_path),
+    "cache_sha256": cache_sha,
+    "summary": {
+        "provider": "on",
+        "source_mode": "phrb-only",
+        "entry_count": 1,
+        "native_sampled_entry_count": 1,
+        "source_counts": {"phrb": 1},
+        "descriptor_path_counts": {
+            "sampled": 1,
+            "native_checksum": 0,
+            "generic": 0,
+            "compat": 0,
+        },
+    },
     "ci_palette_probe": {
         "families": [
             {
@@ -71,6 +132,10 @@ evidence = {
         "emulated_tmem": []
     },
     "sampled_object_probe": {
+        "exact_hit_count": 1,
+        "exact_miss_count": 0,
+        "exact_conflict_miss_count": 0,
+        "exact_unresolved_miss_count": 0,
         "top_groups": [
             {
                 "fields": {
@@ -99,6 +164,24 @@ evidence = {
     }
 }
 evidence_path.write_text(json.dumps(evidence, indent=2) + "\n")
+summary = {
+    "summary_title": "runtime overlay modes",
+    "passed": True,
+    "all_passed": True,
+    "steps": [
+        {
+            "step_frames": 0,
+            "passed": True,
+            "fixture_id": "synthetic-runtime-overlay",
+            "on_bundle": "../bundle",
+        },
+    ],
+}
+summary_path.write_text(json.dumps(summary, indent=2) + "\n")
+(bundle_dir.parent / "validation-summary.json").write_text(json.dumps({
+    **summary,
+    "steps": [{**summary["steps"][0], "on_bundle": "bundle"}],
+}, indent=2) + "\n")
 PY
 
 python3 "$ROOT_DIR/tools/hts2phrb.py" \
@@ -117,7 +200,7 @@ python3 "$ROOT_DIR/tools/hts2phrb.py" \
 
 python3 "$ROOT_DIR/tools/hts2phrb.py" \
   --cache "$CACHE_PATH" \
-  --context-bundle "$BUNDLE_DIR" \
+  --context-bundle "$SUMMARY_JSON" \
   --all-families \
   --stdout-format json \
   --output-dir "$OUT_AUTO_CONTEXT" >/dev/null

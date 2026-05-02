@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$ROOT_DIR/tests/emulator_behavior/support/hts2phrb_synthetic_bundle_provenance.sh"
 TMP_DIR="$(mktemp -d /tmp/parallel-n64-hts2phrb-reuse-XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -93,6 +94,8 @@ evidence = {
 evidence_path.write_text(json.dumps(evidence, indent=2) + "\n")
 PY
 
+hts2phrb_write_synthetic_runtime_provenance "$BUNDLE_DIR" "$CACHE_PATH" "synthetic-hts2phrb-reuse-existing"
+
 python3 "$ROOT_DIR/tools/hts2phrb.py" \
   --cache "$CACHE_PATH" \
   --bundle "$BUNDLE_DIR" \
@@ -123,6 +126,36 @@ python3 "$ROOT_DIR/tools/hts2phrb.py" \
   --reuse-existing \
   --stdout-format json \
   --output-dir "$OUTPUT_DIR" >/dev/null
+
+cp "$TRACE_DIR/fixture-verification.json" "$TMP_DIR/fixture-verification.good.json"
+python3 - "$TRACE_DIR/fixture-verification.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["passed"] = False
+data["failures"] = ["synthetic sidecar corruption"]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+if python3 "$ROOT_DIR/tools/hts2phrb.py" \
+  --cache "$CACHE_PATH" \
+  --bundle "$BUNDLE_DIR" \
+  --reuse-existing \
+  --stdout-format json \
+  --output-dir "$OUTPUT_DIR" \
+  > "$TMP_DIR/reuse-corrupt-sidecar.json" \
+  2> "$TMP_DIR/reuse-corrupt-sidecar.stderr"; then
+  echo "expected reuse-existing to reject corrupted fixture sidecar provenance" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings -- "verification is not passed" "$TMP_DIR/reuse-corrupt-sidecar.stderr"; then
+  echo "expected corrupted sidecar rejection before reuse" >&2
+  cat "$TMP_DIR/reuse-corrupt-sidecar.stderr" >&2
+  exit 1
+fi
+cp "$TMP_DIR/fixture-verification.good.json" "$TRACE_DIR/fixture-verification.json"
 
 python3 - "$OUTPUT_DIR" <<'PY'
 import json
@@ -244,6 +277,103 @@ if progress.get("reused_stage_names") != expected_reused_stages:
     raise SystemExit(f"unexpected progress reused stages: {progress!r}")
 if "Reused existing artifacts: `no`" not in summary_text:
     raise SystemExit(f"expected rebuilt summary to record non-report reuse, got {summary_text!r}")
+PY
+
+python3 - "$OUTPUT_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out_dir = Path(sys.argv[1])
+report = json.loads((out_dir / "hts2phrb-report.json").read_text())
+plan_path = out_dir / "migration-plan.json"
+plan = json.loads(plan_path.read_text())
+families = ((plan.get("plan") or {}).get("families")) or []
+if not families:
+    raise SystemExit("expected migration plan families before corruption")
+families[0]["low32"] = "33333333"
+plan["debug_corruption_marker"] = "stale-plan-should-not-reuse"
+plan_path.write_text(json.dumps(plan, indent=2) + "\n")
+for artifact in (
+    Path(report["report_path"]),
+    Path(report["summary_path"]),
+    Path(report["binary_package"]["output_path"]),
+):
+    if artifact.exists():
+        artifact.unlink()
+PY
+
+python3 "$ROOT_DIR/tools/hts2phrb.py" \
+  --cache "$CACHE_PATH" \
+  --bundle "$BUNDLE_DIR" \
+  --reuse-existing \
+  --stdout-format json \
+  --output-dir "$OUTPUT_DIR" >/dev/null
+
+python3 - "$OUTPUT_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out_dir = Path(sys.argv[1])
+report = json.loads((out_dir / "hts2phrb-report.json").read_text())
+plan = json.loads((out_dir / "migration-plan.json").read_text())
+if "build_migration_plan" in (report.get("reused_stage_names") or []):
+    raise SystemExit(f"expected corrupted migration plan to invalidate progress reuse, got {report!r}")
+if plan.get("debug_corruption_marker"):
+    raise SystemExit(f"expected corrupted migration plan to be rebuilt, got {plan!r}")
+if report.get("requested_family_count") != 2:
+    raise SystemExit(f"expected rebuilt request to preserve current bundle families, got {report!r}")
+PY
+
+python3 - "$OUTPUT_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out_dir = Path(sys.argv[1])
+report = json.loads((out_dir / "hts2phrb-report.json").read_text())
+plan_path = out_dir / "migration-plan.json"
+plan = json.loads(plan_path.read_text())
+records = ((plan.get("imported_index") or {}).get("canonical_records")) or []
+if not records:
+    raise SystemExit("expected imported_index canonical records before corruption")
+records[0]["off"] = 9999
+records[0]["stride"] = 777
+plan["debug_deep_corruption_marker"] = "stale-plan-payload-should-not-reuse"
+plan_path.write_text(json.dumps(plan, indent=2) + "\n")
+for artifact in (
+    Path(report["report_path"]),
+    Path(report["summary_path"]),
+    Path(report["binary_package"]["output_path"]),
+    out_dir / "loader-manifest.json",
+    out_dir / "bindings.json",
+    out_dir / "runtime-loader-manifest.json",
+    out_dir / "package" / "package-manifest.json",
+):
+    if artifact.exists():
+        artifact.unlink()
+PY
+
+python3 "$ROOT_DIR/tools/hts2phrb.py" \
+  --cache "$CACHE_PATH" \
+  --bundle "$BUNDLE_DIR" \
+  --reuse-existing \
+  --stdout-format json \
+  --output-dir "$OUTPUT_DIR" >/dev/null
+
+python3 - "$OUTPUT_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out_dir = Path(sys.argv[1])
+report = json.loads((out_dir / "hts2phrb-report.json").read_text())
+plan = json.loads((out_dir / "migration-plan.json").read_text())
+if "build_migration_plan" in (report.get("reused_stage_names") or []):
+    raise SystemExit(f"expected deep migration-plan corruption to invalidate progress reuse, got {report!r}")
+if plan.get("debug_deep_corruption_marker"):
+    raise SystemExit(f"expected deeply corrupted migration plan to be rebuilt, got {plan!r}")
 PY
 
 echo "emu_hts2phrb_reuse_existing: PASS"

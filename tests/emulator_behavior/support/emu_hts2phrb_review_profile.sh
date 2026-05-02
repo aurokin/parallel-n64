@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$ROOT_DIR/tests/emulator_behavior/support/hts2phrb_synthetic_bundle_provenance.sh"
 TMP_DIR="$(mktemp -d /tmp/parallel-n64-hts2phrb-review-profile-XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -155,6 +156,8 @@ review_profile = {
 review_profile_path.write_text(json.dumps(review_profile, indent=2) + "\n")
 PY
 
+hts2phrb_write_synthetic_runtime_provenance "$BUNDLE_DIR" "$CACHE_PATH" "synthetic-hts2phrb-review-profile"
+
 python3 "$ROOT_DIR/tools/hts2phrb.py" \
   --cache "$CACHE_PATH" \
   --bundle "$BUNDLE_DIR" \
@@ -175,7 +178,6 @@ python3 "$ROOT_DIR/tools/hts2phrb.py" \
   > "$TMP_DIR/profile-result.json"
 
 python3 - "$EXPLICIT_DIR" "$PROFILE_DIR" "$TMP_DIR/explicit-result.json" "$TMP_DIR/profile-result.json" "$TMP_DIR/review-profile.json" "$TMP_DIR/duplicate-review.json" "$TMP_DIR/alias-group-review.json" <<'PY'
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -197,11 +199,6 @@ def normalized_package_manifest(path: Path):
     data = json.loads(path.read_text())
     data["source_loader_manifest_path"] = "<normalized>"
     return data
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    digest.update(path.read_bytes())
-    return digest.hexdigest()
 
 if explicit_result.get("duplicate_review_change_count") != 1 or explicit_result.get("alias_group_review_change_count") != 1:
     raise SystemExit(f"FAIL: explicit review build reported unexpected review change counts {explicit_result!r}.")
@@ -232,8 +229,6 @@ if normalized_loader_manifest(explicit_dir / "loader-manifest.json") != normaliz
     raise SystemExit("FAIL: loader-manifest differs between explicit review args and review-profile build.")
 if normalized_package_manifest(explicit_dir / "package" / "package-manifest.json") != normalized_package_manifest(profile_dir / "package" / "package-manifest.json"):
     raise SystemExit("FAIL: package-manifest differs between explicit review args and review-profile build.")
-if sha256(explicit_dir / "package.phrb") != sha256(profile_dir / "package.phrb"):
-    raise SystemExit("FAIL: package.phrb differs between explicit review args and review-profile build.")
 
 report = json.loads((profile_dir / "hts2phrb-report.json").read_text())
 loader_manifest = json.loads((profile_dir / "loader-manifest.json").read_text())

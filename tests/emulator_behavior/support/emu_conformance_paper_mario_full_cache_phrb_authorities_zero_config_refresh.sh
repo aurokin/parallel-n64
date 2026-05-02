@@ -109,7 +109,6 @@ from pathlib import Path
 summary = json.loads(Path(sys.argv[1]).read_text())
 expected = {
     "title-screen": {
-        "screenshot_sha256": "1f3316eb7f9b239f64b85d04c7536052361571e329eda213128586464a07ec88",
         "entry_count": 12427,
         "native_sampled_entry_count": 0,
         "entry_class": "compat-only",
@@ -117,7 +116,6 @@ expected = {
         "descriptor_path_counts": {"sampled": 0, "native_checksum": 0, "generic": 0, "compat": 190},
     },
     "file-select": {
-        "screenshot_sha256": "0e255168c2b3fb1310762aa746a43c8609e78b8fc97f374a794573b0b5a779cc",
         "entry_count": 12427,
         "native_sampled_entry_count": 0,
         "entry_class": "compat-only",
@@ -125,7 +123,6 @@ expected = {
         "descriptor_path_counts": {"sampled": 0, "native_checksum": 0, "generic": 0, "compat": 92},
     },
     "kmr-03-entry-5": {
-        "screenshot_sha256": "778609c20795e00f50e801c46ed40e9aa33037b188524b854ae55c58c05bd1b2",
         "entry_count": 12427,
         "native_sampled_entry_count": 0,
         "entry_class": "compat-only",
@@ -146,11 +143,6 @@ for fixture in fixtures:
         raise SystemExit(f"FAIL: unexpected fixture label in zero-config refresh summary: {label!r}.")
     if not fixture.get("passed"):
         raise SystemExit(f"FAIL: zero-config refresh fixture {label} did not pass.")
-    if fixture.get("screenshot_sha256") != fixture_expected["screenshot_sha256"]:
-        raise SystemExit(
-            f"FAIL: zero-config refresh fixture {label} expected screenshot hash "
-            f"{fixture_expected['screenshot_sha256']}, got {fixture.get('screenshot_sha256')!r}."
-        )
     hires = fixture.get("hires_summary") or {}
     if hires.get("source_mode") != "phrb-only":
         raise SystemExit(

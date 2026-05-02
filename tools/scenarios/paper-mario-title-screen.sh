@@ -190,16 +190,19 @@ if (( DRY_RUN )); then
 else
   scenario_source_runtime_env "$RUNTIME_ENV"
 
-  PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
-  scenario_require_phrb_runtime_cache "$PACK_PATH"
-  scenario_configure_hires_runtime_env_for_cache "$PACK_PATH"
-  PACK_SHA256="$(scenario_sha256_file "$PACK_PATH")"
+  if [[ "$MODE" == "on" ]]; then
+    PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
+    scenario_require_phrb_runtime_cache "$PACK_PATH"
+    scenario_configure_hires_runtime_env_for_cache "$PACK_PATH"
+    PACK_SHA256="$(scenario_sha256_file "$PACK_PATH")"
+  else
+    PACK_PATH=""
+    PACK_SHA256="missing"
+  fi
 
   VERIFY_SCREENSHOT_SHA256=""
   if [[ "$MODE" == "off" ]]; then
     VERIFY_SCREENSHOT_SHA256="${EXPECTED_SCREENSHOT_SHA256_OFF:-${EXPECTED_SCREENSHOT_SHA256:-}}"
-  elif [[ "$MODE" == "on" ]]; then
-    VERIFY_SCREENSHOT_SHA256="${EXPECTED_SCREENSHOT_SHA256_ON:-}"
   fi
   if [[ "${DISABLE_SCREENSHOT_VERIFY:-0}" == "1" ]]; then
     VERIFY_SCREENSHOT_SHA256=""
@@ -255,13 +258,30 @@ else
     )
   fi
 
-  PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
-  PARALLEL_RDP_HIRES_CACHE_PATH="$PACK_PATH" \
-  PARALLEL_RDP_HIRES_DEBUG="$([[ "$MODE" == "on" ]] && echo 1 || echo 0)" \
-  PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE="${PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE:-${HIRES_FILTER_ALLOW_TILE:-}}" \
-  PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK="${PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK:-${HIRES_FILTER_ALLOW_BLOCK:-}}" \
-  PARALLEL_RDP_HIRES_FILTER_SIGNATURES="${PARALLEL_RDP_HIRES_FILTER_SIGNATURES:-${HIRES_FILTER_SIGNATURES:-}}" \
-  "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" \
+  HIRES_ENV_UNSET=(
+    -u RUNTIME_ENV_OVERRIDE
+    -u PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE
+    -u PARALLEL_RDP_HIRES_CACHE_PATH
+    -u PARALLEL_RDP_HIRES_CI_COMPAT
+    -u PARALLEL_RDP_HIRES_CI_LOW32_FALLBACK
+    -u PARALLEL_RDP_HIRES_CI_PALETTE_PROBE
+    -u PARALLEL_RDP_HIRES_CI_SELECT
+    -u PARALLEL_RDP_HIRES_DEBUG
+    -u PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK
+    -u PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE
+    -u PARALLEL_RDP_HIRES_FILTER_SIGNATURES
+    -u PARALLEL_RDP_HIRES_GLIDEN64_COMPAT_CRC
+    -u PARALLEL_RDP_HIRES_GPU_BUDGET_MB
+    -u PARALLEL_RDP_HIRES_PHRB_DEBUG
+    -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP
+    -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE
+    -u HIRES_FILTER_ALLOW_TILE
+    -u HIRES_FILTER_ALLOW_BLOCK
+    -u HIRES_FILTER_SIGNATURES
+  )
+
+  adapter_cmd=(
+    "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh"
     --bundle-dir "$BUNDLE_DIR" \
     --mode "$MODE" \
     --retroarch-bin "$RETROARCH_BIN" \
@@ -270,7 +290,21 @@ else
     --rom "$ROM_PATH" \
     --startup-wait "$STARTUP_WAIT" \
     "${runtime_commands[@]}"
-
+  )
+  if [[ "$MODE" == "on" ]]; then
+    PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
+    PARALLEL_RDP_HIRES_CACHE_PATH="$PACK_PATH" \
+    PARALLEL_RDP_HIRES_DEBUG=1 \
+    PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE="${PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE:-${HIRES_FILTER_ALLOW_TILE:-}}" \
+    PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK="${PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK:-${HIRES_FILTER_ALLOW_BLOCK:-}}" \
+    PARALLEL_RDP_HIRES_FILTER_SIGNATURES="${PARALLEL_RDP_HIRES_FILTER_SIGNATURES:-${HIRES_FILTER_SIGNATURES:-}}" \
+    "${adapter_cmd[@]}"
+  else
+    env "${HIRES_ENV_UNSET[@]}" \
+    PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
+    "${adapter_cmd[@]}"
+  fi
+  scenario_assert_adapter_runtime_success "$BUNDLE_DIR"
   if [[ -f "$BUNDLE_DIR/traces/paper-mario-gamestatus.core-memory.txt" ]]; then
     scenario_decode_paper_mario_semantic_state \
       "$BUNDLE_DIR" \

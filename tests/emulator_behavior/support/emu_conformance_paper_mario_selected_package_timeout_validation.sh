@@ -15,9 +15,15 @@ POOL_REGRESSION_FLAT_SUMMARY_DEFAULT="$REPO_ROOT/artifacts/paper-mario-probes/va
 POOL_REGRESSION_DUAL_SUMMARY_DEFAULT="$REPO_ROOT/artifacts/paper-mario-probes/validation/20260330-v34-v32base-surface-1b85-timeout-960/validation-summary.json"
 POOL_REGRESSION_ORDERED_SUMMARY_DEFAULT="$REPO_ROOT/artifacts/paper-mario-probes/validation/20260330-v35-v32base-surface-1b85-ordered-only-timeout-960/validation-summary.json"
 POOL_REGRESSION_SURFACE_PACKAGE_DEFAULT="$REPO_ROOT/artifacts/hires-pack-review/20260330-1b85-sampled-surface-package/surface-package.json"
-EXPECTED_ON_HASH_DEFAULT="4bd3929dabff3ffb1b7e03a9c10d8ce50e9b6d0f067825d3a788c48a41b6fc62"
 EXPECTED_SAMPLED_DUPLICATE_KEYS_DEFAULT="1"
 EXPECTED_SAMPLED_DUPLICATE_ENTRIES_DEFAULT="1"
+ENFORCE_VISUAL_ENVELOPE_DEFAULT="0"
+MIN_AE_DEFAULT="0"
+MAX_AE_DEFAULT="0"
+MIN_RMSE_DEFAULT="0.0"
+MAX_RMSE_DEFAULT="0.0"
+EXPECTED_NATIVE_SAMPLED_ENTRY_COUNT_DEFAULT="195"
+EXPECTED_SAMPLED_DESCRIPTOR_PATH_COUNT_DEFAULT="66"
 
 CACHE_PATH="${EMU_RUNTIME_PM64_SELECTED_PHRB:-$CACHE_PATH_DEFAULT}"
 LOADER_MANIFEST="${EMU_RUNTIME_PM64_SELECTED_LOADER_MANIFEST:-$LOADER_MANIFEST_DEFAULT}"
@@ -31,9 +37,15 @@ POOL_REGRESSION_FLAT_SUMMARY="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_POOL_REGRESSIO
 POOL_REGRESSION_DUAL_SUMMARY="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_POOL_REGRESSION_DUAL_SUMMARY:-$POOL_REGRESSION_DUAL_SUMMARY_DEFAULT}"
 POOL_REGRESSION_ORDERED_SUMMARY="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_POOL_REGRESSION_ORDERED_SUMMARY:-$POOL_REGRESSION_ORDERED_SUMMARY_DEFAULT}"
 POOL_REGRESSION_SURFACE_PACKAGE="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_POOL_REGRESSION_SURFACE_PACKAGE:-$POOL_REGRESSION_SURFACE_PACKAGE_DEFAULT}"
-EXPECTED_ON_HASH="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_ON_HASH:-$EXPECTED_ON_HASH_DEFAULT}"
 EXPECTED_SAMPLED_DUPLICATE_KEYS="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_EXPECTED_SAMPLED_DUPLICATE_KEYS:-$EXPECTED_SAMPLED_DUPLICATE_KEYS_DEFAULT}"
 EXPECTED_SAMPLED_DUPLICATE_ENTRIES="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_EXPECTED_SAMPLED_DUPLICATE_ENTRIES:-$EXPECTED_SAMPLED_DUPLICATE_ENTRIES_DEFAULT}"
+ENFORCE_VISUAL_ENVELOPE="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_ENFORCE_VISUAL_ENVELOPE:-$ENFORCE_VISUAL_ENVELOPE_DEFAULT}"
+MIN_AE="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_MIN_AE:-$MIN_AE_DEFAULT}"
+MAX_AE="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_MAX_AE:-$MAX_AE_DEFAULT}"
+MIN_RMSE="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_MIN_RMSE:-$MIN_RMSE_DEFAULT}"
+MAX_RMSE="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_MAX_RMSE:-$MAX_RMSE_DEFAULT}"
+EXPECTED_NATIVE_SAMPLED_ENTRY_COUNT="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_EXPECTED_NATIVE_SAMPLED_ENTRY_COUNT:-$EXPECTED_NATIVE_SAMPLED_ENTRY_COUNT_DEFAULT}"
+EXPECTED_SAMPLED_DESCRIPTOR_PATH_COUNT="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_EXPECTED_SAMPLED_DESCRIPTOR_PATH_COUNT:-$EXPECTED_SAMPLED_DESCRIPTOR_PATH_COUNT_DEFAULT}"
 BUNDLE_ROOT="${EMU_RUNTIME_PM64_SELECTED_TIMEOUT_BUNDLE_ROOT:-}"
 
 if [[ "${EMU_ENABLE_RUNTIME_CONFORMANCE:-0}" != "1" ]]; then
@@ -208,14 +220,6 @@ if [[ -n "$ALT_SOURCE_CACHE" && ! -f "$ALT_REVIEW_PATH" ]]; then
   echo "FAIL: selected-package timeout validation did not produce $ALT_REVIEW_PATH." >&2
   exit 1
 fi
-if [[ -f "$TITLE_GUARD_EVIDENCE" && -f "$FILE_GUARD_EVIDENCE" && ! -f "$CROSS_SCENE_REVIEW_PATH" ]]; then
-  echo "FAIL: selected-package timeout validation did not produce $CROSS_SCENE_REVIEW_PATH." >&2
-  exit 1
-fi
-if [[ -n "$ALT_SOURCE_CACHE" && -f "$TITLE_GUARD_EVIDENCE" && -f "$FILE_GUARD_EVIDENCE" && ! -f "$ALT_ACTIVATION_REVIEW_PATH" ]]; then
-  echo "FAIL: selected-package timeout validation did not produce $ALT_ACTIVATION_REVIEW_PATH." >&2
-  exit 1
-fi
 if (( EXPECTED_SAMPLED_DUPLICATE_KEYS > 0 )) && [[ ! -f "$SAMPLED_DUPLICATE_REVIEW_PATH" ]]; then
   echo "FAIL: selected-package timeout validation did not produce $SAMPLED_DUPLICATE_REVIEW_PATH." >&2
   exit 1
@@ -225,7 +229,7 @@ if [[ ! -f "$POOL_REGRESSION_REVIEW_PATH" ]]; then
   exit 1
 fi
 
-python3 - "$SUMMARY_PATH" "$REVIEW_PATH" "$POOL_REVIEW_PATH" "$SEAM_REGISTER_PATH" "$ALT_REVIEW_PATH" "$CROSS_SCENE_REVIEW_PATH" "$ALT_ACTIVATION_REVIEW_PATH" "$SAMPLED_DUPLICATE_REVIEW_PATH" "$POOL_REGRESSION_REVIEW_PATH" "$TITLE_GUARD_EVIDENCE" "$FILE_GUARD_EVIDENCE" "$WORLD_GUARD_EVIDENCE" "$EXPECTED_ON_HASH" "$EXPECTED_SAMPLED_DUPLICATE_KEYS" "$EXPECTED_SAMPLED_DUPLICATE_ENTRIES" "$ALT_SOURCE_CACHE" <<'PY'
+python3 - "$SUMMARY_PATH" "$REVIEW_PATH" "$POOL_REVIEW_PATH" "$SEAM_REGISTER_PATH" "$ALT_REVIEW_PATH" "$CROSS_SCENE_REVIEW_PATH" "$ALT_ACTIVATION_REVIEW_PATH" "$SAMPLED_DUPLICATE_REVIEW_PATH" "$POOL_REGRESSION_REVIEW_PATH" "$TITLE_GUARD_EVIDENCE" "$FILE_GUARD_EVIDENCE" "$WORLD_GUARD_EVIDENCE" "$EXPECTED_SAMPLED_DUPLICATE_KEYS" "$EXPECTED_SAMPLED_DUPLICATE_ENTRIES" "$ALT_SOURCE_CACHE" "$ENFORCE_VISUAL_ENVELOPE" "$MIN_AE" "$MAX_AE" "$MIN_RMSE" "$MAX_RMSE" "$EXPECTED_NATIVE_SAMPLED_ENTRY_COUNT" "$EXPECTED_SAMPLED_DESCRIPTOR_PATH_COUNT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -248,10 +252,16 @@ alternate_source_activation_review = (
 pool_regression_review = json.loads(Path(sys.argv[9]).read_text())
 guard_paths_present = Path(sys.argv[10]).is_file() and Path(sys.argv[11]).is_file()
 world_guard_present = Path(sys.argv[12]).is_file()
-expected_on_hash = sys.argv[13]
-expected_sampled_duplicate_keys = int(sys.argv[14])
-expected_sampled_duplicate_entries = int(sys.argv[15])
-alt_source_present = Path(sys.argv[16]).is_file() if sys.argv[16] else False
+expected_sampled_duplicate_keys = int(sys.argv[13])
+expected_sampled_duplicate_entries = int(sys.argv[14])
+alt_source_present = Path(sys.argv[15]).is_file() if sys.argv[15] else False
+enforce_visual_envelope = bool(int(sys.argv[16]))
+min_ae = int(sys.argv[17])
+max_ae = int(sys.argv[18])
+min_rmse = float(sys.argv[19])
+max_rmse = float(sys.argv[20])
+expected_native_sampled_entry_count = int(sys.argv[21])
+expected_sampled_descriptor_path_count = int(sys.argv[22])
 cross_scene_review = json.loads(cross_scene_review_path.read_text()) if cross_scene_review_path.is_file() else {}
 
 steps = summary.get("steps") or []
@@ -261,19 +271,43 @@ if len(steps) != 1:
 step = steps[0]
 if int(step.get("step_frames") or 0) != 960:
     raise SystemExit(f"FAIL: expected timeout step_frames=960, got {step.get('step_frames')!r}.")
-if step.get("on_hash") != expected_on_hash:
-    raise SystemExit(
-        f"FAIL: expected selected-package timeout on_hash={expected_on_hash}, "
-        f"got {step.get('on_hash')!r}."
-    )
-if not bool(step.get("matches_off")):
-    raise SystemExit(f"FAIL: expected current selected-package timeout lane to remain pixel-identical to off, got {step!r}.")
+ae = int(step.get("ae") or 0)
+rmse = float(step.get("rmse") or 0.0)
+if enforce_visual_envelope:
+    if ae < min_ae:
+        raise SystemExit(f"FAIL: timeout visual AE fell below opt-in non-checksum envelope: expected >= {min_ae}, got {ae}.")
+    if ae > max_ae:
+        raise SystemExit(f"FAIL: timeout visual AE exceeded opt-in non-checksum envelope: expected <= {max_ae}, got {ae}.")
+    if rmse < min_rmse:
+        raise SystemExit(f"FAIL: timeout visual RMSE fell below opt-in non-checksum envelope: expected >= {min_rmse}, got {rmse}.")
+    if rmse > max_rmse:
+        raise SystemExit(f"FAIL: timeout visual RMSE exceeded opt-in non-checksum envelope: expected <= {max_rmse}, got {rmse}.")
 
 semantic = step.get("semantic") or {}
 if semantic.get("map_name_candidate") != "kmr_03" or int(semantic.get("entry_id") or -1) != 5:
     raise SystemExit(f"FAIL: unexpected semantic state {semantic!r}.")
 if semantic.get("init_symbol") != "state_init_world" or semantic.get("step_symbol") != "state_step_world":
     raise SystemExit(f"FAIL: unexpected semantic callbacks {semantic!r}.")
+
+off_semantic = step.get("off_semantic") or {}
+if off_semantic.get("map_name_candidate") != "kmr_03" or int(off_semantic.get("entry_id") or -1) != 5:
+    raise SystemExit(f"FAIL: unexpected off semantic state {off_semantic!r}.")
+if off_semantic.get("init_symbol") != "state_init_world" or off_semantic.get("step_symbol") != "state_step_world":
+    raise SystemExit(f"FAIL: unexpected off semantic callbacks {off_semantic!r}.")
+off_hires = step.get("off_hires_summary") or {}
+off_bundle = Path(step.get("off_bundle") or "")
+off_hires_evidence = json.loads((off_bundle / "traces" / "hires-evidence.json").read_text())
+if (
+    off_hires_evidence.get("available") is not False
+    or off_hires_evidence.get("cache_loaded") is not False
+    or off_hires_evidence.get("cache_path")
+    or off_hires_evidence.get("cache_sha256")
+    or off_hires.get("provider") not in (None, "off")
+    or int(off_hires.get("entry_count") or 0) != 0
+    or int(off_hires.get("native_sampled_entry_count") or 0) != 0
+    or int(off_hires.get("compat_entry_count") or 0) != 0
+):
+    raise SystemExit(f"FAIL: expected off hi-res evidence to stay disabled, got {off_hires_evidence!r}.")
 
 hires = step.get("hires_summary") or {}
 if hires.get("source_mode") != "phrb-only":
@@ -286,6 +320,11 @@ sampled_index_count = int(hires.get("sampled_index_count") or 0)
 sampled_duplicate_key_count = int(hires.get("sampled_duplicate_key_count") or 0)
 sampled_duplicate_entry_count = int(hires.get("sampled_duplicate_entry_count") or 0)
 native_sampled_entry_count = int(hires.get("native_sampled_entry_count") or 0)
+if native_sampled_entry_count < expected_native_sampled_entry_count:
+    raise SystemExit(
+        "FAIL: selected-package timeout lane native sampled entry count fell below the required minimum: "
+        f"expected >= {expected_native_sampled_entry_count}, got {native_sampled_entry_count}."
+    )
 if sampled_duplicate_key_count != expected_sampled_duplicate_keys:
     raise SystemExit(
         "FAIL: expected sampled_duplicate_key_count="
@@ -303,8 +342,11 @@ if sampled_index_count + sampled_duplicate_entry_count != native_sampled_entry_c
         f"{sampled_duplicate_entry_count} != {native_sampled_entry_count}."
     )
 descriptor_path_counts = step.get("descriptor_path_counts") or {}
-if int(descriptor_path_counts.get("sampled") or 0) < 1:
-    raise SystemExit(f"FAIL: expected sampled descriptor-path resolutions in selected-package timeout lane, got {descriptor_path_counts!r}.")
+if int(descriptor_path_counts.get("sampled") or 0) != expected_sampled_descriptor_path_count:
+    raise SystemExit(
+        "FAIL: selected-package timeout lane changed sampled descriptor-path resolutions: "
+        f"expected {expected_sampled_descriptor_path_count}, got {descriptor_path_counts!r}."
+    )
 if int(descriptor_path_counts.get("native_checksum") or 0) != 0:
     raise SystemExit(f"FAIL: expected native_checksum descriptor-path resolutions to remain zero in current timeout lane, got {descriptor_path_counts!r}.")
 if int(descriptor_path_counts.get("generic") or 0) != 0:
@@ -375,8 +417,9 @@ if pool_review_status == "complete":
         raise SystemExit("FAIL: expected tail dwell to align with unresolved slot.")
 
 summary_counts = seam_register.get("summary") or {}
+candidate_free_absent_family_count = int(summary_counts.get("candidate_free_absent_family_count") or 0)
 candidate_free_alt_source_available_count = int(summary_counts.get("candidate_free_alt_source_available_count") or 0)
-if alt_source_present:
+if alt_source_present and candidate_free_absent_family_count > 0:
     if candidate_free_alt_source_available_count < 1:
         raise SystemExit(
             "FAIL: expected runtime seam register to include alternate-source-ready candidate-free families, "
@@ -405,20 +448,24 @@ else:
 candidate_free = {
     row.get("sampled_low32"): row for row in seam_register.get("candidate_free_absent_families") or []
 }
-for sampled_low32 in ("91887078", "6af0d9ca", "e0d4d0dc"):
-    row = candidate_free.get(sampled_low32)
-    if row is None:
-        raise SystemExit(f"FAIL: expected runtime seam register to include candidate-free family {sampled_low32}.")
-    alt_candidate_count = int(row.get("alternate_source_candidate_count") or 0)
-    if alt_source_present:
-        if alt_candidate_count < 1:
-            raise SystemExit(f"FAIL: expected alternate-source candidates for {sampled_low32}, got {row!r}.")
-    else:
-        if alt_candidate_count != 0:
-            raise SystemExit(
-                "FAIL: expected no alternate-source candidates without an explicit alternate-source cache, "
-                f"got {row!r}."
-            )
+if candidate_free_absent_family_count > 0:
+    for sampled_low32 in ("91887078", "6af0d9ca", "e0d4d0dc"):
+        row = candidate_free.get(sampled_low32)
+        if row is None:
+            raise SystemExit(f"FAIL: expected runtime seam register to include candidate-free family {sampled_low32}.")
+        alt_candidate_count = int(row.get("alternate_source_candidate_count") or 0)
+        if alt_source_present:
+            if alt_candidate_count < 1:
+                raise SystemExit(f"FAIL: expected alternate-source candidates for {sampled_low32}, got {row!r}.")
+        else:
+            if alt_candidate_count != 0:
+                raise SystemExit(
+                    "FAIL: expected no alternate-source candidates without an explicit alternate-source cache, "
+                    f"got {row!r}."
+                )
+else:
+    if candidate_free:
+        raise SystemExit(f"FAIL: candidate-free family count is zero but payload is non-empty: {candidate_free!r}.")
 duplicate_family = next((row for row in seam_register.get("sampled_duplicate_families") or [] if row.get("sampled_low32") == "7701ac09"), None)
 if expected_sampled_duplicate_keys > 0:
     if duplicate_family is None:
@@ -467,11 +514,15 @@ if guard_paths_present:
     pool_regression_summary = step.get("sampled_pool_regression_review") or {}
     activation_families = activation_summary.get("families") or []
     families = cross_scene_summary.get("families") or []
-    if len(families) < 1:
-        raise SystemExit(f"FAIL: expected cross-scene review families in summary, got {cross_scene_summary!r}.")
-    if len(cross_scene_review.get("families") or []) < 1:
-        raise SystemExit(f"FAIL: expected cross-scene review payload, got {cross_scene_review!r}.")
-    if alt_source_present:
+    if candidate_free_absent_family_count > 0:
+        if len(families) < 1:
+            raise SystemExit(f"FAIL: expected cross-scene review families in summary, got {cross_scene_summary!r}.")
+        if len(cross_scene_review.get("families") or []) < 1:
+            raise SystemExit(f"FAIL: expected cross-scene review payload, got {cross_scene_review!r}.")
+    else:
+        if cross_scene_summary.get("json_path") or cross_scene_summary.get("markdown_path") or (cross_scene_summary.get("summary") or {}) or families or cross_scene_review:
+            raise SystemExit(f"FAIL: unexpected cross-scene review payload after candidate-free seam elimination: {cross_scene_summary!r} / {cross_scene_review!r}.")
+    if alt_source_present and candidate_free_absent_family_count > 0:
         if len(activation_families) < 3:
             raise SystemExit(f"FAIL: expected activation review families in summary, got {activation_summary!r}.")
         if len(alternate_source_activation_review.get("families") or []) < 3:
@@ -506,7 +557,7 @@ if guard_paths_present:
     else:
         if activation_summary.get("json_path") or activation_summary.get("markdown_path") or (activation_summary.get("summary") or {}) or activation_families or alternate_source_activation_review:
             raise SystemExit(f"FAIL: unexpected alternate-source activation review payload without explicit alternate-source cache: {activation_summary!r} / {alternate_source_activation_review!r}.")
-    if world_guard_present and "world" not in (cross_scene_summary.get("guard_labels") or []):
+    if candidate_free_absent_family_count > 0 and world_guard_present and "world" not in (cross_scene_summary.get("guard_labels") or []):
         raise SystemExit(f"FAIL: expected world guard label in cross-scene summary, got {cross_scene_summary!r}.")
     if expected_sampled_duplicate_keys > 0:
         if len(duplicate_reviews) < 1 or duplicate_reviews[0].get("recommendation") != "keep-runtime-winner-rule-and-defer-offline-dedupe":

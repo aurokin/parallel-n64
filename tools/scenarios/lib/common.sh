@@ -137,6 +137,7 @@ import json
 import re
 import sys
 import gzip
+import hashlib
 import struct
 from pathlib import Path
 
@@ -144,6 +145,13 @@ bundle_dir = Path(sys.argv[1])
 output_path = Path(sys.argv[2])
 log_path = bundle_dir / "logs" / "retroarch.log"
 TXCACHE_FORMAT_VERSION = 0x08000000
+
+def sha256_file(path: Path):
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 result = {
     "available": False,
@@ -840,6 +848,9 @@ for line in log_path.read_text(errors="replace").splitlines():
         result["cache_loaded"] = True
         result["cache_entries"] = int(m.group(1))
         result["cache_path"] = m.group(2).strip()
+        cache_path = Path(result["cache_path"])
+        if cache_path.is_file():
+            result["cache_sha256"] = sha256_file(cache_path)
         continue
 
     m = summary_re.search(line)
@@ -899,7 +910,12 @@ for line in log_path.read_text(errors="replace").splitlines():
                         "generic_unknown_plain": int(m.group(32)),
                     })
                 summary["descriptor_path_detail_counts"] = detail_counts
-            summary["source_mode"] = "phrb-only" if source_counts["phrb"] > 0 else "unknown"
+            if source_counts["phrb"] > 0 and source_counts["hts"] == 0 and source_counts["htc"] == 0:
+                summary["source_mode"] = "phrb-only"
+            elif source_counts["phrb"] > 0:
+                summary["source_mode"] = "mixed"
+            else:
+                summary["source_mode"] = "unknown"
             summary["entry_class"] = classify_entry_class(
                 summary.get("native_sampled_entry_count"),
                 summary.get("compat_entry_count"),
@@ -1797,6 +1813,11 @@ else:
     sha256 = hashlib.sha256(capture_path.read_bytes()).hexdigest()
     result["checks"]["screenshot_sha256"] = sha256
     if expected_screenshot_sha256:
+        if mode != "off":
+            result["passed"] = False
+            result["failures"].append(
+                f"Screenshot hash expectations are only valid for feature-off baseline parity, got mode {mode!r}."
+            )
         result["checks"]["screenshot_sha256_match"] = (sha256 == expected_screenshot_sha256)
         if sha256 != expected_screenshot_sha256:
             result["passed"] = False
@@ -2017,6 +2038,51 @@ elif requires_hires_assertions:
 output_path.write_text(json.dumps(result, indent=2) + "\n")
 if not result["passed"]:
     raise SystemExit(1)
+PY
+}
+
+scenario_assert_adapter_runtime_success() {
+  local bundle_dir="$1"
+
+  python3 - "$bundle_dir" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+bundle_dir = Path(sys.argv[1])
+run_path = bundle_dir / "retroarch.run.env"
+bundle_path = bundle_dir / "bundle.json"
+
+def read_env(path: Path):
+    values = {}
+    if not path.is_file():
+        return values
+    for line in path.read_text(errors="replace").splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key] = value
+    return values
+
+run = read_env(run_path)
+failures = []
+if run.get("RUNTIME_EXECUTED") != "1":
+    failures.append(f"expected RUNTIME_EXECUTED=1 in {run_path}, got {run.get('RUNTIME_EXECUTED')!r}")
+if run.get("FORCED_TERMINATION") != "0":
+    failures.append(f"expected FORCED_TERMINATION=0 in {run_path}, got {run.get('FORCED_TERMINATION')!r}")
+if run.get("RETROARCH_EXIT_STATUS") != "0":
+    failures.append(f"expected RETROARCH_EXIT_STATUS=0 in {run_path}, got {run.get('RETROARCH_EXIT_STATUS')!r}")
+
+if not bundle_path.is_file():
+    failures.append(f"missing bundle manifest: {bundle_path}")
+else:
+    data = json.loads(bundle_path.read_text())
+    status = data.get("status") if isinstance(data.get("status"), dict) else {}
+    if status.get("runtime_executed") is not True:
+        failures.append(f"expected bundle status.runtime_executed=true, got {status.get('runtime_executed')!r}")
+
+if failures:
+    raise SystemExit("; ".join(failures))
 PY
 }
 

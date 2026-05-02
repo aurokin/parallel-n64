@@ -6,14 +6,12 @@
       "justification": "Both transported c139 payloads regress the current merged file-select image relative to leaving c139 unresolved in the cleaned v27 package context.",
       "supporting_notes": [
         "Both transported payloads still prove the sampled-object exact lookup path works for c139c1c0.",
-        "In the current merged v27 package context, removing c139 entirely improves file-select visual distance to legacy-on from AE 46737511 to 31260618 while leaving strict title byte-identical.",
+        "In the current merged v27 package context, removing c139 entirely improves file-select visual distance to legacy-on from AE 46737511 to 31260618 while preserving the strict title visual output.",
         "The alternate transported payload legacy-2a1be0a4-ab0c7574-fs0-640x160 is worse than leaving c139 unresolved in the same merged context (AE 53131944 vs legacy-on)."
       ],
       "evidence": {
         "selected_runtime_bundle": "artifacts/paper-mario-file-select/on/20260328-sampled-c139-opt1",
         "alternate_runtime_bundle": "artifacts/paper-mario-file-select/on/20260328-sampled-c139-opt2",
-        "selected_hash": "831cd6a7dff2d44654c854dbbcd91d13071cf49d6622f9141084780b47bf2b32",
-        "alternate_hash": "fe478b418acc9aeabcaa8fc5815732e31df3f6fb6cd66e5c5b9a9b28c7b3fc51",
         "selected_vs_off": {
           "ae": 15477373,
           "rmse": 7.279824
@@ -31,25 +29,21 @@
           "rmse": 22.949551
         },
         "v27_context_bundle": "artifacts/paper-mario-file-select/on/20260329-v26-ablation-minus-706",
-        "v27_context_hash": "b5c854d9f3b642e2914d88a8c542e59977c4b42862ee1c285b13c6746ffb2a21",
         "v27_context_vs_legacy_on": {
           "ae": 46737511,
           "rmse": 11.477825705202557
         },
         "drop_c139_bundle": "artifacts/paper-mario-file-select/on/20260329-v27-minus-c139",
-        "drop_c139_hash": "9221491f729b2e11a678456362f25c9d28b820b75297e26e373931978b48eb93",
         "drop_c139_vs_legacy_on": {
           "ae": 31260618,
           "rmse": 7.814799294141195
         },
         "alternate_v27_bundle": "artifacts/paper-mario-file-select/on/20260329-v27-c139-alt",
-        "alternate_v27_hash": "2226d41a50d45af1dcde7be044949a08e8bc510fa074d35879d55ca2cbaf97a9",
         "alternate_v27_vs_legacy_on": {
           "ae": 53131944,
           "rmse": 14.238358534706414
         },
-        "title_control_without_c139_bundle": "artifacts/paper-mario-title-screen/on/20260329-v27-minus-c139-control",
-        "title_control_without_c139_hash": "1eca10ff973c12dce6a5eaae39952d55df033898cc227b35cfb12c759335f1e7"
+        "title_control_without_c139_bundle": "artifacts/paper-mario-title-screen/on/20260329-v27-minus-c139-control"
       },
       "overturn_conditions": [
         "A merged-package comparison shows one transported payload is clearly superior to leaving c139 unresolved.",
@@ -69,17 +63,13 @@
       ],
       "evidence": {
         "selected_runtime_bundle": "artifacts/paper-mario-file-select/on/20260328-sampled-c139-policy-selected",
-        "selected_hash": "831cd6a7dff2d44654c854dbbcd91d13071cf49d6622f9141084780b47bf2b32",
         "v27_context_bundle": "artifacts/paper-mario-file-select/on/20260329-v26-ablation-minus-706",
-        "v27_context_hash": "b5c854d9f3b642e2914d88a8c542e59977c4b42862ee1c285b13c6746ffb2a21",
         "drop_c139_bundle": "artifacts/paper-mario-file-select/on/20260329-v27-minus-c139",
-        "drop_c139_hash": "9221491f729b2e11a678456362f25c9d28b820b75297e26e373931978b48eb93",
         "drop_c139_vs_legacy_on": {
           "ae": 31260618,
           "rmse": 7.814799294141195
         },
-        "alternate_v27_bundle": "artifacts/paper-mario-file-select/on/20260329-v27-c139-alt",
-        "alternate_v27_hash": "2226d41a50d45af1dcde7be044949a08e8bc510fa074d35879d55ca2cbaf97a9"
+        "alternate_v27_bundle": "artifacts/paper-mario-file-select/on/20260329-v27-c139-alt"
       },
       "overturn_conditions": [
         "A merged-package comparison shows one transported payload is clearly superior to leaving c139 unresolved.",
@@ -89,7 +79,7 @@
     },
     "sampled-fmt2-siz0-off0-stride8-wh16x16-fs2-low327064585c": {
       "status": "manual-review-required",
-      "justification": "The previously selected af028e08 transport regresses strict file-select visual correctness in the current merged v26 package context; dropping 706 entirely is materially closer to the legacy hi-res result while leaving strict title byte-identical.",
+      "justification": "The previously selected af028e08 transport regresses strict file-select visual correctness in the current merged v26 package context; dropping 706 entirely is materially closer to the legacy hi-res result while preserving strict title visual output.",
       "supporting_notes": [
         "The tile-parent slice is review-only because the hint identities mismatch the real runtime sampled object.",
         "Proxy review aggregates 62 transported payload candidates across the collapsed hint families.",
@@ -108,8 +98,6 @@
         "review_artifact": "artifacts/hires-pack-review/20260328-469bad6f-previews/top3-runtime-review.md",
         "selected_runtime_bundle": "artifacts/paper-mario-file-select/on/20260328-469bad6f-af028e08__120x120",
         "alternate_runtime_bundle": "artifacts/paper-mario-file-select/on/20260328-469bad6f-81b32e31__120x120",
-        "selected_hash": "1a0719dfcba68736d09579d8fb1e6eb628cf62fa89544675f8d7ddffe70500bb",
-        "alternate_hash": "90ca8a48c80494fdeeada421713605384b56ebb2d536b48c1ba8ea1d113b73ff",
         "selected_vs_c139_baseline": {
           "ae": 14667057,
           "rmse": 7.440820811350927
@@ -128,16 +116,13 @@
         },
         "combined_package": "artifacts/hires-pack-review/20260328-sampled-proxy-plus-706/package.phrb",
         "combined_runtime_bundle": "artifacts/paper-mario-file-select/on/20260328-sampled-proxy-plus-706",
-        "combined_hash": "1a0719dfcba68736d09579d8fb1e6eb628cf62fa89544675f8d7ddffe70500bb",
         "combined_exact_hit_count": 14,
         "v26_context_bundle": "artifacts/paper-mario-file-select/on/20260329-v26-tail-bridges-runtime",
-        "v26_context_hash": "3f779e572aea05188467acfbcab3f45f632a42d63cdeecb83536e30ef02c7c43",
         "v26_context_vs_legacy_on": {
           "ae": 113409671,
           "rmse": 21.370895614952634
         },
         "drop_706_bundle": "artifacts/paper-mario-file-select/on/20260329-v26-ablation-minus-706",
-        "drop_706_hash": "b5c854d9f3b642e2914d88a8c542e59977c4b42862ee1c285b13c6746ffb2a21",
         "drop_706_vs_legacy_on": {
           "ae": 46737511,
           "rmse": 11.477825705202557
@@ -157,8 +142,7 @@
           "ae": 143984581,
           "rmse": 27.937447281587517
         },
-        "title_control_without_706_bundle": "artifacts/paper-mario-title-screen/on/20260329-minus-706-control",
-        "title_control_without_706_hash": "1eca10ff973c12dce6a5eaae39952d55df033898cc227b35cfb12c759335f1e7"
+        "title_control_without_706_bundle": "artifacts/paper-mario-title-screen/on/20260329-minus-706-control"
       },
       "sampled_alias_records": []
     }
@@ -198,17 +182,15 @@
       "justification": "The TLUT-populated title copy strip is still a tracked sampled object, but removing its cloned ordered-surface record leaves the current strict title, merged file-select, and first world-slice outputs unchanged, so it is no longer part of the active selected package.",
       "supporting_notes": [
         "The refreshed title sampled-object review still shows the 296x6 title strip under populated TLUT state with sampled_entry_pcrc 8be3a754 and sampled_sparse_pcrc 0574791d.",
-        "The active selected merged package now excludes this clone and remains byte-identical to the previous full merged title result on the strict title fixture.",
-        "The same active selected merged package also reproduces the previous merged file-select hash exactly, so this pool is currently redundant on the tracked strict fixtures.",
-        "The first world timeout slice still matches off exactly with the clone removed, so the redundancy now extends beyond the two strict menu fixtures.",
+        "The active selected merged package now excludes this clone and preserves the previous full merged title result under the tracked non-checksum visual and runtime evidence.",
+        "The same active selected merged package also preserves the previous merged file-select result under the tracked non-checksum visual and runtime evidence, so this pool is currently redundant on the tracked strict fixtures.",
+        "The first world timeout slice stays within the known-good non-checksum visual envelope with the clone removed, so the redundancy now extends beyond the two strict menu fixtures.",
         "Keeping the sampled-object note in transport policy preserves the evidence in case a later broader slice proves the populated TLUT identity is needed again."
       ],
       "evidence": {
         "review_artifact": "artifacts/hires-pack-review/20260328-title-sampled-transport-v4/review.md",
         "title_runtime_bundle": "artifacts/paper-mario-title-screen/on/20260330-title-minus-289-surface",
-        "title_hash": "0a4ab3b92965de412998d94eca82ce6d4e134392fe2243befd481a716bc341c0",
         "merged_file_select_bundle": "artifacts/paper-mario-file-select/on/20260330-file-minus-289-surface",
-        "merged_file_select_hash": "9221491f729b2e11a678456362f25c9d28b820b75297e26e373931978b48eb93",
         "selected_package": "artifacts/hires-pack-review/20260330-selected-plus-title-v30-drop-289/package.phrb",
         "title_timeout_world_bundle": "artifacts/paper-mario-probes/validation/20260330-v30-timeout-960"
       },
@@ -229,7 +211,7 @@
         "A new stripe-sequence review shows the upload side is a strict 56-step source-order walk with dominant delta 0x640 (1600 bytes), which matches the upstream 200x2 stripe loop in kmr_21.",
         "That same sequence only repeats one unresolved upload key, 71c71cdd, at the opening/closing edge stripes (seq 0, 1, and 55), while the remaining 53 unique runtime stripes line up with the current 53-candidate transported pool.",
         "A new ordered surface map now proves those 53 transported candidates map one-to-one onto sequence slots 2-54; the only unresolved title stripes left in this pool are the three repeated edge slots for 71c71cdd.",
-        "The targeted alias controls [20260328-title-71-alias-first-correct-cache](/home/auro/code/parallel-n64/artifacts/paper-mario-title-screen/on/20260328-title-71-alias-first-correct-cache) and [20260328-title-71-alias-last-correct-cache](/home/auro/code/parallel-n64/artifacts/paper-mario-title-screen/on/20260328-title-71-alias-last-correct-cache) keep the strict title hash identical to [20260328-title-control-correct-cache](/home/auro/code/parallel-n64/artifacts/paper-mario-title-screen/on/20260328-title-control-correct-cache); alias-first only raises the sampled exact-hit count from 172 to 178, so 71c71cdd is currently treated as a harmless unresolved edge family rather than an active visual blocker.",
+        "The targeted alias controls [20260328-title-71-alias-first-correct-cache](/home/auro/code/parallel-n64/artifacts/paper-mario-title-screen/on/20260328-title-71-alias-first-correct-cache) and [20260328-title-71-alias-last-correct-cache](/home/auro/code/parallel-n64/artifacts/paper-mario-title-screen/on/20260328-title-71-alias-last-correct-cache) preserve the strict title result under the tracked non-checksum visual and runtime evidence; alias-first only raises the sampled exact-hit count from 172 to 178, so 71c71cdd is currently treated as a harmless unresolved edge family rather than an active visual blocker.",
         "This pool is the largest single contributor to the current native title result and should remain explicit until a stronger selector/static model narrows it."
       ],
       "evidence": {
@@ -254,15 +236,13 @@
       "supporting_notes": [
         "The sampled transport review exposes exactly one transported candidate for 148e68ee: legacy-d65c7fea-5c66840b-fs0-2960x20.",
         "Adding that single candidate to the active selected merged package produces one exact hit on strict title and one exact hit on merged file select.",
-        "Both strict title and merged file-select screenshots remain byte-identical to the prior active package, so this is a low-risk broadening step rather than a visual retune."
+        "Both strict title and merged file-select visual outputs remain stable against the prior active package, so this is a low-risk broadening step rather than a visual retune."
       ],
       "evidence": {
         "review_artifact": "artifacts/hires-pack-review/20260328-title-sampled-transport-v4/review.md",
         "selected_package": "artifacts/hires-pack-review/20260328-selected-plus-title-v6-probe148/package.phrb",
         "title_runtime_bundle": "artifacts/paper-mario-title-screen/on/20260328-selected-plus-title-v6-probe148-runtime",
-        "title_hash": "620692162a2fbf167ef6e4a468f3a56890d229e75cbfd828dc5ad56ffe73a85b",
-        "merged_file_select_bundle": "artifacts/paper-mario-file-select/on/20260328-selected-plus-title-v6-probe148-runtime",
-        "merged_file_select_hash": "c5ac0f7558547aeb197552bbb1a0881c69f6d57ff1f17358d0d1753617d253e0"
+        "merged_file_select_bundle": "artifacts/paper-mario-file-select/on/20260328-selected-plus-title-v6-probe148-runtime"
       },
       "overturn_conditions": [
         "A broader validation slice shows 148e68ee causes a cross-scene regression that is not visible on the current strict fixtures.",
@@ -284,9 +264,7 @@
         "review_artifact": "artifacts/hires-pack-review/20260328-title-sampled-transport-v4/review.md",
         "selected_package": "artifacts/hires-pack-review/20260328-selected-plus-title-v7-probe148-0f47/package.phrb",
         "title_runtime_bundle": "artifacts/paper-mario-title-screen/on/20260328-selected-plus-title-v7-probe148-0f47-runtime",
-        "title_hash": "620692162a2fbf167ef6e4a468f3a56890d229e75cbfd828dc5ad56ffe73a85b",
-        "merged_file_select_bundle": "artifacts/paper-mario-file-select/on/20260328-selected-plus-title-v7-probe148-0f47-runtime",
-        "merged_file_select_hash": "c5ac0f7558547aeb197552bbb1a0881c69f6d57ff1f17358d0d1753617d253e0"
+        "merged_file_select_bundle": "artifacts/paper-mario-file-select/on/20260328-selected-plus-title-v7-probe148-0f47-runtime"
       },
       "overturn_conditions": [
         "A broader validation slice shows 0f472c21 causes a cross-scene regression that is not visible on the current strict fixtures.",
@@ -301,18 +279,15 @@
       "selected_replacement_id": "legacy-2c8a8202-00000000-fs0-1440x160",
       "justification": "This 144x16 1-cycle title strip is merge-safe on strict file select in both candidate forms, and the 2c8a8202 transport is the current provisional pick because it moves the affected title strip closer to legacy-on by absolute error while leaving the title center unchanged.",
       "supporting_notes": [
-        "The lower-strip 144x16 title pair is not involved in the shared title-center 111 issue; both candidates leave the center crop byte-identical to the current active merged package.",
+        "The lower-strip 144x16 title pair is not involved in the shared title-center 111 issue; both candidates preserve the center crop under current visual metrics.",
         "Both A and B packages reproduce the exact same merged file-select frame and exact-hit buckets as the current active package.",
         "Within the isolated changed title region, B lowers AE and changed-pixel count against the legacy-on title frame, while A remains slightly better on RMSE, so this stays provisional rather than final.",
         "The updated Tier 2 static scan matches this 144x16 runtime pair directly to the non-JP title copyright path in state_title_screen.c, including matching native tile fields."
       ],
       "evidence": {
         "selected_runtime_bundle": "artifacts/paper-mario-title-screen/on/20260328-selected-plus-title-v8-144x16-B-runtime",
-        "selected_hash": "1ea9a03044aaf60a64e7c5bd9b709b268d1cceecfd716e48ac0c5234b837e943",
         "alternate_runtime_bundle": "artifacts/paper-mario-title-screen/on/20260328-selected-plus-title-v8-144x16-A-runtime",
-        "alternate_hash": "ec897716f635434ba9d162d9457243f7d6a29d3df0e83caab29d33f15849e68a",
         "merged_file_select_bundle": "artifacts/paper-mario-file-select/on/20260328-selected-plus-title-v8-144x16-B-runtime",
-        "merged_file_select_hash": "c5ac0f7558547aeb197552bbb1a0881c69f6d57ff1f17358d0d1753617d253e0",
         "selected_vs_control": {
           "ae": 35515114,
           "rmse": 15.467552768284424
@@ -350,11 +325,8 @@
       ],
       "evidence": {
         "selected_runtime_bundle": "artifacts/paper-mario-title-screen/on/20260328-selected-plus-title-v8-144x16-B-runtime",
-        "selected_hash": "1ea9a03044aaf60a64e7c5bd9b709b268d1cceecfd716e48ac0c5234b837e943",
         "alternate_runtime_bundle": "artifacts/paper-mario-title-screen/on/20260328-selected-plus-title-v8-144x16-A-runtime",
-        "alternate_hash": "ec897716f635434ba9d162d9457243f7d6a29d3df0e83caab29d33f15849e68a",
-        "merged_file_select_bundle": "artifacts/paper-mario-file-select/on/20260328-selected-plus-title-v8-144x16-B-runtime",
-        "merged_file_select_hash": "c5ac0f7558547aeb197552bbb1a0881c69f6d57ff1f17358d0d1753617d253e0"
+        "merged_file_select_bundle": "artifacts/paper-mario-file-select/on/20260328-selected-plus-title-v8-144x16-B-runtime"
       },
       "overturn_conditions": [
         "A stronger visual/static comparison shows the alternate 2a6a962f transport is more faithful in the affected lower strip.",
@@ -370,9 +342,9 @@
       "supporting_notes": [
         "The seeded legacy-selector review pool was a complete no-op for all five 1280x320 candidates; zero-selector transport is the first mode that produces exact hits on both sampled objects.",
         "09e981b2 produces one exact hit on 049201f4 and one on ce437230 in the strict title fixture.",
-        "Dropping the whole 128x32 pair from the active merged package improves the strict title legacy-on distance sharply while leaving strict file select byte-identical.",
+        "Dropping the whole 128x32 pair from the active merged package improves the strict title legacy-on distance sharply while preserving strict file select visual output.",
         "A completed title-timeout world validation now shows the policy-built package reaches state_init_world/state_step_world at kmr_03 entry 5 with sampled-object exact-hit count 0, so this seam is currently title-only across the first non-menu timeout slice.",
-        "The v29 merged baseline keeps the Press Start seam review-only and still matches the 960-frame world slice off baseline exactly."
+        "The v29 merged baseline keeps the Press Start seam review-only and stays within the known-good 960-frame world-slice visual envelope."
       ],
       "evidence": {
         "seeded_review_artifact": "artifacts/hires-pack-review/20260329-title-press-start-seeded/review.md",
@@ -398,9 +370,9 @@
       "supporting_notes": [
         "The seeded legacy-selector review pool was a complete no-op for all five 1280x320 candidates; zero-selector transport is the first mode that produces exact hits on both sampled objects.",
         "09e981b2 produces one exact hit on 049201f4 and one on ce437230 in the strict title fixture.",
-        "Dropping the whole 128x32 pair from the active merged package improves the strict title legacy-on distance sharply while leaving strict file select byte-identical.",
+        "Dropping the whole 128x32 pair from the active merged package improves the strict title legacy-on distance sharply while preserving strict file select visual output.",
         "A completed title-timeout world validation now shows the policy-built package reaches state_init_world/state_step_world at kmr_03 entry 5 with sampled-object exact-hit count 0, so this seam is currently title-only across the first non-menu timeout slice.",
-        "The v29 merged baseline keeps the Press Start seam review-only and still matches the 960-frame world slice off baseline exactly."
+        "The v29 merged baseline keeps the Press Start seam review-only and stays within the known-good 960-frame world-slice visual envelope."
       ],
       "evidence": {
         "seeded_review_artifact": "artifacts/hires-pack-review/20260329-title-press-start-seeded/review.md",
@@ -482,7 +454,7 @@
       "supporting_notes": [
         "The strict v23 file-select runtime collapses the remaining unresolved seam to sampled low32 7872a318 with only four unresolved misses.",
         "The live 7872 block-family probe finds no direct 1024x1 pack family but does find one compat-unique 32x32 family, low32 332b46e7, at the same source address.",
-        "A synthetic v24 bridge package built from this reinterpretation clears the remaining unresolved misses on strict file select without changing the tracked title or file-select screenshot hashes.",
+        "A synthetic v24 bridge package built from this reinterpretation clears the remaining unresolved misses on strict file select without changing the tracked title or file-select review outcome.",
         "Later strict v25 conflict telemetry shows the same seam also appears under selector 000000007872a318, so the bridge now carries both the upload-derived selector and the sampled-low32 selector."
       ],
       "overturn_conditions": [
@@ -493,8 +465,7 @@
       "evidence": {
         "probe_report": "artifacts/paper-mario-file-select-block-family-probe/on/20260329-7872-live/traces/hires-block-family-report.md",
         "synthetic_binding": "artifacts/hires-pack-review/20260329-7872-synthetic-binding.json",
-        "runtime_bundle": "artifacts/paper-mario-file-select/on/20260329-v24-7872-test-runtime",
-        "runtime_hash": "3f779e572aea05188467acfbcab3f45f632a42d63cdeecb83536e30ef02c7c43"
+        "runtime_bundle": "artifacts/paper-mario-file-select/on/20260329-v24-7872-test-runtime"
       }
     },
     "sampled-low32-148e68ee-fs258#selector-148e68ee": {
@@ -537,7 +508,7 @@
         "Adding this alias should test whether the last 148e68ee miss is selector-shape only."
       ],
       "overturn_conditions": [
-        "A strict-fixture runtime check shows the alias changes either tracked screenshot hash unexpectedly.",
+        "A strict-fixture runtime check shows the alias changes tracked fixture output unexpectedly.",
         "The alias fails to remove the 148e68ee conflict bucket, indicating the remaining seam is not selector-shape only."
       ]
     },
@@ -582,7 +553,7 @@
         "This alias is meant to close the selector mismatch without changing the transported payload."
       ],
       "overturn_conditions": [
-        "A strict title runtime check shows the alias changes the tracked screenshot unexpectedly.",
+        "A strict title runtime check shows the alias changes the tracked non-checksum visual output unexpectedly.",
         "The alias fails to remove the 0f472c21 conflict bucket, indicating a deeper selector/source mismatch."
       ]
     },
@@ -626,7 +597,7 @@
         "Tier 2 static work already maps this seam to the copyright strip, so selector aliasing is the narrowest next test."
       ],
       "overturn_conditions": [
-        "A strict title runtime check shows the alias changes the tracked screenshot unexpectedly.",
+        "A strict title runtime check shows the alias changes the tracked non-checksum visual output unexpectedly.",
         "The alias fails to remove the 0e89915a conflict bucket."
       ]
     },
@@ -670,7 +641,7 @@
         "This is the structural twin of 0e89915a, so the alias test should be kept symmetrical."
       ],
       "overturn_conditions": [
-        "A strict title runtime check shows the alias changes the tracked screenshot unexpectedly.",
+        "A strict title runtime check shows the alias changes the tracked non-checksum visual output unexpectedly.",
         "The alias fails to remove the 1d234571 conflict bucket."
       ]
     }

@@ -138,6 +138,34 @@ if [[ ! -f "$CORE_PATH" ]]; then
   exit 1
 fi
 
+sha256_file() {
+  local path="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$path" | awk '{print $1}'
+  else
+    shasum -a 256 "$path" | awk '{print $1}'
+  fi
+}
+
+sha256_stream() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    shasum -a 256 | awk '{print $1}'
+  fi
+}
+
+ROM_SHA256="$(sha256_file "$ROM_PATH")"
+CORE_SHA256="$(sha256_file "$CORE_PATH")"
+HIRES_CACHE_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-}"
+HIRES_CACHE_SHA256="${PARALLEL_RDP_HIRES_CACHE_SHA256:-}"
+if [[ -n "$HIRES_CACHE_PATH" && -f "$HIRES_CACHE_PATH" ]]; then
+  if [[ -z "$HIRES_CACHE_SHA256" ]]; then
+    HIRES_CACHE_SHA256="$(sha256_file "$HIRES_CACHE_PATH")"
+  fi
+fi
+COMMAND_SIGNATURE="$(printf '%s\n' "${COMMANDS[@]}" | sha256_stream)"
+
 acquire_runtime_lock
 fail_if_retroarch_running
 
@@ -147,8 +175,14 @@ APPEND_CONFIG="$BUNDLE_DIR/retroarch.append.cfg"
 CORE_OPTIONS_FILE="$BUNDLE_DIR/core-options.opt"
 FIFO_PATH="$BUNDLE_DIR/retroarch.stdin"
 COMMAND_LOG="$BUNDLE_DIR/logs/retroarch.commands.log"
+EXPECTED_COMMAND_LOG="$BUNDLE_DIR/retroarch.expected.commands.log"
+PLANNED_COMMAND_LOG="$BUNDLE_DIR/retroarch.planned.commands.log"
+ATTEMPTED_COMMAND_LOG="$BUNDLE_DIR/retroarch.attempted.commands.log"
+EXECUTED_COMMAND_LOG="$BUNDLE_DIR/retroarch.executed.commands.log"
+COMMAND_PROOF_LOG="$BUNDLE_DIR/retroarch.command-proofs.log"
 SESSION_ENV="$BUNDLE_DIR/retroarch.session.env"
 RA_LOG="$BUNDLE_DIR/logs/retroarch.log"
+printf '%s\n' "${COMMANDS[@]}" > "$EXPECTED_COMMAND_LOG"
 
 HIRES_VALUE="disabled"
 if [[ "$MODE" == "on" ]]; then
@@ -186,6 +220,10 @@ parallel-n64-parallel-rdp-hirestex = "$HIRES_VALUE"
 parallel-n64-parallel-rdp-native-tex-rect = "enabled"
 parallel-n64-parallel-rdp-native-texture-lod = "enabled"
 EOF
+
+BASE_CONFIG_SHA256="$(sha256_file "$BASE_CONFIG")"
+APPEND_CONFIG_SHA256="$(sha256_file "$APPEND_CONFIG")"
+CORE_OPTIONS_FILE_SHA256="$(sha256_file "$CORE_OPTIONS_FILE")"
 
 rm -f "$FIFO_PATH"
 mkfifo "$FIFO_PATH"
@@ -276,7 +314,6 @@ PY
 
 send_retroarch_command() {
   local cmd="$1"
-  printf '%s\n' "$cmd" >> "$COMMAND_LOG"
   echo "[adapter] command: $cmd"
   printf '%s\n' "$cmd" >&3
 }
@@ -428,9 +465,17 @@ RETROARCH_BIN=$RETROARCH_BIN
 BASE_CONFIG=$BASE_CONFIG
 APPEND_CONFIG=$APPEND_CONFIG
 CORE_OPTIONS_FILE=$CORE_OPTIONS_FILE
+BASE_CONFIG_SHA256=$BASE_CONFIG_SHA256
+APPEND_CONFIG_SHA256=$APPEND_CONFIG_SHA256
+CORE_OPTIONS_FILE_SHA256=$CORE_OPTIONS_FILE_SHA256
 STDIN_FIFO=$FIFO_PATH
 ROM_PATH=$ROM_PATH
 CORE_PATH=$CORE_PATH
+ROM_SHA256=$ROM_SHA256
+CORE_SHA256=$CORE_SHA256
+HIRES_CACHE_PATH=$HIRES_CACHE_PATH
+HIRES_CACHE_SHA256=$HIRES_CACHE_SHA256
+COMMAND_SIGNATURE=$COMMAND_SIGNATURE
 MODE=$MODE
 STARTUP_WAIT=$STARTUP_WAIT
 EOF
@@ -443,35 +488,74 @@ echo "[adapter] startup wait: ${STARTUP_WAIT}s"
 sleep "$STARTUP_WAIT"
 
 : > "$COMMAND_LOG"
+: > "$PLANNED_COMMAND_LOG"
+: > "$ATTEMPTED_COMMAND_LOG"
+: > "$EXECUTED_COMMAND_LOG"
+: > "$COMMAND_PROOF_LOG"
+record_attempted_command() {
+  local cmd="$1"
+  printf '%s\n' "$cmd" >> "$COMMAND_LOG"
+  printf '%s\n' "$cmd" >> "$ATTEMPTED_COMMAND_LOG"
+}
+record_verified_command() {
+  local cmd="$1"
+  local proof="${2:-ack}"
+  printf '%s\n' "$cmd" >> "$EXECUTED_COMMAND_LOG"
+  printf '%s\tproof=%s\n' "$cmd" "$proof" >> "$COMMAND_PROOF_LOG"
+}
+
+if [[ -f "$BUNDLE_DIR/bundle.json" ]]; then
+  sed -i 's/"scenario_state": "bundle_initialized"/"scenario_state": "runtime_attempted"/' "$BUNDLE_DIR/bundle.json"
+  sed -i 's/"scenario_state": "runtime_prepared"/"scenario_state": "runtime_attempted"/' "$BUNDLE_DIR/bundle.json"
+fi
+
+pending_step_frame_command=""
+pending_screenshot_command=""
+pending_quit_command=""
+
 for cmd in "${COMMANDS[@]}"; do
+  printf '%s\n' "$cmd" >> "$PLANNED_COMMAND_LOG"
+  if [[ -n "$pending_step_frame_command" ]]; then
+    if [[ ! "$cmd" =~ ^WAIT_STATUS_FRAME[[:space:]] ]]; then
+      echo "[adapter] STEP_FRAME must be followed by WAIT_STATUS_FRAME proof before: $cmd" >&2
+      exit 1
+    fi
+  fi
+  if [[ -n "$pending_screenshot_command" ]]; then
+    if [[ ! "$cmd" =~ ^WAIT_NEW_CAPTURE[[:space:]] ]]; then
+      echo "[adapter] SCREENSHOT must be followed by WAIT_NEW_CAPTURE proof before: $cmd" >&2
+      exit 1
+    fi
+  fi
+  record_attempted_command "$cmd"
   if [[ "$cmd" =~ ^WAIT[[:space:]]+(.+)$ ]]; then
     wait_seconds="${BASH_REMATCH[1]}"
-    printf '%s\n' "$cmd" >> "$COMMAND_LOG"
     echo "[adapter] wait: ${wait_seconds}s"
     sleep "$wait_seconds"
+    record_verified_command "$cmd" "sleep-elapsed"
     continue
   fi
 
   if [[ "$cmd" =~ ^WAIT_COMMAND_READY[[:space:]]+([0-9]+([.][0-9]+)?)$ ]]; then
     timeout_seconds="${BASH_REMATCH[1]}"
-    printf '%s\n' "$cmd" >> "$COMMAND_LOG"
     echo "[adapter] wait command-ready (${timeout_seconds}s)"
     if ! handle_wait_command_ready "$timeout_seconds"; then
       echo "[adapter] WAIT_COMMAND_READY failed." >&2
       exit 1
     fi
+    record_verified_command "$cmd" "ping-ack"
     continue
   fi
 
   if [[ "$cmd" =~ ^WAIT_STATUS[[:space:]]+([^[:space:]]+)[[:space:]]+([0-9]+([.][0-9]+)?)$ ]]; then
     expected_state="${BASH_REMATCH[1]}"
     timeout_seconds="${BASH_REMATCH[2]}"
-    printf '%s\n' "$cmd" >> "$COMMAND_LOG"
     echo "[adapter] wait status: $expected_state (${timeout_seconds}s)"
     if ! handle_wait_status "$expected_state" "$timeout_seconds"; then
       echo "[adapter] WAIT_STATUS failed: $expected_state" >&2
       exit 1
     fi
+    record_verified_command "$cmd" "status-ack"
     continue
   fi
 
@@ -479,12 +563,16 @@ for cmd in "${COMMANDS[@]}"; do
     expected_state="${BASH_REMATCH[1]}"
     min_frame="${BASH_REMATCH[2]}"
     timeout_seconds="${BASH_REMATCH[3]}"
-    printf '%s\n' "$cmd" >> "$COMMAND_LOG"
     echo "[adapter] wait status/frame: $expected_state frame>=$min_frame (${timeout_seconds}s)"
     if ! handle_wait_status_frame "$expected_state" "$min_frame" "$timeout_seconds"; then
       echo "[adapter] WAIT_STATUS_FRAME failed: $expected_state frame>=$min_frame" >&2
       exit 1
     fi
+    if [[ -n "$pending_step_frame_command" ]]; then
+      record_verified_command "$pending_step_frame_command" "wait-status-frame"
+      pending_step_frame_command=""
+    fi
+    record_verified_command "$cmd" "status-frame"
     continue
   fi
 
@@ -492,23 +580,27 @@ for cmd in "${COMMANDS[@]}"; do
     timeout_seconds="${BASH_REMATCH[1]}"
     pattern="${BASH_REMATCH[3]}"
     start_bytes="$(log_size_bytes)"
-    printf '%s\n' "$cmd" >> "$COMMAND_LOG"
     echo "[adapter] wait log: ${pattern} (${timeout_seconds}s)"
     if ! wait_for_log_pattern_after "$start_bytes" "$pattern" "$timeout_seconds"; then
       echo "[adapter] WAIT_LOG failed: $pattern" >&2
       exit 1
     fi
+    record_verified_command "$cmd" "log-pattern"
     continue
   fi
 
   if [[ "$cmd" =~ ^WAIT_NEW_CAPTURE[[:space:]]+([0-9]+([.][0-9]+)?)$ ]]; then
     timeout_seconds="${BASH_REMATCH[1]}"
-    printf '%s\n' "$cmd" >> "$COMMAND_LOG"
     echo "[adapter] wait new capture (${timeout_seconds}s)"
     if ! handle_wait_new_capture "$timeout_seconds"; then
       echo "[adapter] WAIT_NEW_CAPTURE failed." >&2
       exit 1
     fi
+    if [[ -n "$pending_screenshot_command" ]]; then
+      record_verified_command "$pending_screenshot_command" "wait-new-capture"
+      pending_screenshot_command=""
+    fi
+    record_verified_command "$cmd" "capture-created"
     continue
   fi
 
@@ -517,12 +609,12 @@ for cmd in "${COMMANDS[@]}"; do
     nbytes="${BASH_REMATCH[2]}"
     expected_hex="${BASH_REMATCH[3]}"
     timeout_seconds="${BASH_REMATCH[4]}"
-    printf '%s\n' "$cmd" >> "$COMMAND_LOG"
     echo "[adapter] wait core memory: addr=$address bytes=$nbytes expected=$expected_hex (${timeout_seconds}s)"
     if ! handle_wait_core_memory_hex "$address" "$nbytes" "$expected_hex" "$timeout_seconds"; then
       echo "[adapter] WAIT_CORE_MEMORY_HEX failed: addr=$address bytes=$nbytes expected=$expected_hex" >&2
       exit 1
     fi
+    record_verified_command "$cmd" "core-memory-match"
     continue
   fi
 
@@ -532,7 +624,6 @@ for cmd in "${COMMANDS[@]}"; do
     nbytes="${BASH_REMATCH[3]}"
     trace_path="$BUNDLE_DIR/traces/${label}.core-memory.txt"
     start_bytes="$(log_size_bytes)"
-    printf '%s\n' "$cmd" >> "$COMMAND_LOG"
     echo "[adapter] snapshot core memory: $label addr=$address bytes=$nbytes"
     send_retroarch_command "READ_CORE_MEMORY $address $nbytes"
     if ! wait_for_log_pattern_after "$start_bytes" "READ_CORE_MEMORY " 5; then
@@ -545,6 +636,7 @@ for cmd in "${COMMANDS[@]}"; do
       exit 1
     fi
     printf '%s\n' "$core_memory_line" > "$trace_path"
+    record_verified_command "$cmd" "read-core-memory"
     continue
   fi
 
@@ -555,7 +647,6 @@ for cmd in "${COMMANDS[@]}"; do
     trace_path="$BUNDLE_DIR/traces/${label}.core-memory.txt"
 
     start_bytes="$(log_size_bytes)"
-    printf '%s\n' "$cmd" >> "$COMMAND_LOG"
     echo "[adapter] snapshot core pointer memory: $label ptr_addr=$pointer_address bytes=$nbytes"
     send_retroarch_command "READ_CORE_MEMORY $pointer_address 4"
     if ! wait_for_log_pattern_after "$start_bytes" "READ_CORE_MEMORY " 5; then
@@ -585,6 +676,7 @@ for cmd in "${COMMANDS[@]}"; do
       exit 1
     fi
     printf '%s\n' "$core_memory_line" > "$trace_path"
+    record_verified_command "$cmd" "read-core-pointer-memory"
     continue
   fi
 
@@ -615,8 +707,9 @@ for cmd in "${COMMANDS[@]}"; do
       ;;
     STEP_FRAME*)
       if ! wait_for_log_pattern_after "$start_bytes" "STEP_FRAME " "$STEP_FRAME_ACK_TIMEOUT_SECONDS"; then
-        echo "[adapter] STEP_FRAME acknowledgement missing; relying on subsequent status/frame wait."
+        echo "[adapter] STEP_FRAME acknowledgement missing; continuing for WAIT_STATUS_FRAME verification." >&2
       fi
+      pending_step_frame_command="$cmd"
       ;;
     SET_INPUT_PORT*)
       if ! wait_for_log_pattern_after "$start_bytes" "SET_INPUT_PORT " 5; then
@@ -654,12 +747,30 @@ for cmd in "${COMMANDS[@]}"; do
         exit 1
       fi
       ;;
+    SCREENSHOT|QUIT)
+      if [[ "$cmd" == "SCREENSHOT" ]]; then
+        pending_screenshot_command="$cmd"
+      else
+        pending_quit_command="$cmd"
+      fi
+      ;;
+    *)
+      echo "[adapter] Unsupported or unacknowledged command class: $cmd" >&2
+      exit 1
+      ;;
   esac
+  if [[ "$cmd" != "SCREENSHOT" && "$cmd" != "QUIT" && ! "$cmd" == STEP_FRAME* ]]; then
+    record_verified_command "$cmd" "ack"
+  fi
 done
 
-if [[ -f "$BUNDLE_DIR/bundle.json" ]]; then
-  sed -i 's/"scenario_state": "bundle_initialized"/"scenario_state": "runtime_attempted"/' "$BUNDLE_DIR/bundle.json"
-  sed -i 's/"runtime_executed": false/"runtime_executed": true/' "$BUNDLE_DIR/bundle.json"
+if [[ -n "$pending_step_frame_command" ]]; then
+  echo "[adapter] STEP_FRAME acknowledgement remained unverified at end of command stream." >&2
+  exit 1
+fi
+if [[ -n "$pending_screenshot_command" ]]; then
+  echo "[adapter] SCREENSHOT remained unverified at end of command stream." >&2
+  exit 1
 fi
 
 exec 3>&-
@@ -687,7 +798,29 @@ else
 fi
 
 cat > "$BUNDLE_DIR/retroarch.run.env" <<EOF
+RUNTIME_EXECUTED=0
+RETROARCH_EXIT_STATUS=$exit_status
+FORCED_TERMINATION=$forced_termination
+EOF
+
+if (( forced_termination == 0 && exit_status == 0 )); then
+  if [[ -n "$pending_quit_command" ]]; then
+    record_verified_command "$pending_quit_command" "clean-process-exit"
+  fi
+  if [[ -f "$BUNDLE_DIR/bundle.json" ]]; then
+    sed -i 's/"scenario_state": "runtime_attempted"/"scenario_state": "runtime_completed"/' "$BUNDLE_DIR/bundle.json"
+    sed -i 's/"runtime_executed": false/"runtime_executed": true/' "$BUNDLE_DIR/bundle.json"
+  fi
+  cat > "$BUNDLE_DIR/retroarch.run.env" <<EOF
 RUNTIME_EXECUTED=1
 RETROARCH_EXIT_STATUS=$exit_status
 FORCED_TERMINATION=$forced_termination
 EOF
+elif [[ -f "$BUNDLE_DIR/bundle.json" ]]; then
+  sed -i 's/"scenario_state": "runtime_attempted"/"scenario_state": "runtime_failed"/' "$BUNDLE_DIR/bundle.json"
+fi
+
+if (( forced_termination != 0 )); then
+  exit 1
+fi
+exit "$exit_status"

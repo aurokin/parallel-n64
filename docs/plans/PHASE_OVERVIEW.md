@@ -44,7 +44,9 @@ Use [`docs/PROJECT_STATE.md`](/home/auro/code/parallel-n64/docs/PROJECT_STATE.md
 
 ## Current Validation Scope
 
-- Paper Mario only
+- Paper Mario remains the strict authority game.
+- SM64 and OoT are cross-game boot and savestate fixture conformance gates for the `PHRB` pipeline and bounded GlideN64-compat behavior.
+- SM64 and OoT are strict fixed-state compatibility-path fixtures, but they do not prove native sampled identity coverage.
 
 ## First Fixture Ladder
 

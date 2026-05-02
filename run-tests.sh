@@ -138,7 +138,7 @@ case "$selected_profile" in
   all)
     ;;
   emu-required)
-    ctest_args+=(-R "^emu\\.unit\\.")
+    ctest_args+=(-R "^emu\\.(unit\\.|support\\.(paper_mario_selected_package_authority_validation_contract|paper_mario_phrb_authority_validation_contract|paper_mario_title_timeout_selected_package_validation_contract|hts2phrb_.*))")
     ;;
   emu-optional)
     ctest_args+=(-R "^emu\\.(conformance|dump)\\.")
@@ -148,7 +148,7 @@ case "$selected_profile" in
     ;;
   emu-runtime-conformance)
     enable_runtime_conformance=1
-    ctest_args+=(-R "^emu\\.conformance\\.(runtime_smoke_lavapipe|lavapipe_frame_hash|lavapipe_vi_filters_hash|lavapipe_vi_filters_mixed_hash|lavapipe_vi_downscale_hash|lavapipe_sm64_frame_hash|paper_mario_full_cache_phrb_authorities|paper_mario_full_cache_phrb_authorities_refresh|paper_mario_full_cache_phrb_authorities_zero_config_refresh|paper_mario_selected_package_authorities|paper_mario_selected_package_timeout_validation|paper_mario_selected_package_timeout_lookup_without_probe|sm64_hires_boot|oot_hires_boot)$")
+    ctest_args+=(-R "^emu\\.conformance\\.(runtime_smoke_lavapipe|paper_mario_full_cache_phrb_authorities|paper_mario_full_cache_phrb_authorities_refresh|paper_mario_full_cache_phrb_authorities_zero_config_refresh|paper_mario_selected_package_authorities|paper_mario_selected_package_timeout_validation|paper_mario_selected_package_timeout_lookup_without_probe|sm64_hires_boot|sm64_hires_title_fixture|oot_hires_boot|oot_hires_title_fixture)$")
     ;;
   emu-dump)
     ctest_args+=(-R "^emu\\.dump\\.")
@@ -207,6 +207,11 @@ cmake -S "$SCRIPT_DIR" -B "$BUILD_DIR" "${cmake_args[@]}"
 
 echo "[tests] build: $BUILD_DIR"
 cmake --build "$BUILD_DIR" "${build_args[@]}"
+
+if (( enable_runtime_conformance )); then
+  echo "[tests] build runtime libretro core: $SCRIPT_DIR/parallel_n64_libretro.so"
+  make -C "$SCRIPT_DIR" -j"$PARALLEL_JOBS" -B HAVE_PARALLEL=1 parallel_n64_libretro.so
+fi
 
 if (( list_only )); then
   echo "[tests] list"

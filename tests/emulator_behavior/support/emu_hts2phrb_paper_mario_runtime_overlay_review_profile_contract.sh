@@ -20,6 +20,28 @@ if [[ ! -f "$CONTEXT_ROOT" ]]; then
   exit 77
 fi
 
+if ! python3 - "$CONTEXT_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary_path = Path(sys.argv[1])
+data = json.loads(summary_path.read_text())
+for fixture in data.get("fixtures") or []:
+    bundle_ref = fixture.get("bundle_dir")
+    if not bundle_ref:
+        raise SystemExit(1)
+    bundle_path = Path(bundle_ref)
+    if not bundle_path.is_absolute():
+        bundle_path = (summary_path.parent / bundle_path).resolve()
+    if not (bundle_path / "traces" / "hires-evidence.json").is_file():
+        raise SystemExit(1)
+PY
+then
+  echo "SKIP: Paper Mario overlay-review context summary has no local evidence bundles."
+  exit 77
+fi
+
 if [[ ! -f "$REVIEW_PROFILE_PATH" ]]; then
   echo "SKIP: Paper Mario overlay-review profile not found at $REVIEW_PROFILE_PATH."
   exit 77

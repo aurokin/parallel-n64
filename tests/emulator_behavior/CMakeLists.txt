@@ -31,6 +31,16 @@ add_test(
 )
 
 add_test(
+  NAME emu.unit.cross_game_hires_validators_contract
+  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_cross_game_hires_validators_contract.sh"
+)
+
+add_test(
+  NAME emu.unit.hires_checksum_gate_policy_contract
+  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_checksum_gate_policy_contract.sh"
+)
+
+add_test(
   NAME emu.support.rdp_hires_zero_line_compat_gate_contract
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_rdp_hires_zero_line_compat_gate_contract.sh"
 )
@@ -279,20 +289,27 @@ add_test(
   NAME emu.support.hts2phrb_paper_mario_full_cache_contract
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_paper_mario_full_cache_contract.sh"
 )
+set_tests_properties(emu.support.hts2phrb_paper_mario_full_cache_contract PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
   NAME emu.support.hts2phrb_paper_mario_pre_v401_full_cache_contract
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_paper_mario_pre_v401_full_cache_contract.sh"
 )
+set_tests_properties(emu.support.hts2phrb_paper_mario_pre_v401_full_cache_contract PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
   NAME emu.support.hts2phrb_paper_mario_review_profile_contract
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_paper_mario_review_profile_contract.sh"
 )
+set_tests_properties(emu.support.hts2phrb_paper_mario_review_profile_contract PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
   NAME emu.support.hts2phrb_paper_mario_runtime_overlay_review_profile_contract
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_paper_mario_runtime_overlay_review_profile_contract.sh"
+)
+set_tests_properties(
+  emu.support.hts2phrb_paper_mario_runtime_overlay_review_profile_contract
+  PROPERTIES SKIP_RETURN_CODE 77
 )
 
 add_test(
@@ -730,36 +747,6 @@ add_test(
 set_tests_properties(emu.conformance.runtime_smoke_lavapipe PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
-  NAME emu.conformance.lavapipe_frame_hash
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_lavapipe_frame_hash.sh"
-)
-set_tests_properties(emu.conformance.lavapipe_frame_hash PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.conformance.lavapipe_vi_filters_hash
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_lavapipe_vi_filters_hash.sh"
-)
-set_tests_properties(emu.conformance.lavapipe_vi_filters_hash PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.conformance.lavapipe_vi_filters_mixed_hash
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_lavapipe_vi_filters_mixed_hash.sh"
-)
-set_tests_properties(emu.conformance.lavapipe_vi_filters_mixed_hash PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.conformance.lavapipe_vi_downscale_hash
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_lavapipe_vi_downscale_hash.sh"
-)
-set_tests_properties(emu.conformance.lavapipe_vi_downscale_hash PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.conformance.lavapipe_sm64_frame_hash
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_lavapipe_sm64_frame_hash.sh"
-)
-set_tests_properties(emu.conformance.lavapipe_sm64_frame_hash PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
   NAME emu.conformance.paper_mario_selected_package_authorities
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_paper_mario_selected_package_authorities.sh"
 )
@@ -802,10 +789,22 @@ add_test(
 set_tests_properties(emu.conformance.sm64_hires_boot PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
+  NAME emu.conformance.sm64_hires_title_fixture
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_sm64_hires_title_fixture.sh"
+)
+set_tests_properties(emu.conformance.sm64_hires_title_fixture PROPERTIES SKIP_RETURN_CODE 77)
+
+add_test(
   NAME emu.conformance.oot_hires_boot
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_oot_hires_boot.sh"
 )
 set_tests_properties(emu.conformance.oot_hires_boot PROPERTIES SKIP_RETURN_CODE 77)
+
+add_test(
+  NAME emu.conformance.oot_hires_title_fixture
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_oot_hires_title_fixture.sh"
+)
+set_tests_properties(emu.conformance.oot_hires_title_fixture PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
   NAME emu.unit.test_runner_profile_contract

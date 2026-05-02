@@ -6,5 +6,6 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 exec "$SCRIPT_DIR/paper-mario-phrb-authority-validation.sh" \
   --summary-title "Full-Cache PHRB Authority Validation" \
   --expected-source-mode "phrb-only" \
-  --min-native-sampled-count 0 \
+  --min-native-sampled-count 1 \
+  --allow-compat-descriptor-traffic \
   "$@"

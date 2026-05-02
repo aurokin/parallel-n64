@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$ROOT_DIR/tests/emulator_behavior/support/hts2phrb_synthetic_bundle_provenance.sh"
 TMP_DIR="$(mktemp -d /tmp/parallel-n64-hts2phrb-auto-overlay-no-runtime-ready-XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -69,6 +70,8 @@ evidence = {
 evidence_path.write_text(json.dumps(evidence, indent=2) + "\n")
 PY
 
+hts2phrb_write_synthetic_runtime_provenance "$BUNDLE_DIR" "$CACHE_PATH" "synthetic-hts2phrb-auto-overlay-no-runtime-ready"
+
 python3 "$ROOT_DIR/tools/hts2phrb.py" \
   --cache "$CACHE_PATH" \
   --bundle "$BUNDLE_DIR" \
@@ -89,7 +92,7 @@ if report["runtime_overlay_mode"] != "auto":
     raise SystemExit(f"unexpected runtime overlay mode: {report['runtime_overlay_mode']!r}")
 if report["runtime_overlay_built"]:
     raise SystemExit(f"expected auto overlay to skip when no runtime-ready records exist, got {report!r}")
-if report["runtime_overlay_reason"] != "no-runtime-ready-records":
+if report["runtime_overlay_reason"] != "no-deterministic-bindings":
     raise SystemExit(f"unexpected runtime overlay reason: {report['runtime_overlay_reason']!r}")
 if report.get("runtime_overlay_artifacts_emitted"):
     raise SystemExit(f"did not expect overlay artifacts when no runtime-ready records exist, got {report!r}")
@@ -99,23 +102,23 @@ if (out_dir / "bindings.json").exists() or (out_dir / "runtime-loader-manifest.j
     raise SystemExit("runtime overlay artifacts should not be emitted when no runtime-ready records exist")
 if report["package_manifest_record_count"] != 1:
     raise SystemExit(f"expected one canonical package record, got {report['package_manifest_record_count']!r}")
-if report["package_manifest_runtime_ready_record_count"] != 0 or report["package_manifest_runtime_deferred_record_count"] != 1:
+if report["package_manifest_runtime_ready_record_count"] != 1 or report["package_manifest_runtime_deferred_record_count"] != 0:
     raise SystemExit(f"unexpected runtime-ready/deferred counts: {report!r}")
-if loader_manifest["runtime_ready_record_count"] != 0 or loader_manifest["runtime_deferred_record_count"] != 1:
+if loader_manifest["runtime_ready_record_count"] != 1 or loader_manifest["runtime_deferred_record_count"] != 0:
     raise SystemExit(f"unexpected canonical loader runtime counts: {loader_manifest!r}")
-if loader_manifest["runtime_deferred_record_class"] != "compat-only":
-    raise SystemExit(f"unexpected canonical loader deferred class: {loader_manifest['runtime_deferred_record_class']!r}")
-if package_manifest["runtime_ready_record_count"] != 0 or package_manifest["runtime_deferred_record_count"] != 1:
+if loader_manifest["runtime_ready_record_class"] != "native-sampled-only":
+    raise SystemExit(f"unexpected canonical loader ready class: {loader_manifest['runtime_ready_record_class']!r}")
+if package_manifest["runtime_ready_record_count"] != 1 or package_manifest["runtime_deferred_record_count"] != 0:
     raise SystemExit(f"unexpected package-manifest runtime counts: {package_manifest!r}")
-if package_manifest["runtime_deferred_record_class"] != "compat-only":
-    raise SystemExit(f"unexpected package-manifest deferred class: {package_manifest['runtime_deferred_record_class']!r}")
-if report["conversion_outcome"] != "canonical-package-only":
+if package_manifest["runtime_ready_record_class"] != "native-sampled-only":
+    raise SystemExit(f"unexpected package-manifest ready class: {package_manifest['runtime_ready_record_class']!r}")
+if report["conversion_outcome"] != "partial-runtime-package":
     raise SystemExit(f"unexpected conversion outcome: {report['conversion_outcome']!r}")
 warnings = report.get("warnings") or []
-if len(warnings) != 1 or "no runtime-ready records" not in warnings[0]:
+if len(warnings) != 2 or "no deterministic runtime bindings" not in warnings[1]:
     raise SystemExit(f"unexpected warnings: {warnings!r}")
 family_states = report.get("requested_family_states") or {}
-if family_states.get("runtime_state_counts") != {"canonical-only": 1}:
+if family_states.get("runtime_state_counts") != {"transport-unresolved": 1}:
     raise SystemExit(f"unexpected runtime state counts: {family_states!r}")
 families = family_states.get("families") or []
 if len(families) != 1 or families[0].get("family_key") != "deadbeef:fs258":

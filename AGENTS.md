@@ -30,7 +30,7 @@
   - continue reducing `hts2phrb` ambiguity and overlay residue through bounded review-only policy
   - keep zero-config compat-only and review-only reduction lanes explicit and non-default
   - leave pool semantics, source-backed triangle promotion, and second-game breadth deferred until the core runtime/converter gap narrows further
-- Validation scope is Paper Mario only until the first major milestone is stable
+- Paper Mario is the strict authority validation scope until the first major milestone is stable; SM64/OoT gates are cross-game compat-path regression checks only
 - `feature off` must stay baseline-safe
 - Evidence bundles are required for fixture runs
 - Fallbacks and exclusions must report explicit reasons
@@ -58,9 +58,11 @@
 - Evidence bundles must include: final capture, fixture identity, config snapshot, ROM hash, savestate hash, authority mode, hi-res pack hash, relevant logs, hit/miss reporting, semantic traces
 - Corruption is always fail; explicit fallback is acceptable when the phase claims it
 - Evidence must be lightweight, comparable over time, and collected on every important run
+- Do not use image digests as hi-res correctness gates. Digest equality is only valid for feature-off baseline parity and remint authority verification; hi-res-on validation must use semantic traces, provider/runtime summaries, descriptor-path counts, hit/miss reporting, and explicit fallback reasons.
 
 ## Working Rules
 - Prefer explicit classification: baseline issue, hi-res issue, scaling issue, or tooling/fixture issue
+- Treat checksum-shaped runtime evidence as suspect by default. Preserve hashes for artifact identity/provenance, but do not promote checksum matches into runtime correctness policy.
 - Treat `papermario-dx` as optional debug help, not final correctness authority
 - Keep machine-specific path assumptions aligned with [WORKSPACE_PATHS.md](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md)
 - Do not parallelize emulator-facing runtime tests; they are heavy and occupy the display

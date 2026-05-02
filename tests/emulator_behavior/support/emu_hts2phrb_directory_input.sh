@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$ROOT_DIR/tests/emulator_behavior/support/hts2phrb_synthetic_bundle_provenance.sh"
 TMP_DIR="$(mktemp -d /tmp/parallel-n64-hts2phrb-directory-XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -98,6 +99,8 @@ evidence = {
 }
 evidence_path.write_text(json.dumps(evidence, indent=2) + "\n")
 PY
+
+hts2phrb_write_synthetic_runtime_provenance "$BUNDLE_DIR" "$CURRENT_CACHE_PATH" "synthetic-hts2phrb-directory-input"
 
 python3 "$ROOT_DIR/tools/hts2phrb.py" \
   --cache "$CACHE_DIR" \

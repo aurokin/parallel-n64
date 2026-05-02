@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$ROOT_DIR/tests/emulator_behavior/support/hts2phrb_synthetic_bundle_provenance.sh"
 TMP_DIR="$(mktemp -d /tmp/parallel-n64-hts2phrb-auto-overlay-no-bindings-XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -69,6 +70,22 @@ evidence = {
 evidence_path.write_text(json.dumps(evidence, indent=2) + "\n")
 PY
 
+hts2phrb_write_synthetic_runtime_provenance "$BUNDLE_DIR" "$CACHE_DIR/sample1.htc" "synthetic-hts2phrb-auto-overlay-no-bindings"
+python3 - "$TRACE_DIR/hires-evidence.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+for family in data["ci_palette_probe"]["families"]:
+    family["low32"] = "deadbeef"
+for group in data["sampled_object_probe"]["top_groups"]:
+    group["fields"]["sampled_low32"] = "deadbeef"
+    group["upload_low32s"] = [{"value": "deadbeef"}]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+
 python3 "$ROOT_DIR/tools/hts2phrb.py" \
   --cache "$CACHE_DIR" \
   --bundle "$BUNDLE_DIR" \
@@ -101,28 +118,28 @@ if report["package_manifest_record_count"] != 1 or report["package_manifest_runt
     raise SystemExit(f"unexpected runtime-ready package summary: {report!r}")
 if loader_manifest["runtime_ready_record_count"] != 1 or loader_manifest["runtime_deferred_record_count"] != 0:
     raise SystemExit(f"unexpected canonical loader runtime counts: {loader_manifest!r}")
-if loader_manifest["runtime_ready_record_class"] != "compat-only":
+if loader_manifest["runtime_ready_record_class"] != "native-sampled-only":
     raise SystemExit(f"unexpected canonical loader runtime-ready class: {loader_manifest['runtime_ready_record_class']!r}")
 if package_manifest["runtime_ready_record_count"] != 1 or package_manifest["runtime_deferred_record_count"] != 0:
     raise SystemExit(f"unexpected package-manifest runtime counts: {package_manifest!r}")
-if package_manifest["runtime_ready_record_class"] != "compat-only":
+if package_manifest["runtime_ready_record_class"] != "native-sampled-only":
     raise SystemExit(f"unexpected package-manifest runtime-ready class: {package_manifest['runtime_ready_record_class']!r}")
-if report["binding_count"] != 0 or report["unresolved_count"] != 0:
-    raise SystemExit(f"expected zero bindings and zero unresolved transport cases, got {report!r}")
-if report["conversion_outcome"] != "promotable-runtime-package":
+if report["binding_count"] != 0 or report["unresolved_count"] != 1:
+    raise SystemExit(f"expected zero bindings and one unresolved transport case, got {report!r}")
+if report["conversion_outcome"] != "partial-runtime-package":
     raise SystemExit(f"unexpected conversion outcome: {report['conversion_outcome']!r}")
 warnings = report.get("warnings") or []
-if len(warnings) != 2:
+if len(warnings) != 3:
     raise SystemExit(f"unexpected warnings: {warnings!r}")
-if "no deterministic runtime bindings" not in warnings[0]:
-    raise SystemExit(f"expected no-deterministic-bindings warning first, got {warnings!r}")
-if "directory candidates" not in warnings[1]:
-    raise SystemExit(f"expected directory-resolution warning second, got {warnings!r}")
+if "no deterministic runtime bindings" not in warnings[1]:
+    raise SystemExit(f"expected no-deterministic-bindings warning second, got {warnings!r}")
+if "directory candidates" not in warnings[2]:
+    raise SystemExit(f"expected directory-resolution warning third, got {warnings!r}")
 family_states = report.get("requested_family_states") or {}
-if family_states.get("runtime_state_counts") != {"runtime-ready-package": 1}:
+if family_states.get("runtime_state_counts") != {"transport-unresolved": 1}:
     raise SystemExit(f"unexpected runtime state counts: {family_states!r}")
 families = family_states.get("families") or []
-if len(families) != 1 or families[0].get("family_key") != "11111111:fs258":
+if len(families) != 1 or families[0].get("family_key") != "deadbeef:fs258":
     raise SystemExit(f"unexpected family states: {families!r}")
 if not report.get("gate_success", False) or report.get("gate_failures"):
     raise SystemExit(f"expected successful ungated conversion, got {report!r}")

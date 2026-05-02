@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$ROOT_DIR/tests/emulator_behavior/support/hts2phrb_synthetic_bundle_provenance.sh"
 TMP_DIR="$(mktemp -d /tmp/parallel-n64-hts2phrb-bundle-scoped-XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -76,9 +77,12 @@ for target in (evidence_a, evidence_b):
 
 summary = {
     "cache_path": "dummy.phrb",
+    "passed": True,
     "steps": [
         {
             "step_frames": 960,
+            "fixture_id": "synthetic-bundle-scoped-defaults",
+            "passed": True,
             "off_bundle": "bundle",
             "on_bundle": "bundle",
         }
@@ -87,6 +91,9 @@ summary = {
 summary_a.write_text(json.dumps(summary, indent=2) + "\n")
 summary_b.write_text(json.dumps(summary, indent=2) + "\n")
 PY
+
+hts2phrb_write_synthetic_runtime_provenance "$RUN_A_BUNDLE_DIR" "$CACHE_PATH" "synthetic-bundle-scoped-defaults"
+hts2phrb_write_synthetic_runtime_provenance "$RUN_B_BUNDLE_DIR" "$CACHE_PATH" "synthetic-bundle-scoped-defaults"
 
 pushd "$TMP_DIR" >/dev/null
 python3 "$ROOT_DIR/tools/hts2phrb.py" \

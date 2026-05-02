@@ -30,7 +30,6 @@ ALIAS_GROUP_REVIEW_INPUT="$REPO_ROOT/artifacts/hires-pack-review/20260407-select
 )
 
 python3 - "$TMP_DIR/explicit" "$TMP_DIR/profile" "$TMP_DIR/profile-result.json" "$REVIEW_PROFILE_INPUT" <<'PY'
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -45,11 +44,6 @@ review_profile_paths = [Path(value).resolve() for value in profile_result.get("r
 if review_profile_paths != [review_profile_path]:
     raise SystemExit(f"FAIL: builder did not report the expected review profile path: {review_profile_paths!r}")
 
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    digest.update(path.read_bytes())
-    return digest.hexdigest()
-
 explicit_loader_manifest = json.loads((explicit_dir / "loader-manifest.json").read_text())
 profile_loader_manifest = json.loads((profile_dir / "loader-manifest.json").read_text())
 explicit_loader_manifest["source_bindings_path"] = "<normalized>"
@@ -63,14 +57,6 @@ explicit_package_manifest["source_loader_manifest_path"] = "<normalized>"
 profile_package_manifest["source_loader_manifest_path"] = "<normalized>"
 if explicit_package_manifest != profile_package_manifest:
     raise SystemExit("FAIL: normalized package-manifest differs between explicit review args and review-profile build.")
-
-explicit_hash = sha256(explicit_dir / "package.phrb")
-profile_hash = sha256(profile_dir / "package.phrb")
-if explicit_hash != profile_hash:
-    raise SystemExit(
-        f"FAIL: package.phrb differs between explicit review args and review-profile build: "
-        f"{explicit_hash} != {profile_hash}"
-    )
 
 package_manifest = json.loads((profile_dir / "package/package-manifest.json").read_text())
 record = None

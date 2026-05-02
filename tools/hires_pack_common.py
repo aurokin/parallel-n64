@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import gzip
+import hashlib
 import json
 import re
 import struct
@@ -236,26 +237,14 @@ def parse_cache_entries(cache_path: Path):
 
 def resolve_summary_bundle_reference(summary_path: Path, bundle_reference: str):
     raw_path = Path(bundle_reference)
-    candidates = []
     if raw_path.is_absolute():
-        candidates.append(("absolute", raw_path))
+        resolved_bundle_path = raw_path
+        reference_mode = "absolute"
     else:
-        candidates.append(("summary-relative", (summary_path.parent / raw_path).resolve()))
-        repo_root_relative = (REPO_ROOT / raw_path).resolve()
-        if repo_root_relative not in {candidate_path for _, candidate_path in candidates}:
-            candidates.append(("repo-root-relative", repo_root_relative))
-        cwd_relative = raw_path.resolve()
-        if cwd_relative not in {candidate_path for _, candidate_path in candidates}:
-            candidates.append(("cwd-relative", cwd_relative))
-
-    for reference_mode, candidate_path in candidates:
-        hires_candidate = candidate_path / "traces" / "hires-evidence.json"
-        if hires_candidate.is_file():
-            return candidate_path, hires_candidate, reference_mode
-
-    resolved_bundle_path = candidates[0][1]
+        resolved_bundle_path = (summary_path.parent / raw_path).resolve()
+        reference_mode = "summary-relative"
     hires_path = resolved_bundle_path / "traces" / "hires-evidence.json"
-    return resolved_bundle_path, hires_path, candidates[0][0]
+    return resolved_bundle_path, hires_path, reference_mode
 
 
 def parse_detail_fields(detail: str):
@@ -274,21 +263,338 @@ def parse_int_field(value, default=0):
         return default
 
 
-def resolve_artifact_path(bundle_path: Path, raw_path: str | None):
+def resolve_artifact_path(bundle_path: Path, raw_path: str | None, artifact_base: Path | None = None):
     if not raw_path:
         return None
     candidate = Path(raw_path)
     if candidate.is_absolute():
         return candidate if candidate.exists() else None
-    for resolved in (
+    resolved_candidates = []
+    if artifact_base is not None:
+        resolved_candidates.append(artifact_base / candidate)
+    resolved_candidates.extend([
+        bundle_path / candidate,
+        bundle_path.parent / candidate,
+        REPO_ROOT / candidate,
         candidate,
-        (REPO_ROOT / candidate),
-        (bundle_path / candidate),
-        (bundle_path.parent / candidate),
-    ):
+    ])
+    seen = set()
+    for resolved in resolved_candidates:
+        resolved_key = str(resolved.resolve())
+        if resolved_key in seen:
+            continue
+        seen.add(resolved_key)
         if resolved.exists():
             return resolved
     return None
+
+
+def _validate_direct_hires_evidence_path(hires_path: Path):
+    try:
+        data = json.loads(hires_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Direct hires-evidence input is not valid JSON: {hires_path}: {exc}") from exc
+    summary = data.get("summary") or {}
+    sampled_probe = data.get("sampled_object_probe") or {}
+    if not (sampled_probe.get("top_groups") or sampled_probe.get("groups")):
+        raise ValueError(f"Direct hires-evidence input has no sampled-probe groups for enrichment: {hires_path}")
+    if not isinstance(summary, dict) or not summary:
+        raise ValueError(f"Direct hires-evidence input has no hi-res summary provenance: {hires_path}")
+    if data.get("available") is not True:
+        raise ValueError(f"Direct hires-evidence input is not marked available: {hires_path}")
+    if data.get("cache_loaded") is not True:
+        raise ValueError(f"Direct hires-evidence input does not report a loaded cache: {hires_path}")
+    if summary.get("provider") != "on":
+        raise ValueError(f"Direct hires-evidence input is not a hi-res-on enrichment source: {hires_path}")
+    if summary.get("source_mode") != "phrb-only":
+        raise ValueError(f"Direct hires-evidence input is not PHRB-backed enrichment evidence: {hires_path}")
+    source_counts = summary.get("source_counts") or {}
+    if int(source_counts.get("phrb") or 0) <= 0:
+        raise ValueError(f"Direct hires-evidence input has no explicit PHRB source ownership: {hires_path}")
+    for key, value in source_counts.items():
+        if key != "phrb" and int(value or 0) != 0:
+            raise ValueError(f"Direct hires-evidence input has forbidden non-PHRB source ownership: {hires_path}")
+    if summary.get("entry_class") == "compat-only" or int(summary.get("native_sampled_entry_count") or 0) <= 0:
+        raise ValueError(f"Direct hires-evidence input has no native sampled enrichment entries: {hires_path}")
+    if int(summary.get("compat_entry_count") or 0) != 0:
+        raise ValueError(f"Direct hires-evidence input has forbidden compat entry ownership: {hires_path}")
+    descriptor_paths = summary.get("descriptor_path_counts") or {}
+    if int(descriptor_paths.get("sampled") or 0) <= 0:
+        raise ValueError(f"Direct hires-evidence input has no sampled descriptor path evidence: {hires_path}")
+    for key in ("native_checksum", "generic", "compat"):
+        if int(descriptor_paths.get(key) or 0) != 0:
+            raise ValueError(f"Direct hires-evidence input has forbidden {key} descriptor traffic: {hires_path}")
+    for key in ("exact_hit_count", "exact_miss_count", "exact_conflict_miss_count", "exact_unresolved_miss_count"):
+        if sampled_probe.get(key) is None:
+            raise ValueError(f"Direct hires-evidence input is missing sampled-object probe field {key}: {hires_path}")
+
+
+def _path_within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _same_resolved_path(actual, expected: Path) -> bool:
+    if actual in (None, ""):
+        return False
+    try:
+        return Path(actual).resolve() == expected.resolve()
+    except OSError:
+        return str(actual) == str(expected)
+
+
+def _read_env_file(path: Path):
+    if not path.is_file():
+        return None
+    values = {}
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key] = value
+    return values
+
+
+def _file_sha256(path: Path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _command_log_signature(bundle_path: Path):
+    executed_log = bundle_path / "retroarch.executed.commands.log"
+    expected_log = bundle_path / "retroarch.expected.commands.log"
+    if not executed_log.is_file():
+        raise ValueError(f"Enrichment fixture bundle is missing executed command provenance: {bundle_path}")
+    if not expected_log.is_file():
+        raise ValueError(f"Enrichment fixture bundle is missing expected command provenance: {bundle_path}")
+    executed_signature = _file_sha256(executed_log)
+    expected_signature = _file_sha256(expected_log)
+    if executed_signature != expected_signature:
+        raise ValueError(
+            f"Enrichment fixture bundle executed command log does not match expected commands: {bundle_path}"
+        )
+    return executed_signature
+
+
+def _validate_enrichment_fixture_bundle(
+    bundle_path: Path,
+    hires_path: Path,
+    fixture: dict,
+    summary_path: Path,
+    expected_cache_path: Path | None = None,
+    expected_cache_sha256: str | None = None,
+):
+    bundle_json_path = bundle_path / "bundle.json"
+    fixture_verification_path = bundle_path / "traces" / "fixture-verification.json"
+    if not bundle_json_path.is_file():
+        raise ValueError(f"Enrichment fixture bundle is missing bundle.json: {bundle_path}")
+    if not fixture_verification_path.is_file():
+        raise ValueError(f"Enrichment fixture bundle is missing traces/fixture-verification.json: {bundle_path}")
+    if not (bundle_path / "config.env").is_file():
+        raise ValueError(f"Enrichment fixture bundle is missing config.env snapshot: {bundle_path}")
+
+    try:
+        bundle_meta = json.loads(bundle_json_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Enrichment fixture bundle has invalid bundle.json: {bundle_json_path}: {exc}") from exc
+    try:
+        verification = json.loads(fixture_verification_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Enrichment fixture bundle has invalid fixture-verification.json: {fixture_verification_path}: {exc}"
+        ) from exc
+
+    expected_fixture_id = fixture.get("fixture_id")
+    if not expected_fixture_id:
+        raise ValueError(
+            "Direct enrichment bundle inputs require a passed validation-summary fixture reference; "
+            f"no external fixture_id was available for {summary_path}"
+        )
+    if bundle_meta.get("fixture_id") != expected_fixture_id:
+        raise ValueError(
+            f"Enrichment fixture bundle fixture_id mismatch for {summary_path}: "
+            f"expected {expected_fixture_id!r}, got {bundle_meta.get('fixture_id')!r}"
+        )
+    if verification.get("fixture_id") != expected_fixture_id:
+        raise ValueError(
+            f"Enrichment fixture verification fixture_id mismatch for {summary_path}: "
+            f"expected {expected_fixture_id!r}, got {verification.get('fixture_id')!r}"
+        )
+    if verification.get("passed") is not True:
+        raise ValueError(f"Enrichment fixture bundle verification is not passed: {fixture_verification_path}")
+    status = bundle_meta.get("status") if isinstance(bundle_meta.get("status"), dict) else {}
+    if status.get("runtime_executed") is not True:
+        raise ValueError(f"Enrichment fixture bundle was not runtime-executed: {bundle_json_path}")
+
+    hires_evidence = json.loads(hires_path.read_text())
+    bundle_inputs = bundle_meta.get("inputs") if isinstance(bundle_meta.get("inputs"), dict) else {}
+    bundle_pack_path = bundle_meta.get("hires_pack_path") or bundle_inputs.get("hires_pack_path")
+    bundle_pack_sha = bundle_meta.get("hires_pack_sha256") or bundle_inputs.get("hires_pack_sha256")
+    evidence_cache_path = hires_evidence.get("cache_path")
+    evidence_cache_sha = hires_evidence.get("cache_sha256")
+    if not bundle_pack_path or not bundle_pack_sha:
+        raise ValueError(f"Enrichment fixture bundle is missing hi-res pack path/SHA provenance: {bundle_json_path}")
+    if not Path(bundle_pack_path).is_file():
+        raise ValueError(f"Enrichment fixture bundle hi-res pack artifact is missing: {bundle_pack_path}")
+    if not evidence_cache_path or not evidence_cache_sha:
+        raise ValueError(f"Enrichment hi-res evidence is missing cache path/SHA provenance: {hires_path}")
+    if not _same_resolved_path(evidence_cache_path, Path(bundle_pack_path)):
+        raise ValueError(
+            f"Enrichment hi-res evidence cache path does not match bundle provenance: "
+            f"{evidence_cache_path!r} vs {bundle_pack_path!r}"
+        )
+    if evidence_cache_sha != bundle_pack_sha:
+        raise ValueError(
+            f"Enrichment hi-res evidence cache SHA does not match bundle provenance: "
+            f"{evidence_cache_sha!r} vs {bundle_pack_sha!r}"
+        )
+    actual_sha = hashlib.sha256(Path(bundle_pack_path).read_bytes()).hexdigest()
+    if actual_sha != bundle_pack_sha:
+        raise ValueError(
+            f"Enrichment fixture bundle hi-res pack SHA does not match current artifact: {bundle_json_path}"
+        )
+    if expected_cache_path is not None and not _same_resolved_path(bundle_pack_path, expected_cache_path):
+        raise ValueError(
+            f"Enrichment fixture bundle cache path does not match requested --cache: "
+            f"{bundle_pack_path!r} vs {str(expected_cache_path)!r}"
+        )
+    if expected_cache_sha256 is not None and bundle_pack_sha != expected_cache_sha256:
+        raise ValueError(
+            f"Enrichment fixture bundle cache SHA does not match requested --cache: "
+            f"{bundle_pack_sha!r} vs {expected_cache_sha256!r}"
+        )
+    evidence_log_path = hires_evidence.get("log_path")
+    if evidence_log_path:
+        resolved_log_path = resolve_artifact_path(bundle_path, evidence_log_path, artifact_base=hires_path.parent)
+        if resolved_log_path is None or not _path_within(resolved_log_path, bundle_path):
+            raise ValueError(
+                f"Enrichment hi-res evidence log_path must resolve inside the validated bundle: "
+                f"{evidence_log_path!r}"
+            )
+        canonical_log_path = bundle_path / "logs" / "retroarch.log"
+        if not _same_resolved_path(resolved_log_path, canonical_log_path):
+            raise ValueError(
+                f"Enrichment hi-res evidence log_path must point to the adapter log: "
+                f"{evidence_log_path!r}"
+            )
+        if not resolved_log_path.is_file():
+            raise ValueError(f"Enrichment hi-res evidence log_path is missing: {resolved_log_path}")
+    session = _read_env_file(bundle_path / "retroarch.session.env")
+    run = _read_env_file(bundle_path / "retroarch.run.env")
+    if session is None:
+        raise ValueError(f"Enrichment fixture bundle is missing adapter session provenance: {bundle_path}")
+    if run is None:
+        raise ValueError(f"Enrichment fixture bundle is missing adapter run status provenance: {bundle_path}")
+    if run.get("RUNTIME_EXECUTED") != "1":
+        raise ValueError(f"Enrichment fixture bundle adapter run was not executed: {bundle_path}")
+    if run.get("FORCED_TERMINATION") != "0":
+        raise ValueError(f"Enrichment fixture bundle adapter run was forcibly terminated: {bundle_path}")
+    if run.get("RETROARCH_EXIT_STATUS") != "0":
+        raise ValueError(f"Enrichment fixture bundle adapter run did not exit cleanly: {bundle_path}")
+    if session.get("MODE") != "on":
+        raise ValueError(f"Enrichment fixture bundle adapter session was not hi-res-on: {bundle_path}")
+    for key in ("ROM_PATH", "ROM_SHA256", "CORE_PATH", "CORE_SHA256"):
+        if not session.get(key):
+            raise ValueError(f"Enrichment fixture bundle adapter session is missing {key}: {bundle_path}")
+    rom_path = Path(session["ROM_PATH"])
+    core_path = Path(session["CORE_PATH"])
+    if not rom_path.is_file():
+        raise ValueError(f"Enrichment fixture bundle ROM artifact is missing: {rom_path}")
+    if not core_path.is_file():
+        raise ValueError(f"Enrichment fixture bundle core artifact is missing: {core_path}")
+    if _file_sha256(rom_path) != session["ROM_SHA256"]:
+        raise ValueError(f"Enrichment fixture bundle ROM SHA does not match current artifact: {bundle_path}")
+    if _file_sha256(core_path) != session["CORE_SHA256"]:
+        raise ValueError(f"Enrichment fixture bundle core SHA does not match current artifact: {bundle_path}")
+    for path_key, sha_key in (
+        ("BASE_CONFIG", "BASE_CONFIG_SHA256"),
+        ("APPEND_CONFIG", "APPEND_CONFIG_SHA256"),
+        ("CORE_OPTIONS_FILE", "CORE_OPTIONS_FILE_SHA256"),
+    ):
+        config_path_value = session.get(path_key)
+        config_sha = session.get(sha_key)
+        if not config_path_value and not config_sha:
+            continue
+        if not config_path_value or not config_sha:
+            raise ValueError(f"Enrichment fixture bundle adapter session has incomplete {path_key}/{sha_key}: {bundle_path}")
+        config_path = Path(config_path_value)
+        if not config_path.is_file():
+            raise ValueError(f"Enrichment fixture bundle config artifact is missing: {config_path}")
+        if _file_sha256(config_path) != config_sha:
+            raise ValueError(f"Enrichment fixture bundle {sha_key} does not match current artifact: {bundle_path}")
+    bundle_rom_path = bundle_inputs.get("rom_path")
+    bundle_rom_sha = bundle_inputs.get("rom_sha256")
+    if not bundle_rom_path or not bundle_rom_sha:
+        raise ValueError(f"Enrichment fixture bundle is missing ROM path/SHA provenance: {bundle_json_path}")
+    if not _same_resolved_path(session.get("ROM_PATH"), Path(bundle_rom_path)):
+        raise ValueError(f"Enrichment fixture bundle ROM path does not match adapter session: {bundle_path}")
+    if bundle_rom_sha != session["ROM_SHA256"]:
+        raise ValueError(f"Enrichment fixture bundle ROM SHA does not match adapter session: {bundle_path}")
+    if not _same_resolved_path(session.get("HIRES_CACHE_PATH"), Path(bundle_pack_path)):
+        raise ValueError(
+            f"Enrichment fixture bundle adapter cache path does not match bundle provenance: "
+            f"{session.get('HIRES_CACHE_PATH')!r} vs {bundle_pack_path!r}"
+        )
+    if session.get("HIRES_CACHE_SHA256") != bundle_pack_sha:
+        raise ValueError(
+            f"Enrichment fixture bundle adapter cache SHA does not match bundle provenance: "
+            f"{session.get('HIRES_CACHE_SHA256')!r} vs {bundle_pack_sha!r}"
+        )
+    command_signature = _command_log_signature(bundle_path)
+    if session.get("COMMAND_SIGNATURE") != command_signature:
+        raise ValueError(f"Enrichment fixture bundle adapter command signature does not match executed log: {bundle_path}")
+
+    _validate_direct_hires_evidence_path(hires_path)
+
+
+def _find_direct_bundle_validation_summary(bundle_path: Path, step_frames=None, mode="on"):
+    candidate_summaries = [
+        bundle_path.parent / "validation-summary.json",
+        bundle_path / "validation-summary.json",
+        bundle_path.parent.parent / "validation-summary.json",
+    ]
+    seen = set()
+    for summary_path in candidate_summaries:
+        summary_key = str(summary_path.resolve())
+        if summary_key in seen:
+            continue
+        seen.add(summary_key)
+        if not summary_path.is_file():
+            continue
+        data = json.loads(summary_path.read_text())
+        if data.get("all_passed") is not True and data.get("passed") is not True:
+            continue
+        steps = data.get("steps") or []
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            if step.get("passed") is not True or not step.get("fixture_id"):
+                continue
+            if step_frames is not None and int(step.get("step_frames", -1)) != int(step_frames):
+                continue
+            bundle_key = f"{mode}_bundle"
+            resolved_bundle = step.get(bundle_key)
+            if not resolved_bundle:
+                continue
+            resolved_bundle_path, _, reference_mode = resolve_summary_bundle_reference(summary_path, resolved_bundle)
+            if resolved_bundle_path.resolve() != bundle_path.resolve():
+                continue
+            return {
+                "validation_summary_path": str(summary_path),
+                "bundle_reference_mode": reference_mode,
+                "selected_step_frames": int(step.get("step_frames", 0)),
+                "selected_bundle_mode": mode,
+                "fixture_id": step.get("fixture_id"),
+                "available_step_frames": [
+                    int(item.get("step_frames", 0)) for item in steps if isinstance(item, dict)
+                ],
+            }
+    raise ValueError(
+        "Direct enrichment bundle inputs require a passed validation-summary.json referencing the bundle; "
+        f"none was found for {bundle_path}"
+    )
 
 
 def resolve_bundle_input_path(bundle_input_path: Path, step_frames=None, mode="on"):
@@ -296,23 +602,30 @@ def resolve_bundle_input_path(bundle_input_path: Path, step_frames=None, mode="o
     if bundle_input_path.is_dir():
         hires_path = bundle_input_path / "traces" / "hires-evidence.json"
         if hires_path.is_file():
-            return {
+            summary_metadata = _find_direct_bundle_validation_summary(bundle_input_path, step_frames=step_frames, mode=mode)
+            result = {
                 "input_path": str(bundle_input_path),
                 "input_kind": "bundle-dir",
                 "resolved_bundle_path": str(bundle_input_path),
                 "resolved_hires_path": str(hires_path),
                 "selection_reason": "direct-bundle-dir",
             }
+            result.update(summary_metadata)
+            return result
         if bundle_input_path.name == "traces":
             hires_path = bundle_input_path / "hires-evidence.json"
             if hires_path.is_file():
-                return {
+                bundle_dir = bundle_input_path.parent
+                summary_metadata = _find_direct_bundle_validation_summary(bundle_dir, step_frames=step_frames, mode=mode)
+                result = {
                     "input_path": str(bundle_input_path),
                     "input_kind": "traces-dir",
-                    "resolved_bundle_path": str(bundle_input_path.parent),
+                    "resolved_bundle_path": str(bundle_dir),
                     "resolved_hires_path": str(hires_path),
                     "selection_reason": "traces-dir-parent-bundle",
                 }
+                result.update(summary_metadata)
+                return result
         raise ValueError(f"Bundle directory does not contain traces/hires-evidence.json: {bundle_input_path}")
 
     if not bundle_input_path.is_file():
@@ -321,13 +634,16 @@ def resolve_bundle_input_path(bundle_input_path: Path, step_frames=None, mode="o
     if bundle_input_path.name == "hires-evidence.json":
         traces_dir = bundle_input_path.parent
         bundle_dir = traces_dir.parent if traces_dir.name == "traces" else traces_dir
-        return {
+        summary_metadata = _find_direct_bundle_validation_summary(bundle_dir, step_frames=step_frames, mode=mode)
+        result = {
             "input_path": str(bundle_input_path),
             "input_kind": "hires-evidence-json",
             "resolved_bundle_path": str(bundle_dir),
             "resolved_hires_path": str(bundle_input_path),
             "selection_reason": "direct-hires-evidence",
         }
+        result.update(summary_metadata)
+        return result
 
     summary_path = bundle_input_path
     if bundle_input_path.name == "validation-summary.md":
@@ -341,11 +657,15 @@ def resolve_bundle_input_path(bundle_input_path: Path, step_frames=None, mode="o
         steps = data.get("steps", [])
         if not steps:
             raise ValueError(f"Validation summary contains no steps: {summary_path}")
+        if data.get("all_passed") is not True and data.get("passed") is not True:
+            raise ValueError(f"Step validation summary is not marked passed: {summary_path}")
 
         selected_step = None
         selection_reason = "validation-summary-single-step"
         if step_frames is not None:
             for step in steps:
+                if not isinstance(step, dict):
+                    raise ValueError(f"Validation summary contains a non-object step entry: {summary_path}")
                 if int(step.get("step_frames", -1)) == int(step_frames):
                     selected_step = step
                     selection_reason = "validation-summary-step-match"
@@ -355,8 +675,15 @@ def resolve_bundle_input_path(bundle_input_path: Path, step_frames=None, mode="o
         elif len(steps) == 1:
             selected_step = steps[0]
         else:
-            selected_step = steps[0]
-            selection_reason = "validation-summary-first-step"
+            raise ValueError(
+                f"Validation summary contains multiple steps; pass --bundle-step to select one explicitly: {summary_path}"
+            )
+        if not isinstance(selected_step, dict):
+            raise ValueError(f"Validation summary contains a non-object selected step: {summary_path}")
+        if selected_step.get("passed") is not True:
+            raise ValueError(f"Validation summary selected step is not marked passed: {summary_path}")
+        if not selected_step.get("fixture_id"):
+            raise ValueError(f"Validation summary selected step has no fixture_id: {summary_path}")
 
         bundle_key = f"{mode}_bundle"
         resolved_bundle = selected_step.get(bundle_key)
@@ -374,17 +701,23 @@ def resolve_bundle_input_path(bundle_input_path: Path, step_frames=None, mode="o
             "selection_reason": selection_reason,
             "selected_step_frames": int(selected_step.get("step_frames", 0)),
             "selected_bundle_mode": mode,
-            "available_step_frames": [int(step.get("step_frames", 0)) for step in steps],
+            "fixture_id": selected_step.get("fixture_id"),
+            "available_step_frames": [int(step.get("step_frames", 0)) for step in steps if isinstance(step, dict)],
         }
         return result
 
     raise ValueError(f"Unsupported bundle input: {bundle_input_path}")
 
 
-def resolve_context_bundle_input_paths(bundle_input_path: Path, step_frames=None, mode="on"):
+def resolve_context_bundle_input_paths(bundle_input_path: Path, step_frames=None, mode="on", require_enrichment_evidence=False):
     if bundle_input_path.is_dir():
         hires_path = bundle_input_path / "traces" / "hires-evidence.json"
         if hires_path.is_file():
+            if require_enrichment_evidence:
+                raise ValueError(
+                    "Direct hires-evidence inputs are not accepted as enrichment context; "
+                    f"use a passed validation-summary.json instead: {bundle_input_path}"
+                )
             return [resolve_bundle_input_path(bundle_input_path, step_frames=step_frames, mode=mode)]
 
         summary_json = bundle_input_path / "validation-summary.json"
@@ -410,8 +743,16 @@ def resolve_context_bundle_input_paths(bundle_input_path: Path, step_frames=None
             data = json.loads(summary_path.read_text())
             fixtures = data.get("fixtures", [])
             if fixtures:
+                if data.get("all_passed") is not True:
+                    raise ValueError(f"Fixture validation summary is not all_passed: {summary_path}")
                 resolutions = []
                 for fixture in fixtures:
+                    if not isinstance(fixture, dict):
+                        raise ValueError(f"Fixture validation summary contains a non-object fixture entry: {summary_path}")
+                    if fixture.get("passed") is not True:
+                        raise ValueError(f"Fixture validation summary contains a failed fixture: {summary_path}")
+                    if not fixture.get("fixture_id"):
+                        raise ValueError(f"Fixture validation summary fixture entry has no fixture_id: {summary_path}")
                     resolved_bundle = fixture.get("bundle_dir")
                     if not resolved_bundle:
                         raise ValueError(f"Fixture validation summary has no bundle_dir: {summary_path}")
@@ -420,6 +761,8 @@ def resolve_context_bundle_input_paths(bundle_input_path: Path, step_frames=None
                     )
                     if not hires_path.is_file():
                         raise ValueError(f"Resolved fixture bundle has no hires-evidence.json: {resolved_bundle_path}")
+                    if require_enrichment_evidence:
+                        _validate_enrichment_fixture_bundle(resolved_bundle_path, hires_path, fixture, summary_path)
                     resolutions.append(
                         {
                             "input_path": str(bundle_input_path),
@@ -433,12 +776,47 @@ def resolve_context_bundle_input_paths(bundle_input_path: Path, step_frames=None
                         }
                     )
                 return resolutions
+            if require_enrichment_evidence and data.get("steps"):
+                if data.get("all_passed") is not True and data.get("passed") is not True:
+                    raise ValueError(f"Step validation summary is not marked passed: {summary_path}")
 
-    return [resolve_bundle_input_path(bundle_input_path, step_frames=step_frames, mode=mode)]
+    resolutions = [resolve_bundle_input_path(bundle_input_path, step_frames=step_frames, mode=mode)]
+    if require_enrichment_evidence:
+            for resolution in resolutions:
+                if resolution.get("input_kind") in {"hires-evidence-json", "bundle-dir", "traces-dir"}:
+                    raise ValueError(
+                        "Direct hires-evidence inputs are not accepted as enrichment context; "
+                        f"use a passed validation-summary.json instead: {bundle_input_path}"
+                )
+                hires_path = resolution.get("resolved_hires_path")
+                if hires_path:
+                    if resolution.get("input_kind") == "validation-summary":
+                        data = json.loads(Path(summary_path).read_text())
+                        selected_frames = resolution.get("selected_step_frames")
+                        selected_step = None
+                        for step in data.get("steps") or []:
+                            if isinstance(step, dict) and int(step.get("step_frames", -1)) == int(selected_frames):
+                                selected_step = step
+                                break
+                        if selected_step is None:
+                            raise ValueError(f"Validation summary selected step is unavailable: {summary_path}")
+                        if selected_step.get("passed") is not True:
+                            raise ValueError(f"Validation summary selected step is not marked passed: {summary_path}")
+                        if not selected_step.get("fixture_id"):
+                            raise ValueError(f"Validation summary selected step has no fixture_id: {summary_path}")
+                        _validate_enrichment_fixture_bundle(
+                            Path(resolution["resolved_bundle_path"]),
+                            Path(hires_path),
+                            {"fixture_id": selected_step.get("fixture_id")},
+                            summary_path,
+                        )
+                    else:
+                        _validate_direct_hires_evidence_path(Path(hires_path))
+    return resolutions
 
 
-def parse_bundle_families(bundle_path: Path):
-    hires_path = bundle_path / "traces" / "hires-evidence.json"
+def parse_bundle_families(bundle_path: Path, hires_path: Path | None = None):
+    hires_path = hires_path or (bundle_path / "traces" / "hires-evidence.json")
     data = json.loads(hires_path.read_text())
     families = []
     for record in data.get("ci_palette_probe", {}).get("families", []):
@@ -465,8 +843,8 @@ def parse_bundle_families(bundle_path: Path):
     return families
 
 
-def parse_bundle_ci_context(bundle_path: Path):
-    hires_path = bundle_path / "traces" / "hires-evidence.json"
+def parse_bundle_ci_context(bundle_path: Path, hires_path: Path | None = None):
+    hires_path = hires_path or (bundle_path / "traces" / "hires-evidence.json")
     data = json.loads(hires_path.read_text())
     ci_probe = data.get("ci_palette_probe", {})
 
@@ -522,7 +900,7 @@ def parse_bundle_ci_context(bundle_path: Path):
             "emulated_tmem": emulated_tmem_by_key.get(observation_key),
         }
 
-    family_probe_path = bundle_path / "traces" / "hires-tile-family-report.json"
+    family_probe_path = hires_path.parent / "hires-tile-family-report.json"
     if family_probe_path.exists():
         report = json.loads(family_probe_path.read_text())
         family = report.get("family", {})
@@ -554,8 +932,8 @@ def parse_bundle_ci_context(bundle_path: Path):
 
 
 
-def parse_bundle_sampled_object_context(bundle_path: Path):
-    hires_path = bundle_path / "traces" / "hires-evidence.json"
+def parse_bundle_sampled_object_context(bundle_path: Path, hires_path: Path | None = None):
+    hires_path = hires_path or (bundle_path / "traces" / "hires-evidence.json")
     data = json.loads(hires_path.read_text())
     sampled_probe = data.get("sampled_object_probe", {})
 
@@ -669,8 +1047,10 @@ def parse_bundle_sampled_object_context(bundle_path: Path):
     ingest_runtime_sampled_probe(sampled_probe)
 
     def ingest_runtime_provenance_log(log_path_value):
-        log_path = resolve_artifact_path(bundle_path, log_path_value)
+        log_path = resolve_artifact_path(bundle_path, log_path_value, artifact_base=hires_path.parent)
         if log_path is None or not log_path.exists():
+            return
+        if not _path_within(log_path, bundle_path):
             return
         for line in log_path.read_text(errors="replace").splitlines():
             match = PROVENANCE_LINE_RE.search(line)
@@ -775,7 +1155,8 @@ def parse_bundle_sampled_object_context(bundle_path: Path):
             }
             ingest_sampled_object(sampled_object)
 
-    ingest_runtime_provenance_hits(data.get("provenance", {}))
+    # Runtime provenance hits must come from a validated bundle-local log_path.
+    # The JSON payload alone is self-authored evidence and is not an authority.
 
     def matching_runtime_proxies(fmt, siz, stride, wh):
         proxies = []
@@ -809,15 +1190,9 @@ def parse_bundle_sampled_object_context(bundle_path: Path):
             )
         return proxies
 
-    family_probe_path = bundle_path / "traces" / "hires-tile-family-report.json"
+    family_probe_path = hires_path.parent / "hires-tile-family-report.json"
     if family_probe_path.exists():
         report = json.loads(family_probe_path.read_text())
-        plan_source_bundle = report.get("plan_source_bundle")
-        if plan_source_bundle:
-            source_hires_path = Path(plan_source_bundle) / "traces" / "hires-evidence.json"
-            if source_hires_path.exists():
-                source_data = json.loads(source_hires_path.read_text())
-                ingest_runtime_sampled_probe(source_data.get("sampled_object_probe", {}))
         family = report.get("family", {})
         formatsize = int(family.get("formatsize", 0))
         observed_fmt = int(family.get("observed_fmt", 0))

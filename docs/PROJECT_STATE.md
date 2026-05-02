@@ -18,9 +18,9 @@
 
 - Promoted enriched full-cache `PHRB` baseline:
   - default authority path and current default conformance baseline
-  - enrichment via `--context-dir` automatic discovery (103 expanded bundles from local artifact tree)
-  - current converter state: `368` canonical-only families, `143` native sampled / `8487` compat runtime-ready
-  - current runtime-overlay state: `97` bindings / `46` unresolved overlay families
+  - enrichment via `--context-dir` automatic discovery from passed validation summaries; direct sampled-probe `hires-evidence.json` bundles are runtime evidence only, not enrichment inputs
+  - converter counts are local-context dependent; conformance asserts semantic enriched shape instead of exact artifact-tree counts
+  - runtime-overlay skips are acceptable only with explicit deterministic-binding blockers
 - Zero-config compat-only full-cache `PHRB` fallback:
   - maintained only through explicit override or the dedicated zero-config refresh lane
   - current converter state: `8620` runtime-ready compat records and `372` deferred compat records
@@ -44,12 +44,12 @@
 - `.phrb` is the only runtime format. HTS/HTC loading, CacheSourcePolicy, and source-mode core options have been removed from the runtime. Legacy formats are import-only via `hts2phrb`.
 - GlideN64-compat draw-time CRC is auto-enabled when loaded PHRB contains compat entries (`has_compat_entries()`), with no source-mode gating required.
 - The dead generic checksum-only descriptor path (`resolve_hires_replacement_descriptor`) has been removed.
-- The authority refresh now uses `--context-dir` to automatically discover all local validation summaries as enrichment sources.
+- The default authority refresh uses the promoted validation summary as its hermetic enrichment source; broad `--context-dir` discovery remains an explicit non-default review workflow.
 - Current default authority outcome:
   - `source_mode=phrb-only`
   - `entry_count=12909`
-  - `native_sampled_entry_count=651`
-  - sampled-only descriptor traffic on title screen, file select, and `kmr_03 ENTRY_5`
+  - native sampled entries are required live in every promoted authority fixture
+  - sampled descriptor traffic is required on title screen, file select, and `kmr_03 ENTRY_5`
   - native-checksum-exact-upload entries resolve geometry-mismatched families (not a code gap)
 
 ### Converter State
@@ -75,19 +75,37 @@
 
 ### Cross-Game Runtime State
 
-- **SM64 Reloaded** — validated cross-game proof with boot conformance test:
+- **SM64 Reloaded** — validated cross-game proof with boot and savestate fixture conformance tests:
   - HTS → `hts2phrb` → PHRB: 2530/2530 entries, `promotable-runtime-package`, zero unresolved, 1.5s conversion
-  - PHRB → runtime: 6,599 compat draw-time hits in 30s title screen boot
+  - PHRB → runtime: compat draw-time hits in 30s title screen boot
+  - Current evidence-bundle proof: [validation-summary.md](/home/auro/code/parallel-n64/artifacts/cross-game-probes/validation/20260429-083503-sm64-hires-boot/validation-summary.md)
+    - `source_mode=phrb-only`
+    - `entry_class=compat-only`
+    - `entry_count=2530`
+    - `compat_draw_hits=55690`
   - Format coverage: RGBA (fmt=0) and IA (fmt=3) both hitting; no CI textures in SM64 pack
   - GlideN64-compat CRC auto-enabled from loaded PHRB compat entries
   - Automated boot conformance test: `emu.conformance.sm64_hires_boot`
-- **OoT Reloaded** — validated cross-game proof with boot conformance test:
+  - Automated savestate fixture test: `emu.conformance.sm64_hires_title_fixture`
+  - Current savestate fixture proof: [validation-summary.md](/home/auro/code/parallel-n64/artifacts/cross-game-probes/fixtures/20260429-090232-sm64-title-boot/validation-summary.md)
+- **OoT Reloaded** — validated cross-game proof with boot and savestate fixture conformance tests:
   - HTS → `hts2phrb` → PHRB: 43,266/43,267 entries, `partial-runtime-package`, 1 ambiguous family (`a388567b:fs258`)
   - PHRB is 8.9GB; streaming load reads only metadata (~13.5MB), textures loaded on demand via file seek
-  - PHRB → runtime: 43,322 entries loaded, 46,751 compat draw-time hits in 45s boot
-  - CI palette CRC validated: 11,455 CI hits out of 23,368 CI attempts (49% hit rate; misses are pack coverage, not CRC mismatch)
+  - PHRB → runtime: 43,322 entries loaded, compat draw-time hits in 45s boot
+  - Current evidence-bundle proof: [validation-summary.md](/home/auro/code/parallel-n64/artifacts/cross-game-probes/validation/20260429-083554-oot-hires-boot/validation-summary.md)
+    - `source_mode=phrb-only`
+    - `entry_class=compat-only`
+    - `entry_count=43322`
+    - `compat_draw_hits=73563`
+    - `compat_draw_ci_hits=13812 / 29214`
+  - CI palette CRC validated empirically on OoT; misses remain pack coverage, not CRC parameter mismatch.
   - GPU budget/eviction available via `PARALLEL_RDP_HIRES_GPU_BUDGET_MB` env var (default unlimited)
   - Automated boot conformance test: `emu.conformance.oot_hires_boot` (asserts CI hits > 0)
+  - Automated savestate fixture test: `emu.conformance.oot_hires_title_fixture` (asserts CI hits > 0)
+  - Current savestate fixture proof: [validation-summary.md](/home/auro/code/parallel-n64/artifacts/cross-game-probes/fixtures/20260429-090249-oot-title-boot/validation-summary.md)
+- Cross-game boot lanes now emit evidence bundles with final captures, runtime config, logs, extracted hi-res evidence, and validation summaries under `artifacts/cross-game-probes/validation/`.
+- Cross-game savestate fixture lanes now emit fixed-state evidence bundles under `artifacts/cross-game-probes/fixtures/`.
+- These cross-game lanes are still compatibility-path proofs, not native sampled identity proofs.
 - **GlideN64-compat RDRAM CRC**:
   - Root cause was parameter mismatch: our upload path computes Rice CRC with SetTextureImage params at load time; GlideN64 uses tile descriptor params at draw time
   - Draw-time fallback recomputes CRC using tile line stride, SetTileSize dimensions, and tile descriptor size enum
@@ -108,8 +126,11 @@
   - selected-package timeout validation
   - selected-package timeout lookup-without-probe validation
   - SM64 hi-res boot conformance (provider=on, compat_draw_hits > 0)
+  - SM64 hi-res title savestate fixture conformance (locked state hash, compat_draw_hits > 0)
   - OoT hi-res boot conformance (entries > 40K, CI hits > 0)
+  - OoT hi-res title savestate fixture conformance (locked state hash, CI hits > 0)
 - Semantic hi-res evidence now participates in pass/fail on the active authorities.
+- Image digests are no longer accepted as hi-res-on correctness gates. Keep digests for artifact identity, fixed-state/remint authority verification, and feature-off baseline parity only.
 - The title-timeout lane remains the main no-save deeper-state review surface.
 
 ### Deferred / Open Gaps
@@ -151,8 +172,8 @@
 ## Current Validation Scope
 
 - Paper Mario: primary authority game with strict conformance fixtures.
-- SM64: validated cross-game proof with automated boot conformance test.
-- OoT: validated cross-game proof with automated boot conformance test (streaming load, CI palette CRC).
+- SM64: validated cross-game compat-path proof with automated boot and fixed-title savestate fixture conformance tests.
+- OoT: validated cross-game compat-path proof with automated boot and fixed-title savestate fixture conformance tests (streaming load, CI palette CRC).
 - First strict Phase 1 fixtures:
   - title screen
   - file select

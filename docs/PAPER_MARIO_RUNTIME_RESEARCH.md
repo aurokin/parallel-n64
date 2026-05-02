@@ -36,7 +36,7 @@ Treat this document as a research notebook, not as plan authority.
 
 - The current file-select input-probe path is [`paper-mario-file-select-input-probe.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-file-select-input-probe.sh).
 - The savefile-backed deep branch is reproducible but still menu-bound:
-  - staging the local `.srm`, holding `START` for `120` frames, and settling to `frame=423` lands on screenshot hash `89cb1bddd5c2dd2a62b063210af11c2324eca04d3060e746042edc0323b00e8e`
+  - staging the local `.srm`, holding `START` for `120` frames, and settling to `frame=423` lands on capture identity digest `89cb1bddd5c2dd2a62b063210af11c2324eca04d3060e746042edc0323b00e8e`
   - semantics stay in `state_init_file_select` / `state_step_file_select` with `entryID=11`
 - A no-input control run back out to `frame=423` from the authoritative file-select state reproduces the canonical file-select hash `6fa8688b382fa1e6f0323f054861a85f593d2d47ca737bb78448e3f268ca63e3`, so the deeper branch is input-caused rather than a pure settle-time effect.
 - One-frame `START` and `A` pulses are not no-ops under the current savefile-backed setup. With the current settle, both collapse to the same first deeper branch.
@@ -118,7 +118,7 @@ Treat this document as a research notebook, not as plan authority.
   - `7701ac09`: offline dedupe and broader asset aliasing are proven review-only package-shaping tools, not default behavior
 - The `91887078` zero-selector singleton remains useful evidence but not safe to promote:
   - it converts `10296` timeout misses into exact hits at `960`
-  - the gameplay frame stays byte-identical
+  - the gameplay frame keeps the same feature-off capture identity
   - selected-package title and file-select authorities change heavily
   - `kmr_03 ENTRY_5` stays unchanged
 - The tracked review-only reduction lane is currently driven by:
@@ -163,8 +163,8 @@ Treat this document as a research notebook, not as plan authority.
   - [hts2phrb.py](/home/auro/code/parallel-n64/tools/hts2phrb.py) is the generic legacy-pack front door.
   - Important behavior:
     - zero-config `--cache <pack>` defaults to all-family inventory mode
-    - accepts bundle directories, `traces/hires-evidence.json`, and `validation-summary.{json,md}`
-    - accepts repeatable `--context-bundle` inputs as enrichment-only context
+    - accepts bundle directories, `traces/hires-evidence.json`, and `validation-summary.{json,md}` for primary `--bundle` evidence
+    - accepts repeatable passed `validation-summary.{json,md}` `--context-bundle` inputs as enrichment-only context; direct `hires-evidence.json` traces are runtime evidence only
     - always emits canonical loader/package output
     - can apply review-only duplicate, alias, and review-profile shaping
     - emits runtime-overlay artifacts only when overlay building is enabled and deterministic bindings exist, unless overlay is forced
@@ -175,7 +175,7 @@ Treat this document as a research notebook, not as plan authority.
 ## Experimental Overrides And Debug Flags
 
 - Use `RUNTIME_ENV_OVERRIDE` for temporary experiments; runtime env files are auto-exported while sourcing.
-- Use `DISABLE_SCREENSHOT_VERIFY=1` only when controlled experiments are expected to diverge from locked strict hashes.
+- Use `DISABLE_SCREENSHOT_VERIFY=1` only when controlled experiments are expected to diverge from locked feature-off capture identities.
 - Prefer the real `PARALLEL_RDP_HIRES_FILTER_*` names; `HIRES_FILTER_*` remains compatibility fallback only.
 - Current verified filter isolation:
   - file select `allow_block=0` is a no-op and preserves the locked `on` hash

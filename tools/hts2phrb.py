@@ -20,7 +20,11 @@ from hires_pack_common import (
     read_entry_blob,
     resolve_bundle_input_path,
     resolve_context_bundle_input_paths,
+    resolve_artifact_path,
     resolve_legacy_cache_path,
+    resolve_summary_bundle_reference,
+    _validate_direct_hires_evidence_path,
+    _validate_enrichment_fixture_bundle,
 )
 from hires_pack_emit_binary_package import emit_binary_package_from_manifest
 from hires_pack_emit_loader_manifest import build_canonical_loader_manifest, build_loader_manifest
@@ -34,6 +38,7 @@ from hires_pack_migrate import (
 )
 
 HTS2PHRB_ARTIFACT_VERSION = 7
+TOOL_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def merge_unique_strings(*groups):
@@ -512,9 +517,74 @@ def fingerprint_path(value):
     }
 
 
+def bundle_provenance_fingerprints(bundle_resolution):
+    if not bundle_resolution or not bundle_resolution.get("resolved_bundle_path"):
+        return []
+    bundle_path = Path(bundle_resolution["resolved_bundle_path"])
+    sidecars = [
+        bundle_path / "bundle.json",
+        bundle_path / "config.env",
+        bundle_path / "traces" / "fixture-verification.json",
+        bundle_path / "retroarch.session.env",
+        bundle_path / "retroarch.run.env",
+        bundle_path / "retroarch.expected.commands.log",
+        bundle_path / "retroarch.planned.commands.log",
+        bundle_path / "retroarch.attempted.commands.log",
+        bundle_path / "retroarch.executed.commands.log",
+        bundle_path / "retroarch.command-proofs.log",
+        bundle_path / "logs" / "retroarch.commands.log",
+        bundle_path / "traces" / "hires-tile-family-report.json",
+        bundle_path / "traces" / "hires-block-family-report.json",
+    ]
+    hires_path = Path(bundle_resolution.get("resolved_hires_path", ""))
+    if hires_path.is_file():
+        try:
+            hires_data = json.loads(hires_path.read_text())
+            log_path_value = hires_data.get("log_path")
+            if log_path_value:
+                log_path = resolve_artifact_path(bundle_path, log_path_value, artifact_base=hires_path.parent)
+                if log_path is not None:
+                    sidecars.append(log_path)
+        except (OSError, json.JSONDecodeError):
+            pass
+    session_env_path = bundle_path / "retroarch.session.env"
+    if session_env_path.is_file():
+        try:
+            for line in session_env_path.read_text(errors="replace").splitlines():
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                if key in {"BASE_CONFIG", "APPEND_CONFIG", "CORE_OPTIONS_FILE"} and value:
+                    sidecars.append(Path(value))
+        except OSError:
+            pass
+    if bundle_resolution.get("validation_summary_path"):
+        sidecars.append(Path(bundle_resolution["validation_summary_path"]))
+    return [
+        {
+            "path": str(path.resolve()),
+            "fingerprint": fingerprint_path(path),
+        }
+        for path in sidecars
+    ]
+
+
+def tool_fingerprint():
+    relevant_paths = sorted((TOOL_REPO_ROOT / "tools").glob("hires_pack*.py"))
+    relevant_paths.extend([
+        TOOL_REPO_ROOT / "tools" / "hts2phrb.py",
+        TOOL_REPO_ROOT / "tools" / "hires_pack_transport_policy.json",
+    ])
+    return {
+        str(path.relative_to(TOOL_REPO_ROOT)): fingerprint_path(path)
+        for path in relevant_paths
+    }
+
+
 def make_pre_request_signature(args, cache_resolution, bundle_resolution):
     return {
         "artifact_contract_version": HTS2PHRB_ARTIFACT_VERSION,
+        "tool_fingerprint": tool_fingerprint(),
         "resolved_cache_path": str(Path(cache_resolution["resolved_path"]).resolve()),
         "resolved_cache_storage": cache_resolution["resolved_storage"],
         "cache_fingerprint": fingerprint_path(cache_resolution["resolved_path"]),
@@ -533,6 +603,7 @@ def make_pre_request_signature(args, cache_resolution, bundle_resolution):
             if bundle_resolution and bundle_resolution.get("resolved_hires_path")
             else None
         ),
+        "bundle_provenance_fingerprints": bundle_provenance_fingerprints(bundle_resolution),
         "bundle_mode": args.bundle_mode,
         "bundle_step": args.bundle_step,
         "context_bundle_paths": [
@@ -541,6 +612,10 @@ def make_pre_request_signature(args, cache_resolution, bundle_resolution):
         ],
         "context_bundle_fingerprints": [
             fingerprint_path(item["resolved_hires_path"])
+            for item in getattr(args, "context_bundle_resolutions", [])
+        ],
+        "context_bundle_provenance_fingerprints": [
+            bundle_provenance_fingerprints(item)
             for item in getattr(args, "context_bundle_resolutions", [])
         ],
         "import_policy_path": normalize_optional_path(args.import_policy),
@@ -590,6 +665,7 @@ def make_pre_request_signature(args, cache_resolution, bundle_resolution):
 def make_request_signature(args, cache_resolution, request_mode, requested_pairs, bundle_resolution):
     return {
         "artifact_contract_version": HTS2PHRB_ARTIFACT_VERSION,
+        "tool_fingerprint": tool_fingerprint(),
         "resolved_cache_path": str(Path(cache_resolution["resolved_path"]).resolve()),
         "resolved_cache_storage": cache_resolution["resolved_storage"],
         "cache_fingerprint": fingerprint_path(cache_resolution["resolved_path"]),
@@ -610,6 +686,7 @@ def make_request_signature(args, cache_resolution, request_mode, requested_pairs
             if bundle_resolution and bundle_resolution.get("resolved_hires_path")
             else None
         ),
+        "bundle_provenance_fingerprints": bundle_provenance_fingerprints(bundle_resolution),
         "bundle_mode": args.bundle_mode,
         "bundle_step": args.bundle_step,
         "context_bundle_paths": [
@@ -618,6 +695,10 @@ def make_request_signature(args, cache_resolution, request_mode, requested_pairs
         ],
         "context_bundle_fingerprints": [
             fingerprint_path(item["resolved_hires_path"])
+            for item in getattr(args, "context_bundle_resolutions", [])
+        ],
+        "context_bundle_provenance_fingerprints": [
+            bundle_provenance_fingerprints(item)
             for item in getattr(args, "context_bundle_resolutions", [])
         ],
         "import_policy_path": normalize_optional_path(args.import_policy),
@@ -691,7 +772,7 @@ def try_load_reusable_report(report_path: Path, request_signature: dict):
     if report_signature is not None:
         if report_signature != request_signature:
             return None
-    elif not legacy_report_matches_request(report, request_signature):
+    else:
         return None
     if not reusable_report_artifacts_are_consistent(report):
         return None
@@ -1011,6 +1092,55 @@ def dedupe_context_bundle_resolutions(context_bundle_resolutions):
     return deduped
 
 
+def mark_rejected_context_summary_hires_paths(
+    summary_path: Path,
+    summary_data,
+    seen_hires_paths,
+    *,
+    step_frames=None,
+    mode="on",
+):
+    bundle_refs = []
+    fixtures = summary_data.get("fixtures", []) or []
+    fixture_summary_invalid = bool(fixtures) and (
+        summary_data.get("all_passed") is not True
+        or any(not isinstance(fixture, dict) or fixture.get("passed") is not True for fixture in fixtures)
+    )
+    for step in summary_data.get("steps", []) or []:
+        if not isinstance(step, dict):
+            continue
+        bundle_ref = step.get(f"{mode}_bundle")
+        if bundle_ref:
+            bundle_refs.append((bundle_ref, False))
+    for fixture in summary_data.get("fixtures", []) or []:
+        if not isinstance(fixture, dict):
+            continue
+        bundle_ref = fixture.get("bundle_dir")
+        if bundle_ref:
+            force_suppress = fixture_summary_invalid
+            bundle_refs.append((bundle_ref, force_suppress))
+
+    for bundle_ref, force_suppress in bundle_refs:
+        try:
+            _, hires_path, _ = resolve_summary_bundle_reference(summary_path, bundle_ref)
+        except (ValueError, KeyError, FileNotFoundError):
+            continue
+        if hires_path.name != "hires-evidence.json":
+            continue
+        if force_suppress or step_frames is not None or summary_data.get("steps"):
+            seen_hires_paths.add(str(hires_path.resolve()))
+            continue
+        try:
+            resolve_context_bundle_input_paths(
+                hires_path,
+                step_frames=step_frames,
+                mode=mode,
+                require_enrichment_evidence=True,
+            )
+        except (ValueError, KeyError, FileNotFoundError):
+            seen_hires_paths.add(str(hires_path.resolve()))
+
+
 def normalize_low32(value):
     if value is None or value == "":
         return None
@@ -1085,6 +1215,11 @@ def summarize_migration_plan(plan):
         "tier_counts": dict(plan.get("tier_counts", {})),
         "active_pool_counts": dict(active_pool_counts),
     }
+
+
+def json_payload_sha256(value) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def summarize_imported_index(imported_index):
@@ -3555,7 +3690,27 @@ def evaluate_conversion_gates(args, report):
     return failures
 
 
-def resolve_requested_pairs(args, entries, bundle_resolution=None):
+def validate_bundle_resolution_for_cache(bundle_resolution, cache_path: Path):
+    bundle_path = Path(bundle_resolution["resolved_bundle_path"])
+    bundle_hires_path = Path(bundle_resolution["resolved_hires_path"])
+    _validate_enrichment_fixture_bundle(
+        bundle_path,
+        bundle_hires_path,
+        {"fixture_id": bundle_resolution.get("fixture_id")},
+        Path(bundle_resolution.get("input_path") or bundle_path),
+        expected_cache_path=cache_path,
+        expected_cache_sha256=hashlib.sha256(cache_path.read_bytes()).hexdigest(),
+    )
+
+
+def validate_resolved_bundle_inputs(args, cache_path: Path, bundle_resolution=None):
+    if bundle_resolution is not None:
+        validate_bundle_resolution_for_cache(bundle_resolution, cache_path)
+    for context_resolution in getattr(args, "context_bundle_resolutions", []):
+        validate_bundle_resolution_for_cache(context_resolution, cache_path)
+
+
+def resolve_requested_pairs(args, entries, bundle_resolution=None, cache_path=None):
     requested_pairs = []
     bundle_context = {}
     bundle_sampled_context = {}
@@ -3577,9 +3732,11 @@ def resolve_requested_pairs(args, entries, bundle_resolution=None):
                 mode=args.bundle_mode,
             )
         bundle_path = Path(bundle_resolution["resolved_bundle_path"])
-        requested_pairs.extend(parse_bundle_families(bundle_path))
-        bundle_context = parse_bundle_ci_context(bundle_path)
-        bundle_sampled_context = parse_bundle_sampled_object_context(bundle_path)
+        bundle_hires_path = Path(bundle_resolution["resolved_hires_path"])
+        validate_bundle_resolution_for_cache(bundle_resolution, Path(cache_path))
+        requested_pairs.extend(parse_bundle_families(bundle_path, hires_path=bundle_hires_path))
+        bundle_context = parse_bundle_ci_context(bundle_path, hires_path=bundle_hires_path)
+        bundle_sampled_context = parse_bundle_sampled_object_context(bundle_path, hires_path=bundle_hires_path)
     else:
         bundle_resolution = None
 
@@ -3645,6 +3802,7 @@ def build_conversion(args):
                 Path(context_bundle),
                 step_frames=args.bundle_step,
                 mode=args.bundle_mode,
+                require_enrichment_evidence=True,
             )
         )
     context_dir_discovered = 0
@@ -3653,24 +3811,72 @@ def build_conversion(args):
         context_dir_path = Path(context_dir)
         if not context_dir_path.is_dir():
             raise ValueError(f"--context-dir path is not a directory: {context_dir}")
+        context_dir_seen_hires_paths = {
+            str(Path(resolution["resolved_hires_path"]).resolve())
+            for resolution in context_bundle_resolutions
+            if resolution.get("resolved_hires_path")
+        }
         for summary_path in sorted(context_dir_path.rglob("validation-summary.json")):
+            summary_data = None
             try:
-                context_bundle_resolutions.extend(
-                    resolve_context_bundle_input_paths(
+                summary_data = json.loads(summary_path.read_text())
+                summary_resolutions = resolve_context_bundle_input_paths(
+                    summary_path,
+                    step_frames=args.bundle_step,
+                    mode=args.bundle_mode,
+                    require_enrichment_evidence=True,
+                )
+                context_bundle_resolutions.extend(summary_resolutions)
+                for resolution in summary_resolutions:
+                    if resolution.get("resolved_hires_path"):
+                        context_dir_seen_hires_paths.add(str(Path(resolution["resolved_hires_path"]).resolve()))
+                summary_steps = (summary_data or {}).get("steps") or []
+                if summary_steps:
+                    mark_rejected_context_summary_hires_paths(
                         summary_path,
+                        summary_data,
+                        context_dir_seen_hires_paths,
                         step_frames=args.bundle_step,
                         mode=args.bundle_mode,
                     )
-                )
                 context_dir_discovered += 1
             except (ValueError, KeyError, FileNotFoundError) as exc:
+                if summary_data is not None:
+                    mark_rejected_context_summary_hires_paths(
+                        summary_path,
+                        summary_data,
+                        context_dir_seen_hires_paths,
+                        step_frames=args.bundle_step,
+                        mode=args.bundle_mode,
+                    )
                 context_dir_skipped += 1
                 print(f"context-dir: skipping {summary_path}: {exc}", file=sys.stderr)
+        if args.context_dir_include_raw_hires:
+            for hires_path in sorted(path for path in context_dir_path.rglob("hires-evidence.json") if path.parent.name == "traces"):
+                resolved_hires_path = str(hires_path.resolve())
+                if resolved_hires_path in context_dir_seen_hires_paths:
+                    continue
+                try:
+                    hires_resolutions = resolve_context_bundle_input_paths(
+                        hires_path,
+                        step_frames=args.bundle_step,
+                        mode=args.bundle_mode,
+                        require_enrichment_evidence=True,
+                    )
+                    context_bundle_resolutions.extend(hires_resolutions)
+                    for resolution in hires_resolutions:
+                        if resolution.get("resolved_hires_path"):
+                            context_dir_seen_hires_paths.add(str(Path(resolution["resolved_hires_path"]).resolve()))
+                    context_dir_discovered += 1
+                except (ValueError, KeyError, FileNotFoundError) as exc:
+                    context_dir_skipped += 1
+                    print(f"context-dir: skipping {hires_path}: {exc}", file=sys.stderr)
     if context_dir_discovered or context_dir_skipped:
         print(f"context-dir: discovered {context_dir_discovered}, skipped {context_dir_skipped}", file=sys.stderr)
     context_bundle_resolutions = dedupe_context_bundle_resolutions(context_bundle_resolutions)
     stage_timings_ms["resolve_context_bundles"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
     args.context_bundle_resolutions = context_bundle_resolutions
+    validate_resolved_bundle_inputs(args, cache_path, bundle_resolution=bundle_resolution)
     output_dir, output_dir_was_default = resolve_output_dir(args, cache_input_path, cache_resolution, bundle_resolution=bundle_resolution)
     output_dir.mkdir(parents=True, exist_ok=True)
     progress_path = output_dir / "hts2phrb-progress.json"
@@ -3850,6 +4056,49 @@ def build_conversion(args):
     write_progress(**initial_progress_fields)
 
     if resume_from_progress:
+        candidate_migrate_result = json.loads(migration_plan_path.read_text())
+        candidate_migrate_result_sha256 = json_payload_sha256(candidate_migrate_result)
+        candidate_request_mode = str(
+            reusable_progress.get("request_mode")
+            or candidate_migrate_result.get("request_mode")
+            or "bundle-or-low32"
+        )
+        candidate_requested_pairs = [
+            (int(str(family.get("low32") or "0"), 16), int(family.get("formatsize", 0)))
+            for family in (candidate_migrate_result.get("plan", {}).get("families") or [])
+        ]
+        candidate_request_signature = make_request_signature(
+            args,
+            cache_resolution,
+            candidate_request_mode,
+            candidate_requested_pairs,
+            bundle_resolution,
+        )
+        progress_request_signature = reusable_progress.get("request_signature")
+        progress_plan_summary = reusable_progress.get("migration_plan_summary")
+        progress_index_summary = reusable_progress.get("imported_index_summary")
+        progress_entry_count = reusable_progress.get("entry_count")
+        progress_migration_plan_sha256 = reusable_progress.get("migration_plan_payload_sha256")
+        if (
+            progress_migration_plan_sha256 != candidate_migrate_result_sha256 or
+            (progress_request_signature is not None and progress_request_signature != candidate_request_signature)
+            or (
+                progress_plan_summary is not None
+                and progress_plan_summary != summarize_migration_plan(candidate_migrate_result.get("plan", {}))
+            )
+            or (
+                progress_index_summary is not None
+                and progress_index_summary != summarize_imported_index(candidate_migrate_result.get("imported_index", {}))
+            )
+            or (
+                progress_entry_count is not None
+                and int(progress_entry_count) != int(candidate_migrate_result.get("entry_count", 0))
+            )
+        ):
+            reusable_progress = None
+            resume_from_progress = False
+
+    if resume_from_progress:
         migrate_result = json.loads(migration_plan_path.read_text())
         canonical_family_selection_review_summary = (
             reusable_progress.get("canonical_family_selection_review_summary")
@@ -3883,6 +4132,7 @@ def build_conversion(args):
             request_signature=request_signature,
             reused_stage_names=reused_stage_names,
             migration_plan_path=str(migration_plan_path),
+            migration_plan_payload_sha256=json_payload_sha256(migrate_result),
             migration_plan_summary=summarize_migration_plan(migrate_result["plan"]),
             imported_index_summary=summarize_imported_index(migrate_result["imported_index"]),
         )
@@ -3897,16 +4147,18 @@ def build_conversion(args):
             args,
             entries,
             bundle_resolution=bundle_resolution,
+            cache_path=cache_path,
         )
         for context_resolution in context_bundle_resolutions:
             context_bundle_path = Path(context_resolution["resolved_bundle_path"])
+            context_hires_path = Path(context_resolution["resolved_hires_path"])
             bundle_context = merge_bundle_ci_contexts(
-                parse_bundle_ci_context(context_bundle_path),
+                parse_bundle_ci_context(context_bundle_path, hires_path=context_hires_path),
                 bundle_context,
             )
             bundle_sampled_context = merge_bundle_sampled_object_contexts(
                 bundle_sampled_context,
-                parse_bundle_sampled_object_context(context_bundle_path),
+                parse_bundle_sampled_object_context(context_bundle_path, hires_path=context_hires_path),
             )
         stage_timings_ms["resolve_requested_pairs"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
         write_progress(
@@ -4087,6 +4339,7 @@ def build_conversion(args):
         stage_timings_ms["build_migration_plan"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
         write_progress(
             migration_plan_path=str(migration_plan_path),
+            migration_plan_payload_sha256=json_payload_sha256(migrate_result),
             migration_plan_summary=summarize_migration_plan(migrate_result["plan"]),
             imported_index_summary=summarize_imported_index(migrate_result["imported_index"]),
             canonical_family_selection_review_summary=canonical_family_selection_review_summary,
@@ -4570,8 +4823,9 @@ def main():
     )
     parser.add_argument("--cache", required=True, help="Path to the legacy .hts/.htc cache file or a directory containing one.")
     parser.add_argument("--bundle", help="Optional evidence input. Accepts a bundle directory, traces/hires-evidence.json, validation-summary.json, or validation-summary.md.")
-    parser.add_argument("--context-bundle", action="append", default=[], help="Optional evidence input used only to enrich sampled/CI context. Pass multiple times. Does not change requested families unless --bundle is also supplied.")
-    parser.add_argument("--context-dir", action="append", default=[], help="Directory to scan recursively for validation-summary.json files. Each discovered summary is treated as an implicit --context-bundle input. Pass multiple times.")
+    parser.add_argument("--context-bundle", action="append", default=[], help="Optional passed validation-summary.json/.md input used only to enrich sampled/CI context. Pass multiple times. Direct hires-evidence inputs are rejected for enrichment. Does not change requested families unless --bundle is also supplied.")
+    parser.add_argument("--context-dir", action="append", default=[], help="Directory to scan recursively for validation-summary.json files. Each discovered input is treated as an implicit --context-bundle input. Pass multiple times.")
+    parser.add_argument("--context-dir-include-raw-hires", action="store_true", help="Also scan --context-dir for unreferenced traces/hires-evidence.json files so they are explicitly reported as rejected. Raw hi-res evidence is not accepted as enrichment context; use passed validation-summary.json inputs.")
     parser.add_argument("--bundle-step", type=int, help="When --bundle points to a validation summary, select this step_frames value.")
     parser.add_argument("--bundle-mode", choices=("on", "off"), default="on", help="When --bundle points to a validation summary, choose which bundle side to resolve. Defaults to on.")
     parser.add_argument("--low32", action="append", default=[], help="Optional low32 texture CRC in hex.")

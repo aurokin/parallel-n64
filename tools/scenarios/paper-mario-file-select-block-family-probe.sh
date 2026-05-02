@@ -126,7 +126,13 @@ PY
 )"
 
 ROM_PATH="$REPO_ROOT/assets/Paper Mario (USA).zip"
-PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")}"
+ANALYSIS_CACHE_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")}"
+PACK_PATH="$ANALYSIS_CACHE_PATH"
+PACK_SHA256="$(scenario_sha256_file "$PACK_PATH")"
+if [[ "$MODE" == "off" ]]; then
+  PACK_PATH=""
+  PACK_SHA256="missing"
+fi
 RETROARCH_PATH="/home/auro/code/RetroArch"
 AUTHORITATIVE_STATE_PATH=""
 AUTHORITATIVE_STATE_SHA256="missing"
@@ -149,7 +155,7 @@ cat > "$BUNDLE_DIR/bundle.json" <<EOF
     "rom_path": "$ROM_PATH",
     "rom_sha256": "$(scenario_sha256_file "$ROM_PATH")",
     "hires_pack_path": "$PACK_PATH",
-    "hires_pack_sha256": "$(scenario_sha256_file "$PACK_PATH")",
+    "hires_pack_sha256": "$PACK_SHA256",
     "retroarch_path": "$RETROARCH_PATH"
   },
   "probe": {
@@ -164,6 +170,14 @@ cat > "$BUNDLE_DIR/bundle.json" <<EOF
 }
 EOF
 
+cat > "$BUNDLE_DIR/config.env" <<EOF
+FIXTURE_ID=$FIXTURE_ID
+MODE=$MODE
+ROM_PATH=$ROM_PATH
+HIRES_PACK_PATH=$PACK_PATH
+RETROARCH_PATH=$RETROARCH_PATH
+EOF
+
 if (( DRY_RUN )); then
   echo "[scenario] dry-run complete; runtime launch is intentionally deferred."
   exit 0
@@ -171,8 +185,20 @@ fi
 
 scenario_source_runtime_env "$RUNTIME_ENV"
 
-PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
-scenario_require_phrb_runtime_cache "$PACK_PATH"
+ANALYSIS_CACHE_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$ANALYSIS_CACHE_PATH}"
+if [[ "$MODE" == "on" ]]; then
+  PACK_PATH="$ANALYSIS_CACHE_PATH"
+  scenario_require_phrb_runtime_cache "$PACK_PATH"
+  PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP=1
+  PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE=1
+  export PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE
+  PACK_SHA256="$(scenario_sha256_file "$PACK_PATH")"
+else
+  PACK_PATH=""
+  PACK_SHA256="missing"
+fi
+scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"hires_pack_path": "[^"]*"|"hires_pack_path": "'"${PACK_PATH}"'"|g; s|"hires_pack_sha256": "[^"]*"|"hires_pack_sha256": "'"${PACK_SHA256}"'"|g'
+scenario_patch_file "$BUNDLE_DIR/config.env" 's|HIRES_PACK_PATH=.*|HIRES_PACK_PATH='"${PACK_PATH}"'|g'
 
 if [[ ! -f "${AUTHORITATIVE_STATE_PATH:-}" ]]; then
   echo "[scenario] authoritative file-select state is required." >&2
@@ -183,19 +209,14 @@ AUTHORITATIVE_STATE_SHA256="$(scenario_sha256_file "$AUTHORITATIVE_STATE_PATH")"
 VERIFY_SCREENSHOT_SHA256=""
 if [[ "$MODE" == "off" ]]; then
   VERIFY_SCREENSHOT_SHA256="${EXPECTED_SCREENSHOT_SHA256_OFF:-${EXPECTED_SCREENSHOT_SHA256:-}}"
-else
-  VERIFY_SCREENSHOT_SHA256="${EXPECTED_SCREENSHOT_SHA256_ON:-}"
 fi
 
 mkdir -p "$BUNDLE_DIR/states/ParaLLEl N64"
 cp "$AUTHORITATIVE_STATE_PATH" "$BUNDLE_DIR/states/ParaLLEl N64/Paper Mario (USA).state"
 
-scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"scenario_state": "bundle_initialized"|"scenario_state": "runtime_prepared"|g; s|"runtime_executed": false|"runtime_executed": true|g'
+scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"scenario_state": "bundle_initialized"|"scenario_state": "runtime_prepared"|g'
 
-PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
-PARALLEL_RDP_HIRES_CACHE_PATH="$PACK_PATH" \
-PARALLEL_RDP_HIRES_DEBUG="$([[ "$MODE" == "on" ]] && echo 1 || echo 0)" \
-"$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" \
+ADAPTER_ARGS=(
   --bundle-dir "$BUNDLE_DIR" \
   --mode "$MODE" \
   --retroarch-bin "$RETROARCH_BIN" \
@@ -221,6 +242,43 @@ PARALLEL_RDP_HIRES_DEBUG="$([[ "$MODE" == "on" ]] && echo 1 || echo 0)" \
   --command "SCREENSHOT" \
   --command "WAIT_NEW_CAPTURE 10" \
   --command "QUIT"
+)
+
+HIRES_ENV_UNSET=(
+  -u RUNTIME_ENV_OVERRIDE
+  -u PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE
+  -u PARALLEL_RDP_HIRES_CACHE_PATH
+  -u PARALLEL_RDP_HIRES_CI_COMPAT
+  -u PARALLEL_RDP_HIRES_CI_LOW32_FALLBACK
+  -u PARALLEL_RDP_HIRES_CI_PALETTE_PROBE
+  -u PARALLEL_RDP_HIRES_CI_SELECT
+  -u PARALLEL_RDP_HIRES_DEBUG
+  -u PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK
+  -u PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE
+  -u PARALLEL_RDP_HIRES_FILTER_SIGNATURES
+  -u PARALLEL_RDP_HIRES_GLIDEN64_COMPAT_CRC
+  -u PARALLEL_RDP_HIRES_GPU_BUDGET_MB
+  -u PARALLEL_RDP_HIRES_PHRB_DEBUG
+  -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP
+  -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE
+  -u HIRES_FILTER_ALLOW_TILE
+  -u HIRES_FILTER_ALLOW_BLOCK
+  -u HIRES_FILTER_SIGNATURES
+)
+
+if [[ "$MODE" == "on" ]]; then
+  PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
+  PARALLEL_RDP_HIRES_CACHE_PATH="$PACK_PATH" \
+  PARALLEL_RDP_HIRES_DEBUG=1 \
+  PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP=1 \
+  PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE=1 \
+  "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" "${ADAPTER_ARGS[@]}"
+else
+  env "${HIRES_ENV_UNSET[@]}" \
+  PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
+  "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" "${ADAPTER_ARGS[@]}"
+fi
+scenario_assert_adapter_runtime_success "$BUNDLE_DIR"
 
 if [[ -f "$BUNDLE_DIR/traces/paper-mario-gamestatus.core-memory.txt" ]]; then
   scenario_decode_paper_mario_semantic_state \
@@ -243,7 +301,7 @@ scenario_verify_paper_mario_fixture \
 python3 "$REPO_ROOT/tools/hires_block_family_probe.py" analyze \
   --plan "$PLAN_JSON" \
   --snapshot-trace "$BUNDLE_DIR/traces/paper-mario-block-family-span.core-memory.txt" \
-  --cache "$PACK_PATH" \
+  --cache "$ANALYSIS_CACHE_PATH" \
   --output-json "$REPORT_JSON" \
   --output-markdown "$REPORT_MD"
 

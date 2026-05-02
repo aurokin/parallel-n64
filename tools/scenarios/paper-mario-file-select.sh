@@ -204,16 +204,19 @@ if (( DRY_RUN )); then
 else
   scenario_source_runtime_env "$RUNTIME_ENV"
 
-  PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
-  scenario_require_phrb_runtime_cache "$PACK_PATH"
-  scenario_configure_hires_runtime_env_for_cache "$PACK_PATH"
-  PACK_SHA256="$(scenario_sha256_file "$PACK_PATH")"
+  if [[ "$MODE" == "on" ]]; then
+    PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
+    scenario_require_phrb_runtime_cache "$PACK_PATH"
+    scenario_configure_hires_runtime_env_for_cache "$PACK_PATH"
+    PACK_SHA256="$(scenario_sha256_file "$PACK_PATH")"
+  else
+    PACK_PATH=""
+    PACK_SHA256="missing"
+  fi
 
   VERIFY_SCREENSHOT_SHA256=""
   if [[ "$MODE" == "off" ]]; then
     VERIFY_SCREENSHOT_SHA256="${EXPECTED_SCREENSHOT_SHA256_OFF:-${EXPECTED_SCREENSHOT_SHA256:-}}"
-  elif [[ "$MODE" == "on" ]]; then
-    VERIFY_SCREENSHOT_SHA256="${EXPECTED_SCREENSHOT_SHA256_ON:-}"
   fi
   if [[ "${DISABLE_SCREENSHOT_VERIFY:-0}" == "1" ]]; then
     VERIFY_SCREENSHOT_SHA256=""
@@ -274,15 +277,48 @@ else
   scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"hires_pack_path": "[^"]*"|"hires_pack_path": "'"${PACK_PATH}"'"|g; s|"hires_pack_sha256": "[^"]*"|"hires_pack_sha256": "'"${PACK_SHA256}"'"|g; s|"savefile_path": ""|"savefile_path": "'"${SAVEFILE_PATH:-}"'"|g; s|"savefile_present": false|"savefile_present": '"$(scenario_json_bool "$SAVEFILE_PRESENT")"'|g; s|"savefile_sha256": "missing"|"savefile_sha256": "'"${SAVEFILE_SHA256:-missing}"'"|g; s|"authority_mode_used": "none"|"authority_mode_used": "'"${AUTHORITY_MODE_USED:-none}"'"|g; s|"bootstrap_parent_fixture_id": "paper-mario-title-screen"|"bootstrap_parent_fixture_id": "'"${BOOTSTRAP_PARENT_FIXTURE_ID:-}"'"|g; s|"remint_script": "tools/scenarios/remint-paper-mario-file-select-authority.sh"|"remint_script": "'"${REMINT_SCRIPT:-}"'"|g; s|"authoritative_state_path": ""|"authoritative_state_path": "'"${AUTHORITATIVE_STATE_PATH:-}"'"|g; s|"authoritative_state_present": false|"authoritative_state_present": '"$(scenario_json_bool "$AUTHORITATIVE_STATE_PRESENT")"'|g; s|"authoritative_state_sha256": "missing"|"authoritative_state_sha256": "'"${AUTHORITATIVE_STATE_SHA256:-missing}"'"|g; s|"bootstrap_state_path": ""|"bootstrap_state_path": "'"${BOOTSTRAP_STATE_PATH:-}"'"|g; s|"bootstrap_state_present": false|"bootstrap_state_present": '"$(scenario_json_bool "$BOOTSTRAP_STATE_PRESENT")"'|g; s|"bootstrap_state_sha256": "missing"|"bootstrap_state_sha256": "'"${BOOTSTRAP_STATE_SHA256:-missing}"'"|g; s|"active_state_path": ""|"active_state_path": "'"${ACTIVE_STATE_PATH:-}"'"|g; s|"active_state_sha256": "missing"|"active_state_sha256": "'"${ACTIVE_STATE_SHA256:-missing}"'"|g; s|"post_load_settle_frames": 0|"post_load_settle_frames": '"${POST_LOAD_SETTLE_FRAMES:-0}"'|g; s|"start_mask": ""|"start_mask": "'"${FILE_SELECT_START_MASK:-}"'"|g; s|"start_hold_frames": 0|"start_hold_frames": '"${FILE_SELECT_START_HOLD_FRAMES:-0}"'|g; s|"target_frame": 0|"target_frame": '"${FILE_SELECT_TARGET_FRAME:-0}"'|g'
   scenario_patch_file "$BUNDLE_DIR/config.env" 's|HIRES_PACK_PATH=.*|HIRES_PACK_PATH='"${PACK_PATH}"'|g; s|SAVEFILE_PATH=|SAVEFILE_PATH='"${SAVEFILE_PATH:-}"'|g; s|SAVEFILE_PRESENT=0|SAVEFILE_PRESENT='"$SAVEFILE_PRESENT"'|g; s|SAVEFILE_SHA256=missing|SAVEFILE_SHA256='"${SAVEFILE_SHA256:-missing}"'|g; s|AUTHORITY_MODE_USED=none|AUTHORITY_MODE_USED='"${AUTHORITY_MODE_USED:-none}"'|g; s|BOOTSTRAP_PARENT_FIXTURE_ID=paper-mario-title-screen|BOOTSTRAP_PARENT_FIXTURE_ID='"${BOOTSTRAP_PARENT_FIXTURE_ID:-}"'|g; s|REMINT_SCRIPT=tools/scenarios/remint-paper-mario-file-select-authority.sh|REMINT_SCRIPT='"${REMINT_SCRIPT:-}"'|g; s|AUTHORITATIVE_STATE_PATH=|AUTHORITATIVE_STATE_PATH='"${AUTHORITATIVE_STATE_PATH:-}"'|g; s|AUTHORITATIVE_STATE_PRESENT=0|AUTHORITATIVE_STATE_PRESENT='"$AUTHORITATIVE_STATE_PRESENT"'|g; s|AUTHORITATIVE_STATE_SHA256=missing|AUTHORITATIVE_STATE_SHA256='"${AUTHORITATIVE_STATE_SHA256:-missing}"'|g; s|BOOTSTRAP_STATE_PATH=|BOOTSTRAP_STATE_PATH='"${BOOTSTRAP_STATE_PATH:-}"'|g; s|BOOTSTRAP_STATE_PRESENT=0|BOOTSTRAP_STATE_PRESENT='"$BOOTSTRAP_STATE_PRESENT"'|g; s|BOOTSTRAP_STATE_SHA256=missing|BOOTSTRAP_STATE_SHA256='"${BOOTSTRAP_STATE_SHA256:-missing}"'|g; s|ACTIVE_STATE_PATH=|ACTIVE_STATE_PATH='"${ACTIVE_STATE_PATH:-}"'|g; s|ACTIVE_STATE_SHA256=missing|ACTIVE_STATE_SHA256='"${ACTIVE_STATE_SHA256:-missing}"'|g; s|POST_LOAD_SETTLE_FRAMES=0|POST_LOAD_SETTLE_FRAMES='"${POST_LOAD_SETTLE_FRAMES:-0}"'|g; s|FILE_SELECT_START_MASK=|FILE_SELECT_START_MASK='"${FILE_SELECT_START_MASK:-}"'|g; s|FILE_SELECT_START_HOLD_FRAMES=0|FILE_SELECT_START_HOLD_FRAMES='"${FILE_SELECT_START_HOLD_FRAMES:-0}"'|g; s|FILE_SELECT_TARGET_FRAME=0|FILE_SELECT_TARGET_FRAME='"${FILE_SELECT_TARGET_FRAME:-0}"'|g'
 
+  HIRES_ENV_UNSET=(
+    -u RUNTIME_ENV_OVERRIDE
+    -u PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE
+    -u PARALLEL_RDP_HIRES_CACHE_PATH
+    -u PARALLEL_RDP_HIRES_CI_COMPAT
+    -u PARALLEL_RDP_HIRES_CI_LOW32_FALLBACK
+    -u PARALLEL_RDP_HIRES_CI_PALETTE_PROBE
+    -u PARALLEL_RDP_HIRES_CI_SELECT
+    -u PARALLEL_RDP_HIRES_DEBUG
+    -u PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK
+    -u PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE
+    -u PARALLEL_RDP_HIRES_FILTER_SIGNATURES
+    -u PARALLEL_RDP_HIRES_GLIDEN64_COMPAT_CRC
+    -u PARALLEL_RDP_HIRES_GPU_BUDGET_MB
+    -u PARALLEL_RDP_HIRES_PHRB_DEBUG
+    -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP
+    -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE
+    -u HIRES_FILTER_ALLOW_TILE
+    -u HIRES_FILTER_ALLOW_BLOCK
+    -u HIRES_FILTER_SIGNATURES
+  )
+
+  run_adapter_for_mode() {
+    if [[ "$MODE" == "on" ]]; then
+      PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
+      PARALLEL_RDP_HIRES_CACHE_PATH="$PACK_PATH" \
+      PARALLEL_RDP_HIRES_DEBUG=1 \
+      PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE="${PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE:-}" \
+      PARALLEL_RDP_HIRES_CI_PALETTE_PROBE="${PARALLEL_RDP_HIRES_CI_PALETTE_PROBE:-}" \
+      PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE="${PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE:-${HIRES_FILTER_ALLOW_TILE:-}}" \
+      PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK="${PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK:-${HIRES_FILTER_ALLOW_BLOCK:-}}" \
+      PARALLEL_RDP_HIRES_FILTER_SIGNATURES="${PARALLEL_RDP_HIRES_FILTER_SIGNATURES:-${HIRES_FILTER_SIGNATURES:-}}" \
+      "$@"
+    else
+      env "${HIRES_ENV_UNSET[@]}" \
+      PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
+      "$@"
+    fi
+  }
+
   if [[ "$AUTHORITY_MODE_USED" == "authoritative" ]]; then
-    PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
-    PARALLEL_RDP_HIRES_CACHE_PATH="$PACK_PATH" \
-    PARALLEL_RDP_HIRES_DEBUG="$([[ "$MODE" == "on" ]] && echo 1 || echo 0)" \
-    PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE="${PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE:-}" \
-    PARALLEL_RDP_HIRES_CI_PALETTE_PROBE="${PARALLEL_RDP_HIRES_CI_PALETTE_PROBE:-}" \
-    PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE="${PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE:-${HIRES_FILTER_ALLOW_TILE:-}}" \
-    PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK="${PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK:-${HIRES_FILTER_ALLOW_BLOCK:-}}" \
-    PARALLEL_RDP_HIRES_FILTER_SIGNATURES="${PARALLEL_RDP_HIRES_FILTER_SIGNATURES:-${HIRES_FILTER_SIGNATURES:-}}" \
+    run_adapter_for_mode \
     "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" \
       --bundle-dir "$BUNDLE_DIR" \
       --mode "$MODE" \
@@ -319,14 +355,7 @@ else
     input_hold_target=$(( POST_LOAD_SETTLE_FRAMES + FILE_SELECT_START_HOLD_FRAMES ))
     remaining_frames=$(( FILE_SELECT_TARGET_FRAME - input_hold_target ))
 
-    PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
-    PARALLEL_RDP_HIRES_CACHE_PATH="$PACK_PATH" \
-    PARALLEL_RDP_HIRES_DEBUG="$([[ "$MODE" == "on" ]] && echo 1 || echo 0)" \
-    PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE="${PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE:-}" \
-    PARALLEL_RDP_HIRES_CI_PALETTE_PROBE="${PARALLEL_RDP_HIRES_CI_PALETTE_PROBE:-}" \
-    PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE="${PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE:-${HIRES_FILTER_ALLOW_TILE:-}}" \
-    PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK="${PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK:-${HIRES_FILTER_ALLOW_BLOCK:-}}" \
-    PARALLEL_RDP_HIRES_FILTER_SIGNATURES="${PARALLEL_RDP_HIRES_FILTER_SIGNATURES:-${HIRES_FILTER_SIGNATURES:-}}" \
+    run_adapter_for_mode \
     "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" \
       --bundle-dir "$BUNDLE_DIR" \
       --mode "$MODE" \
@@ -366,6 +395,7 @@ else
       --command "WAIT_NEW_CAPTURE 10" \
       --command "QUIT"
   fi
+  scenario_assert_adapter_runtime_success "$BUNDLE_DIR"
 
   if [[ -f "$BUNDLE_DIR/traces/paper-mario-gamestatus.core-memory.txt" ]]; then
     scenario_decode_paper_mario_semantic_state \

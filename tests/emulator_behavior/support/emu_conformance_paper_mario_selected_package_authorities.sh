@@ -130,6 +130,10 @@ if not summary.get("all_passed"):
     raise SystemExit("FAIL: selected-package authority summary is not all_passed.")
 if len(fixtures) != 3:
     raise SystemExit(f"FAIL: expected 3 fixtures, found {len(fixtures)}.")
+expected_labels = {"title-screen", "file-select", "kmr-03-entry-5"}
+actual_labels = {fixture.get("label") for fixture in fixtures}
+if actual_labels != expected_labels:
+    raise SystemExit(f"FAIL: expected selected-package fixture labels {sorted(expected_labels)!r}, got {sorted(actual_labels)!r}.")
 for fixture in fixtures:
     if not fixture.get("passed"):
         raise SystemExit(f"FAIL: fixture {fixture.get('label')} did not pass.")
@@ -141,8 +145,24 @@ for fixture in fixtures:
         )
     if int(hires.get("entry_count") or 0) < 1:
         raise SystemExit(f"FAIL: fixture {fixture.get('label')} has no hi-res entries.")
-    if int(hires.get("native_sampled_entry_count") or 0) < 1:
-        raise SystemExit(f"FAIL: fixture {fixture.get('label')} has no native sampled entries.")
+    if int(hires.get("native_sampled_entry_count") or 0) < 195:
+        raise SystemExit(
+            f"FAIL: fixture {fixture.get('label')} expected native_sampled_entry_count>=195, "
+            f"got {hires.get('native_sampled_entry_count')!r}."
+        )
+    descriptor_paths = hires.get("descriptor_path_counts") or {}
+    if int(descriptor_paths.get("sampled") or 0) <= 0:
+        raise SystemExit(f"FAIL: fixture {fixture.get('label')} has no sampled descriptor traffic.")
+    for key in ("native_checksum", "generic", "compat"):
+        if int(descriptor_paths.get(key) or 0) != 0:
+            raise SystemExit(
+                f"FAIL: fixture {fixture.get('label')} expected zero {key} descriptor traffic, "
+                f"got {descriptor_paths.get(key)!r}."
+            )
+    sampled_probe = fixture.get("sampled_object_probe") or {}
+    for key in ("exact_hit_count", "exact_miss_count", "exact_conflict_miss_count", "exact_unresolved_miss_count"):
+        if sampled_probe.get(key) is None:
+            raise SystemExit(f"FAIL: fixture {fixture.get('label')} missing sampled probe field {key}.")
 PY
 
 echo "emu_conformance_paper_mario_selected_package_authorities: PASS ($CACHE_PATH)"

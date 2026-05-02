@@ -78,7 +78,16 @@ if [[ -z "$BUNDLE_DIR" ]]; then
 fi
 
 ROM_PATH="$REPO_ROOT/assets/Paper Mario (USA).zip"
-PACK_PATH="$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")"
+PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-}"
+if [[ "$MODE" == "on" && -z "$PACK_PATH" ]]; then
+  PACK_PATH="$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")"
+fi
+BUNDLE_HIRES_PACK_PATH=""
+BUNDLE_HIRES_PACK_SHA256="missing"
+if [[ "$MODE" == "on" && -f "${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}" ]]; then
+  BUNDLE_HIRES_PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
+  BUNDLE_HIRES_PACK_SHA256="$(scenario_sha256_file "$BUNDLE_HIRES_PACK_PATH")"
+fi
 RETROARCH_PATH="/home/auro/code/RetroArch"
 MANIFEST="$REPO_ROOT/tools/fixtures/paper-mario-title-screen.yaml"
 PAPER_MARIO_SEMANTIC_JSON_REL="traces/paper-mario-game-status.json"
@@ -105,8 +114,8 @@ cat > "$BUNDLE_DIR/bundle.json" <<EOF
   "inputs": {
     "rom_path": "$ROM_PATH",
     "rom_sha256": "$(scenario_sha256_file "$ROM_PATH")",
-    "hires_pack_path": "$PACK_PATH",
-    "hires_pack_sha256": "$(scenario_sha256_file "$PACK_PATH")",
+    "hires_pack_path": "$BUNDLE_HIRES_PACK_PATH",
+    "hires_pack_sha256": "$BUNDLE_HIRES_PACK_SHA256",
     "retroarch_path": "$RETROARCH_PATH"
   },
   "status": {
@@ -124,7 +133,7 @@ PROBE_LABEL=$PROBE_LABEL
 STEP_FRAMES=$STEP_FRAMES
 STEP_CHUNK_FRAMES=$STEP_CHUNK_FRAMES
 ROM_PATH=$ROM_PATH
-HIRES_PACK_PATH=$PACK_PATH
+HIRES_PACK_PATH=$BUNDLE_HIRES_PACK_PATH
 RETROARCH_PATH=$RETROARCH_PATH
 EOF
 
@@ -137,10 +146,15 @@ fi
 
 scenario_source_runtime_env "$RUNTIME_ENV"
 
-PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
-scenario_require_phrb_runtime_cache "$PACK_PATH"
-scenario_configure_hires_runtime_env_for_cache "$PACK_PATH"
-PACK_SHA256="$(scenario_sha256_file "$PACK_PATH")"
+if [[ "$MODE" == "on" ]]; then
+  PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
+  scenario_require_phrb_runtime_cache "$PACK_PATH"
+  scenario_configure_hires_runtime_env_for_cache "$PACK_PATH"
+  PACK_SHA256="$(scenario_sha256_file "$PACK_PATH")"
+else
+  PACK_PATH=""
+  PACK_SHA256="missing"
+fi
 
 scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"hires_pack_path": "[^"]*"|"hires_pack_path": "'"${PACK_PATH}"'"|g; s|"hires_pack_sha256": "[^"]*"|"hires_pack_sha256": "'"${PACK_SHA256}"'"|g'
 scenario_patch_file "$BUNDLE_DIR/config.env" 's|HIRES_PACK_PATH=.*|HIRES_PACK_PATH='"${PACK_PATH}"'|g'
@@ -154,7 +168,6 @@ mkdir -p "$BUNDLE_DIR/states/ParaLLEl N64"
 cp "$AUTHORITATIVE_STATE_PATH" "$BUNDLE_DIR/states/ParaLLEl N64/Paper Mario (USA).state"
 
 scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"scenario_state": "bundle_initialized"|"scenario_state": "runtime_prepared"|g'
-scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"runtime_executed": false|"runtime_executed": true|g'
 
 declare -a ADAPTER_ARGS=(
   --bundle-dir "$BUNDLE_DIR"
@@ -201,11 +214,40 @@ ADAPTER_ARGS+=(
   --command "QUIT"
 )
 
-PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
-PARALLEL_RDP_HIRES_CACHE_PATH="$PACK_PATH" \
-PARALLEL_RDP_HIRES_DEBUG="$([[ "$MODE" == "on" ]] && echo 1 || echo 0)" \
-"$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" \
-  "${ADAPTER_ARGS[@]}"
+HIRES_ENV_UNSET=(
+  -u RUNTIME_ENV_OVERRIDE
+  -u PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE
+  -u PARALLEL_RDP_HIRES_CACHE_PATH
+  -u PARALLEL_RDP_HIRES_CI_COMPAT
+  -u PARALLEL_RDP_HIRES_CI_LOW32_FALLBACK
+  -u PARALLEL_RDP_HIRES_CI_PALETTE_PROBE
+  -u PARALLEL_RDP_HIRES_CI_SELECT
+  -u PARALLEL_RDP_HIRES_DEBUG
+  -u PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK
+  -u PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE
+  -u PARALLEL_RDP_HIRES_FILTER_SIGNATURES
+  -u PARALLEL_RDP_HIRES_GLIDEN64_COMPAT_CRC
+  -u PARALLEL_RDP_HIRES_GPU_BUDGET_MB
+  -u PARALLEL_RDP_HIRES_PHRB_DEBUG
+  -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP
+  -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE
+  -u HIRES_FILTER_ALLOW_TILE
+  -u HIRES_FILTER_ALLOW_BLOCK
+  -u HIRES_FILTER_SIGNATURES
+)
+
+if [[ "$MODE" == "on" ]]; then
+  PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
+  PARALLEL_RDP_HIRES_CACHE_PATH="$PACK_PATH" \
+  PARALLEL_RDP_HIRES_DEBUG=1 \
+  "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" \
+    "${ADAPTER_ARGS[@]}"
+else
+  env "${HIRES_ENV_UNSET[@]}" \
+  PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
+  "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" \
+    "${ADAPTER_ARGS[@]}"
+fi
 
 scenario_decode_paper_mario_semantic_state \
   "$BUNDLE_DIR" \
@@ -214,6 +256,19 @@ scenario_decode_paper_mario_semantic_state \
 scenario_extract_hires_log_evidence \
   "$BUNDLE_DIR" \
   "$BUNDLE_DIR/traces/hires-evidence.json"
+
+VERIFY_SCREENSHOT_SHA256=""
+if [[ "$MODE" == "off" ]]; then
+  VERIFY_SCREENSHOT_SHA256="${EXPECTED_SCREENSHOT_SHA256_OFF:-${EXPECTED_SCREENSHOT_SHA256:-}}"
+fi
+scenario_verify_paper_mario_fixture \
+  "$BUNDLE_DIR" \
+  "$BUNDLE_DIR/traces/fixture-verification.json" \
+  "$FIXTURE_ID" \
+  "$VERIFY_SCREENSHOT_SHA256" \
+  "${EXPECTED_INIT_SYMBOL:-}" \
+  "${EXPECTED_STEP_SYMBOL:-}"
+scenario_assert_adapter_runtime_success "$BUNDLE_DIR"
 
 echo "[scenario] probe complete."
 echo "[scenario] semantic trace: $BUNDLE_DIR/$PAPER_MARIO_SEMANTIC_JSON_REL"

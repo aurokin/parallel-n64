@@ -75,8 +75,8 @@
 - `hts2phrb` is canonical-package-first, operationally gated, and reproducible for the local Paper Mario legacy packs.
 - CI palette parity and simple `LoadBlock` retry are classified and no longer count as open architecture drivers.
 - Cross-game runtime is validated end-to-end:
-  - SM64 Reloaded: 2530 entries, 6599 compat draw-time hits in 30s boot, automated conformance test
-  - OoT Reloaded: 43322 entries from 8.9GB PHRB, 46751 compat draw-time hits in 45s boot, CI palette CRC working (49% CI hit rate = pack coverage), automated conformance test
+  - SM64 Reloaded: 2530 entries, 6599 compat draw-time hits in 30s boot, automated boot plus fixed-title compat-path fixture conformance tests
+  - OoT Reloaded: 43322 entries from 8.9GB PHRB, 46751 compat draw-time hits in 45s boot, CI palette CRC working (49% CI hit rate = pack coverage), automated boot plus fixed-title compat-path fixture conformance tests
 - PHRB streaming load eliminates monolithic blob duplication (OoT peak RAM: ~28GB → ~50MB).
 - O(n+m) asset iteration replaces O(n*m) nested loop for PHRB parsing.
 - GPU budget/eviction wired with LRU + descriptor recycling (`PARALLEL_RDP_HIRES_GPU_BUDGET_MB`).
@@ -157,12 +157,13 @@ Key identity rules:
 
 ## Format Confidence
 
-The `PHRB` format is live and validated across three games (Paper Mario, SM64, OoT). Remaining open confidence criteria:
+The `PHRB` format is live with strict Paper Mario authority validation and SM64/OoT cross-game compat-path regression validation. Remaining open confidence criteria:
 
 - Observed family set must extend beyond Paper Mario menu states into deeper gameplay (partially met via `kmr_03 ENTRY_5` and cross-game boot proofs)
 - Exact vs compatibility boundary must remain reviewable and not drift toward implicit broadening
 - Import tools must keep provenance traceable back to legacy checksums and assets
 - Unresolved families must stay visible, not quietly collapsed
+- Image digests are not valid hi-res correctness evidence. Use them only for feature-off baseline parity and remint authority verification; runtime promotion must rely on semantic traces and provider-owned hi-res evidence.
 
 ## Execution Order
 
@@ -172,7 +173,7 @@ The `PHRB` format is live and validated across three games (Paper Mario, SM64, O
 4. Reduce canonical-only ambiguity and overlay residue through bounded review-only policy instead of new runtime heuristics.
 5. Keep the zero-config compat-only lane and the tracked review-only reduction lane explicit and non-default while those reductions remain unpromoted.
 6. Return to deferred pool and source-backed seams only after the runtime/converter gap is narrower.
-7. ~~Start second-game validation only after the Paper Mario breadth and runtime-contract gates are materially cleaner.~~ Done: SM64 and OoT boot conformance tests pass.
+7. ~~Start second-game validation only after the Paper Mario breadth and runtime-contract gates are materially cleaner.~~ Done: SM64 and OoT boot plus fixed-title compat-path fixture conformance tests pass; these remain non-authoritative for native sampled identity.
 
 ## Immediate Priorities
 
@@ -384,9 +385,9 @@ After validation on the active Paper Mario fixtures, classify CI palette parity 
 
 ### Current Phase C Status
 
-- Two non-Paper-Mario validation targets now exist: `emu.conformance.sm64_hires_boot` and `emu.conformance.oot_hires_boot`.
-- These are boot-level proofs (provider on, entries loaded, compat hits > 0, CI hits > 0 for OoT) — not strict fixture-level authority like the Paper Mario tests.
-- The second-game gate requirement ("at least one non-Paper-Mario hi-res validation target") is met at the boot-conformance level.
+- Four non-Paper-Mario validation targets now exist: `emu.conformance.sm64_hires_boot`, `emu.conformance.sm64_hires_title_fixture`, `emu.conformance.oot_hires_boot`, and `emu.conformance.oot_hires_title_fixture`.
+- The boot tests prove provider-on PHRB/compat behavior over wall-clock startup. The title fixture tests load fixed baseline-off savestates, settle three frames, assert locked state digests, and require live compat descriptor hits (plus CI hits for OoT). They do not use captures as correctness gates.
+- The second-game gate requirement ("at least one non-Paper-Mario hi-res validation target") is now met at both boot-conformance and fixed-state fixture levels, but still as compatibility-path proof rather than native sampled identity proof.
 
 ## Parallelism Rules
 
@@ -474,7 +475,7 @@ Do not declare the native runtime seam ready until all of the following are true
 - Keep removing remaining checksum-shaped runtime seams without reopening deferred pool or source-backed work.
 - Keep reducing converter ambiguity and overlay residue through the tracked review-only lane without silently promoting those reductions.
 - Keep the zero-config compat-only lane explicit and green as fallback.
-- Keep SM64 and OoT boot conformance tests green as cross-game regression gates.
+- Keep SM64 and OoT boot and fixed-title fixture conformance tests green as cross-game regression gates.
 - Keep every skipped item in the deferred register above until it is completed or explicitly rejected by a gate decision.
 
 ## Outcome
@@ -484,5 +485,5 @@ If this plan succeeds, the project ends up with:
 - a native-first `PHRB` runtime contract
 - a generic one-command legacy conversion path
 - explicit and fenced compatibility behavior
-- validation that is broader than Paper Mario menus and stronger than screenshot hashes
+- validation that is broader than Paper Mario menus and stronger than image digest comparisons
 - a path to more games that does not depend on per-game runtime hacks

@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 CACHE_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-}"
 BUNDLE_ROOT=""
 STEP_LIST="960 1200 1500"
+MIN_NATIVE_SAMPLED_COUNT=195
 RUN_PROBES=1
 LOADER_MANIFEST_PATH=""
 TRANSPORT_REVIEW_PATH=""
@@ -53,6 +54,8 @@ Options:
   --pool-regression-surface-package PATH
                        Optional historical surface-package.json for the pool regression review
   --steps "..."        Space-separated timeout checkpoints (default: "960 1200 1500")
+  --min-native-sampled-count N
+                       Minimum native sampled entries required in the on bundle (default: 195)
   --reuse               Reuse existing bundles instead of rerunning probes
   -h, --help            Show this help
 USAGE
@@ -71,6 +74,10 @@ while (($#)); do
     --steps)
       shift
       STEP_LIST="${1:-}"
+      ;;
+    --min-native-sampled-count)
+      shift
+      MIN_NATIVE_SAMPLED_COUNT="${1:-}"
       ;;
     --loader-manifest)
       shift
@@ -181,10 +188,34 @@ if [[ -z "$BUNDLE_ROOT" ]]; then
 fi
 mkdir -p "$BUNDLE_ROOT/on" "$BUNDLE_ROOT/off"
 
+HIRES_ENV_UNSET=(
+  -u RUNTIME_ENV_OVERRIDE
+  -u PARALLEL_N64_GFX_PLUGIN_OVERRIDE
+  -u PARALLEL_RDP_HIRES_BLOCK_SHAPE_PROBE
+  -u PARALLEL_RDP_HIRES_CACHE_PATH
+  -u PARALLEL_RDP_HIRES_CI_COMPAT
+  -u PARALLEL_RDP_HIRES_CI_LOW32_FALLBACK
+  -u PARALLEL_RDP_HIRES_CI_PALETTE_PROBE
+  -u PARALLEL_RDP_HIRES_CI_SELECT
+  -u PARALLEL_RDP_HIRES_DEBUG
+  -u PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK
+  -u PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE
+  -u PARALLEL_RDP_HIRES_FILTER_SIGNATURES
+  -u PARALLEL_RDP_HIRES_GLIDEN64_COMPAT_CRC
+  -u PARALLEL_RDP_HIRES_GPU_BUDGET_MB
+  -u PARALLEL_RDP_HIRES_PHRB_DEBUG
+  -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP
+  -u PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE
+  -u HIRES_FILTER_ALLOW_TILE
+  -u HIRES_FILTER_ALLOW_BLOCK
+  -u HIRES_FILTER_SIGNATURES
+)
+
 for step in $STEP_LIST; do
   on_bundle="$BUNDLE_ROOT/on/timeout-${step}"
   off_bundle="$BUNDLE_ROOT/off/timeout-${step}"
   if (( RUN_PROBES )); then
+    env "${HIRES_ENV_UNSET[@]}" \
     DISABLE_SCREENSHOT_VERIFY=1 \
     "$SCRIPT_DIR/paper-mario-title-timeout-probe.sh" \
       --mode off \
@@ -194,6 +225,7 @@ for step in $STEP_LIST; do
       --bundle-dir "$off_bundle" \
       --run
 
+    env "${HIRES_ENV_UNSET[@]}" \
     PARALLEL_RDP_HIRES_CACHE_PATH="$CACHE_PATH" \
     PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP=1 \
     DISABLE_SCREENSHOT_VERIFY=1 \
@@ -375,36 +407,266 @@ PY
   fi
 done
 
-python3 - "$CACHE_PATH" "$BUNDLE_ROOT" <<'PY'
+EXPECTED_ROM_PATH="${PAPER_MARIO_EXPECTED_ROM_PATH:-$REPO_ROOT/assets/Paper Mario (USA).zip}"
+MIN_NATIVE_SAMPLED_COUNT="$MIN_NATIVE_SAMPLED_COUNT" python3 - "$CACHE_PATH" "$BUNDLE_ROOT" "$EXPECTED_ROM_PATH" <<'PY'
 import hashlib
 import json
 import math
+import os
 import sys
 from pathlib import Path
 from PIL import Image, ImageChops
 
 cache_path = Path(sys.argv[1])
 bundle_root = Path(sys.argv[2])
+expected_rom_path = Path(sys.argv[3])
+expected_rom_sha256 = hashlib.sha256(expected_rom_path.read_bytes()).hexdigest()
+expected_cache_sha256 = hashlib.sha256(cache_path.read_bytes()).hexdigest()
 summary = {
     'cache_path': str(cache_path),
-    'cache_sha256': hashlib.sha256(cache_path.read_bytes()).hexdigest(),
+    'cache_sha256': expected_cache_sha256,
+    'passed': True,
+    'all_passed': True,
     'steps': [],
 }
 
-def capture_hash(bundle_dir: Path):
+def one_capture(bundle_dir: Path):
     captures = sorted((bundle_dir / 'captures').glob('*'))
     if len(captures) != 1:
         raise SystemExit(f'expected exactly one capture in {bundle_dir}/captures, found {len(captures)}')
-    path = captures[0]
-    return path, hashlib.sha256(path.read_bytes()).hexdigest()
+    return captures[0]
+
+def disabled_hires_evidence_ok(evidence):
+    summary = evidence.get('summary') or {}
+    return (
+        evidence.get('available') is False
+        and evidence.get('cache_loaded') is False
+        and not evidence.get('cache_path')
+        and not evidence.get('cache_sha256')
+        and summary.get('provider') in (None, 'off')
+        and int(summary.get('entry_count') or 0) == 0
+        and int(summary.get('native_sampled_entry_count') or 0) == 0
+        and int(summary.get('compat_entry_count') or 0) == 0
+    )
+
+def same_resolved_path(actual, expected):
+    if actual in (None, ''):
+        return False
+    try:
+        return Path(actual).resolve() == Path(expected).resolve()
+    except OSError:
+        return str(actual) == str(expected)
+
+def read_env_file(path: Path):
+    if not path.is_file():
+        return None
+    values = {}
+    for line in path.read_text().splitlines():
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, value = line.split('=', 1)
+        values[key] = value
+    return values
+
+def sha256_file(path: Path):
+    h = hashlib.sha256()
+    with path.open('rb') as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+def command_log_signature(bundle_dir: Path):
+    command_log = bundle_dir / 'retroarch.executed.commands.log'
+    if not command_log.is_file():
+        return None
+    return hashlib.sha256(command_log.read_bytes()).hexdigest()
+
+def expected_command_log_signature(bundle_dir: Path):
+    command_log = bundle_dir / 'retroarch.expected.commands.log'
+    if not command_log.is_file():
+        return None
+    return hashlib.sha256(command_log.read_bytes()).hexdigest()
+
+def path_within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+def require_adapter_config_provenance(bundle_dir: Path, session):
+    for key in ('BASE_CONFIG', 'BASE_CONFIG_SHA256', 'APPEND_CONFIG', 'APPEND_CONFIG_SHA256', 'CORE_OPTIONS_FILE', 'CORE_OPTIONS_FILE_SHA256'):
+        if not session.get(key):
+            raise SystemExit(f'expected adapter config provenance {key} in {bundle_dir}')
+    base_config = Path(session['BASE_CONFIG'])
+    append_config = Path(session['APPEND_CONFIG'])
+    core_options = Path(session['CORE_OPTIONS_FILE'])
+    if not base_config.is_file():
+        raise SystemExit(f'expected adapter BASE_CONFIG to exist in {bundle_dir}: {base_config!s}')
+    if sha256_file(base_config) != session['BASE_CONFIG_SHA256']:
+        raise SystemExit(f'adapter BASE_CONFIG_SHA256 does not match current artifact in {bundle_dir}')
+    for path, sha_key, label in (
+        (append_config, 'APPEND_CONFIG_SHA256', 'append config'),
+        (core_options, 'CORE_OPTIONS_FILE_SHA256', 'core options'),
+    ):
+        if not path.is_file():
+            raise SystemExit(f'expected adapter {label} snapshot to exist in {bundle_dir}: {path!s}')
+        if not path_within(path, bundle_dir):
+            raise SystemExit(f'expected adapter {label} snapshot to be bundle-local in {bundle_dir}: {path!s}')
+        if sha256_file(path) != session[sha_key]:
+            raise SystemExit(f'adapter {sha_key} does not match current snapshot in {bundle_dir}')
+
+def require_adapter_session_provenance(bundle_dir: Path, expected_mode: str, expected_cache_path: Path | None, expected_cache_sha: str | None, expected_step: int):
+    session = read_env_file(bundle_dir / 'retroarch.session.env')
+    run = read_env_file(bundle_dir / 'retroarch.run.env')
+    if session is None:
+        raise SystemExit(f'expected adapter session provenance in {bundle_dir}')
+    if run is None:
+        raise SystemExit(f'expected adapter run status provenance in {bundle_dir}')
+    if run.get('RUNTIME_EXECUTED') != '1':
+        raise SystemExit(f'expected RUNTIME_EXECUTED=1 in {bundle_dir}, found {run.get("RUNTIME_EXECUTED")!r}')
+    if run.get('FORCED_TERMINATION') != '0':
+        raise SystemExit(f'expected FORCED_TERMINATION=0 in {bundle_dir}, found {run.get("FORCED_TERMINATION")!r}')
+    if run.get('RETROARCH_EXIT_STATUS') != '0':
+        raise SystemExit(f'expected RETROARCH_EXIT_STATUS=0 in {bundle_dir}, found {run.get("RETROARCH_EXIT_STATUS")!r}')
+    if session.get('MODE') != expected_mode:
+        raise SystemExit(f'expected adapter MODE={expected_mode!r} in {bundle_dir}, found {session.get("MODE")!r}')
+
+    bundle_meta_path = bundle_dir / 'bundle.json'
+    if not bundle_meta_path.is_file():
+        raise SystemExit(f'expected bundle provenance manifest in {bundle_dir}')
+    bundle_meta = json.loads(bundle_meta_path.read_text())
+    if bundle_meta.get('fixture_id') != 'paper-mario-title-timeout-probe':
+        raise SystemExit(f'expected timeout probe fixture_id in {bundle_dir}, found {bundle_meta.get("fixture_id")!r}')
+    if bundle_meta.get('mode') != expected_mode:
+        raise SystemExit(f'expected bundle mode={expected_mode!r} in {bundle_dir}, found {bundle_meta.get("mode")!r}')
+    status = bundle_meta.get('status') if isinstance(bundle_meta.get('status'), dict) else {}
+    if status.get('runtime_executed') is not True:
+        raise SystemExit(f'expected runtime_executed=true in bundle manifest for {bundle_dir}')
+    probe_meta = bundle_meta.get('probe') if isinstance(bundle_meta.get('probe'), dict) else {}
+    if int(probe_meta.get('step_frames') or -1) != int(expected_step):
+        raise SystemExit(f'expected timeout probe step_frames={expected_step} in {bundle_dir}, found {probe_meta.get("step_frames")!r}')
+    if int(probe_meta.get('step_chunk_frames') or -1) != int(expected_step):
+        raise SystemExit(
+            f'expected timeout probe step_chunk_frames={expected_step} in {bundle_dir}, '
+            f'found {probe_meta.get("step_chunk_frames")!r}'
+        )
+    if probe_meta.get('authority_fixture_id') != 'paper-mario-title-screen':
+        raise SystemExit(
+            f'expected timeout probe authority_fixture_id=paper-mario-title-screen in {bundle_dir}, '
+            f'found {probe_meta.get("authority_fixture_id")!r}'
+        )
+    bundle_inputs = bundle_meta.get('inputs') if isinstance(bundle_meta.get('inputs'), dict) else {}
+    rom_path = bundle_inputs.get('rom_path')
+    rom_sha = bundle_inputs.get('rom_sha256')
+    if not rom_path or not rom_sha:
+        raise SystemExit(f'expected bundle ROM path/SHA provenance in {bundle_dir}')
+    if not same_resolved_path(rom_path, expected_rom_path):
+        raise SystemExit(f'expected bundle ROM path {expected_rom_path} in {bundle_dir}, found {rom_path!r}')
+    if rom_sha != expected_rom_sha256:
+        raise SystemExit(f'expected bundle ROM SHA {expected_rom_sha256!r} in {bundle_dir}, found {rom_sha!r}')
+    if not same_resolved_path(session.get('ROM_PATH'), Path(rom_path)):
+        raise SystemExit(f'expected adapter ROM_PATH={rom_path!r} in {bundle_dir}, found {session.get("ROM_PATH")!r}')
+    if session.get('ROM_SHA256') != rom_sha:
+        raise SystemExit(f'expected adapter ROM_SHA256={rom_sha!r} in {bundle_dir}, found {session.get("ROM_SHA256")!r}')
+    if not Path(rom_path).is_file():
+        raise SystemExit(f'expected bundle ROM path to exist in {bundle_dir}: {rom_path!r}')
+    if sha256_file(Path(rom_path)) != rom_sha:
+        raise SystemExit(f'adapter ROM_SHA256 does not match current ROM artifact in {bundle_dir}')
+
+    core_path = session.get('CORE_PATH')
+    core_sha = session.get('CORE_SHA256')
+    if not core_path or not core_sha:
+        raise SystemExit(f'expected adapter core path/SHA provenance in {bundle_dir}')
+    if not Path(core_path).is_file():
+        raise SystemExit(f'expected adapter CORE_PATH to exist in {bundle_dir}: {core_path!r}')
+    if sha256_file(Path(core_path)) != core_sha:
+        raise SystemExit(f'adapter CORE_SHA256 does not match current core artifact in {bundle_dir}')
+    require_adapter_config_provenance(bundle_dir, session)
+
+    if expected_cache_path is None:
+        if session.get('HIRES_CACHE_PATH') or session.get('HIRES_CACHE_SHA256'):
+            raise SystemExit(f'expected off-bundle adapter cache provenance to be empty in {bundle_dir}, found {session!r}')
+        if bundle_meta.get('hires_pack_path') or bundle_meta.get('hires_pack_sha256') not in (None, '', 'missing'):
+            raise SystemExit(f'expected off-bundle top-level cache provenance to be empty in {bundle_dir}, found {bundle_meta!r}')
+        if bundle_inputs.get('hires_pack_path') or bundle_inputs.get('hires_pack_sha256') not in (None, '', 'missing'):
+            raise SystemExit(f'expected off-bundle cache provenance to be empty in {bundle_dir}, found {bundle_inputs!r}')
+    else:
+        if not same_resolved_path(session.get('HIRES_CACHE_PATH'), expected_cache_path):
+            raise SystemExit(
+                f'expected adapter HIRES_CACHE_PATH={expected_cache_path!s} in {bundle_dir}, '
+                f'found {session.get("HIRES_CACHE_PATH")!r}'
+            )
+        if session.get('HIRES_CACHE_SHA256') != expected_cache_sha:
+            raise SystemExit(
+                f'expected adapter HIRES_CACHE_SHA256={expected_cache_sha!r} in {bundle_dir}, '
+                f'found {session.get("HIRES_CACHE_SHA256")!r}'
+            )
+
+    expected_command_signature = command_log_signature(bundle_dir)
+    if not expected_command_signature:
+        raise SystemExit(f'expected adapter command log in {bundle_dir}')
+    if session.get('COMMAND_SIGNATURE') != expected_command_signature:
+        raise SystemExit(
+            f'expected adapter COMMAND_SIGNATURE={expected_command_signature!r} in {bundle_dir}, '
+            f'found {session.get("COMMAND_SIGNATURE")!r}'
+        )
+    planned_command_signature = expected_command_log_signature(bundle_dir)
+    if not planned_command_signature:
+        raise SystemExit(f'expected adapter planned command log in {bundle_dir}')
+    if planned_command_signature != expected_command_signature:
+        raise SystemExit(
+            f'expected executed adapter command signature {expected_command_signature!r} to match '
+            f'planned command signature {planned_command_signature!r} in {bundle_dir}'
+        )
+
+def require_on_bundle_cache_provenance(on_dir: Path, on_hires):
+    bundle_meta_path = on_dir / 'bundle.json'
+    if not bundle_meta_path.is_file():
+        raise SystemExit(f'expected on-bundle provenance manifest in {on_dir}')
+    bundle_meta = json.loads(bundle_meta_path.read_text())
+    bundle_inputs = bundle_meta.get('inputs') if isinstance(bundle_meta.get('inputs'), dict) else {}
+    cache_path_values = [
+        ('hires_pack_path', bundle_meta.get('hires_pack_path')),
+        ('inputs.hires_pack_path', bundle_inputs.get('hires_pack_path')),
+    ]
+    cache_sha_values = [
+        ('hires_pack_sha256', bundle_meta.get('hires_pack_sha256')),
+        ('inputs.hires_pack_sha256', bundle_inputs.get('hires_pack_sha256')),
+    ]
+    if not any(value for _, value in cache_path_values):
+        raise SystemExit(f'expected on-bundle hires_pack_path provenance in {on_dir}')
+    if not any(value for _, value in cache_sha_values):
+        raise SystemExit(f'expected on-bundle hires_pack_sha256 provenance in {on_dir}')
+    for label, value in cache_path_values:
+        if value and not same_resolved_path(value, cache_path):
+            raise SystemExit(f'expected on-bundle {label}={cache_path} in {on_dir}, found {value!r}')
+    for label, value in cache_sha_values:
+        if value and value != expected_cache_sha256:
+            raise SystemExit(f'expected on-bundle {label}={expected_cache_sha256} in {on_dir}, found {value!r}')
+    evidence_cache_path = on_hires.get('cache_path')
+    if not evidence_cache_path:
+        raise SystemExit(f'expected on-bundle hi-res evidence cache_path provenance in {on_dir}')
+    if not same_resolved_path(evidence_cache_path, cache_path):
+        raise SystemExit(f'expected on-bundle hi-res evidence cache_path={cache_path} in {on_dir}, found {evidence_cache_path!r}')
+    evidence_cache_sha = on_hires.get('cache_sha256')
+    if not evidence_cache_sha:
+        raise SystemExit(f'expected on-bundle hi-res evidence cache_sha256 provenance in {on_dir}')
+    if evidence_cache_sha != expected_cache_sha256:
+        raise SystemExit(
+            f'expected on-bundle hi-res evidence cache_sha256={expected_cache_sha256} in {on_dir}, '
+            f'found {evidence_cache_sha!r}'
+        )
+    expected_step = int(on_dir.name.split('-', 1)[1])
+    require_adapter_session_provenance(on_dir, 'on', cache_path, expected_cache_sha256, expected_step)
 
 for off_dir in sorted((bundle_root / 'off').iterdir()):
     if not off_dir.is_dir() or not off_dir.name.startswith('timeout-'):
         continue
     step = int(off_dir.name.split('-', 1)[1])
     on_dir = bundle_root / 'on' / off_dir.name
-    off_capture, off_hash = capture_hash(off_dir)
-    on_capture, on_hash = capture_hash(on_dir)
+    off_capture = one_capture(off_dir)
+    on_capture = one_capture(on_dir)
 
     off_img = Image.open(off_capture).convert('RGBA')
     on_img = Image.open(on_capture).convert('RGBA')
@@ -414,17 +676,84 @@ for off_dir in sorted((bundle_root / 'off').iterdir()):
     total_sq = sum(((i % 256) ** 2) * v for i, v in enumerate(hist))
     count = off_img.size[0] * off_img.size[1] * 4
 
+    off_semantic = json.loads((off_dir / 'traces' / 'paper-mario-game-status.json').read_text())
+    off_hires = json.loads((off_dir / 'traces' / 'hires-evidence.json').read_text())
+    off_hires_summary = off_hires.get('summary') or {}
+    if not disabled_hires_evidence_ok(off_hires):
+        raise SystemExit(f'expected off-bundle hi-res evidence to stay disabled in {off_dir}, found {off_hires!r}')
+    require_adapter_session_provenance(off_dir, 'off', None, None, step)
+    off_status = off_semantic.get('paper_mario_us', {})
+    if (
+        off_status.get('game_status', {}).get('map_name_candidate') != 'kmr_03'
+        or int(off_status.get('game_status', {}).get('entry_id') or -1) != 5
+        or off_status.get('cur_game_mode', {}).get('init_symbol') != 'state_init_world'
+        or off_status.get('cur_game_mode', {}).get('step_symbol') != 'state_step_world'
+    ):
+        raise SystemExit(f'unexpected off-bundle semantic state in {off_dir}: {off_status!r}')
     on_semantic = json.loads((on_dir / 'traces' / 'paper-mario-game-status.json').read_text())
+    on_status = on_semantic.get('paper_mario_us', {})
+    if (
+        on_status.get('game_status', {}).get('map_name_candidate') != 'kmr_03'
+        or int(on_status.get('game_status', {}).get('entry_id') or -1) != 5
+        or on_status.get('cur_game_mode', {}).get('init_symbol') != 'state_init_world'
+        or on_status.get('cur_game_mode', {}).get('step_symbol') != 'state_step_world'
+    ):
+        raise SystemExit(f'unexpected on-bundle semantic state in {on_dir}: {on_status!r}')
+    if off_semantic != on_semantic:
+        raise SystemExit(f'expected selected-package semantic trace to match feature-off trace for step {step}')
     on_hires = json.loads((on_dir / 'traces' / 'hires-evidence.json').read_text())
+    require_on_bundle_cache_provenance(on_dir, on_hires)
     hires_summary = on_hires.get('summary') or {}
+    if on_hires.get('available') is not True:
+        raise SystemExit(f'expected on-bundle hi-res evidence to be available in {on_dir}')
+    if on_hires.get('cache_loaded') is not True:
+        raise SystemExit(f'expected on-bundle hi-res cache to be loaded in {on_dir}')
     if hires_summary.get('provider') != 'on':
         raise SystemExit(f'expected on-bundle hi-res provider to be "on" in {on_dir}, found {hires_summary.get("provider")!r}')
     if hires_summary.get('source_mode') != 'phrb-only':
         raise SystemExit(f'expected selected-package source_mode=phrb-only in {on_dir}, found {hires_summary.get("source_mode")!r}')
-    if int(hires_summary.get('native_sampled_entry_count') or 0) < 1:
-        raise SystemExit(f'expected native sampled entries in {on_dir}, found {hires_summary.get("native_sampled_entry_count")!r}')
+    if int(hires_summary.get('compat_entry_count') or 0) != 0:
+        raise SystemExit(f'expected selected-package compat_entry_count=0 in {on_dir}, found {hires_summary.get("compat_entry_count")!r}')
+    if int(hires_summary.get('native_sampled_entry_count') or 0) < int(os.environ['MIN_NATIVE_SAMPLED_COUNT']):
+        raise SystemExit(
+            f'expected native sampled entries >= {os.environ["MIN_NATIVE_SAMPLED_COUNT"]} in {on_dir}, '
+            f'found {hires_summary.get("native_sampled_entry_count")!r}'
+        )
     if int((hires_summary.get('source_counts') or {}).get('phrb') or 0) < 1:
         raise SystemExit(f'expected PHRB-backed entries in {on_dir}, found {(hires_summary.get("source_counts") or {}).get("phrb")!r}')
+    for key, value in (hires_summary.get('source_counts') or {}).items():
+        if key != 'phrb' and int(value or 0) != 0:
+            raise SystemExit(f'expected selected-package source_counts.{key}=0 in {on_dir}, found {value!r}')
+    descriptor_path_counts = hires_summary.get('descriptor_path_counts') or {}
+    if int(descriptor_path_counts.get('sampled') or 0) <= 0:
+        raise SystemExit(f'expected sampled descriptor path evidence in {on_dir}, found {descriptor_path_counts!r}')
+    for key in ('native_checksum', 'generic', 'compat'):
+        if int(descriptor_path_counts.get(key) or 0) != 0:
+            raise SystemExit(f'expected selected-package descriptor_paths.{key}=0 in {on_dir}, found {descriptor_path_counts.get(key)!r}')
+    sampled_object_probe = on_hires.get('sampled_object_probe') or {}
+    if sampled_object_probe.get('available') is not True:
+        raise SystemExit(f'expected sampled-object probe to be available in {on_dir}')
+    if int(sampled_object_probe.get('line_count') or 0) <= 0:
+        raise SystemExit(f'expected sampled-object probe line_count > 0 in {on_dir}, found {sampled_object_probe.get("line_count")!r}')
+    for key in ('exact_hit_count', 'exact_miss_count', 'exact_conflict_miss_count', 'exact_unresolved_miss_count'):
+        if sampled_object_probe.get(key) is None:
+            raise SystemExit(f'expected sampled-object probe field {key} in {on_dir}')
+    sampled_duplicate_probe = on_hires.get('sampled_duplicate_probe') or {}
+    if sampled_duplicate_probe.get('available') is not True:
+        raise SystemExit(f'expected sampled duplicate probe to be available in {on_dir}')
+    if int(sampled_duplicate_probe.get('line_count') or 0) <= 0:
+        raise SystemExit(f'expected sampled duplicate probe line_count > 0 in {on_dir}, found {sampled_duplicate_probe.get("line_count")!r}')
+    for key in ('line_count', 'unique_bucket_count'):
+        if sampled_duplicate_probe.get(key) is None:
+            raise SystemExit(f'expected sampled duplicate probe field {key} in {on_dir}')
+    sampled_pool_stream_probe = on_hires.get('sampled_pool_stream_probe') or {}
+    if sampled_pool_stream_probe.get('available') is not True:
+        raise SystemExit(f'expected sampled pool stream probe to be available in {on_dir}')
+    if int(sampled_pool_stream_probe.get('line_count') or 0) <= 0:
+        raise SystemExit(f'expected sampled pool stream probe line_count > 0 in {on_dir}, found {sampled_pool_stream_probe.get("line_count")!r}')
+    for key in ('line_count', 'family_count'):
+        if sampled_pool_stream_probe.get(key) is None:
+            raise SystemExit(f'expected sampled pool stream probe field {key} in {on_dir}')
     review_md = on_dir / 'traces' / 'hires-sampled-selector-review.md'
     review_json = on_dir / 'traces' / 'hires-sampled-selector-review.json'
     alternate_source_review_json = on_dir / 'traces' / 'hires-alternate-source-review.json'
@@ -432,6 +761,8 @@ for off_dir in sorted((bundle_root / 'off').iterdir()):
     cross_scene_review_json = on_dir / 'traces' / 'hires-sampled-cross-scene-review.json'
     seam_register_json = on_dir / 'traces' / 'hires-runtime-seam-register.json'
     pool_regression_review_json = next(iter(sorted((on_dir / 'traces').glob('hires-sampled-pool-regression-review-*.json'))), None)
+    if review_json.is_file() and not seam_register_json.is_file():
+        raise SystemExit(f'expected runtime seam-register evidence in {on_dir}')
     alternate_source_review_data = {}
     if alternate_source_review_json.is_file():
         alternate_source_review_data = json.loads(alternate_source_review_json.read_text())
@@ -478,11 +809,9 @@ for off_dir in sorted((bundle_root / 'off').iterdir()):
         })
     summary['steps'].append({
         'step_frames': step,
+        'passed': True,
         'off_bundle': str(off_dir),
         'on_bundle': str(on_dir),
-        'off_hash': off_hash,
-        'on_hash': on_hash,
-        'matches_off': off_hash == on_hash,
         'ae': total_abs,
         'rmse': math.sqrt(total_sq / count),
         'semantic': {
@@ -491,26 +820,33 @@ for off_dir in sorted((bundle_root / 'off').iterdir()):
             'init_symbol': on_semantic.get('paper_mario_us', {}).get('cur_game_mode', {}).get('init_symbol'),
             'step_symbol': on_semantic.get('paper_mario_us', {}).get('cur_game_mode', {}).get('step_symbol'),
         },
+        'off_semantic': {
+            'map_name_candidate': off_semantic.get('paper_mario_us', {}).get('game_status', {}).get('map_name_candidate'),
+            'entry_id': off_semantic.get('paper_mario_us', {}).get('game_status', {}).get('entry_id'),
+            'init_symbol': off_semantic.get('paper_mario_us', {}).get('cur_game_mode', {}).get('init_symbol'),
+            'step_symbol': off_semantic.get('paper_mario_us', {}).get('cur_game_mode', {}).get('step_symbol'),
+        },
+        'off_hires_summary': off_hires_summary,
         'hires_summary': hires_summary,
-        'descriptor_path_counts': hires_summary.get('descriptor_path_counts') or {},
+        'descriptor_path_counts': descriptor_path_counts,
         'sampled_object_probe': {
-            'exact_hit_count': on_hires.get('sampled_object_probe', {}).get('exact_hit_count'),
-            'exact_miss_count': on_hires.get('sampled_object_probe', {}).get('exact_miss_count'),
-            'exact_conflict_miss_count': on_hires.get('sampled_object_probe', {}).get('exact_conflict_miss_count'),
-            'exact_unresolved_miss_count': on_hires.get('sampled_object_probe', {}).get('exact_unresolved_miss_count'),
-            'top_exact_hit_buckets': on_hires.get('sampled_object_probe', {}).get('top_exact_hit_buckets', [])[:5],
-            'top_exact_conflict_miss_buckets': on_hires.get('sampled_object_probe', {}).get('top_exact_conflict_miss_buckets', [])[:5],
-            'top_exact_unresolved_miss_buckets': on_hires.get('sampled_object_probe', {}).get('top_exact_unresolved_miss_buckets', [])[:5],
+            'exact_hit_count': sampled_object_probe.get('exact_hit_count'),
+            'exact_miss_count': sampled_object_probe.get('exact_miss_count'),
+            'exact_conflict_miss_count': sampled_object_probe.get('exact_conflict_miss_count'),
+            'exact_unresolved_miss_count': sampled_object_probe.get('exact_unresolved_miss_count'),
+            'top_exact_hit_buckets': sampled_object_probe.get('top_exact_hit_buckets', [])[:5],
+            'top_exact_conflict_miss_buckets': sampled_object_probe.get('top_exact_conflict_miss_buckets', [])[:5],
+            'top_exact_unresolved_miss_buckets': sampled_object_probe.get('top_exact_unresolved_miss_buckets', [])[:5],
         },
         'sampled_duplicate_probe': {
-            'line_count': on_hires.get('sampled_duplicate_probe', {}).get('line_count'),
-            'unique_bucket_count': on_hires.get('sampled_duplicate_probe', {}).get('unique_bucket_count'),
-            'top_buckets': on_hires.get('sampled_duplicate_probe', {}).get('top_buckets', [])[:5],
+            'line_count': sampled_duplicate_probe.get('line_count'),
+            'unique_bucket_count': sampled_duplicate_probe.get('unique_bucket_count'),
+            'top_buckets': sampled_duplicate_probe.get('top_buckets', [])[:5],
         },
         'sampled_pool_stream_probe': {
-            'line_count': on_hires.get('sampled_pool_stream_probe', {}).get('line_count'),
-            'family_count': on_hires.get('sampled_pool_stream_probe', {}).get('family_count'),
-            'top_families': on_hires.get('sampled_pool_stream_probe', {}).get('top_families', [])[:5],
+            'line_count': sampled_pool_stream_probe.get('line_count'),
+            'family_count': sampled_pool_stream_probe.get('family_count'),
+            'top_families': sampled_pool_stream_probe.get('top_families', [])[:5],
         },
         'sampled_selector_review': {
             'markdown_path': str(review_md) if review_md.is_file() else None,
@@ -607,9 +943,6 @@ for step in summary['steps']:
         f'## {step["step_frames"]} Frames',
         f'- On bundle: [{Path(step["on_bundle"]).name}]({step["on_bundle"]})',
         f'- Off bundle: [{Path(step["off_bundle"]).name}]({step["off_bundle"]})',
-        f'- Matches off: `{str(step["matches_off"]).lower()}`',
-        f'- On hash: `{step["on_hash"]}`',
-        f'- Off hash: `{step["off_hash"]}`',
         f'- AE: `{step["ae"]}`',
         f'- RMSE: `{step["rmse"]}`',
         f'- Semantic: `{step["semantic"]["init_symbol"]}` / `{step["semantic"]["step_symbol"]}`, map `{step["semantic"]["map_name_candidate"]}`, entry `{step["semantic"]["entry_id"]}`',

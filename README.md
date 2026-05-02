@@ -20,8 +20,8 @@ The agreed backbone is:
 2. Phase 1: hi-res replacement without corruption
 3. Phase 2: scaling and sharpness work
 
-Current validation scope is still Paper Mario only.
-The active strict authority fixtures are title screen, file select, and `kmr_03 ENTRY_5`.
+Paper Mario remains the strict authority game.
+The active strict authority fixtures are title screen, file select, and `kmr_03 ENTRY_5`; SM64/OoT are cross-game compat-path regression gates, not native sampled authority proofs.
 The repo-default authority path now prefers the promoted enriched full-cache `PHRB` artifact and fails closed if that promoted runtime artifact is missing.
 Runtime hi-res loading is `.phrb` only. Legacy `.hts` / `.htc` packs are manual `hts2phrb` conversion inputs, not supported runtime inputs.
 
@@ -51,6 +51,7 @@ The current active sequence is:
 - `feature on` prioritizes correctness and diagnosability over apparent early coverage
 - fixture runs require evidence bundles
 - fallback and exclusion behavior must be explicit and logged
+- image digest equality is only a valid correctness gate for feature-off baseline parity and remint authority verification; hi-res-on validation must use semantic/runtime evidence instead
 - savestates are the authority once available; debug warps and scripted entry are acceptable earlier in the ladder
 - emulator-facing runtime tests should run at `4x` internal scale and one at a time
 - tracked RetroArch runtime scenarios should use fullscreen windows and should not start while another `retroarch` process is active
@@ -85,7 +86,15 @@ See [EMU_TESTING.md](/home/auro/code/parallel-n64/docs/EMU_TESTING.md) for the c
 
 Current runtime-conformance note:
 
-- `emu-runtime-conformance` now includes both explicit Paper Mario selected-package lanes in addition to the existing lavapipe checks:
+- `emu-runtime-conformance` includes the lavapipe checks plus Paper Mario full-cache/selected-package lanes and the SM64/OoT cross-game boot and title-fixture lanes:
+  - `emu.conformance.paper_mario_full_cache_phrb_authorities`
+  - `emu.conformance.paper_mario_full_cache_phrb_authorities_refresh`
+  - `emu.conformance.paper_mario_full_cache_phrb_authorities_zero_config_refresh`
   - `emu.conformance.paper_mario_selected_package_authorities`
   - `emu.conformance.paper_mario_selected_package_timeout_validation`
-- those lanes are opt-in through `EMU_ENABLE_RUNTIME_CONFORMANCE=1` and skip cleanly when the local selected `PHRB` package or Paper Mario prerequisites are missing
+  - `emu.conformance.paper_mario_selected_package_timeout_lookup_without_probe`
+  - `emu.conformance.sm64_hires_boot`
+  - `emu.conformance.sm64_hires_title_fixture`
+  - `emu.conformance.oot_hires_boot`
+  - `emu.conformance.oot_hires_title_fixture`
+- those lanes are opt-in through `EMU_ENABLE_RUNTIME_CONFORMANCE=1` and skip cleanly when local `PHRB`, ROM, savestate, or RetroArch prerequisites are missing

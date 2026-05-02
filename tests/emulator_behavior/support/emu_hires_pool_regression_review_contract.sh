@@ -19,9 +19,6 @@ def write_summary(path: Path, *, ae: int, rmse: float, hit_rows: list[tuple[str,
         "steps": [
             {
                 "step_frames": 960,
-                "selected_hash": f"{path.stem}-selected",
-                "legacy_hash": f"{path.stem}-legacy",
-                "matches_legacy": False,
                 "ae": ae,
                 "rmse": rmse,
                 "semantic": {

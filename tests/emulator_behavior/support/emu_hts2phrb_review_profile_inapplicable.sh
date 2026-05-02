@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$ROOT_DIR/tests/emulator_behavior/support/hts2phrb_synthetic_bundle_provenance.sh"
 TMP_DIR="$(mktemp -d /tmp/parallel-n64-hts2phrb-review-profile-inapplicable-XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -116,6 +117,8 @@ review_profile = {
 }
 review_profile_path.write_text(json.dumps(review_profile, indent=2) + "\n")
 PY
+
+hts2phrb_write_synthetic_runtime_provenance "$BUNDLE_DIR" "$CACHE_PATH" "synthetic-hts2phrb-review-profile-inapplicable"
 
 python3 "$ROOT_DIR/tools/hts2phrb.py" \
   --cache "$CACHE_PATH" \

@@ -72,7 +72,7 @@ void update_x86_rounding_mode(uint32_t FCR31)
 void poweron_cp1(void)
 {
    memset(reg_cop1_fgr_64, 0, 32 * sizeof(reg_cop1_fgr_64[0]));
-   FCR0 = UINT32_C(0x511);
+   FCR0 = UINT32_C(0xA00);
    FCR31=0;
    update_x86_rounding_mode(FCR31);
 }

@@ -1474,3 +1474,20 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   emu-runtime-conformance 2/2. Evidence:
   artifacts/experiments/texrect-exempt-135246/ (compare-credit-zoom.png rows:
   before / after / quirk-off reference).
+- Alpha-weighted bilinear landed (3da623f5): the pack stores black RGB under
+  transparent texels (267/268 sampled cutout textures), so the plain RGBA lerp
+  was bleeding dark halos into cutout edges. RGB taps are now weighted by
+  alpha; curtain/bush halos clear up on kmr_03. The fence and stone-path
+  fringes did NOT move (diff-map proof) - those need the GlideN64 oracle to
+  classify as pack art vs renderer issue.
+- GlideN64 reference rig landed (1eac0dbd): adapter gained generic
+  --core-options-template/--extra-append-config, gliden64-reference-capture.sh
+  boots the .hts pack on mupen64plus-next and screenshots the title scene,
+  compose-reference-pair.py builds labeled review pairs, and
+  emu.support.gliden64_reference_guardrails (canary-tested) bans image metrics
+  and GlideN64 digest gating from the gate surface. First side-by-side:
+  artifacts/experiments/texrect-exempt-135246/sidebyside-title.png - same pack
+  content on both renderers.
+- Open: kmr_03 GlideN64 reference needs gameplay reach (file select -> walk),
+  which wants the interactive agent-play adapter mode. Mips/trilinear and
+  hirestex-filter wiring stay queued behind that oracle.

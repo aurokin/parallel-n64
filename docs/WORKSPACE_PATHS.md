@@ -1,70 +1,76 @@
 # Workspace Paths
 
-This document records the current machine-specific workspace layout.
-
-For now, this project assumes work happens on this PC only.
-If that changes later, this file should become the source of truth for local path assumptions and migration notes.
+Machine-specific workspace layout as of the 2026-06-10 reboot. This machine is
+essentially fresh; this file is the source of truth for local path assumptions.
 
 ## Primary Repo
 
 - `parallel-n64`: `/home/auro/code/parallel-n64`
+  Branch for the reboot effort: `parallelish-reboot`. GitHub Actions are disabled on the fork.
 
-## External Repos And Local References
+## RetroArch (agent control stack)
 
-- `RetroArch`: `/home/auro/code/RetroArch`
-  Current role: frontend/tooling patch target for agent-first control, capture, logging, and orchestration.
+- Checkout: `/home/auro/code/RetroArch`, branch `agent-control`, binary at
+  `/home/auro/code/RetroArch/retroarch`.
+- The branch carries 7 custom stdin commands (`PING`, `SET_PAUSE`, `STEP_FRAME`,
+  `SET_INPUT_PORT`/`CLEAR_INPUT_PORT`/`GET_INPUT_PORT`, `LOAD_STATE_SLOT_PAUSED`,
+  `WAIT_SAVE_STATE`, `READ_CORE_MEMORY` with system-RAM fallback).
+- Canonical backup of those patches:
+  [tools/retroarch-patches/](/home/auro/code/parallel-n64/tools/retroarch-patches)
+  (committed here, also pushed to `aurokin/RetroArch`). See its README for rebuild
+  and verification steps.
 
-- `RetroArch runtime binary`: `/home/auro/code/RetroArch/retroarch`
-  Current role: canonical local RetroArch executable used by Phase 0 tracked scenario paths on this machine.
+## GlideN64 Reference Vehicle
 
-- `papermario-dx`: `/home/auro/code/paper_mario/papermario-dx`
-  Current role: semantic game-state reference, fixture research target, and possible game-side telemetry/instrumentation target.
+- Prebuilt core: `/home/auro/code/cores/mupen64plus_next_libretro.so`
+  (mupen64plus-next nightly; verified it reads the modern `.hts` pack).
+- Pack symlinked at `~/.config/retroarch/system/Mupen64plus/cache/`.
+- Core options (prefix `mupen64plus-`): `rdp-plugin=gliden64`, `txHiresEnable=True`,
+  `EnableEnhancedHighResStorage=True`, `txCacheCompression=True`,
+  `txHiresFullAlphaChannel=True`.
+- Source clone for patched builds: `/home/auro/code/mupen64plus-libretro-nx`
+  (txDump support needs a one-line patch there).
 
-- `papermario`: `/home/auro/code/paper_mario/papermario`
-  Current role: upstream Paper Mario decomp/reference checkout for vanilla code and symbol/layout comparison alongside `papermario-dx`.
+## Game References
 
-- `emulator_references`: `/home/auro/code/emulator_references`
-  Current role: local reference implementations from other emulator projects.
-
+- `papermario`: `/home/auro/code/papermario`
+  Upstream pmret Paper Mario decomp. This replaces the old `papermario-dx` checkout,
+  which is no longer on disk. Debug-only semantic reference, not a correctness authority.
 - `n64_docs`: `/home/auro/code/n64_docs`
-  Current role: local N64 behavior and hardware documentation reference set.
+  Local N64 hardware/programming documentation set.
+- The `emulator_references`, `oot`, and `sm64` checkouts referenced by older notes are
+  not currently on disk; re-clone if needed.
 
-- `parallel-n64-failed-attempt`: `/home/auro/code/parallel-n64-failed-attempt`
-  Current role: historical worktree used to study the failed hi-res attempt.
+## ROMs
 
-- `oot`: `/home/auro/code/oot`
-  Current role: zeldaret/oot decomp reference checkout (shallow). Staged for cross-game validation and source-level texture identity research.
+- ROM root: `/pluto/game/rom/n64` (full No-Intro set, NFS mount).
+- Staged working ROM: `assets/Paper Mario (USA).zip` (untracked).
+- Never point runtime scenarios at the NFS mount; stage working copies in `assets/`.
 
-- `sm64`: `/home/auro/code/sm64`
-  Current role: n64decomp/sm64 decomp reference checkout (shallow). Staged for cross-game validation and source-level texture identity research.
+## Texture Packs And Runtime Packages
+
+- Tracking file (committed): [assets/TEXTURE_PACKS.md](/home/auro/code/parallel-n64/assets/TEXTURE_PACKS.md)
+  — status, source URL, and sha256 for every pack.
+- On disk now: `assets/PAPER MARIO_HIRESTEXTURES.hts` (Paper Mario Redone HD) plus its
+  original archive. SM64 and OoT packs are NEEDED; the user is acquiring them.
+- Cold-storage convention: archive original downloads and extracted `.hts` files to
+  `/pluto/game/texture_packs/n64/` before use (create the directory on first archive).
+- Active runtime package: `artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb`
+  (405MB, zero-config compat, untracked).
 
 ## Local Assets And Generated Output
 
-- local testing and research assets: `/home/auro/code/parallel-n64/assets`
-  Notes: gitignored, machine-local, currently used for ROMs and hi-res texture assets.
-  Current contents:
-  - `PAPER MARIO_HIRESTEXTURES.hts` — legacy Paper Mario import input for manual `hts2phrb` conversion (not a supported runtime pack)
-  - `SUPER MARIO 64_HIRESTEXTURES.hts` — legacy SM64 import input for manual `hts2phrb` conversion
-  - `THE LEGEND OF ZELDA_HIRESTEXTURES.hts` — legacy OoT import input for manual `hts2phrb` conversion
-  - `Paper Mario (USA).zip`, `Super Mario 64 (USA).zip`, `Legend of Zelda, The - Ocarina of Time (USA).zip` — ROMs
-  Note: runtime loading is `.phrb` only. Legacy GlideN64 HTS packs use Rice CRC computed from RDRAM and must be converted manually with `hts2phrb` before use at runtime. The GlideN64-compat draw-time CRC fallback now auto-enables from loaded PHRB compat entries. SM64 confirmed working end-to-end (HTS → PHRB → runtime hits, 6599 compat hits in 30s boot). OoT confirmed working end-to-end (43K entries, 8.9GB PHRB, streaming metadata-only load, 46751 compat hits including CI palette CRC in 45s boot).
-
-- generated workflow artifacts: `/home/auro/code/parallel-n64/artifacts`
-  Notes: gitignored except for the tracked README.
-
-## Path Assumptions
-
-- These paths are currently treated as canonical for planning and tooling work on this machine.
-- Scripts and manifests should prefer references to this document or clearly named variables over silently hardcoding new paths in multiple places.
-- If a script must assume a local path, keep the assumption explicit and easy to override.
-
-## Current Dependencies To Keep In Mind
-
-- `parallel-n64` depends operationally on the local `RetroArch` checkout for frontend/tooling work.
-- `parallel-n64` depends operationally on the local `papermario-dx` checkout for fixture analysis and potential game-side debug work.
-- `parallel-n64` now also depends on the local `papermario` checkout for upstream vanilla-reference comparison when DX-specific relocation or symbol drift makes `papermario-dx` insufficient.
-- research and planning currently depend on the local `emulator_references` and `n64_docs` trees.
+- `assets/` and `artifacts/` binaries are untracked and expendable:
+  - `.phrb` packages are regenerable from their `.hts` via `tools/hts2phrb.py`.
+  - packs and ROMs are re-acquirable/re-stageable per `assets/TEXTURE_PACKS.md`.
+  - the `.hts` originals are the assets to protect (cold storage rule above).
+- Savestates live under `assets/states/<fixture>/ParaLLEl N64/` (untracked). The
+  authoritative savestate ladder is being reminted on this machine
+  (REBOOT_PLAN work order step 1); treat existing state files as unverified until
+  the remint promotes them.
 
 ## Maintenance Rule
 
-When a new external repo, local corpus, or machine-specific dependency becomes part of the workflow, add it here before relying on it in plans or tooling.
+When a new external repo, local corpus, or machine-specific dependency becomes part
+of the workflow, add it here before relying on it in plans or tooling. Keep scripts'
+path assumptions explicit and easy to override.

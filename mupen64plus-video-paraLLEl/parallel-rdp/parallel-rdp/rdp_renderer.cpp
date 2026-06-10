@@ -2111,6 +2111,20 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	const auto &texel0_state = replacement_tiles[base_tile];
 	const auto &texel1_state = replacement_tiles[texel1_tile];
 
+	// native_resolution_tex_rect exists to keep copy-mode strips stable at
+	// upscale, but it also snaps rasterization to the native pixel grid,
+	// capping replacement detail for the texrects hi-res packs care about
+	// most (UI, text). When a replacement is bound to a non-copy, non-flip
+	// texrect, drop the snap so the replacement rasterizes at full scale.
+	// The bit is only consumed GPU-side, so patching the queued setup here,
+	// after the draw-time CRC fallback has resolved, stays coherent.
+	if (draw_class == HiresDrawClass::TexRect &&
+	    texel0_state.hit && uses_texel0 &&
+	    (raster_flags & RASTERIZATION_COPY_BIT) == 0)
+	{
+		stream.triangle_setup.last().flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
+	}
+
 	if (hires_debug)
 	{
 		LOGI("Hi-res draw usage: draw_class=%s cycle=%s copy=%u base_tile=%u uses_texel0=%u uses_texel1=%u texel0_hit=%u texel0_key=%016llx texel0_fs=%u texel0_w=%u texel0_h=%u texel1_tile=%u texel1_hit=%u texel1_key=%016llx texel1_fs=%u texel1_w=%u texel1_h=%u fmt=%u siz=%u pal=%u offset=%u stride=%u sl=%u tl=%u sh=%u th=%u mask_s=%u shift_s=%u mask_t=%u shift_t=%u clamp_s=%u mirror_s=%u clamp_t=%u mirror_t=%u.\n",

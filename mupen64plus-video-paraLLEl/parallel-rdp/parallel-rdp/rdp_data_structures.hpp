@@ -343,6 +343,12 @@ public:
 		return elements;
 	}
 
+	T &last()
+	{
+		assert(count > 0);
+		return elements[count - 1];
+	}
+
 	void reset()
 	{
 		count = 0;

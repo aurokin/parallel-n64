@@ -125,6 +125,20 @@ i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 st_fp5, bool linea
 		vec4 cx0 = mix(c00, c10, frac.x);
 		vec4 cx1 = mix(c01, c11, frac.x);
 		repl = mix(cx0, cx1, frac.y);
+
+		// Hi-res packs store black RGB under transparent texels, so a plain
+		// RGBA lerp bleeds dark halos into cutout edges. Weight RGB by each
+		// tap's alpha; alpha itself keeps the plain bilinear result.
+		vec4 wts = vec4(
+				(1.0 - frac.x) * (1.0 - frac.y),
+				frac.x * (1.0 - frac.y),
+				(1.0 - frac.x) * frac.y,
+				frac.x * frac.y);
+		vec4 alphas = vec4(c00.a, c10.a, c01.a, c11.a);
+		vec4 awts = wts * alphas;
+		float asum = awts.x + awts.y + awts.z + awts.w;
+		if (asum > 0.0)
+			repl.rgb = (c00.rgb * awts.x + c10.rgb * awts.y + c01.rgb * awts.z + c11.rgb * awts.w) / asum;
 	}
 	else
 	{

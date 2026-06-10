@@ -12,6 +12,7 @@ Expected adapter targets include:
 Current tracked adapter seeds:
 
 - [`retroarch_stdin_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_stdin_session.sh)
+- [`retroarch_interactive_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_interactive_session.sh)
 
 Current RetroArch adapter notes:
 
@@ -34,6 +35,15 @@ Current RetroArch adapter notes:
 - tracked Paper Mario flows now use a log-gated startup handoff plus `WAIT_COMMAND_READY` instead of blind startup sleeps
 - when a core does not publish a libretro memory map, the local RetroArch build now falls back to `RETRO_MEMORY_SYSTEM_RAM` for `READ_CORE_MEMORY`
 - `SAVE_STATE` is asynchronous in RetroArch; tracked flows now use `WAIT_SAVE_STATE`, and save tasks should be sequenced before screenshot tasks when minting authoritative states
+
+Interactive agent-play adapter notes (`retroarch_interactive_session.sh`):
+
+- `start` keeps one session alive across agent turns: RetroArch runs in its own setsid process group, holds the same runtime flock as the batch adapter, and self-terminates after `--ttl-seconds` (default 3600) so a forgotten session can never become a daemon
+- `send`/`input`/`screenshot`/`status`/`save-slot`/`load-slot` talk to the live session over the bundle FIFO; `stop` QUITs and falls back to killing the process group
+- the game runs in REAL TIME between agent commands; for deterministic play keep the session paused and use `input --frames N` (TAS-style: input held for exactly N stepped frames, proven bit-identical on replay), reserving `--hold-seconds` for menus/title screens
+- `save-slot` tracks the active slot locally (STATE_SLOT_PLUS/MINUS are silent) and verifies the save log names the expected `.state<N>` file
+- screenshots are written asynchronously by RetroArch; the adapter waits for a non-empty, size-stable capture file before reporting its path
+- state loads can transiently fail while another frontend task is in flight; `load-slot` retries once before failing loudly
 
 Adapters should translate between systems.
 They should not become the main source of truth for renderer correctness or scene semantics.

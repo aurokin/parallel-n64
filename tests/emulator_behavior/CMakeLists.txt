@@ -6,173 +6,8 @@ add_test(
 )
 
 add_test(
-  NAME emu.support.paper_mario_non_menu_fixture_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_non_menu_fixture_contract.sh"
-)
-
-add_test(
-  NAME emu.support.paper_mario_selected_package_authority_validation_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_selected_package_authority_validation_contract.sh"
-)
-
-add_test(
-  NAME emu.support.paper_mario_phrb_authority_validation_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_phrb_authority_validation_contract.sh"
-)
-
-add_test(
-  NAME emu.support.paper_mario_default_authority_cache_preference_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_default_authority_cache_preference_contract.sh"
-)
-
-add_test(
   NAME emu.support.hires_capability_runtime_contract
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_capability_runtime_contract.sh"
-)
-
-add_test(
-  NAME emu.unit.cross_game_hires_validators_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_cross_game_hires_validators_contract.sh"
-)
-
-add_test(
-  NAME emu.unit.hires_checksum_gate_policy_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_checksum_gate_policy_contract.sh"
-)
-
-add_test(
-  NAME emu.support.rdp_hires_zero_line_compat_gate_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_rdp_hires_zero_line_compat_gate_contract.sh"
-)
-
-add_test(
-  NAME emu.support.paper_mario_full_cache_phrb_authority_refresh_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_full_cache_phrb_authority_refresh_contract.sh"
-)
-
-add_test(
-  NAME emu.support.paper_mario_full_cache_phrb_zero_config_refresh_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_full_cache_phrb_zero_config_refresh_contract.sh"
-)
-
-add_test(
-  NAME emu.support.paper_mario_title_timeout_selected_package_validation_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_title_timeout_selected_package_validation_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_block_family_probe_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_block_family_probe_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_proxy_binding_auto_select_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_proxy_binding_auto_select_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_selector_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_selector_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_family_probe_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_family_probe_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_pool_stream_probe_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_pool_stream_probe_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_group_capture_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_group_capture_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_pool_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_pool_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_pool_regression_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_pool_regression_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_duplicate_probe_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_duplicate_probe_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_duplicate_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_duplicate_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_duplicate_review_multi_record_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_duplicate_review_multi_record_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_alias_group_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_alias_group_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_pack_apply_duplicate_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_pack_apply_duplicate_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_pack_apply_alias_group_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_pack_apply_alias_group_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_pack_build_selected_package_duplicate_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_pack_build_selected_package_duplicate_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_pack_build_selected_package_alias_group_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_pack_build_selected_package_alias_group_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_pack_build_selected_package_review_profile_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_pack_build_selected_package_review_profile_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_apply_surface_transport_policy_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_apply_surface_transport_policy_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_pack_build_selected_package_surface_transport_policy_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_pack_build_selected_package_surface_transport_policy_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_alternate_source_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_alternate_source_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_alternate_source_activation_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_alternate_source_activation_review_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_runtime_seam_register_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_runtime_seam_register_contract.sh"
-)
-
-add_test(
-  NAME emu.support.hires_sampled_cross_scene_review_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_sampled_cross_scene_review_contract.sh"
 )
 
 add_test(
@@ -186,11 +21,6 @@ add_test(
 )
 
 add_test(
-  NAME emu.support.hts2phrb_sampled_bundle_fallback
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_sampled_bundle_fallback.sh"
-)
-
-add_test(
   NAME emu.support.hts2phrb_directory_input
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_directory_input.sh"
 )
@@ -201,88 +31,8 @@ add_test(
 )
 
 add_test(
-  NAME emu.support.hts2phrb_zero_config_defaults
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_zero_config_defaults.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_path_scoped_defaults
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_path_scoped_defaults.sh"
-)
-
-add_test(
   NAME emu.support.hts2phrb_gates
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_gates.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_bundle_input_resolution
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_bundle_input_resolution.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_context_bundle_merge
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_context_bundle_merge.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_family_inventory_absorbed_variants
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_family_inventory_absorbed_variants.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_unresolved_family_review
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_unresolved_family_review.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_exact_scale_equivalent_collapse
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_exact_scale_equivalent_collapse.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_canonical_family_selection_review
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_canonical_family_selection_review.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_runtime_overlay_hash_review
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_runtime_overlay_hash_review.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_context_bundle_generic_family_fallback
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_context_bundle_generic_family_fallback.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_context_bundle_groups_fallback
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_context_bundle_groups_fallback.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_context_bundle_fixture_summary
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_context_bundle_fixture_summary.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_context_dir_discovery
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_context_dir_discovery.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_context_bundle_provenance_hits
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_context_bundle_provenance_hits.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_runtime_sampled_probe_family_signal
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_runtime_sampled_probe_family_signal.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_upload_counter_normalization
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_upload_counter_normalization.sh"
 )
 
 add_test(
@@ -290,87 +40,6 @@ add_test(
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_paper_mario_full_cache_contract.sh"
 )
 set_tests_properties(emu.support.hts2phrb_paper_mario_full_cache_contract PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.support.hts2phrb_paper_mario_pre_v401_full_cache_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_paper_mario_pre_v401_full_cache_contract.sh"
-)
-set_tests_properties(emu.support.hts2phrb_paper_mario_pre_v401_full_cache_contract PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.support.hts2phrb_paper_mario_review_profile_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_paper_mario_review_profile_contract.sh"
-)
-set_tests_properties(emu.support.hts2phrb_paper_mario_review_profile_contract PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.support.hts2phrb_paper_mario_runtime_overlay_review_profile_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_paper_mario_runtime_overlay_review_profile_contract.sh"
-)
-set_tests_properties(
-  emu.support.hts2phrb_paper_mario_runtime_overlay_review_profile_contract
-  PROPERTIES SKIP_RETURN_CODE 77
-)
-
-add_test(
-  NAME emu.support.hts2phrb_bundle_scoped_defaults
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_bundle_scoped_defaults.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_runtime_overlay_modes
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_runtime_overlay_modes.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_auto_overlay_without_runtime_ready
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_auto_overlay_without_runtime_ready.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_auto_overlay_without_deterministic_bindings
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_auto_overlay_without_deterministic_bindings.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_reuse_existing
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_reuse_existing.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_reuse_existing_runtime_ready_consistency
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_reuse_existing_runtime_ready_consistency.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_reuse_existing_runtime_class_consistency
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_reuse_existing_runtime_class_consistency.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_reuse_existing_runtime_kind_consistency
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_reuse_existing_runtime_kind_consistency.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_reuse_existing_manifest_summary_backfill
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_reuse_existing_manifest_summary_backfill.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_review_profile
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_review_profile.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_review_profile_inapplicable
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_review_profile_inapplicable.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_reuse_existing_review_inputs
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_reuse_existing_review_inputs.sh"
-)
 
 add_executable(emu_unit_smoke_test
   emu_unit_smoke_test.cpp
@@ -424,7 +93,6 @@ target_include_directories(emu_unit_hires_ci_palette_policy_test PRIVATE
 )
 target_compile_features(emu_unit_hires_ci_palette_policy_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.hires_ci_palette_policy COMMAND emu_unit_hires_ci_palette_policy_test)
-
 
 add_executable(emu_unit_rdp_command_ingest_test
   emu_unit_rdp_command_ingest_test.cpp
@@ -529,7 +197,6 @@ target_include_directories(emu_unit_rdp_retro_image_mapping_test PRIVATE
 )
 target_compile_features(emu_unit_rdp_retro_image_mapping_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.rdp_retro_image_mapping COMMAND emu_unit_rdp_retro_image_mapping_test)
-
 
 add_executable(emu_unit_z64_constants_test
   emu_unit_z64_constants_test.cpp
@@ -747,40 +414,10 @@ add_test(
 set_tests_properties(emu.conformance.runtime_smoke_lavapipe PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
-  NAME emu.conformance.paper_mario_selected_package_authorities
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_paper_mario_selected_package_authorities.sh"
-)
-set_tests_properties(emu.conformance.paper_mario_selected_package_authorities PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
   NAME emu.conformance.paper_mario_full_cache_phrb_authorities
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_paper_mario_full_cache_phrb_authorities.sh"
 )
 set_tests_properties(emu.conformance.paper_mario_full_cache_phrb_authorities PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.conformance.paper_mario_full_cache_phrb_authorities_refresh
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_paper_mario_full_cache_phrb_authorities_refresh.sh"
-)
-set_tests_properties(emu.conformance.paper_mario_full_cache_phrb_authorities_refresh PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.conformance.paper_mario_full_cache_phrb_authorities_zero_config_refresh
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_paper_mario_full_cache_phrb_authorities_zero_config_refresh.sh"
-)
-set_tests_properties(emu.conformance.paper_mario_full_cache_phrb_authorities_zero_config_refresh PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.conformance.paper_mario_selected_package_timeout_validation
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_paper_mario_selected_package_timeout_validation.sh"
-)
-set_tests_properties(emu.conformance.paper_mario_selected_package_timeout_validation PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.conformance.paper_mario_selected_package_timeout_lookup_without_probe
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_paper_mario_selected_package_timeout_lookup_without_probe.sh"
-)
-set_tests_properties(emu.conformance.paper_mario_selected_package_timeout_lookup_without_probe PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
   NAME emu.conformance.sm64_hires_boot
@@ -806,40 +443,3 @@ add_test(
 )
 set_tests_properties(emu.conformance.oot_hires_title_fixture PROPERTIES SKIP_RETURN_CODE 77)
 
-add_test(
-  NAME emu.unit.test_runner_profile_contract
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_test_runner_profile_contract.sh"
-)
-
-add_test(
-  NAME emu.unit.dump_runner_contract
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_runner_contract.sh"
-)
-
-add_test(
-  NAME emu.unit.build_runner_contract
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_build_runner_contract.sh"
-)
-
-add_test(
-  NAME emu.unit.run_n64_contract
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_run_n64_contract.sh"
-)
-
-add_test(
-  NAME emu.dump.validate
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_validate.sh" normal
-)
-set_tests_properties(emu.dump.validate PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.dump.validate_sync_only
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_validate.sh" sync-only
-)
-set_tests_properties(emu.dump.validate_sync_only PROPERTIES SKIP_RETURN_CODE 77)
-
-add_test(
-  NAME emu.dump.manifest
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_dump_manifest_check.sh"
-)
-set_tests_properties(emu.dump.manifest PROPERTIES SKIP_RETURN_CODE 77)

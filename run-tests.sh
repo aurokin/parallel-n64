@@ -21,10 +21,11 @@ Usage:
   run-tests.sh [options] [-- CTEST_ARGS...]
 
 Options:
-  --clean               Remove build dir before configuring
+  --clean               Remove build dir before configuring (and force a full
+                        libretro core rebuild for the runtime profile)
   --list                List tests without running them
   --build-dir PATH      Override build dir (default: ./build/ctest)
-  --profile NAME        Test profile: all|emu-required|emu-optional|emu-conformance|emu-runtime-conformance|emu-dump|emu-tsan
+  --profile NAME        Test profile: all|emu-required|emu-conformance|emu-runtime-conformance|emu-tsan
   -R REGEX              Pass test regex to ctest
   -h, --help            Show this help
 
@@ -138,20 +139,14 @@ case "$selected_profile" in
   all)
     ;;
   emu-required)
-    ctest_args+=(-R "^emu\\.(unit\\.|support\\.(paper_mario_selected_package_authority_validation_contract|paper_mario_phrb_authority_validation_contract|paper_mario_title_timeout_selected_package_validation_contract|hts2phrb_.*))")
-    ;;
-  emu-optional)
-    ctest_args+=(-R "^emu\\.(conformance|dump)\\.")
+    ctest_args+=(-R "^emu\\.(unit\\.|support\\.|conformance\\.(vi_register_contract|vi_scanout_range|vi_scaling_crop|rdp_command_fields|rdp_command_lengths|rdp_texture_load_sequence)$)")
     ;;
   emu-conformance)
     ctest_args+=(-R "^emu\\.conformance\\.")
     ;;
   emu-runtime-conformance)
     enable_runtime_conformance=1
-    ctest_args+=(-R "^emu\\.conformance\\.(runtime_smoke_lavapipe|paper_mario_full_cache_phrb_authorities|paper_mario_full_cache_phrb_authorities_refresh|paper_mario_full_cache_phrb_authorities_zero_config_refresh|paper_mario_selected_package_authorities|paper_mario_selected_package_timeout_validation|paper_mario_selected_package_timeout_lookup_without_probe|sm64_hires_boot|sm64_hires_title_fixture|oot_hires_boot|oot_hires_title_fixture)$")
-    ;;
-  emu-dump)
-    ctest_args+=(-R "^emu\\.dump\\.")
+    ctest_args+=(-R "^emu\\.conformance\\.(runtime_smoke_lavapipe|paper_mario_full_cache_phrb_authorities)$")
     ;;
   emu-tsan)
     enable_tsan=1
@@ -209,8 +204,13 @@ echo "[tests] build: $BUILD_DIR"
 cmake --build "$BUILD_DIR" "${build_args[@]}"
 
 if (( enable_runtime_conformance )); then
+  declare -a core_make_args
+  core_make_args=(-j"$PARALLEL_JOBS")
+  if (( clean_build )); then
+    core_make_args+=(-B)
+  fi
   echo "[tests] build runtime libretro core: $SCRIPT_DIR/parallel_n64_libretro.so"
-  make -C "$SCRIPT_DIR" -j"$PARALLEL_JOBS" -B HAVE_PARALLEL=1 parallel_n64_libretro.so
+  make -C "$SCRIPT_DIR" "${core_make_args[@]}" HAVE_PARALLEL=1 parallel_n64_libretro.so
 fi
 
 if (( list_only )); then

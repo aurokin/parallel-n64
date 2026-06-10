@@ -45,7 +45,6 @@ bool native_tex_rect = true;
 bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
 bool hires_textures = false;
 unsigned hires_filter = 1;
-unsigned hires_srgb = 0;
 string hires_cache_path;
 
 void process_commands()
@@ -276,8 +275,8 @@ bool init()
 	if (hires_capabilities_ok)
 	{
 		log_cb(RETRO_LOG_INFO,
-		       "Hi-res textures enabled (path=%s, filter=%u, srgb_mode=%u).\n",
-		       hires_cache_path.c_str(), hires_filter, hires_srgb);
+		       "Hi-res textures enabled (path=%s, filter=%u).\n",
+		       hires_cache_path.c_str(), hires_filter);
 	}
 
 	frontend->configure_hires_replacement(hires_capabilities_ok, hires_cache_path.c_str());

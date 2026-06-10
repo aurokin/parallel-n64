@@ -1395,3 +1395,33 @@ The project now has a clearer non-UI debugging direction:
 - renderer-specific traces where they belong
 
 That is a materially better foundation than relying on UI automation or scene choreography alone.
+
+## 2026-06-10 Reboot
+
+The project rebooted today on branch `parallelish-reboot`. Decisions, all approved:
+
+- Two prior attempts are closed. Attempt A (`origin/hires/current-stack-2026-03-18`,
+  abandoned 2026-03) died chasing GlideN64 pixel-diff scores. Attempt B (master,
+  2026-03-21..05-01, frozen) built the PHRB runtime but drowned in a circular
+  "native sampled identity" enrichment program and metadata-counter gates. Its plan
+  stack is archived under `docs/history/`.
+- Protected property: with hi-res + scaling OFF the core must stay upstream-grade
+  stable; feature-off screenshot digests are a valid gate there and only there.
+  Hi-res-ON validation never uses pixel digests or exact metadata counts —
+  class-level semantics plus visual review only.
+- Identity: the GlideN64-compat Rice-CRC lane is the primary path (proven on SM64,
+  OoT, and Paper Mario). The native-sampled-identity/enrichment program is frozen:
+  code dormant, no gates, no further converter-review work.
+- GlideN64 guardrails: source-level semantic oracle, txDump hash-coverage oracle, and
+  side-by-side content screenshots only. Hard bans: no numeric image-similarity
+  metrics in pass/fail logic, no commit justified by "match GlideN64", no per-scene
+  or per-descriptor renderer overrides.
+- Test surface trimmed 125 -> 48 (commits b6f54147..b6e0b767): emu-required = 42,
+  emu-runtime-conformance = lavapipe smoke + one class-level Paper Mario lane,
+  SM64/OoT lanes on-demand. The dump gate is deleted; missing runtime prerequisites
+  now fail loudly.
+- Fresh-machine reality: ROMs at `/pluto/game/rom/n64`, only the Paper Mario pack on
+  disk (`assets/TEXTURE_PACKS.md` tracks acquisition), savestate remint pending,
+  RetroArch `agent-control` branch with patches backed up in `tools/retroarch-patches/`,
+  GlideN64 reference vehicle is mupen64plus-next at `/home/auro/code/cores/`.
+- New controlling plan and work order: `docs/REBOOT_PLAN.md`.

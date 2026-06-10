@@ -28,7 +28,7 @@ packs).
 | Game | Pack | Format | Status | Source URL | sha256 |
 |------|------|--------|--------|------------|--------|
 | Paper Mario (USA) | Paper Mario Redone HD v4.0.1 (MasterKillua) | `.hts` (443MB) | **ON DISK** — `assets/PAPER MARIO_HIRESTEXTURES.hts`; original archive `assets/PMRHD-401-NWO.rar` (contains only the same `.hts` + README, no PNG sources) | (unrecorded — predates this file) | `PMRHD-401-NWO.rar`: record on next touch |
-| Super Mario 64 | SM64 Reloaded v2.6.0 (GhostlyDark) HD | `.hts` (7z) | **DOWNLOADING** — `assets/packs/sm64-reloaded-v2.6.0-gliden64-hts-hd.7z`; record sha256 + entry count on completion | https://evilgames.eu/files/texture-packs/sm64-reloaded-v2.6.0-gliden64-hts-hd.7z | pending |
+| Super Mario 64 | SM64 Reloaded v2.6.0 (GhostlyDark) HD | `.hts` (154MB 7z → 699MB) | **ON DISK** — `assets/packs/sm64-reloaded-hts/SUPER MARIO 64_HIRESTEXTURES.hts`; 2,530 entries (matches previously-proven count) | https://evilgames.eu/files/texture-packs/sm64-reloaded-v2.6.0-gliden64-hts-hd.7z | `c641cdd7ff590ac3e5fd5936ad7cbc8af139bbd392276e14871a81cf075873e6` |
 | Zelda: Ocarina of Time | OoT Reloaded v11.0.0 (GhostlyDark) HD | `.hts` (1.3GB 7z → 9.4GB) | **ON DISK** — `assets/packs/oot-reloaded-hts/THE LEGEND OF ZELDA_HIRESTEXTURES.hts`; 43,324 entries parsed (matches the previously-proven 43K-entry pack) | https://evilgames.eu/texture-packs/oot-reloaded.htm (fetched on koopa) | `7a68eaf94e62d2059cca011d7a03fefb98f1fbc923809ff8b96dbb45bfa267d2` |
 | Zelda: Majora's Mask | MM Reloaded v11.0.2 (GhostlyDark) HD | `.hts` (7z) | **DOWNLOADING** — `assets/packs/mm-reloaded-v11.0.2-gliden64-hts-hd.7z`; this replaces the missing "MM GlideN64 edition" the plan was waiting on | https://evilgames.eu/files/texture-packs/mm-reloaded-v11.0.2-gliden64-hts-hd.7z | pending |
 | Mario Kart 64 | MK64 Reloaded v2026.04.03 (GhostlyDark) HD | `.hts` (397MB 7z → 3.6GB) | **ON DISK** — `assets/packs/mk64-reloaded-hts/MARIOKART64_HIRESTEXTURES.hts`; 20,212 entries parsed | https://evilgames.eu/texture-packs/mk64-reloaded.htm (fetched on koopa) | `de63c1d640aad8dbad7701b47b5ba38ba522262d92668d028766e5c388f10bd0` |
@@ -46,8 +46,9 @@ packs).
 | Source pack | Package | Status |
 |-------------|---------|--------|
 | Paper Mario Redone HD | `artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb` (405MB, zero-config compat, built 2026-06-10) | **ACTIVE** — referenced by all Paper Mario fixtures |
-| MK64 Reloaded HD | (pending conversion) | queued |
-| OoT Reloaded HD | (pending conversion) | queued |
+| MK64 Reloaded HD | `artifacts/hts2phrb-review/local-mk64-zero-config/package.phrb` (3.6GB, 10,906 records, promotable, zero-config compat) | **BOOT-VALIDATED** — 20,212 entries loaded, 7,488 upload + 20,632 compat draw hits, clean attract-mode capture |
+| OoT Reloaded HD | `artifacts/hts2phrb-review/local-oot-zero-config/package.phrb` (9.5GB, 43,267 records, 1 deferred, zero-config compat) | **BOOT-VALIDATED** — 43,322 entries loaded, 17,498 upload + 105,190 compat draw hits, clean title capture |
+| SM64 Reloaded HD | `artifacts/hts2phrb-review/local-sm64-zero-config/package.phrb` (700MB, 2,530 records, promotable, zero-config compat) | **BOOT-VALIDATED** — 2,530 entries loaded, 65,145 compat draw hits (upload-path hits 0: SM64 resolves entirely via the draw-time CRC lane), clean title capture |
 
 PHRB packages are regenerable from their `.hts` via
 `tools/hts2phrb.py` (zero-config); the `.hts` originals are the assets to protect.

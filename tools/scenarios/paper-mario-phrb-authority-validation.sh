@@ -272,7 +272,6 @@ def require_adapter_config_provenance(bundle_dir, session):
         failures.append("Adapter BASE_CONFIG_SHA256 does not match the current config artifact.")
     for path, sha_key, label in (
         (append_config, "APPEND_CONFIG_SHA256", "append config"),
-        (core_options, "CORE_OPTIONS_FILE_SHA256", "core options"),
     ):
         if not path.is_file():
             failures.append(f"Adapter {label} snapshot does not exist: {path!s}.")
@@ -280,6 +279,34 @@ def require_adapter_config_provenance(bundle_dir, session):
             failures.append(f"Adapter {label} snapshot is not bundle-local: {path!s}.")
         elif sha256_file(path) != session[sha_key]:
             failures.append(f"Adapter {sha_key} does not match the current snapshot.")
+
+    # RetroArch rewrites the core options file on exit with the full option set,
+    # so the recorded hash covers the immutable launch snapshot, and the declared
+    # launch options must survive unchanged into the post-run file.
+    launch_options = Path(session.get("CORE_OPTIONS_LAUNCH_FILE", ""))
+    if not launch_options.is_file():
+        failures.append(f"Adapter core options launch snapshot does not exist: {launch_options!s}.")
+    elif not path_within(launch_options, bundle_dir):
+        failures.append(f"Adapter core options launch snapshot is not bundle-local: {launch_options!s}.")
+    elif sha256_file(launch_options) != session["CORE_OPTIONS_FILE_SHA256"]:
+        failures.append("Adapter CORE_OPTIONS_FILE_SHA256 does not match the launch snapshot.")
+    elif not core_options.is_file():
+        failures.append(f"Adapter core options file does not exist: {core_options!s}.")
+    else:
+        def parse_opts(path):
+            opts = {}
+            for line in path.read_text().splitlines():
+                if "=" in line:
+                    key, _, value = line.partition("=")
+                    opts[key.strip()] = value.strip().strip('"')
+            return opts
+        declared = parse_opts(launch_options)
+        post_run = parse_opts(core_options)
+        for key, value in declared.items():
+            if post_run.get(key) != value:
+                failures.append(
+                    f"Declared core option changed during the run: {key} = {value!r} -> {post_run.get(key)!r}."
+                )
     return failures
 
 def require_adapter_session_provenance(bundle_dir, bundle_meta, expected_mode):

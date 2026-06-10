@@ -58,7 +58,8 @@ cat > "$PASS_BUNDLE/traces/hires-evidence.json" <<'EOF'
   "sampled_object_probe": {"available": false}
 }
 EOF
-PASS_HASH="$(scenario_sha256_file "$PASS_BUNDLE/captures/capture.png")"
+# Hi-res-on bundles never use screenshot digests; digest checks are
+# reserved for feature-off baseline parity below.
 (
   export EXPECTED_HIRES_SUMMARY_PROVIDER_ON="on"
   export EXPECTED_HIRES_SUMMARY_SOURCE_MODE_ON="phrb-only"
@@ -74,7 +75,7 @@ PASS_HASH="$(scenario_sha256_file "$PASS_BUNDLE/captures/capture.png")"
     "$PASS_BUNDLE" \
     "$PASS_BUNDLE/verification.json" \
     "paper-mario-title-screen" \
-    "$PASS_HASH" \
+    "" \
     "state_init_title_screen" \
     "state_step_title_screen"
 )
@@ -121,7 +122,6 @@ cat > "$FAIL_BUNDLE/traces/hires-evidence.json" <<'EOF'
   "sampled_object_probe": {"available": false}
 }
 EOF
-FAIL_HASH="$(scenario_sha256_file "$FAIL_BUNDLE/captures/capture.png")"
 set +e
 (
   export EXPECTED_HIRES_SUMMARY_PROVIDER_ON="on"
@@ -134,7 +134,7 @@ set +e
     "$FAIL_BUNDLE" \
     "$FAIL_BUNDLE/verification.json" \
     "paper-mario-title-screen" \
-    "$FAIL_HASH" \
+    "" \
     "state_init_title_screen" \
     "state_step_title_screen"
 )

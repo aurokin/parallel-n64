@@ -5,7 +5,16 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 SHADER_DIR="$REPO_DIR/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/shaders"
 SHADER_HEADER="$SHADER_DIR/slangmosh.hpp"
-DEFAULT_SLANGMOSH="$HOME/code/mupen/parallel-rdp-upstream/build/Granite/slangmosh/slangmosh"
+# The fork vendors parallel-rdp at the commit in mupen64plus-video-paraLLEl/parallel-rdp/COMMIT
+# (7a3e561e, 2020). slangmosh must be built from THAT vintage: modern Granite emits an
+# incompatible header (interface split, reflection-bank constructor). Build recipe:
+#   git -C ~/code/mupen/parallel-rdp-upstream checkout 7a3e561e89d35f7e221770d21e7efa970b496a1e
+#   git -C ~/code/mupen/parallel-rdp-upstream submodule update --init --recursive  # astc-encoder pin is dead; skip it
+#   apply tools/parallel-rdp-toolchain-patches/ to the Granite submodule
+#   cmake -S ~/code/mupen/parallel-rdp-upstream -B ~/code/mupen/parallel-rdp-upstream/build-2020 \
+#     -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DGRANITE_ASTC_ENCODER_COMPRESSION=OFF
+#   cmake --build ~/code/mupen/parallel-rdp-upstream/build-2020 --target slangmosh -j"$(nproc)"
+DEFAULT_SLANGMOSH="$HOME/code/mupen/parallel-rdp-upstream/build-2020/Granite/tools/slangmosh"
 
 usage() {
   cat <<'EOF'
@@ -113,10 +122,12 @@ if [[ ! -d "$GRANITE_ASSETS/shaders/inc" ]]; then
   exit 1
 fi
 
+# --vk11 (subgroup ops need SPIR-V 1.3) and --namespace RDP match upstream's own
+# regeneration recipe (parallel-rdp README / generate_standalone_codebase.sh).
 (
   cd "$SHADER_DIR"
   trap 'rm -f slangmosh.regen.json' EXIT
   sed "s|\"../../Granite/assets/shaders/inc\"|\"$GRANITE_ASSETS/shaders/inc\"|" \
     slangmosh.json > slangmosh.regen.json
-  "$SLANGMOSH_BIN" slangmosh.regen.json -O --strip --output slangmosh.hpp
+  "$SLANGMOSH_BIN" slangmosh.regen.json --vk11 -O --strip --namespace RDP --output slangmosh.hpp
 )

@@ -1,0 +1,19 @@
+diff --git a/network/tcp_listener.cpp b/network/tcp_listener.cpp
+index c74bebf4..28727b9c 100644
+--- a/network/tcp_listener.cpp
++++ b/network/tcp_listener.cpp
+@@ -47,6 +47,7 @@ TCPListener::TCPListener(uint16_t port)
+ }
+ #else
+ #include <string>
++#include <stdexcept>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <netdb.h>
+diff --git a/third_party/astc-encoder b/third_party/astc-encoder
+index 9c2360ce..77e0ce65 160000
+--- a/third_party/astc-encoder
++++ b/third_party/astc-encoder
+@@ -1 +1 @@
+-Subproject commit 9c2360cefd0e412a84c7735868537bd7e1f526f4
++Subproject commit 77e0ce6534147134d34a1e365d1fe69e22089ba4-dirty

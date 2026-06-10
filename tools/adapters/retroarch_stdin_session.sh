@@ -250,7 +250,7 @@ else
   # texrect on); scaling/sampler experiments sweep these per-session.
   UPSCALING_VALUE="${PARALLEL_RDP_UPSCALING_OVERRIDE:-4x}"
   NATIVE_TEXRECT_VALUE="${PARALLEL_RDP_NATIVE_TEXRECT_OVERRIDE:-enabled}"
-  HIRES_FILTER_VALUE="${PARALLEL_RDP_HIRES_FILTER_OVERRIDE:-linear}"
+  HIRES_FILTER_VALUE="${PARALLEL_RDP_HIRES_FILTER_OVERRIDE:-trilinear}"
 
   cat > "$CORE_OPTIONS_FILE" <<EOF
 parallel-n64-gfxplugin = "parallel"

@@ -459,7 +459,7 @@ static void setup_variables(void)
       { "parallel-n64-parallel-rdp-hirestex",
          "(ParaLLEl-RDP) Hi-res texture replacement; disabled|enabled" },
       { "parallel-n64-parallel-rdp-hirestex-filter",
-         "(ParaLLEl-RDP) Hi-res texture filtering; linear|nearest|trilinear" },
+         "(ParaLLEl-RDP) Hi-res texture filtering; trilinear|linear|nearest" },
 #endif
       { "parallel-n64-send_allist_to_hle_rsp",
          "Send audio lists to HLE RSP; disabled|enabled" },
@@ -1303,13 +1303,13 @@ void update_variables(bool startup)
    {
        if (!strcmp(var.value, "nearest"))
            parallel_set_hires_filter(0);
-       else if (!strcmp(var.value, "trilinear"))
-           parallel_set_hires_filter(2);
-       else
+       else if (!strcmp(var.value, "linear"))
            parallel_set_hires_filter(1);
+       else
+           parallel_set_hires_filter(2);
    }
    else
-       parallel_set_hires_filter(1);
+       parallel_set_hires_filter(2);
 
    {
       const char *system_dir = ".";

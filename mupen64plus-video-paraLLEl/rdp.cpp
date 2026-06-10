@@ -44,7 +44,7 @@ bool native_texture_lod = false;
 bool native_tex_rect = true;
 bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
 bool hires_textures = false;
-unsigned hires_filter = 1;
+unsigned hires_filter = 2;
 string hires_cache_path;
 
 void process_commands()

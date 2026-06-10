@@ -1,3 +1,5 @@
+> **Frozen historical record of Attempt B (2026-03 to 2026-05).** Superseded by [docs/REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md) at the 2026-06-10 reboot. Not maintained; kept for reference. The RetroArch stdin command spec described here is still in use, and the canonical backup of those patches now lives in [tools/retroarch-patches/](/home/auro/code/parallel-n64/tools/retroarch-patches).
+
 # Phase 0: Agent-First Tooling
 
 ## Objective

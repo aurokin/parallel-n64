@@ -1,3 +1,5 @@
+> **Frozen historical record of Attempt B (2026-03 to 2026-05).** Superseded by [docs/REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md) at the 2026-06-10 reboot. Not maintained; kept for reference only.
+
 # Phase 1: Hi-Res Replacement
 
 ## Objective

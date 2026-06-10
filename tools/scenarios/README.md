@@ -29,20 +29,16 @@ Current tracked scenario seeds:
 - [`paper-mario-kmr-03-entry-5.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-kmr-03-entry-5.sh)
 - [`paper-mario-kmr-03-entry-5.runtime.env`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-kmr-03-entry-5.runtime.env)
 - [`paper-mario-file-select-input-probe.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-file-select-input-probe.sh)
-- [`paper-mario-file-select-block-family-probe.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-file-select-block-family-probe.sh)
-- [`paper-mario-file-select-tile-family-probe.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-file-select-tile-family-probe.sh)
 - [`paper-mario-title-timeout-probe.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-title-timeout-probe.sh)
 - [`paper-mario-phrb-authority-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-phrb-authority-validation.sh)
 - [`paper-mario-full-cache-phrb-authority-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-authority-validation.sh)
-- [`paper-mario-full-cache-phrb-zero-config-refresh.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-zero-config-refresh.sh)
-- [`paper-mario-full-cache-phrb-authority-refresh.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-authority-refresh.sh)
-- [`paper-mario-selected-package-authority-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-selected-package-authority-validation.sh)
 - [`cross-game-hires-boot-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/cross-game-hires-boot-validation.sh)
 - [`cross-game-hires-savestate-fixture-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/cross-game-hires-savestate-fixture-validation.sh)
 - [`remint-cross-game-boot-state.sh`](/home/auro/code/parallel-n64/tools/scenarios/remint-cross-game-boot-state.sh)
 - [`paper-mario-savefile-start.runtime.env`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-savefile-start.runtime.env)
 - [`paper-mario-hos-05-entry-3.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-hos-05-entry-3.sh)
 - [`paper-mario-hos-05-entry-3.runtime.env`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-hos-05-entry-3.runtime.env)
+- [`remint-paper-mario-title-screen-authority.sh`](/home/auro/code/parallel-n64/tools/scenarios/remint-paper-mario-title-screen-authority.sh)
 - [`remint-paper-mario-file-select-authority.sh`](/home/auro/code/parallel-n64/tools/scenarios/remint-paper-mario-file-select-authority.sh)
 - [`remint-paper-mario-kmr-03-entry-5-authority.sh`](/home/auro/code/parallel-n64/tools/scenarios/remint-paper-mario-kmr-03-entry-5-authority.sh)
 - [`remint-paper-mario-hos-05-entry-3-authority.sh`](/home/auro/code/parallel-n64/tools/scenarios/remint-paper-mario-hos-05-entry-3-authority.sh)
@@ -51,12 +47,8 @@ Current tracked scenario seeds:
 ## Active Paper Mario Lanes
 
 - [`paper-mario-title-screen.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-title-screen.sh), [`paper-mario-file-select.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-file-select.sh), and [`paper-mario-kmr-03-entry-5.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-kmr-03-entry-5.sh) are the repo-default authority fixtures. Their normal `on` runs now require a promoted enriched full-cache `PHRB` and fail closed if that runtime artifact is missing.
-- [`paper-mario-phrb-authority-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-phrb-authority-validation.sh) is the shared Paper Mario `PHRB` authority runner. It executes title screen, file select, and `kmr_03 ENTRY_5` against a supplied `.phrb`, records one validation summary, and rejects legacy runtime inputs.
-- [`paper-mario-selected-package-authority-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-selected-package-authority-validation.sh) is the stricter selected-package lane. It runs through the shared `PHRB` authority runner but still requires native sampled entries per fixture.
-- [`paper-mario-full-cache-phrb-authority-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-authority-validation.sh) is the full-cache `PHRB` authority runner used by the default full-cache conformance wrapper.
-- [`paper-mario-full-cache-phrb-zero-config-refresh.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-zero-config-refresh.sh) is the maintained zero-context refresh workflow for the compat-only front-door lane.
-- [`paper-mario-full-cache-phrb-authority-refresh.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-authority-refresh.sh) is the maintained promoted-baseline refresh workflow for the enriched authority-context lane.
-- [`paper-mario-title-timeout-selected-package-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-title-timeout-selected-package-validation.sh) is the main selected-package timeout review surface. It emits selector, pool, seam-register, and alternate-source artifacts when the needed inputs are present.
+- [`paper-mario-phrb-authority-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-phrb-authority-validation.sh) is the shared Paper Mario `PHRB` authority runner. It executes title screen, file select, and `kmr_03 ENTRY_5` against a supplied `.phrb`, records one validation summary with class-level semantics (entries loaded, draw hits, source-mode class, explicit fallback reasons), and rejects legacy runtime inputs.
+- [`paper-mario-full-cache-phrb-authority-validation.sh`](/home/auro/code/parallel-n64/tools/scenarios/paper-mario-full-cache-phrb-authority-validation.sh) is the full-cache `PHRB` wrapper used by the `emu.conformance.paper_mario_full_cache_phrb_authorities` runtime lane.
 
 ## Active Cross-Game Lanes
 
@@ -73,8 +65,7 @@ Current tracked scenario seeds:
 
 ## Supplemental Research
 
-- Deeper Paper Mario probe history, deferred seam evidence, offline tooling notes, and experimental runtime flags now live in [PAPER_MARIO_RUNTIME_RESEARCH.md](/home/auro/code/parallel-n64/docs/PAPER_MARIO_RUNTIME_RESEARCH.md).
-- The controlling docs remain:
-  - [Hi-Res Runtime Primary Plan](/home/auro/code/parallel-n64/docs/plans/hires_runtime_primary_plan.md)
-  - [Project State](/home/auro/code/parallel-n64/docs/PROJECT_STATE.md)
+- Attempt B probe history and deferred seam evidence are archived in [docs/history/PAPER_MARIO_RUNTIME_RESEARCH.md](/home/auro/code/parallel-n64/docs/history/PAPER_MARIO_RUNTIME_RESEARCH.md) (frozen, reference only).
+- The controlling docs are:
+  - [Reboot Plan](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md)
   - [EMU_TESTING.md](/home/auro/code/parallel-n64/docs/EMU_TESTING.md)

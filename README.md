@@ -12,35 +12,20 @@ The project is being run as an agent-first workflow:
 
 ## Current Status
 
-The repo is now in the Phase 1 runtime/package shift inside the Phase 0/1 backbone.
+The project rebooted on 2026-06-10. The controlling plan is
+[REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md); the prior
+Attempt B plan stack is archived under
+[docs/history/](/home/auro/code/parallel-n64/docs/history).
 
-The agreed backbone is:
-
-1. Phase 0: agent-first tooling, fixtures, evidence bundles, deterministic control
-2. Phase 1: hi-res replacement without corruption
-3. Phase 2: scaling and sharpness work
-
-Paper Mario remains the strict authority game.
-The active strict authority fixtures are title screen, file select, and `kmr_03 ENTRY_5`; SM64/OoT are cross-game compat-path regression gates, not native sampled authority proofs.
-The repo-default authority path now prefers the promoted enriched full-cache `PHRB` artifact and fails closed if that promoted runtime artifact is missing.
+Paper Mario remains the strict validation title.
+The active fixtures are title screen, file select, and `kmr_03 ENTRY_5`; SM64/OoT are cross-game compat-path breadth checks.
+The GlideN64-compat Rice-CRC lane is the primary identity path; the native-sampled-identity program is frozen.
 Runtime hi-res loading is `.phrb` only. Legacy `.hts` / `.htc` packs are manual `hts2phrb` conversion inputs, not supported runtime inputs.
-
-The current controlling execution plan for the hi-res runtime/package shift is
-[Hi-Res Runtime Primary Plan](/home/auro/code/parallel-n64/docs/plans/hires_runtime_primary_plan.md).
-The current active sequence is:
-
-1. keep the promoted enriched full-cache `PHRB` baseline green for the three active Paper Mario authority fixtures
-2. continue tightening the provider-owned runtime contract and remove remaining checksum-shaped renderer seams
-3. continue strengthening `hts2phrb` as the common-case front door and reduce converter ambiguity through bounded review-only policy
-4. keep the zero-config compat-only lane and the review-only reduction lane explicit and non-default
-5. leave pool-semantics, source-backed triangle promotion, and second-game breadth deferred until the core runtime/converter gap narrows further
 
 ## Start Here
 
 - [AGENTS.md](/home/auro/code/parallel-n64/AGENTS.md)
-- [Project State](/home/auro/code/parallel-n64/docs/PROJECT_STATE.md)
-- [Phase Overview](/home/auro/code/parallel-n64/docs/plans/PHASE_OVERVIEW.md)
-- [Hi-Res Runtime Primary Plan](/home/auro/code/parallel-n64/docs/plans/hires_runtime_primary_plan.md)
+- [Reboot Plan](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md)
 - [Workspace Paths](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md)
 - [Project Notebook](/home/auro/code/parallel-n64/PROJECT_NOTES.md)
 - [Docs Index](/home/auro/code/parallel-n64/docs/README.md)
@@ -59,8 +44,8 @@ The current active sequence is:
 ## Active Repos In Scope
 
 - [parallel-n64](/home/auro/code/parallel-n64)
-- [RetroArch](/home/auro/code/RetroArch)
-- [papermario-dx](/home/auro/code/paper_mario/papermario-dx)
+- [RetroArch](/home/auro/code/RetroArch) (`agent-control` branch)
+- [papermario](/home/auro/code/papermario) (upstream decomp, debug-only reference)
 
 Use [Workspace Paths](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md) for the canonical local layout on this machine.
 
@@ -80,21 +65,11 @@ Use [Workspace Paths](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md) for 
 - `./run-tests.sh`
 - `./run-tests.sh --profile emu-required`
 - `./run-tests.sh --profile emu-runtime-conformance`
-- `./run-dump-tests.sh --provision-validator`
 
 See [EMU_TESTING.md](/home/auro/code/parallel-n64/docs/EMU_TESTING.md) for the current test tiers.
 
 Current runtime-conformance note:
 
-- `emu-runtime-conformance` includes the lavapipe checks plus Paper Mario full-cache/selected-package lanes and the SM64/OoT cross-game boot and title-fixture lanes:
-  - `emu.conformance.paper_mario_full_cache_phrb_authorities`
-  - `emu.conformance.paper_mario_full_cache_phrb_authorities_refresh`
-  - `emu.conformance.paper_mario_full_cache_phrb_authorities_zero_config_refresh`
-  - `emu.conformance.paper_mario_selected_package_authorities`
-  - `emu.conformance.paper_mario_selected_package_timeout_validation`
-  - `emu.conformance.paper_mario_selected_package_timeout_lookup_without_probe`
-  - `emu.conformance.sm64_hires_boot`
-  - `emu.conformance.sm64_hires_title_fixture`
-  - `emu.conformance.oot_hires_boot`
-  - `emu.conformance.oot_hires_title_fixture`
-- those lanes are opt-in through `EMU_ENABLE_RUNTIME_CONFORMANCE=1` and skip cleanly when local `PHRB`, ROM, savestate, or RetroArch prerequisites are missing
+- `emu-runtime-conformance` runs the lavapipe smoke check plus the single Paper Mario lane `emu.conformance.paper_mario_full_cache_phrb_authorities` and sets the `EMU_ENABLE_RUNTIME_CONFORMANCE=1` opt-in automatically
+- the SM64/OoT boot and title-fixture lanes are registered for on-demand `ctest -R` runs only
+- once opted in, missing `PHRB`, ROM, savestate, or RetroArch prerequisites fail loudly with staging instructions

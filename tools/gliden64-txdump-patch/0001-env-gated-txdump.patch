@@ -1,0 +1,12 @@
+diff --git a/custom/GLideN64/mupenplus/Config_mupenplus.cpp b/custom/GLideN64/mupenplus/Config_mupenplus.cpp
+index fb51f34..0bf563a 100644
+--- a/custom/GLideN64/mupenplus/Config_mupenplus.cpp
++++ b/custom/GLideN64/mupenplus/Config_mupenplus.cpp
+@@ -191,6 +191,7 @@ extern "C" void Config_LoadConfig()
+ 	config.textureFilter.txEnhancementMode = txEnhancementMode;
+ 	config.textureFilter.txFilterIgnoreBG = txFilterIgnoreBG;
+ 	config.textureFilter.txHiresEnable = txHiresEnable;
++	config.textureFilter.txDump = getenv("GLN64_TXDUMP") != nullptr ? 1u : 0u;
+ 	config.textureFilter.txCacheCompression = EnableTxCacheCompression;
+ 	config.textureFilter.txHiresFullAlphaChannel = txHiresFullAlphaChannel;
+ 	config.video.fxaa = EnableFXAA;

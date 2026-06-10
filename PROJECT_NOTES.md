@@ -1425,3 +1425,38 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   RetroArch `agent-control` branch with patches backed up in `tools/retroarch-patches/`,
   GlideN64 reference vehicle is mupen64plus-next at `/home/auro/code/cores/`.
 - New controlling plan and work order: `docs/REBOOT_PLAN.md`.
+
+## 2026-06-10 Control stack live + sampler falsification result
+
+- The savestate ladder is reminted on this machine against post-merge master:
+  title screen -> file select -> kmr_03 ENTRY_5 (960-frame attract ladder), each
+  visually verified and deterministic across independent sessions (title and
+  kmr_03 proven byte-identical twice). New canonical feature-off capture digests:
+  title `351cf979...`, file-select `4b517fba...`, kmr_03 `35213195...`. The
+  patched RetroArch (`agent-control`) answered every command live. /pluto is
+  mounted read-only; interim state backups live at `~/backups/parallel-n64/`.
+- Sampler falsification experiment (artifacts/experiments/sampler-falsification-062900,
+  6 conditions: hires on/off x 1x/4x x texrect-native on/off, title fixture,
+  zero-config compat PHRB):
+  - Replacement WORKS: correct MasterKillua art, correct placement at 1x and 4x;
+    feature-off 4x control reproduced the canonical digest exactly.
+  - FALSIFIED: the predicted /SCALING_FACTOR wrong-region bug. At 4x with texrect
+    upscaling enabled the art is placed correctly - ST is scaled-space there and
+    the division is correct. Static analysis from the research sweep was wrong on
+    coordinate space; the historic "hi-res-ON byte-identical to OFF" captures were
+    a property of the old enriched package, not the pipeline (zero-config ON
+    differs from OFF as expected).
+  - CONFIRMED: the sub-texel fraction discard. Replaced content renders at
+    identical effective resolution at 1x and 4x, with texrect-native on or off -
+    pack detail is decimated to the native texel grid everywhere. This is the
+    single bug standing between "packs load" and "packs look hi-res".
+  - Scene evidence: 11,463 compat entries, 178/196 upload hits, 12 compat draw
+    hits, native_sampled=0 - the compat lane carries the whole scene zero-config.
+- Scaling fix scope is therefore: preserve the fp5 fraction and filter in
+  replacement-texel space (attempt A semantics), then mips + wire hirestex-filter.
+  Do NOT remove the /SCALING_FACTOR normalization.
+- Shader regen toolchain: modern slangmosh emits an incompatible interface
+  (namespace via --namespace, 3-arg ctor + reflection bank needing a newer Vulkan
+  backend than the fork's 2020 snapshot). A 2020-vintage build from the fork's
+  pinned upstream commit (7a3e561e) is in progress; regen script now rewrites the
+  Granite include path at run time.

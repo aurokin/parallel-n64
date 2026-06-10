@@ -213,11 +213,16 @@ video_fullscreen_x = "0"
 video_fullscreen_y = "0"
 EOF
 
+# Experiment overrides: default to the canonical runtime config (4x, native
+# texrect on); scaling/sampler experiments sweep these per-session.
+UPSCALING_VALUE="${PARALLEL_RDP_UPSCALING_OVERRIDE:-4x}"
+NATIVE_TEXRECT_VALUE="${PARALLEL_RDP_NATIVE_TEXRECT_OVERRIDE:-enabled}"
+
 cat > "$CORE_OPTIONS_FILE" <<EOF
 parallel-n64-gfxplugin = "parallel"
-parallel-n64-parallel-rdp-upscaling = "4x"
+parallel-n64-parallel-rdp-upscaling = "$UPSCALING_VALUE"
 parallel-n64-parallel-rdp-hirestex = "$HIRES_VALUE"
-parallel-n64-parallel-rdp-native-tex-rect = "enabled"
+parallel-n64-parallel-rdp-native-tex-rect = "$NATIVE_TEXRECT_VALUE"
 parallel-n64-parallel-rdp-native-texture-lod = "enabled"
 EOF
 

@@ -102,7 +102,21 @@ if [[ "$STALE_INPUT" != "forced" ]]; then
 fi
 log "tool: $SLANGMOSH_BIN"
 
+# slangmosh.json declares the shared Granite include dir ("debug_channel.h" etc.)
+# as ../../Granite/assets/shaders/inc, which only resolves inside the upstream
+# parallel-rdp repo where Granite is a submodule. This fork does not vendor
+# Granite, so rewrite the include path to a real Granite checkout at run time.
+GRANITE_ASSETS="${GRANITE_DEFAULT_ASSET_DIRECTORY:-$HOME/code/mupen/parallel-rdp-upstream/Granite/assets}"
+if [[ ! -d "$GRANITE_ASSETS/shaders/inc" ]]; then
+  echo "Granite shader include dir not found: $GRANITE_ASSETS/shaders/inc" >&2
+  echo "Set GRANITE_DEFAULT_ASSET_DIRECTORY to <parallel-rdp-upstream>/Granite/assets." >&2
+  exit 1
+fi
+
 (
   cd "$SHADER_DIR"
-  "$SLANGMOSH_BIN" slangmosh.json -O --strip --output slangmosh.hpp
+  trap 'rm -f slangmosh.regen.json' EXIT
+  sed "s|\"../../Granite/assets/shaders/inc\"|\"$GRANITE_ASSETS/shaders/inc\"|" \
+    slangmosh.json > slangmosh.regen.json
+  "$SLANGMOSH_BIN" slangmosh.regen.json -O --strip --output slangmosh.hpp
 )

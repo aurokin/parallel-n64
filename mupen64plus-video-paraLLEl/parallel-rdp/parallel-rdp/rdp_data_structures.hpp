@@ -248,6 +248,7 @@ struct GlobalFBInfo
 	uint32_t dx_mask;
 	uint32_t fb_size;
 	uint32_t base_primitive_index;
+	uint32_t hires_filter;
 };
 
 template <typename T, unsigned N>

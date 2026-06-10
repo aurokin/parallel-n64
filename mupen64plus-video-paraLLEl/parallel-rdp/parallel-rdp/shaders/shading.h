@@ -195,8 +195,39 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		if ((setup_flags & TRIANGLE_SETUP_NATIVE_LOD_BIT) != 0)
 			tex_interpolation_direction *= SCALING_FACTOR;
 
-	interpolate_stz(span_setup.stzw, attr.dstzw_dx, attr.dstzw_dy, dx, coverage, perspective, uses_lod,
+	// Hi-res trilinear needs ST derivatives even when the draw itself does
+	// not use N64 LOD; only pay for them when a sampled tile is replaced.
+	bool hires_st_deriv = false;
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	if (!uses_lod && global_constants.fb_info.hires_filter == HIRES_FILTER_TRILINEAR)
+	{
+		if (uses_texel0)
+			hires_st_deriv = tile_uses_hires_replacement(
+					load_tile_info(uint(state_indices.elems[primitive_index].tile_infos[uint(setup_tile) & 7u])));
+		if (!hires_st_deriv && uses_texel1)
+			hires_st_deriv = tile_uses_hires_replacement(
+					load_tile_info(uint(state_indices.elems[primitive_index].tile_infos[(uint(setup_tile) + 1u) & 7u])));
+	}
+#endif
+
+	interpolate_stz(span_setup.stzw, attr.dstzw_dx, attr.dstzw_dy, dx, coverage, perspective, uses_lod || hires_st_deriv,
 	                tex_interpolation_direction, st, st_dx, st_dy, z, perspective_overflow);
+
+	ivec2 st_ddx = ivec2(0), st_ddy = ivec2(0);
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	if (uses_lod || hires_st_deriv)
+	{
+		st_ddx = st_dx - st;
+		st_ddy = st_dy - st;
+		// NATIVE_LOD derivatives span one native pixel; normalize them to
+		// one output pixel for replacement footprint purposes.
+		if (SCALING_FACTOR > 1 && uses_lod && (setup_flags & TRIANGLE_SETUP_NATIVE_LOD_BIT) != 0)
+		{
+			st_ddx /= SCALING_FACTOR;
+			st_ddy /= SCALING_FACTOR;
+		}
+	}
+#endif
 
 	// Sample textures.
 	uint tile0 = uint(setup_tile) & 7u;
@@ -224,7 +255,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 			tile_info0.size = u8(TEX_SIZE);
 		}
 #endif
-		texel0 = sample_texture(tile_info0, tmem_instance_index, st, tlut, tlut_type, sample_quad, mid_texel, false, i16x4(0));
+		texel0 = sample_texture(tile_info0, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel, false, i16x4(0));
 		if (!sample_quad && !bilerp0)
 			texel0 = texture_convert_factors(texel0, derived.factors);
 	}
@@ -271,7 +302,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 				tile_info1.size = u8(TEX_SIZE);
 			}
 #endif
-			texel1 = sample_texture(tile_info1, tmem_instance_index, st, tlut, tlut_type, sample_quad, mid_texel,
+			texel1 = sample_texture(tile_info1, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel,
 			                        convert_one, texel0);
 
 			if (!sample_quad && !tlut && !bilerp1)

@@ -919,6 +919,11 @@ void CommandProcessor::set_quirks(const Quirks &quirks_)
 	enqueue_command(2, words);
 }
 
+void CommandProcessor::set_hires_filter(unsigned mode)
+{
+	renderer.set_hires_filter(mode);
+}
+
 void CommandProcessor::configure_hires_replacement(bool enable, const char *cache_path)
 {
 	replacement_provider.clear();

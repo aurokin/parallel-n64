@@ -250,11 +250,13 @@ else
   # texrect on); scaling/sampler experiments sweep these per-session.
   UPSCALING_VALUE="${PARALLEL_RDP_UPSCALING_OVERRIDE:-4x}"
   NATIVE_TEXRECT_VALUE="${PARALLEL_RDP_NATIVE_TEXRECT_OVERRIDE:-enabled}"
+  HIRES_FILTER_VALUE="${PARALLEL_RDP_HIRES_FILTER_OVERRIDE:-linear}"
 
   cat > "$CORE_OPTIONS_FILE" <<EOF
 parallel-n64-gfxplugin = "parallel"
 parallel-n64-parallel-rdp-upscaling = "$UPSCALING_VALUE"
 parallel-n64-parallel-rdp-hirestex = "$HIRES_VALUE"
+parallel-n64-parallel-rdp-hirestex-filter = "$HIRES_FILTER_VALUE"
 parallel-n64-parallel-rdp-native-tex-rect = "$NATIVE_TEXRECT_VALUE"
 parallel-n64-parallel-rdp-native-texture-lod = "enabled"
 EOF

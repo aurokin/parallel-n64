@@ -350,6 +350,11 @@ struct GlobalFBInfo
 	int dx_mask;
 	int fb_size;
 	uint base_primitive_index;
+	uint hires_filter;
 };
+
+const uint HIRES_FILTER_NEAREST = 0u;
+const uint HIRES_FILTER_BILINEAR = 1u;
+const uint HIRES_FILTER_TRILINEAR = 2u;
 
 #endif

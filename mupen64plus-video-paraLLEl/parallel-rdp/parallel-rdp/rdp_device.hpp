@@ -138,6 +138,7 @@ public:
 
 	void set_quirks(const Quirks &quirks);
 	void configure_hires_replacement(bool enable, const char *cache_path);
+	void set_hires_filter(unsigned mode);
 
 	// Interact with memory.
 	void *begin_read_rdram();

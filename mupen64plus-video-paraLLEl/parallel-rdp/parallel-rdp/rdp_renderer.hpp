@@ -36,6 +36,7 @@ namespace RDP
 struct CoherencyOperation;
 struct ReplacementMeta;
 struct ReplacementResolution;
+struct ReplacementImage;
 struct CILow32DimsSelector;
 class ReplacementProvider;
 
@@ -155,6 +156,7 @@ public:
 	void set_hires_debug_ci_selectors(std::vector<CILow32DimsSelector> selectors);
 	void set_hires_debug_ci_low32_fallback(HiresDebugCILow32FallbackMode mode);
 	void set_hires_gliden64_compat_crc(bool enable);
+	void set_hires_filter(unsigned mode);
 	void set_hires_gpu_budget_bytes(size_t bytes);
 	void log_hires_summary() const;
 
@@ -228,6 +230,8 @@ private:
 	std::vector<CILow32DimsSelector> hires_debug_ci_selectors;
 	HiresDebugCILow32FallbackMode hires_debug_ci_low32_fallback = HiresDebugCILow32FallbackMode::Off;
 	bool hires_gliden64_compat_crc_enabled = false;
+	// 0 = nearest, 1 = bilinear, 2 = trilinear (see HIRES_FILTER_* in shaders).
+	unsigned hires_filter_mode = 1;
 
 	bool init_caps();
 	void init_blender_lut();
@@ -248,6 +252,7 @@ private:
 		Compat,
 	};
 	uint32_t allocate_hires_descriptor(size_t incoming_bytes);
+	Vulkan::ImageHandle create_hires_replacement_image_with_mips(const ReplacementImage &replacement);
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta);
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta);
 	bool resolve_hires_native_checksum_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta, HiresNativeChecksumDetailClass detail_class = HiresNativeChecksumDetailClass::Exact);

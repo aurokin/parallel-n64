@@ -430,6 +430,81 @@ static void zero_transparent_replacement_rgb(std::vector<uint8_t> &rgba8)
 	}
 }
 
+static unsigned hires_replacement_mip_levels(unsigned w, unsigned h)
+{
+	unsigned levels = 1;
+	while (w > 1 || h > 1)
+	{
+		w = std::max(w >> 1, 1u);
+		h = std::max(h >> 1, 1u);
+		levels++;
+	}
+	return levels;
+}
+
+static size_t hires_replacement_mip_chain_bytes(unsigned w, unsigned h)
+{
+	size_t total = 0;
+	for (;;)
+	{
+		total += size_t(w) * size_t(h) * 4u;
+		if (w == 1 && h == 1)
+			break;
+		w = std::max(w >> 1, 1u);
+		h = std::max(h >> 1, 1u);
+	}
+	return total;
+}
+
+// Alpha-weighted 2x2 box reduce. Transparent texels carry zeroed RGB, so a
+// plain average would pull cutout mip levels toward black; weight RGB by
+// alpha and renormalize, while alpha itself takes the plain average.
+static void downsample_replacement_rgba8_alpha_weighted(
+		const std::vector<uint8_t> &src, unsigned sw, unsigned sh,
+		std::vector<uint8_t> &dst, unsigned dw, unsigned dh)
+{
+	dst.resize(size_t(dw) * size_t(dh) * 4u);
+	for (unsigned y = 0; y < dh; y++)
+	{
+		unsigned sy0 = std::min(2u * y, sh - 1u);
+		unsigned sy1 = std::min(2u * y + 1u, sh - 1u);
+		for (unsigned x = 0; x < dw; x++)
+		{
+			unsigned sx0 = std::min(2u * x, sw - 1u);
+			unsigned sx1 = std::min(2u * x + 1u, sw - 1u);
+			const uint8_t *taps[4] = {
+				&src[4u * (size_t(sy0) * sw + sx0)],
+				&src[4u * (size_t(sy0) * sw + sx1)],
+				&src[4u * (size_t(sy1) * sw + sx0)],
+				&src[4u * (size_t(sy1) * sw + sx1)],
+			};
+			uint32_t rsum = 0, gsum = 0, bsum = 0, asum = 0;
+			for (auto *t : taps)
+			{
+				uint32_t a = t[3];
+				rsum += t[0] * a;
+				gsum += t[1] * a;
+				bsum += t[2] * a;
+				asum += a;
+			}
+			uint8_t *d = &dst[4u * (size_t(y) * dw + x)];
+			if (asum != 0)
+			{
+				d[0] = uint8_t((rsum + asum / 2) / asum);
+				d[1] = uint8_t((gsum + asum / 2) / asum);
+				d[2] = uint8_t((bsum + asum / 2) / asum);
+			}
+			else
+			{
+				d[0] = 0;
+				d[1] = 0;
+				d[2] = 0;
+			}
+			d[3] = uint8_t((asum + 2) / 4);
+		}
+	}
+}
+
 static bool should_alias_hires_tile_binding(const TileMeta &source_meta, const TileMeta &target_meta)
 {
 	return source_meta.offset == target_meta.offset &&
@@ -1202,6 +1277,48 @@ void Renderer::set_hires_gliden64_compat_crc(bool enable)
 	hires_gliden64_compat_crc_enabled = enable;
 	if (enable)
 		LOGI("Hi-res GlideN64-compat RDRAM CRC fallback enabled.\n");
+}
+
+void Renderer::set_hires_filter(unsigned mode)
+{
+	if (mode > 2)
+		mode = 1;
+	hires_filter_mode = mode;
+	LOGI("Hi-res replacement filter mode: %u (0=nearest, 1=bilinear, 2=trilinear).\n", mode);
+}
+
+Vulkan::ImageHandle Renderer::create_hires_replacement_image_with_mips(const ReplacementImage &replacement)
+{
+	const unsigned width = replacement.meta.repl_w;
+	const unsigned height = replacement.meta.repl_h;
+	const unsigned levels = hires_replacement_mip_levels(width, height);
+
+	// Level 0 reuses the decoded payload; lower levels are generated with
+	// the alpha-weighted reduce so cutout mips stay halo-free.
+	std::vector<std::vector<uint8_t>> mips(levels - 1);
+	std::vector<Vulkan::ImageInitialData> initial(levels);
+	initial[0].data = replacement.rgba8.data();
+	initial[0].row_length = width;
+	initial[0].image_height = height;
+
+	const std::vector<uint8_t> *prev = &replacement.rgba8;
+	unsigned prev_w = width, prev_h = height;
+	for (unsigned level = 1; level < levels; level++)
+	{
+		unsigned mip_w = std::max(prev_w >> 1, 1u);
+		unsigned mip_h = std::max(prev_h >> 1, 1u);
+		downsample_replacement_rgba8_alpha_weighted(*prev, prev_w, prev_h, mips[level - 1], mip_w, mip_h);
+		initial[level].data = mips[level - 1].data();
+		initial[level].row_length = mip_w;
+		initial[level].image_height = mip_h;
+		prev = &mips[level - 1];
+		prev_w = mip_w;
+		prev_h = mip_h;
+	}
+
+	auto info = Vulkan::ImageCreateInfo::immutable_2d_image(width, height, VK_FORMAT_R8G8B8A8_UNORM, false);
+	info.levels = levels;
+	return device->create_image(info, initial.data());
 }
 
 void Renderer::set_hires_gpu_budget_bytes(size_t bytes)
@@ -2851,6 +2968,7 @@ void Renderer::submit_rasterization(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &
 	}
 
 	global_fb_info->base_primitive_index = base_primitive_index;
+	global_fb_info->hires_filter = hires_filter_mode;
 
 #ifdef PARALLEL_RDP_SHADER_DIR
 	cmd.set_program("rdp://rasterizer.comp", {
@@ -3188,6 +3306,7 @@ void Renderer::submit_depth_blend(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &tm
 	}
 
 	global_fb_info->base_primitive_index = base_primitive_index;
+	global_fb_info->hires_filter = hires_filter_mode;
 
 	push.depth_addr_index = fb.depth_addr >> 1;
 	unsigned num_primitives_32 = (stream.triangle_setup.size() + 31) / 32;
@@ -4163,25 +4282,14 @@ bool Renderer::resolve_hires_sampled_replacement_descriptor(uint32_t sampled_fmt
 	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
 		return false;
 
-	const size_t texture_bytes = size_t(replacement.meta.repl_w) * size_t(replacement.meta.repl_h) * 4u;
+	const size_t texture_bytes = hires_replacement_mip_chain_bytes(replacement.meta.repl_w, replacement.meta.repl_h);
 	const uint32_t descriptor_index = allocate_hires_descriptor(texture_bytes);
 	if (descriptor_index == 0xffffffffu)
 		return false;
 
 	zero_transparent_replacement_rgb(replacement.rgba8);
 
-	Vulkan::ImageInitialData initial = {};
-	initial.data = replacement.rgba8.data();
-	initial.row_length = replacement.meta.repl_w;
-	initial.image_height = replacement.meta.repl_h;
-
-	auto image = device->create_image(
-			Vulkan::ImageCreateInfo::immutable_2d_image(
-					replacement.meta.repl_w,
-					replacement.meta.repl_h,
-					VK_FORMAT_R8G8B8A8_UNORM,
-					false),
-			&initial);
+	auto image = create_hires_replacement_image_with_mips(replacement);
 	if (!image)
 		return false;
 
@@ -4251,25 +4359,14 @@ bool Renderer::resolve_hires_native_checksum_replacement_descriptor(uint64_t che
 	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
 		return false;
 
-	const size_t texture_bytes = size_t(replacement.meta.repl_w) * size_t(replacement.meta.repl_h) * 4u;
+	const size_t texture_bytes = hires_replacement_mip_chain_bytes(replacement.meta.repl_w, replacement.meta.repl_h);
 	const uint32_t descriptor_index = allocate_hires_descriptor(texture_bytes);
 	if (descriptor_index == 0xffffffffu)
 		return false;
 
 	zero_transparent_replacement_rgb(replacement.rgba8);
 
-	Vulkan::ImageInitialData initial = {};
-	initial.data = replacement.rgba8.data();
-	initial.row_length = replacement.meta.repl_w;
-	initial.image_height = replacement.meta.repl_h;
-
-	auto image = device->create_image(
-			Vulkan::ImageCreateInfo::immutable_2d_image(
-					replacement.meta.repl_w,
-					replacement.meta.repl_h,
-					VK_FORMAT_R8G8B8A8_UNORM,
-					false),
-			&initial);
+	auto image = create_hires_replacement_image_with_mips(replacement);
 	if (!image)
 		return false;
 
@@ -4438,25 +4535,14 @@ bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, 
 	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
 		return false;
 
-	const size_t texture_bytes = size_t(replacement.meta.repl_w) * size_t(replacement.meta.repl_h) * 4u;
+	const size_t texture_bytes = hires_replacement_mip_chain_bytes(replacement.meta.repl_w, replacement.meta.repl_h);
 	const uint32_t descriptor_index = allocate_hires_descriptor(texture_bytes);
 	if (descriptor_index == 0xffffffffu)
 		return false;
 
 	zero_transparent_replacement_rgb(replacement.rgba8);
 
-	Vulkan::ImageInitialData initial = {};
-	initial.data = replacement.rgba8.data();
-	initial.row_length = replacement.meta.repl_w;
-	initial.image_height = replacement.meta.repl_h;
-
-	auto image = device->create_image(
-			Vulkan::ImageCreateInfo::immutable_2d_image(
-					replacement.meta.repl_w,
-					replacement.meta.repl_h,
-					VK_FORMAT_R8G8B8A8_UNORM,
-					false),
-			&initial);
+	auto image = create_hires_replacement_image_with_mips(replacement);
 	if (!image)
 		return false;
 

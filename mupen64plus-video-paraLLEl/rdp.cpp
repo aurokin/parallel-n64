@@ -281,6 +281,7 @@ bool init()
 	}
 
 	frontend->configure_hires_replacement(hires_capabilities_ok, hires_cache_path.c_str());
+	frontend->set_hires_filter(hires_filter);
 
 	timeline_value = 0;
 	pending_timeline_value = 0;

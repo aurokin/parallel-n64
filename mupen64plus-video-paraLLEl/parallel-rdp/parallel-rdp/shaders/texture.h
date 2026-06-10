@@ -102,46 +102,71 @@ ivec2 remap_hires_st_fp5_copy(TileInfo tile, ivec2 st_fp5, int s_offset)
 	return remapped;
 }
 
-i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 st_fp5, bool linear_filter)
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+vec4 hires_filtered_fetch_level(TileInfo tile, vec2 st_texel, int level)
+{
+	ivec2 orig_dims = max(ivec2(tile.repl_orig_w, tile.repl_orig_h), ivec2(1));
+	ivec2 level_dims = max(ivec2(tile.repl_w, tile.repl_h) >> level, ivec2(1));
+	vec2 repl_texel = (st_texel + vec2(0.5)) * (vec2(level_dims) / vec2(orig_dims)) - vec2(0.5);
+	vec2 repl_texel_clamped = clamp(repl_texel, vec2(0.0), vec2(level_dims - 1));
+
+	ivec2 p0 = ivec2(floor(repl_texel_clamped));
+	ivec2 p1 = min(p0 + ivec2(1), level_dims - 1);
+	vec2 frac = repl_texel_clamped - vec2(p0);
+
+	vec4 c00 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], p0, level);
+	vec4 c10 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], ivec2(p1.x, p0.y), level);
+	vec4 c01 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], ivec2(p0.x, p1.y), level);
+	vec4 c11 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], p1, level);
+	vec4 cx0 = mix(c00, c10, frac.x);
+	vec4 cx1 = mix(c01, c11, frac.x);
+	vec4 repl = mix(cx0, cx1, frac.y);
+
+	// Hi-res packs store black RGB under transparent texels, so a plain
+	// RGBA lerp bleeds dark halos into cutout edges. Weight RGB by each
+	// tap's alpha; alpha itself keeps the plain bilinear result.
+	vec4 wts = vec4(
+			(1.0 - frac.x) * (1.0 - frac.y),
+			frac.x * (1.0 - frac.y),
+			(1.0 - frac.x) * frac.y,
+			frac.x * frac.y);
+	vec4 alphas = vec4(c00.a, c10.a, c01.a, c11.a);
+	vec4 awts = wts * alphas;
+	float asum = awts.x + awts.y + awts.z + awts.w;
+	if (asum > 0.0)
+		repl.rgb = (c00.rgb * awts.x + c10.rgb * awts.y + c01.rgb * awts.z + c11.rgb * awts.w) / asum;
+
+	return repl;
+}
+#endif
+
+i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 st_fp5, bool linear_filter, float lod)
 {
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 	ivec2 orig_dims = max(ivec2(tile.repl_orig_w, tile.repl_orig_h), ivec2(1));
 	ivec2 repl_dims = max(ivec2(tile.repl_w, tile.repl_h), ivec2(1));
 	vec2 st_texel = vec2(st_fp5) * (1.0 / 32.0);
-	vec2 repl_texel = (st_texel + vec2(0.5)) * (vec2(repl_dims) / vec2(orig_dims)) - vec2(0.5);
-	vec2 repl_texel_clamped = clamp(repl_texel, vec2(0.0), vec2(repl_dims - 1));
 
 	vec4 repl;
 	if (linear_filter)
 	{
-		ivec2 p0 = ivec2(floor(repl_texel_clamped));
-		ivec2 p1 = min(p0 + ivec2(1), repl_dims - 1);
-		vec2 frac = repl_texel_clamped - vec2(p0);
-
-		vec4 c00 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], p0, 0);
-		vec4 c10 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], ivec2(p1.x, p0.y), 0);
-		vec4 c01 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], ivec2(p0.x, p1.y), 0);
-		vec4 c11 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], p1, 0);
-		vec4 cx0 = mix(c00, c10, frac.x);
-		vec4 cx1 = mix(c01, c11, frac.x);
-		repl = mix(cx0, cx1, frac.y);
-
-		// Hi-res packs store black RGB under transparent texels, so a plain
-		// RGBA lerp bleeds dark halos into cutout edges. Weight RGB by each
-		// tap's alpha; alpha itself keeps the plain bilinear result.
-		vec4 wts = vec4(
-				(1.0 - frac.x) * (1.0 - frac.y),
-				frac.x * (1.0 - frac.y),
-				(1.0 - frac.x) * frac.y,
-				frac.x * frac.y);
-		vec4 alphas = vec4(c00.a, c10.a, c01.a, c11.a);
-		vec4 awts = wts * alphas;
-		float asum = awts.x + awts.y + awts.z + awts.w;
-		if (asum > 0.0)
-			repl.rgb = (c00.rgb * awts.x + c10.rgb * awts.y + c01.rgb * awts.z + c11.rgb * awts.w) / asum;
+		if (lod > 0.0)
+		{
+			int max_level = findMSB(uint(max(repl_dims.x, repl_dims.y)));
+			float lod_clamped = min(lod, float(max_level));
+			int l0 = int(lod_clamped);
+			float lf = lod_clamped - float(l0);
+			repl = hires_filtered_fetch_level(tile, st_texel, l0);
+			if (lf > 0.0)
+				repl = mix(repl, hires_filtered_fetch_level(tile, st_texel, l0 + 1), lf);
+		}
+		else
+			repl = hires_filtered_fetch_level(tile, st_texel, 0);
 	}
 	else
 	{
+		vec2 repl_texel = (st_texel + vec2(0.5)) * (vec2(repl_dims) / vec2(orig_dims)) - vec2(0.5);
+		vec2 repl_texel_clamped = clamp(repl_texel, vec2(0.0), vec2(repl_dims - 1));
 		ivec2 repl_coord = ivec2(floor(repl_texel_clamped + vec2(0.5)));
 		repl = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], repl_coord, 0);
 	}
@@ -480,6 +505,20 @@ int shift_coord(int coord, int lo, int shift)
 	return coord;
 }
 
+// Tile shift for an ST *delta* (derivative): same scaling as shift_coord,
+// without the tile-origin subtraction.
+int shift_coord_delta(int coord, int shift)
+{
+	if (shift < 11)
+		coord >>= shift;
+	else
+	{
+		coord <<= (32 - shift);
+		coord >>= 16;
+	}
+	return coord;
+}
+
 // The copy pipe reads 4x16 words.
 int sample_texture_copy_word(TileInfo tile, uint tmem_instance, ivec2 st, int s_offset, bool tlut, bool tlut_type)
 {
@@ -579,7 +618,7 @@ int sample_texture_copy(TileInfo tile, uint tmem_instance, ivec2 st, int s_offse
 	if (tile_uses_hires_replacement(tile))
 	{
 		ivec2 st_repl_fp5 = remap_hires_st_fp5_copy(tile, st_fp5, s_offset);
-		i16x4 repl_texel = sample_hires_replacement_texel_fp5(tile, st_repl_fp5, false);
+		i16x4 repl_texel = sample_hires_replacement_texel_fp5(tile, st_repl_fp5, false, 0.0);
 		uvec4 repl = uvec4(clamp(ivec4(repl_texel), ivec4(0), ivec4(255)));
 		if (global_constants.fb_info.fb_size == 1)
 			return int(repl.x);
@@ -622,7 +661,8 @@ i16x2 bilinear_3tap(i16x2 t00, i16x2 t10, i16x2 t01, i16x2 t11, ivec2 frac)
 	return accum;
 }
 
-i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, bool tlut_type, bool sample_quad, bool mid_texel, bool convert_one,
+i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, ivec2 st_ddy,
+                     bool tlut, bool tlut_type, bool sample_quad, bool mid_texel, bool convert_one,
                      i16x4 prev_cycle)
 {
 	st.x = clamp_and_shift_coord((tile.flags & TILE_INFO_CLAMP_S_BIT) != 0, st.x, int(tile.slo), int(tile.shi), int(tile.shift_s));
@@ -664,23 +704,55 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 	{
 		yuv = false;
 		ivec2 st_fp5 = (st << 5) + hires_frac_fp5;
-		bool hires_direct_sample = !tlut;
-		bool hires_linear = tlut || hires_direct_sample;
+		// Replacement texels are already continuous RGBA filtered at the
+		// replacement resolution; running the N64 quad filter on top
+		// re-samples that signal at native-texel spacing and aliases into
+		// dashes under minification. Direct-sample for TLUT draws too.
+		bool hires_direct_sample = true;
+		bool hires_linear = global_constants.fb_info.hires_filter != HIRES_FILTER_NEAREST;
 
-		t_base = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5), hires_linear);
-		if (sample_quad)
+		// Replacement-texel footprint of one output pixel, from the
+		// screen-space ST derivatives. Drives the mip selection that keeps
+		// minified replacements (repl much denser than the native art the
+		// scene was authored against) from aliasing into speckle.
+		float hires_lod = 0.0;
+		if (global_constants.fb_info.hires_filter == HIRES_FILTER_TRILINEAR)
 		{
-			t10 = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 0)), hires_linear);
-			t01 = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5 + ivec2(0, 32)), hires_linear);
+			ivec2 ddx = ivec2(
+					shift_coord_delta(st_ddx.x, int(tile.shift_s)),
+					shift_coord_delta(st_ddx.y, int(tile.shift_t)));
+			ivec2 ddy = ivec2(
+					shift_coord_delta(st_ddy.x, int(tile.shift_s)),
+					shift_coord_delta(st_ddy.y, int(tile.shift_t)));
+			vec2 repl_scale = vec2(max(ivec2(tile.repl_w, tile.repl_h), ivec2(1))) /
+			                  vec2(max(ivec2(tile.repl_orig_w, tile.repl_orig_h), ivec2(1)));
+			repl_scale *= 1.0 / (32.0 * float(SCALING_FACTOR));
+			vec2 fx = abs(vec2(ddx)) * repl_scale;
+			vec2 fy = abs(vec2(ddy)) * repl_scale;
+			float rho = max(max(fx.x, fx.y), max(fy.x, fy.y));
+			if (rho > 1.0)
+				hires_lod = log2(rho);
 		}
-		if (mid_texel)
-			t11 = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 32)), hires_linear);
 
 		if (hires_direct_sample)
 		{
+			// Zero frac AND sum_frac so the N64 3-point combine below
+			// reduces exactly to t_base (sum_frac >= 32 would otherwise
+			// blend the unsampled t10/t01 at full weight).
 			sample_quad = false;
 			mid_texel = false;
+			frac = ivec2(0);
+			sum_frac = 0;
 		}
+
+		t_base = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5), hires_linear, hires_lod);
+		if (sample_quad)
+		{
+			t10 = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 0)), hires_linear, hires_lod);
+			t01 = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5 + ivec2(0, 32)), hires_linear, hires_lod);
+		}
+		if (mid_texel)
+			t11 = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 32)), hires_linear, hires_lod);
 	}
 	else if (tlut)
 	{

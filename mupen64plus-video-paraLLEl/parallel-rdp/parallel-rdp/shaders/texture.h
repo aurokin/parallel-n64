@@ -620,6 +620,10 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 	else
 		frac = ivec2(0);
 
+	// Replacement sampling needs the sub-texel fraction regardless of
+	// sample_quad: it is what lets a hi-res texture resolve detail finer
+	// than the native texel grid.
+	ivec2 hires_frac_fp5 = st & 31;
 	int sum_frac = frac.x + frac.y;
 	st >>= 5;
 
@@ -645,7 +649,7 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, bool tlut, boo
 	if (tile_uses_hires_replacement(tile))
 	{
 		yuv = false;
-		ivec2 st_fp5 = st << 5;
+		ivec2 st_fp5 = (st << 5) + hires_frac_fp5;
 		bool hires_direct_sample = !tlut;
 		bool hires_linear = tlut || hires_direct_sample;
 

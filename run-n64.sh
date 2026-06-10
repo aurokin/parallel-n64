@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_RETROARCH="/home/auro/code/mupen/RetroArch-upstream/retroarch"
+DEFAULT_RETROARCH="/home/auro/code/RetroArch/retroarch"
 DEFAULT_ROM_DIR="/home/auro/code/n64_roms"
 DEFAULT_ROM_NAME="Paper Mario (USA).zip"
 REFERENCE_CORE="$SCRIPT_DIR/builds/parallel_n64_libretro.reference.so"

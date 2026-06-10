@@ -1563,3 +1563,20 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
 - Open follow-ups: consider flipping hirestex-filter default to trilinear
   after breadth scenes beyond boot are reviewed; stdin adapter gained
   PARALLEL_RDP_HIRES_FILTER_OVERRIDE for sweeps.
+- hirestex-filter default flipped to trilinear (9c0d6ae3), closing the
+  follow-up from the sampler unit. Evidence: serial attract-mode capture
+  pairs for all four breadth titles (4 timestamps each, ~25-115s, filter
+  mode proven per bundle log) + the kmr_03 fixture pair, judged by a
+  10-agent review panel (per-title reviewer + adversarial skeptic, arbiter
+  only on disagreement - none triggered). 5/5 accept; skeptics with
+  magnified/brightness-normalized crops found no over-blur, mip seams,
+  wrong textures, or UI softening, and flagged bilinear-only speckle on
+  minified content (SM64 moat bricks/water, OoT field grass, MK64 distant
+  road) as evidence FOR the flip. Caveat recorded by the panel: MM pairs
+  were weakened by attract-fade timing drift; judged per-panel, still
+  clean. Explicit "linear"/"nearest" selections unchanged; the core's
+  declared default empirically resolves to mode 2 when the option key is
+  absent. Feature-off digests stayed bit-exact through the flip
+  (hirestex-filter provably inert with hi-res off); emu-required 43/43,
+  emu-runtime-conformance 2/2. Review bundles + pairs under
+  artifacts/experiments/trilinear-default-204024/.

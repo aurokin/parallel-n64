@@ -1524,3 +1524,9 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   (GLN64_TXDUMP=1) in the mupen64plus-libretro-nx clone, verified dumping
   Rice-CRC-named PNGs on the Paper Mario title scene. Patch + rebuild recipe
   in tools/gliden64-txdump-patch/.
+- MM Reloaded v11.0.2 landed and validated same-day: 690MB 7z -> 3.9GB .hts
+  -> 3.9GB PHRB (13,689 records, 1 deferred compat). Boot lane passed with
+  hi-res Clock Town intro capture. ALL FIVE titles (Paper Mario, SM64, OoT,
+  MK64, MM) now have on-disk .hts sources, zero-config PHRB packages, and
+  green boot validations. The "MM as very-large-pack stress test" slot is
+  now real: 9.5GB OoT + 3.9GB MM exercise streaming load.

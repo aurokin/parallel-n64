@@ -1,5 +1,7 @@
 # Paper Mario Signal Table
 
+> Path note (2026-06-10): decomp links below predate the machine reset. The upstream decomp now lives at `/home/auro/code/papermario`; `papermario-dx` is no longer on disk. See [WORKSPACE_PATHS.md](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md). The signal addresses and classifications remain valid.
+
 ## Purpose
 
 - Define which Paper Mario runtime signals are currently safe to trust against the vanilla ROM.

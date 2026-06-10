@@ -1530,3 +1530,36 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   MK64, MM) now have on-disk .hts sources, zero-config PHRB packages, and
   green boot validations. The "MM as very-large-pack stress test" slot is
   now real: 9.5GB OoT + 3.9GB MM exercise streaming load.
+- Fence/stone-path fringe classification CLOSED via pack-art forensics (no
+  GlideN64 playthrough needed): extracted all 118 asset variants for the 81
+  kmr_03 draw keys from the Paper Mario PHRB (keys are
+  (palette_crc<<32)|texture_crc; records group by low-32, asset
+  legacy_checksum64 carries the pair - the earlier "wrong striped texture"
+  was a first-variant-of-record mismatch). The fence's black outline is
+  BAKED ART (pure-black antialiased stroke, 0.94% partial-alpha texels all
+  RGB=0); the raggedness/speckle was renderer-side.
+- Hi-res sampler quality unit landed (e647e357): (1) CPU-built full mip
+  chains at replacement upload with alpha-weighted 2x2 reduce (cutout mips
+  stay halo-free), VRAM accounting budgets the chain; (2) hirestex-filter
+  wired end-to-end (was parsed-but-dead) - nearest/bilinear/trilinear via
+  GlobalFBInfo.hires_filter; trilinear computes replacement LOD from
+  per-pixel ST screen derivatives (reuses interpolate_stz's uses_lod path,
+  paid only on replaced draws); (3) THE BIG ONE: replaced tiles are now
+  truly direct-sampled - the N64 3-point combine had been re-blending
+  already-filtered hi-res taps at native-texel spacing on EVERY quad-mode
+  replaced draw (frac was computed before the old sample_quad=false), which
+  was the real source of both the fence-outline stipple and stone-path
+  speckle (NOT alpha-test dither, NOT missing mips alone). frac/sum_frac
+  zeroed so the combine reduces to t_base; TLUT draws included.
+  Falsification trail: naive TLUT bypass corrupted the scene twice
+  (uninitialized t10/t01 x nonzero frac, then sum_frac>=32 full-weight
+  blend) before the correct reduction.
+- Verified: feature-off digests bit-exact through all of it (kmr_03
+  35213195..., title 351cf979...); kmr_03 hi-res ON clean at linear AND
+  trilinear (fence pack-faithful, stones smooth, full frame intact);
+  emu-required 43/43; emu-runtime-conformance 2/2; SM64 + OoT hi-res boot
+  lanes green on the new core. Dead hirestex-srgb option deleted
+  (a020212b) - sRGB-authored art rendered as UNORM matches GlideN64.
+- Open follow-ups: consider flipping hirestex-filter default to trilinear
+  after breadth scenes beyond boot are reviewed; stdin adapter gained
+  PARALLEL_RDP_HIRES_FILTER_OVERRIDE for sweeps.

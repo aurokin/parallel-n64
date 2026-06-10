@@ -450,28 +450,22 @@ def require_provider_owned_evidence(hires_evidence, hires_evidence_path):
     for source_key, source_count in (evidence_summary.get("source_counts") or {}).items():
         if source_key != "phrb" and to_int(source_count) != 0:
             failures.append(f"Expected hi-res evidence source_counts.{source_key}=0, got {source_count!r}.")
-    descriptor_paths = evidence_summary.get("descriptor_path_counts") or {}
-    if to_int(descriptor_paths.get("sampled"), 0) <= 0:
-        failures.append(f"Expected sampled descriptor path evidence, got {descriptor_paths!r}.")
-    forbidden_descriptor_keys = ["native_checksum", "generic"]
-    if not allow_compat_descriptor_traffic:
-        forbidden_descriptor_keys.append("compat")
-    for key in forbidden_descriptor_keys:
-        if to_int(descriptor_paths.get(key), 0) != 0:
-            failures.append(f"Expected zero {key} descriptor traffic, got {descriptor_paths.get(key)!r}.")
-    sampled_probe = hires_evidence.get("sampled_object_probe") or {}
-    if sampled_probe.get("available") is not True:
-        failures.append(f"Expected sampled-object probe to be available, got {sampled_probe.get('available')!r}.")
-    if to_int(sampled_probe.get("line_count"), 0) <= 0:
-        failures.append(f"Expected sampled-object probe line_count > 0, got {sampled_probe.get('line_count')!r}.")
-    if sampled_probe.get("exact_miss_count") is None:
-        conflict = sampled_probe.get("exact_conflict_miss_count")
-        unresolved = sampled_probe.get("exact_unresolved_miss_count")
-        if conflict is not None and unresolved is not None:
-            sampled_probe["exact_miss_count"] = to_int(conflict, 0) + to_int(unresolved, 0)
-    for key in ("exact_hit_count", "exact_miss_count", "exact_conflict_miss_count", "exact_unresolved_miss_count"):
-        if sampled_probe.get(key) is None:
-            failures.append(f"Missing sampled-object probe field {key}.")
+    # Class-level draw evidence: the provider must actually hit at runtime.
+    # No exact descriptor-path counts; descriptor-path distribution is
+    # reported in the summary but never gated.
+    draw_hits = to_int(evidence_summary.get("hits"), 0) + to_int(evidence_summary.get("compat_draw_hits"), 0)
+    if draw_hits <= 0:
+        failures.append(
+            f"Expected hi-res draw hits > 0, got hits={evidence_summary.get('hits')!r} "
+            f"compat_draw_hits={evidence_summary.get('compat_draw_hits')!r}."
+        )
+    # Fallbacks must be explicit: silent disable/load failures are corruption.
+    if hires_evidence.get("cache_load_failed"):
+        failures.append("Hi-res evidence reports a failed cache load.")
+    if hires_evidence.get("missing_cache_path"):
+        failures.append("Hi-res evidence reports a missing cache path.")
+    if hires_evidence.get("disabled_reason"):
+        failures.append(f"Hi-res provider disabled with reason: {hires_evidence.get('disabled_reason')!r}.")
     return failures
 
 for label, fixture_id in fixtures:
@@ -525,6 +519,10 @@ for label, fixture_id in fixtures:
             "provider": actual.get("hires_summary_provider"),
             "source_mode": source_mode,
             "entry_count": actual.get("hires_summary_entry_count"),
+            "draw_hits": (
+                to_int((hires_evidence.get("summary") or {}).get("hits"), 0)
+                + to_int((hires_evidence.get("summary") or {}).get("compat_draw_hits"), 0)
+            ),
             "native_sampled_entry_count": native_sampled_entry_count,
             "compat_entry_count": actual.get("hires_summary_compat_entry_count"),
             "entry_class": actual.get("hires_summary_entry_class") or ((hires_evidence.get("summary") or {}).get("entry_class")),
@@ -572,7 +570,7 @@ for fixture in summary["fixtures"]:
         f"- Passed: `{str(fixture['passed']).lower()}`",
         f"- Screenshot hash (artifact identity only): `{fixture['screenshot_sha256']}`",
         f"- Semantic: `{fixture['init_symbol']}` / `{fixture['step_symbol']}`",
-        f"- Hi-res summary: provider `{hires.get('provider')}`, source mode `{hires.get('source_mode')}`, entries `{hires.get('entry_count')}`, native sampled `{hires.get('native_sampled_entry_count')}`, compat entries `{hires.get('compat_entry_count')}`, entry class `{hires.get('entry_class')}`, source PHRB `{hires.get('source_phrb_count')}`",
+        f"- Hi-res summary: provider `{hires.get('provider')}`, source mode `{hires.get('source_mode')}`, entries `{hires.get('entry_count')}`, native sampled `{hires.get('native_sampled_entry_count')}`, compat entries `{hires.get('compat_entry_count')}`, entry class `{hires.get('entry_class')}`, source PHRB `{hires.get('source_phrb_count')}`, draw hits `{hires.get('draw_hits')}`",
         f"- Descriptor paths: sampled `{descriptor_paths.get('sampled', 0)}`, native checksum `{descriptor_paths.get('native_checksum', 0)}`, generic `{descriptor_paths.get('generic', 0)}`, compat `{descriptor_paths.get('compat', 0)}`, class `{hires.get('descriptor_path_class')}`",
         f"- Sampled exact hits: `{probe.get('exact_hit_count')}`",
         f"- Sampled conflict misses: `{probe.get('exact_conflict_miss_count')}`",

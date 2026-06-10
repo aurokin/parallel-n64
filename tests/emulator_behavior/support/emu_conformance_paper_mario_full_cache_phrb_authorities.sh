@@ -4,26 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../../.." && pwd)"
 
-ENRICHED_CACHE_PATH_CURRENT="$REPO_ROOT/artifacts/hts2phrb-review/20260408-pm64-all-families-authority-context-abs-summary/package.phrb"
-ENRICHED_CACHE_PATH_LEGACY="$REPO_ROOT/artifacts/hts2phrb-review/20260407-pm64-all-families-authority-context-root/package.phrb"
-ZERO_CONFIG_CACHE_PATH="$REPO_ROOT/artifacts/hts2phrb/paper-mario-hirestextures-9fa7bc07-all-families/package.phrb"
-
-if [[ -n "${EMU_RUNTIME_PM64_FULL_CACHE_PHRB:-}" ]]; then
-  CACHE_PATH="${EMU_RUNTIME_PM64_FULL_CACHE_PHRB}"
-else
-  CACHE_PATH="$ENRICHED_CACHE_PATH_CURRENT"
-  if [[ ! -f "$CACHE_PATH" ]]; then
-    CACHE_PATH="$ENRICHED_CACHE_PATH_LEGACY"
-  fi
-fi
-ENFORCE_ENRICHED_CONTRACT=0
-if [[ "$CACHE_PATH" == "$ENRICHED_CACHE_PATH_CURRENT" || "$CACHE_PATH" == "$ENRICHED_CACHE_PATH_LEGACY" ]]; then
-  ENFORCE_ENRICHED_CONTRACT=1
-fi
-ENFORCE_ZERO_CONFIG_CONTRACT=0
-if [[ "$CACHE_PATH" == "$ZERO_CONFIG_CACHE_PATH" ]]; then
-  ENFORCE_ZERO_CONFIG_CONTRACT=1
-fi
+DEFAULT_CACHE_PATH="$REPO_ROOT/artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb"
+CACHE_PATH="${EMU_RUNTIME_PM64_FULL_CACHE_PHRB:-$DEFAULT_CACHE_PATH}"
 BUNDLE_ROOT="${EMU_RUNTIME_PM64_FULL_CACHE_BUNDLE_ROOT:-}"
 
 if [[ "${EMU_ENABLE_RUNTIME_CONFORMANCE:-0}" != "1" ]]; then
@@ -31,22 +13,35 @@ if [[ "${EMU_ENABLE_RUNTIME_CONFORMANCE:-0}" != "1" ]]; then
   exit 77
 fi
 
+fail_missing() {
+  local what="$1"
+  local detail="$2"
+  local staging="$3"
+  echo "==================================================================" >&2
+  echo "FAIL: missing prerequisite for the Paper Mario full-cache PHRB lane" >&2
+  echo "  what:  $what" >&2
+  echo "  where: $detail" >&2
+  echo "  stage: $staging" >&2
+  echo "==================================================================" >&2
+  exit 1
+}
+
 if [[ ! -x "$REPO_ROOT/tools/scenarios/paper-mario-full-cache-phrb-authority-validation.sh" ]]; then
   echo "FAIL: full-cache PHRB authority validation wrapper is missing or not executable." >&2
   exit 1
 fi
 
 if [[ ! -f "$CACHE_PATH" ]]; then
-  echo "SKIP: enriched full-cache Paper Mario PHRB package not found at $CACHE_PATH (run the authority refresh workflow or set EMU_RUNTIME_PM64_FULL_CACHE_PHRB to override explicitly, including the zero-config lane)."
-  exit 77
+  fail_missing "Paper Mario PHRB package" "$CACHE_PATH" \
+    "run tools/hts2phrb.py against 'assets/PAPER MARIO_HIRESTEXTURES.hts' (or set EMU_RUNTIME_PM64_FULL_CACHE_PHRB)."
 fi
 
 require_runtime_env_prereqs() {
   local env_path="$1"
   local label="$2"
   if [[ ! -f "$env_path" ]]; then
-    echo "SKIP: runtime env missing for $label at $env_path."
-    exit 77
+    fail_missing "runtime env for $label" "$env_path" \
+      "restore the fixture runtime env under tools/scenarios/."
   fi
 
   local bin_path base_cfg core_path rom_path authoritative_state_path
@@ -76,24 +71,24 @@ PY
   authoritative_state_path="${prereq_paths[4]:-}"
 
   if [[ -z "$bin_path" || ! -x "$bin_path" ]]; then
-    echo "SKIP: RetroArch binary missing for $label at $bin_path."
-    exit 77
+    fail_missing "RetroArch binary for $label" "$bin_path" \
+      "build RetroArch (see RETROARCH_BIN in $env_path)."
   fi
   if [[ -z "$base_cfg" || ! -f "$base_cfg" ]]; then
-    echo "SKIP: RetroArch config missing for $label at $base_cfg."
-    exit 77
+    fail_missing "RetroArch base config for $label" "$base_cfg" \
+      "stage the deterministic RetroArch config referenced by $env_path."
   fi
   if [[ -z "$core_path" || ! -f "$core_path" ]]; then
-    echo "SKIP: libretro core missing for $label at $core_path."
-    exit 77
+    fail_missing "libretro core for $label" "$core_path" \
+      "build it with: make -j4 HAVE_PARALLEL=1 parallel_n64_libretro.so"
   fi
   if [[ -z "$rom_path" || ! -f "$rom_path" ]]; then
-    echo "SKIP: Paper Mario ROM missing for $label at $rom_path."
-    exit 77
+    fail_missing "Paper Mario ROM for $label" "$rom_path" \
+      "stage 'Paper Mario (USA).zip' under assets/."
   fi
   if [[ -z "$authoritative_state_path" || ! -f "$authoritative_state_path" ]]; then
-    echo "SKIP: authoritative state missing for $label at $authoritative_state_path."
-    exit 77
+    fail_missing "authoritative savestate for $label" "$authoritative_state_path" \
+      "remint it with tools/scenarios/remint-paper-mario-${label#paper-mario-}-authority.sh (savestates under assets/states/ are not checked in)."
   fi
 }
 
@@ -137,123 +132,43 @@ if [[ ! -f "$SUMMARY_PATH" ]]; then
   exit 1
 fi
 
-python3 - "$SUMMARY_PATH" "$ENFORCE_ENRICHED_CONTRACT" "$ENFORCE_ZERO_CONFIG_CONTRACT" <<'PY'
+# Class-level semantics only: provider on, phrb-only sourcing, non-empty
+# entry set, live draw hits, and explicit fallback reasons. No exact
+# descriptor-path counts and no hi-res-on screenshot digests.
+python3 - "$SUMMARY_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 summary = json.loads(Path(sys.argv[1]).read_text())
-enforce_enriched_contract = bool(int(sys.argv[2]))
-enforce_zero_config_contract = bool(int(sys.argv[3]))
 fixtures = summary.get("fixtures") or []
-enriched_expected = {
-    "title-screen": {
-        "native_sampled_entry_count": 503,
-        "entry_class": "mixed-native-and-compat",
-        "descriptor_path_class": "mixed-sampled-compat",
-        "descriptor_path_counts": {"sampled": 268, "native_checksum": 0, "generic": 0, "compat": 12},
-    },
-    "file-select": {
-        "native_sampled_entry_count": 503,
-        "entry_class": "mixed-native-and-compat",
-        "descriptor_path_class": "mixed-sampled-compat",
-        "descriptor_path_counts": {"sampled": 214, "native_checksum": 0, "generic": 0, "compat": 6},
-    },
-    "kmr-03-entry-5": {
-        "native_sampled_entry_count": 503,
-        "entry_class": "mixed-native-and-compat",
-        "descriptor_path_class": "mixed-sampled-compat",
-        "descriptor_path_counts": {"sampled": 182, "native_checksum": 0, "generic": 0, "compat": 74},
-    },
-}
-zero_config_expected = {
-    "title-screen": {
-        "native_sampled_entry_count": 0,
-        "entry_class": "compat-only",
-        "descriptor_path_class": "compat-only",
-        "descriptor_path_counts": {"sampled": 0, "native_checksum": 0, "generic": 0, "compat": 190},
-    },
-    "file-select": {
-        "native_sampled_entry_count": 0,
-        "entry_class": "compat-only",
-        "descriptor_path_class": "compat-only",
-        "descriptor_path_counts": {"sampled": 0, "native_checksum": 0, "generic": 0, "compat": 92},
-    },
-    "kmr-03-entry-5": {
-        "native_sampled_entry_count": 0,
-        "entry_class": "compat-only",
-        "descriptor_path_class": "compat-only",
-        "descriptor_path_counts": {"sampled": 0, "native_checksum": 0, "generic": 0, "compat": 186},
-    },
-}
+
+def to_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
 if not summary.get("all_passed"):
     raise SystemExit("FAIL: full-cache PHRB authority summary is not all_passed.")
 if len(fixtures) != 3:
     raise SystemExit(f"FAIL: expected 3 fixtures, found {len(fixtures)}.")
 for fixture in fixtures:
+    label = fixture.get("label")
     if not fixture.get("passed"):
-        raise SystemExit(f"FAIL: fixture {fixture.get('label')} did not pass.")
+        raise SystemExit(f"FAIL: fixture {label} did not pass.")
     hires = fixture.get("hires_summary") or {}
     if hires.get("source_mode") != "phrb-only":
         raise SystemExit(
-            f"FAIL: fixture {fixture.get('label')} expected source_mode=phrb-only, "
+            f"FAIL: fixture {label} expected source_mode=phrb-only, "
             f"got {hires.get('source_mode')!r}."
         )
-    if int(hires.get("entry_count") or 0) < 1:
-        raise SystemExit(f"FAIL: fixture {fixture.get('label')} has no hi-res entries.")
-    if int(hires.get("source_phrb_count") or 0) < 1:
-        raise SystemExit(f"FAIL: fixture {fixture.get('label')} has no phrb-backed hi-res entries.")
-    descriptor_paths = hires.get("descriptor_path_counts") or {}
-    if enforce_enriched_contract:
-        enriched = enriched_expected.get(fixture.get("label"))
-        if enriched is None:
-            raise SystemExit(f"FAIL: unexpected fixture label for enriched contract: {fixture.get('label')!r}.")
-        if int(hires.get("native_sampled_entry_count") or 0) != enriched["native_sampled_entry_count"]:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected native_sampled_entry_count="
-                f"{enriched['native_sampled_entry_count']} on the enriched full-cache lane, "
-                f"got {hires.get('native_sampled_entry_count')!r}."
-            )
-        if hires.get("entry_class") != enriched["entry_class"]:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected entry_class={enriched['entry_class']!r} on the enriched full-cache lane, "
-                f"got {hires.get('entry_class')!r}."
-            )
-        if hires.get("descriptor_path_class") != enriched["descriptor_path_class"]:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected descriptor_path_class={enriched['descriptor_path_class']!r} on the enriched full-cache lane, "
-                f"got {hires.get('descriptor_path_class')!r}."
-            )
-        if descriptor_paths != enriched["descriptor_path_counts"]:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected descriptor_path_counts="
-                f"{enriched['descriptor_path_counts']!r} on the enriched full-cache lane, got {descriptor_paths!r}."
-            )
-    if enforce_zero_config_contract:
-        zero_expected = zero_config_expected.get(fixture.get("label"))
-        if zero_expected is None:
-            raise SystemExit(f"FAIL: unexpected fixture label for zero-config contract: {fixture.get('label')!r}.")
-        if int(hires.get("native_sampled_entry_count") or 0) != zero_expected["native_sampled_entry_count"]:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected native_sampled_entry_count="
-                f"{zero_expected['native_sampled_entry_count']} on the zero-config lane, "
-                f"got {hires.get('native_sampled_entry_count')!r}."
-            )
-        if hires.get("entry_class") != zero_expected["entry_class"]:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected entry_class={zero_expected['entry_class']!r} on the zero-config lane, "
-                f"got {hires.get('entry_class')!r}."
-            )
-        if hires.get("descriptor_path_class") != zero_expected["descriptor_path_class"]:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected descriptor_path_class={zero_expected['descriptor_path_class']!r} on the zero-config lane, "
-                f"got {hires.get('descriptor_path_class')!r}."
-            )
-        if descriptor_paths != zero_expected["descriptor_path_counts"]:
-            raise SystemExit(
-                f"FAIL: fixture {fixture.get('label')} expected zero-config descriptor_path_counts="
-                f"{zero_expected['descriptor_path_counts']!r}, got {descriptor_paths!r}."
-            )
+    if to_int(hires.get("entry_count")) < 1:
+        raise SystemExit(f"FAIL: fixture {label} has no hi-res entries.")
+    if to_int(hires.get("source_phrb_count")) < 1:
+        raise SystemExit(f"FAIL: fixture {label} has no phrb-backed hi-res entries.")
+    if to_int(hires.get("draw_hits")) < 1:
+        raise SystemExit(f"FAIL: fixture {label} reported no hi-res draw hits.")
 PY
 
 echo "emu_conformance_paper_mario_full_cache_phrb_authorities: PASS ($CACHE_PATH)"

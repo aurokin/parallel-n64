@@ -1491,3 +1491,17 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
 - Open: kmr_03 GlideN64 reference needs gameplay reach (file select -> walk),
   which wants the interactive agent-play adapter mode. Mips/trilinear and
   hirestex-filter wiring stay queued behind that oracle.
+- Interactive agent-play adapter landed (a7fbf4ad):
+  retroarch_interactive_session.sh keeps one session alive across agent turns
+  (setsid process group + shared runtime flock + TTL timeout watchdog, all
+  proven live: clean stop, zero orphans, 20s-TTL session self-terminated).
+  Agent-play loop proven on kmr_03: screenshot -> decide -> analog input
+  walked Mario across a screen boundary into a Koopa battle; slot-1
+  checkpoint reproduced it. KEY WORKFLOW LESSON: the game runs in real time
+  between agent commands (the battle itself was an accident of thinking
+  time) - deterministic play means staying paused and using
+  `input --frames N`, which proved bit-identical on replay (9e1b7845... twice
+  for load + 60 stepped frames + capture).
+- This unblocks GlideN64 mid-game reference reach (boot -> play to scene on
+  the mupen64plus-next vehicle) for the fence/stone-path halo classification,
+  and unblocks new fixture minting anywhere an agent can walk.

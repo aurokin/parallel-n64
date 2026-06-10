@@ -1505,3 +1505,22 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
 - This unblocks GlideN64 mid-game reference reach (boot -> play to scene on
   the mupen64plus-next vehicle) for the fence/stone-path halo classification,
   and unblocks new fixture minting anywhere an agent can walk.
+- Breadth packs acquired and validated (be119ac7, 83d0dfad): user staged
+  packs on koopa; OoT Reloaded v11.0.0 + MK64 Reloaded v2026.04.03 GlideN64
+  .hts pulled from there, SM64 Reloaded v2.6.0 + MM Reloaded v11.0.2 fetched
+  directly from evilgames.eu (MM Reloaded IS the missing "MM GlideN64
+  edition"). Rejected with evidence: sm64redrawn-master.pak (sm64nx port
+  pack), MM 3D 4K (Citra), OoT SoH .o2r. All GhostlyDark packs are
+  new-version GLideNHQ caches (0x08000000 at offset 0) - hires_pack_common
+  already parses both layouts.
+- Zero-config conversions + boot validations all green on the same day:
+  SM64 700MB/2,530 records, MK64 3.6GB/10,906, OoT 9.5GB/43,267 (1 deferred
+  compat record). Cross-game boot lane passed for all three with clean
+  captures. Class-level finding to remember: SM64 resolves ENTIRELY via the
+  draw-time compat CRC lane (upload hits 0) - if draw-time CRC cost ever
+  matters, SM64 is the stress title; it is also the natural first user of a
+  txDump coverage diff.
+- txDump oracle landed (5f7ea3cc): env-gated 1-line patch
+  (GLN64_TXDUMP=1) in the mupen64plus-libretro-nx clone, verified dumping
+  Rice-CRC-named PNGs on the Paper Mario title scene. Patch + rebuild recipe
+  in tools/gliden64-txdump-patch/.

@@ -16,6 +16,12 @@ Options:
   --retroarch-bin PATH  RetroArch executable path
   --base-config PATH    Base RetroArch config path
   --startup-wait SEC    Seconds to wait before sending commands (default: 8)
+  --core-options-template PATH
+                        Copy PATH as the session core options file instead of
+                        generating the parallel-n64 defaults
+  --extra-append-config PATH
+                        Append PATH's contents to the generated appendconfig
+                        (last value wins per RetroArch config semantics)
   --command CMD         Command to send over stdin interface (repeatable)
                         Local pseudo-commands:
                         WAIT <seconds>
@@ -64,6 +70,8 @@ STARTUP_WAIT="${STARTUP_WAIT:-8}"
 EXIT_WAIT="${EXIT_WAIT:-10}"
 STEP_FRAME_ACK_TIMEOUT_SECONDS="${STEP_FRAME_ACK_TIMEOUT_SECONDS:-30}"
 PENDING_CAPTURE_BASELINE=""
+CORE_OPTIONS_TEMPLATE=""
+EXTRA_APPEND_CONFIG=""
 declare -a COMMANDS=()
 
 while (($#)); do
@@ -95,6 +103,14 @@ while (($#)); do
     --startup-wait)
       shift
       STARTUP_WAIT="${1:-}"
+      ;;
+    --core-options-template)
+      shift
+      CORE_OPTIONS_TEMPLATE="${1:-}"
+      ;;
+    --extra-append-config)
+      shift
+      EXTRA_APPEND_CONFIG="${1:-}"
       ;;
     --command)
       shift
@@ -135,6 +151,16 @@ fi
 
 if [[ ! -f "$CORE_PATH" ]]; then
   echo "Core not found: $CORE_PATH" >&2
+  exit 1
+fi
+
+if [[ -n "$CORE_OPTIONS_TEMPLATE" && ! -f "$CORE_OPTIONS_TEMPLATE" ]]; then
+  echo "Core options template not found: $CORE_OPTIONS_TEMPLATE" >&2
+  exit 1
+fi
+
+if [[ -n "$EXTRA_APPEND_CONFIG" && ! -f "$EXTRA_APPEND_CONFIG" ]]; then
+  echo "Extra append config not found: $EXTRA_APPEND_CONFIG" >&2
   exit 1
 fi
 
@@ -213,18 +239,26 @@ video_fullscreen_x = "0"
 video_fullscreen_y = "0"
 EOF
 
-# Experiment overrides: default to the canonical runtime config (4x, native
-# texrect on); scaling/sampler experiments sweep these per-session.
-UPSCALING_VALUE="${PARALLEL_RDP_UPSCALING_OVERRIDE:-4x}"
-NATIVE_TEXRECT_VALUE="${PARALLEL_RDP_NATIVE_TEXRECT_OVERRIDE:-enabled}"
+if [[ -n "$EXTRA_APPEND_CONFIG" ]]; then
+  cat "$EXTRA_APPEND_CONFIG" >> "$APPEND_CONFIG"
+fi
 
-cat > "$CORE_OPTIONS_FILE" <<EOF
+if [[ -n "$CORE_OPTIONS_TEMPLATE" ]]; then
+  cp "$CORE_OPTIONS_TEMPLATE" "$CORE_OPTIONS_FILE"
+else
+  # Experiment overrides: default to the canonical runtime config (4x, native
+  # texrect on); scaling/sampler experiments sweep these per-session.
+  UPSCALING_VALUE="${PARALLEL_RDP_UPSCALING_OVERRIDE:-4x}"
+  NATIVE_TEXRECT_VALUE="${PARALLEL_RDP_NATIVE_TEXRECT_OVERRIDE:-enabled}"
+
+  cat > "$CORE_OPTIONS_FILE" <<EOF
 parallel-n64-gfxplugin = "parallel"
 parallel-n64-parallel-rdp-upscaling = "$UPSCALING_VALUE"
 parallel-n64-parallel-rdp-hirestex = "$HIRES_VALUE"
 parallel-n64-parallel-rdp-native-tex-rect = "$NATIVE_TEXRECT_VALUE"
 parallel-n64-parallel-rdp-native-texture-lod = "enabled"
 EOF
+fi
 
 BASE_CONFIG_SHA256="$(sha256_file "$BASE_CONFIG")"
 APPEND_CONFIG_SHA256="$(sha256_file "$APPEND_CONFIG")"
@@ -488,6 +522,8 @@ HIRES_CACHE_SHA256=$HIRES_CACHE_SHA256
 COMMAND_SIGNATURE=$COMMAND_SIGNATURE
 MODE=$MODE
 STARTUP_WAIT=$STARTUP_WAIT
+CORE_OPTIONS_TEMPLATE=$CORE_OPTIONS_TEMPLATE
+EXTRA_APPEND_CONFIG=$EXTRA_APPEND_CONFIG
 EOF
 
 echo "[adapter] retroarch pid: $RA_PID"

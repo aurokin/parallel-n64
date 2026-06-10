@@ -43,6 +43,13 @@ Current tracked scenario seeds:
 - [`remint-paper-mario-kmr-03-entry-5-authority.sh`](/home/auro/code/parallel-n64/tools/scenarios/remint-paper-mario-kmr-03-entry-5-authority.sh)
 - [`remint-paper-mario-hos-05-entry-3-authority.sh`](/home/auro/code/parallel-n64/tools/scenarios/remint-paper-mario-hos-05-entry-3-authority.sh)
 - [`stage-paper-mario-savefile.sh`](/home/auro/code/parallel-n64/tools/scenarios/stage-paper-mario-savefile.sh)
+- [`gliden64-reference-capture.sh`](/home/auro/code/parallel-n64/tools/scenarios/gliden64-reference-capture.sh)
+- [`compose-reference-pair.py`](/home/auro/code/parallel-n64/tools/scenarios/compose-reference-pair.py)
+
+## GlideN64 Reference Rig
+
+- [`gliden64-reference-capture.sh`](/home/auro/code/parallel-n64/tools/scenarios/gliden64-reference-capture.sh) captures a scene on the mupen64plus-next/GLideN64 vehicle with the legacy `.hts` pack loaded, reaching scenes by boot + timed input (paraLLEl savestates do not transfer). [`compose-reference-pair.py`](/home/auro/code/parallel-n64/tools/scenarios/compose-reference-pair.py) stacks a reference/paraLLEl pair with labels for review.
+- These captures are a visual CONTENT oracle only ("does the pack content appear, on the right surfaces, at hi-res detail?"). `emu.support.gliden64_reference_guardrails` fails the required gate if image-similarity metrics or GlideN64 capture digest gating appear in the gate surface.
 
 ## Active Paper Mario Lanes
 

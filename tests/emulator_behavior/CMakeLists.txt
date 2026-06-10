@@ -41,6 +41,11 @@ add_test(
 )
 set_tests_properties(emu.support.hts2phrb_paper_mario_full_cache_contract PROPERTIES SKIP_RETURN_CODE 77)
 
+add_test(
+  NAME emu.support.gliden64_reference_guardrails
+  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_gliden64_reference_guardrails.sh"
+)
+
 add_executable(emu_unit_smoke_test
   emu_unit_smoke_test.cpp
   "${EMU_BEHAVIOR_SUPPORT_DIR}/rdp_memory_fixture.cpp"

@@ -67,6 +67,6 @@ checks:
 notes:
   - The canonical steady-state contract is `load savestate -> settle 3 frames -> screenshot`.
   - The verified bootstrap path is `title authority -> settle 3 -> step 960 frames -> save`.
-  - The canonical savestate-backed off-mode capture hash is `04ea11ae5d0bd5b64d79851d88e406f3167454a5033630396e6fc492f60052d5`.
+  - The canonical savestate-backed off-mode capture hash is `35213195f6ffca55458f76821198390880f135f4331efbca2cb139885b3ad879`.
   - The earlier live probe hash `4bd3929dabff3ffb1b7e03a9c10d8ce50e9b6d0f067825d3a788c48a41b6fc62` remains useful as lineage evidence, but it is not the post-load steady-state capture for this fixture.
   - This fixture exists to broaden validation beyond menus before default-path promotion.

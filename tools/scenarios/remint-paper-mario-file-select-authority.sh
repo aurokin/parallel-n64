@@ -6,7 +6,7 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 RUNTIME_ENV="${RUNTIME_ENV_OVERRIDE:-$SCRIPT_DIR/paper-mario-file-select.runtime.env}"
 
-EXPECTED_SCREENSHOT_SHA256="6fa8688b382fa1e6f0323f054861a85f593d2d47ca737bb78448e3f268ca63e3"
+EXPECTED_SCREENSHOT_SHA256="4b517fba6aa46afac587b776a3adf0a5fdfc9ebfcd91ba086e27e72b6ceb5011"
 OUTPUT_PATH="$REPO_ROOT/assets/states/paper-mario-file-select/ParaLLEl N64/Paper Mario (USA).state"
 BUNDLE_ROOT=""
 

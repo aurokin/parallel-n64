@@ -156,14 +156,14 @@
   - It is “what stronger Paper Mario state source should promote the next authoritative branch?”
 
 - A no-input settle from the authoritative file-select state back to `frame=423` reproduces the canonical file-select hash:
-  - `6fa8688b382fa1e6f0323f054861a85f593d2d47ca737bb78448e3f268ca63e3`
+  - `4b517fba6aa46afac587b776a3adf0a5fdfc9ebfcd91ba086e27e72b6ceb5011`
 
 - Direct one-frame `START` or `A` from the authoritative file-select state do not act like no-ops.
   - With the current long settle, both collapse into the first deeper deterministic branch:
   - `89cb1bddd5c2dd2a62b063210af11c2324eca04d3060e746042edc0323b00e8e`
 
 - The currently verified deterministic ladder is:
-  - authority + no input -> `6fa8688b382fa1e6f0323f054861a85f593d2d47ca737bb78448e3f268ca63e3`
+  - authority + no input -> `4b517fba6aa46afac587b776a3adf0a5fdfc9ebfcd91ba086e27e72b6ceb5011`
   - authority + `START` -> `89cb1bddd5c2dd2a62b063210af11c2324eca04d3060e746042edc0323b00e8e`
   - authority + `A` -> `89cb1bddd5c2dd2a62b063210af11c2324eca04d3060e746042edc0323b00e8e`
   - `89cb1b...` + `A` -> `674bbf51ab0c985d16088aedd373d2bd7d3d8fdc5f1e12020858f322e7073732`

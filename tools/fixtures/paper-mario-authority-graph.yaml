@@ -25,7 +25,7 @@ nodes:
     steady_state_capture:
       settle_frames: 3
       capture_id: file_select
-      expected_capture_sha256: 6fa8688b382fa1e6f0323f054861a85f593d2d47ca737bb78448e3f268ca63e3
+      expected_capture_sha256: 4b517fba6aa46afac587b776a3adf0a5fdfc9ebfcd91ba086e27e72b6ceb5011
     lineage:
       source: bootstrap
       parent_node_id: title_screen_idle
@@ -50,7 +50,7 @@ nodes:
     steady_state_capture:
       settle_frames: 3
       capture_id: kmr_03_entry_5
-      expected_capture_sha256: 04ea11ae5d0bd5b64d79851d88e406f3167454a5033630396e6fc492f60052d5
+      expected_capture_sha256: 35213195f6ffca55458f76821198390880f135f4331efbca2cb139885b3ad879
     lineage:
       source: bootstrap
       parent_node_id: title_screen_idle

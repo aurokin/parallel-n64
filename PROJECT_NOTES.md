@@ -1460,3 +1460,17 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   backend than the fork's 2020 snapshot). A 2020-vintage build from the fork's
   pinned upstream commit (7a3e561e) is in progress; regen script now rewrites the
   Granite include path at run time.
+- Fraction fix landed (cb46b7d2): hires sampling keeps the fp5 sub-texel
+  fraction, so replacement detail finally resolves past the native texel grid.
+  Verified crisp credit text at 4x with texrect upscaling forced on; feature-off
+  title digest reproduced exactly.
+- Texrect exemption landed (4f79390b): native_resolution_tex_rect's grid snap
+  is now cleared per-draw when a replacement resolved for a non-copy, non-flip
+  texrect (bit is GPU-only, patched on the queued setup after the draw-time CRC
+  fallback). With DEFAULT options (4x, native-texrect enabled) the replaced
+  title credit text now matches the quirk-disabled reference; copy-mode and
+  flip texrects keep the snap, so the historic copy-strip breakage stays
+  guarded. Feature-off stayed bit-identical (351cf979...); emu-required 42/42,
+  emu-runtime-conformance 2/2. Evidence:
+  artifacts/experiments/texrect-exempt-135246/ (compare-credit-zoom.png rows:
+  before / after / quirk-off reference).

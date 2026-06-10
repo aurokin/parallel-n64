@@ -49,7 +49,6 @@ NOINLINE void update_conf(const char* source)
     memset(conf, 0, sizeof(conf));
 #if 0
 #ifndef __LIBRETRO__
-    //yomoma: do not override config settings if running under libretro
     CFG_HLE_GFX = ConfigGetParamBool(l_ConfigRsp, "DisplayListToGraphicsPlugin");
     CFG_HLE_AUD = ConfigGetParamBool(l_ConfigRsp, "AudioListToAudioPlugin");
     CFG_WAIT_FOR_CPU_HOST = ConfigGetParamBool(l_ConfigRsp, "WaitForCPUHost");
@@ -88,16 +87,7 @@ EXPORT u32 CALL API_PREFIX(DoRspCycles)(u32 cycles)
         return 0x00000000;
     }
 
-    task_type = 0x00000000
-#ifdef USE_CLIENT_ENDIAN
-      | *((pi32)(DMEM + 0x000FC0U))
-#else
-      | (u32)DMEM[0xFC0] << 24
-      | (u32)DMEM[0xFC1] << 16
-      | (u32)DMEM[0xFC2] <<  8
-      | (u32)DMEM[0xFC3] <<  0
-#endif
-    ;
+    task_type = *((pi32)(DMEM + 0x000FC0U));
     switch (task_type) {
 #ifdef EXTERN_COMMAND_LIST_GBI
     case M_GFXTASK:
@@ -201,7 +191,11 @@ EXPORT void CALL API_PREFIX(GetDllInfo)(PLUGIN_INFO *PluginInfo)
     PluginInfo -> Type = PLUGIN_TYPE_RSP;
     my_strcpy(PluginInfo -> Name, "Static Interpreter");
     PluginInfo -> NormalMemory = 0;
-    PluginInfo -> MemoryBswaped = USE_CLIENT_ENDIAN;
+#ifdef MSB_FIRST
+    PluginInfo -> MemoryBswaped = 0;
+#else
+    PluginInfo -> MemoryBswaped = 1;
+#endif
     return;
 }
 

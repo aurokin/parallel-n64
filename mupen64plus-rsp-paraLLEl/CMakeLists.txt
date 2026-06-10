@@ -10,9 +10,9 @@ elseif (MSVC)
 endif()
 
 add_library(parallel-rsp STATIC
-		main.cpp
 		rsp/vfunctions.cpp
 		rsp_jit.cpp rsp_jit.hpp
+		jit_allocator.cpp jit_allocator.hpp
 		rsp_disasm.cpp rsp_disasm.hpp
 		rsp/ls.cpp rsp/pipeline.h
 		rsp/reciprocal.cpp rsp/reciprocal.h
@@ -34,7 +34,6 @@ add_library(parallel-rsp STATIC
 		arch/simd/rsp/vcmp.h
 		arch/simd/rsp/vdivh.h
 		arch/simd/rsp/vmac.h
-		arch/simd/rsp/vmov.h
 		arch/simd/rsp/vmrg.h
 		arch/simd/rsp/vmudh.h
 		arch/simd/rsp/vmul.h
@@ -54,7 +53,7 @@ option(PARALLEL_RSP_DEBUG_JIT "Enable the debug JIT." ON)
 if (PARALLEL_RSP_DEBUG_JIT)
 	if (ANDROID)
 		message("Android does not support debug JIT. Disabling it.")
-	else()
+	elseif (NOT WIN32)
 		target_sources(parallel-rsp PRIVATE debug_rsp.cpp debug_rsp.hpp debug_jit.cpp debug_jit.hpp)
 		target_compile_definitions(parallel-rsp PUBLIC PARALLEL_RSP_DEBUG_JIT)
 	endif()
@@ -82,6 +81,7 @@ if (PARALLEL_RSP_BAKED_LIGHTNING)
 		target_sources(lightning PRIVATE win32/mman/sys/mman.c)
 		target_include_directories(lightning PRIVATE win32/mman)
 	endif()
+	target_compile_definitions(lightning PUBLIC HAVE_MMAP=1)
 endif()
 target_link_libraries(parallel-rsp PUBLIC lightning)
 target_compile_definitions(parallel-rsp PUBLIC DEBUG_JIT)
@@ -94,7 +94,7 @@ add_executable(rsp-runner main.cpp)
 target_link_libraries(rsp-runner PRIVATE parallel-rsp)
 target_compile_options(rsp-runner PRIVATE ${PARALLEL_RSP_CXX_FLAGS})
 
-if (PARALLEL_RSP_DEBUG_JIT)
+if (PARALLEL_RSP_DEBUG_JIT AND NOT WIN32)
 	set_target_properties(rsp-runner PROPERTIES LINK_FLAGS "-rdynamic")
 endif()
 

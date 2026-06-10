@@ -300,6 +300,15 @@ static void DepthBufferRasterize(struct vertexi * vtx, int vertices, int dzdx)
          int             z = left_z + IMUL16(prestep, dzdx);
          uint16_t *ptr_dst = (uint16_t*)(gfx_info.RDRAM + g_gdp.zb_address);
          int         shift = x1 + y1 * rdp.zi_width;
+         /* Number of 16-bit depth entries that fit between zb_address and
+          * the end of RDRAM. DK64 (and others) can present a zb_address /
+          * geometry pair that indexes past the 8 MiB RDRAM, which used to
+          * fault in this software rasterizer; clamp the write to RDRAM like
+          * the colour-image paths in this file already do, rather than
+          * dropping the depth write entirely. */
+         int        zb_max = (g_gdp.zb_address < BMASK)
+                           ? (int)((BMASK - g_gdp.zb_address) >> 1)
+                           : 0;
 
          /* draw to depth buffer */
          for (x = 0; x < width; x++)
@@ -313,7 +322,7 @@ static void DepthBufferRasterize(struct vertexi * vtx, int vertices, int dzdx)
                trueZ = 0x3FFFF;
             encodedZ = zLUT[trueZ];
             idx = (shift+x)^1;
-            if(encodedZ < ptr_dst[idx]) 
+            if(idx >= 0 && idx < zb_max && encodedZ < ptr_dst[idx])
                ptr_dst[idx] = encodedZ;
             z += dzdx;
          }
@@ -992,6 +1001,33 @@ void CopyFrameBuffer(int32_t buffer)
          height -= rdp.ci_upper_bound;
    }
 
+   /* Under LLE, rdp.frame_buffers[]/ci bookkeeping is HLE-only state
+    * that is never populated, so 'height' can be garbage here; an
+    * oversized copy then writes past the end of RDRAM into unrelated
+    * globals (GoldenEye 007 corrupts gfx_info from rdp_setcolorimage
+    * this way and crashes).  Clamp the destination extent to RDRAM,
+    * like the texture load paths already do.  One trailing element of
+    * slack: the 16bpp paths store through index (x + y * width) ^ 1,
+    * which can touch one pixel past width * height - 1. */
+   {
+      uint32_t dst_bpp   = (g_gdp.fb_size == G_IM_SIZ_16b) ? 2 : 4;
+      uint32_t dst_avail;
+      uint32_t max_height;
+
+      if (width == 0 || gDP.colorImage.address >= BMASK)
+         return;
+
+      dst_avail  = (BMASK + 1) - gDP.colorImage.address;
+      if (dst_avail <= dst_bpp)
+         return;
+      max_height = (dst_avail - dst_bpp) / (width * dst_bpp);
+
+      if (height > max_height)
+         height = max_height;
+      if (height == 0)
+         return;
+   }
+
    if (rdp.scale_x < 1.1f)
    {
       uint16_t * ptr_src = (uint16_t*)glide64_frameBuffer;
@@ -1198,7 +1234,16 @@ void drawViRegBG(void)
    fb_info.ul_y   = 0;
    fb_info.lr_y   = fb_info.height - 1;
    fb_info.opaque = 1;
-   fb_info.addr   = *gfx_info.VI_ORIGIN_REG;
+   /* VI_ORIGIN holds the CPU-written framebuffer pointer, which is
+    * frequently a segmented (KSEG0/KSEG1) virtual address such as
+    * 0xA0100000 rather than a bare physical RDRAM offset.  Mask it down
+    * to the RDRAM address space (as the VI hardware and the angrylion
+    * renderer both do) before it is used to form RDRAM pointers and the
+    * read-bound in DrawFrameBufferToScreen: left raw, 'image = RDRAM +
+    * addr' becomes a wild pointer and 'bound = (BMASK+1) - addr'
+    * underflows, defeating the bounds check and crashing on
+    * framebuffer-direct content such as krom's CPU test ROMs. */
+   fb_info.addr   = *gfx_info.VI_ORIGIN_REG & BMASK;
    fb_info.size   = *gfx_info.VI_STATUS_REG & 3;
 
    rdp.last_bg    = fb_info.addr;

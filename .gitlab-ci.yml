@@ -24,6 +24,10 @@ include:
   - project: 'libretro-infrastructure/ci-templates'
     file: '/linux-x64.yml'
 
+  # Linux 64-bit (ARM64)
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/linux-aarch64.yml'
+
   # Linux 32-bit
   - project: 'libretro-infrastructure/ci-templates'
     file: '/linux-i686.yml'
@@ -31,6 +35,10 @@ include:
   # MacOS 64-bit
   - project: 'libretro-infrastructure/ci-templates'
     file: '/osx-x64.yml'
+
+  # MacOS arm 64-bit
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/osx-arm64.yml'
 
   ################################## CELLULAR ################################
   # iOS
@@ -44,6 +52,9 @@ include:
   ################################## CONSOLES ################################
     
   #################################### MISC ##################################
+  # webOS 32-bit (LGTV)
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/webos-make.yml'
 
 # Stages for building
 stages:
@@ -89,6 +100,17 @@ libretro-build-linux-x64:
     HAVE_PARALLEL: 1
     HAVE_PARALLEL_RSP: 1
 
+# Linux 64-bit (ARM64)
+libretro-build-linux-aarch64:
+  extends:
+    - .core-defs
+    - .libretro-linux-aarch64-make-default
+  variables:
+    WITH_DYNAREC: aarch64
+    HAVE_THR_AL: 1
+    HAVE_PARALLEL: 1
+    HAVE_PARALLEL_RSP: 1
+
 # Linux 32-bit
 libretro-build-linux-i686:
   extends:
@@ -105,16 +127,38 @@ libretro-build-osx-x64:
   extends:
     - .libretro-osx-x64-make-default
     - .core-defs
+  variables:
+    HAVE_THR_AL: 1
+
+# MacOS arm64
+libretro-build-osx-arm64:
+  extends:
+    - .libretro-osx-arm64-make-default
+    - .core-defs
+  variables:
+    HAVE_THR_AL: 1
+    WITH_DYNAREC: aarch64
 
 ################################### CELLULAR #################################
-# iOS
-libretro-build-ios-arm64:
-  extends:
-    - .libretro-ios-arm64-make-default
-    - .core-defs
+# # iOS
+# libretro-build-ios-arm64:
+#   extends:
+#     - .libretro-ios-arm64-make-default
+#     - .core-defs
+#   variables:
+#     HAVE_THR_AL: 1
 
-# iOS (armv7) [iOS 9 and up]
-libretro-build-ios9:
+# # iOS (armv7) [iOS 9 and up]
+# libretro-build-ios9:
+#   extends:
+#     - .libretro-ios9-make-default
+#     - .core-defs
+#   variables:
+#     HAVE_THR_AL: 1
+
+#################################### MISC ##################################
+# webOS 32-bit
+libretro-build-webos-armv7a:
   extends:
-    - .libretro-ios9-make-default
+    - .libretro-webos-armv7a-make-platform-webos
     - .core-defs

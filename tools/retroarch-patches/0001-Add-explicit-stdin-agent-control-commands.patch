@@ -1,0 +1,183 @@
+From 98ec1de7dc68569fad64c6cb25832af2a91bd5ea Mon Sep 17 00:00:00 2001
+From: Hunter Sadler <auro@hsadler.com>
+Date: Sat, 21 Mar 2026 16:07:58 -0600
+Subject: [PATCH 1/7] Add explicit stdin agent control commands
+
+---
+ command.c | 98 +++++++++++++++++++++++++++++++++++++++++++++++++++++--
+ command.h |  6 ++++
+ 2 files changed, 101 insertions(+), 3 deletions(-)
+
+diff --git a/command.c b/command.c
+index 27e4addf43..f053ae1427 100644
+--- a/command.c
++++ b/command.c
+@@ -130,9 +130,9 @@ static bool command_get_arg(const char *tok,
+       {
+          const char *argument = str + strlen(action_map[i].str);
+          if (!argument)
+-            return false;
++            continue;
+          if (*argument != ' ' && *argument != '\0')
+-            return false;
++            continue;
+ 
+          if (arg)
+             *arg = argument + 1;
+@@ -752,6 +752,56 @@ bool command_show_osd_msg(command_t *cmd, const char* arg)
+     return true;
+ }
+ 
++bool command_set_pause(command_t *cmd, const char *arg)
++{
++   char reply[64];
++   size_t _len = 0;
++   runloop_state_t *runloop_st = runloop_state_get_ptr();
++   bool paused;
++
++   if (!cmd || !cmd->replier || !runloop_st || string_is_empty(arg))
++      return false;
++
++   if (string_is_equal_noncase(arg, "ON"))
++      command_event(CMD_EVENT_PAUSE, NULL);
++   else if (string_is_equal_noncase(arg, "OFF"))
++      command_event(CMD_EVENT_UNPAUSE, NULL);
++   else if (string_is_equal_noncase(arg, "TOGGLE"))
++      command_event(CMD_EVENT_PAUSE_TOGGLE, NULL);
++   else
++      return false;
++
++   paused = !!(runloop_st->flags & RUNLOOP_FLAG_PAUSED);
++   _len   = strlcpy(reply, "SET_PAUSE ", sizeof(reply));
++   _len  += strlcpy(reply + _len, paused ? "PAUSED\n" : "PLAYING\n",
++         sizeof(reply) - _len);
++
++   cmd->replier(cmd, reply, _len);
++   return true;
++}
++
++bool command_step_frame(command_t *cmd, const char *arg)
++{
++   char reply[64];
++   size_t _len                  = 0;
++   unsigned frames              = string_to_unsigned(arg);
++   runloop_state_t *runloop_st  = runloop_state_get_ptr();
++
++   if (!cmd || !cmd->replier || !runloop_st || !frames)
++      return false;
++
++   if (!(runloop_st->flags & RUNLOOP_FLAG_CORE_RUNNING))
++      return false;
++
++   runloop_st->flags &= ~RUNLOOP_FLAG_PAUSED;
++   runloop_st->run_frames_and_pause = (frames > INT8_MAX) ? INT8_MAX : (int8_t)frames;
++
++   _len  = strlcpy(reply, "STEP_FRAME ", sizeof(reply));
++   _len += snprintf(reply + _len, sizeof(reply) - _len, "%u\n", frames);
++   cmd->replier(cmd, reply, _len);
++   return true;
++}
++
+ 
+ bool command_load_state_slot(command_t *cmd, const char *arg)
+ {
+@@ -783,6 +833,45 @@ bool command_load_state_slot(command_t *cmd, const char *arg)
+    return ret;
+ }
+ 
++bool command_load_state_slot_paused(command_t *cmd, const char *arg)
++{
++   char state_path[PATH_MAX_LENGTH] = "";
++   char reply[128]                  = "";
++   size_t _len                      = 0;
++   unsigned int slot                = (unsigned int)strtoul(arg, NULL, 10);
++   bool savestates_enabled          = core_info_current_supports_savestate();
++   bool ret                         = false;
++
++   _len  = strlcpy(reply, "LOAD_STATE_SLOT_PAUSED ", sizeof(reply));
++   _len += snprintf(reply + _len, sizeof(reply) - _len, "%d", slot);
++
++   if (savestates_enabled)
++   {
++      size_t info_size;
++      runloop_get_savestate_path(state_path, sizeof(state_path), slot);
++
++      info_size          = core_serialize_size();
++      savestates_enabled = (info_size > 0);
++   }
++
++   if (savestates_enabled)
++   {
++      if ((ret = content_load_state(state_path, false, false)))
++      {
++         video_driver_state_t *video_st = video_state_get_ptr();
++         command_post_state_loaded();
++         if (video_st)
++            video_st->frame_count = 0;
++         command_event(CMD_EVENT_PAUSE, NULL);
++      }
++   }
++   else
++      ret = false;
++
++   cmd->replier(cmd, reply, _len);
++   return ret;
++}
++
+ bool command_play_replay_slot(command_t *cmd, const char *arg)
+ {
+ #ifdef HAVE_BSV_MOVIE
+@@ -1065,6 +1154,7 @@ bool command_get_status(command_t *cmd, const char* arg)
+       /* add some content info */
+       core_info_t *core_info      = NULL;
+       runloop_state_t *runloop_st = runloop_state_get_ptr();
++      video_driver_state_t *video_st = video_state_get_ptr();
+       const char *basename_path   = NULL;
+ 
+       if (!runloop_st)
+@@ -1109,7 +1199,9 @@ bool command_get_status(command_t *cmd, const char* arg)
+          _len += strlcpy(reply + _len, "UNKNOWN", sizeof(reply) - _len);
+ 
+       _len += snprintf(reply + _len, sizeof(reply) - _len,
+-            ",crc32=%lx\n", (unsigned long)content_get_crc());
++            ",crc32=%lx,frame=%llu\n",
++            (unsigned long)content_get_crc(),
++            (unsigned long long)(video_st ? video_st->frame_count : 0));
+    }
+    else
+       _len = strlcpy(reply, "GET_STATUS CONTENTLESS", sizeof(reply));
+diff --git a/command.h b/command.h
+index 7a6858e9da..8fda5eb388 100644
+--- a/command.h
++++ b/command.h
+@@ -430,7 +430,10 @@ bool command_version(command_t *cmd, const char* arg);
+ bool command_get_status(command_t *cmd, const char* arg);
+ bool command_get_config_param(command_t *cmd, const char* arg);
+ bool command_show_osd_msg(command_t *cmd, const char* arg);
++bool command_set_pause(command_t *cmd, const char *arg);
++bool command_step_frame(command_t *cmd, const char *arg);
+ bool command_load_state_slot(command_t *cmd, const char* arg);
++bool command_load_state_slot_paused(command_t *cmd, const char *arg);
+ bool command_play_replay_slot(command_t *cmd, const char* arg);
+ bool command_seek_replay(command_t *cmd, const char *arg);
+ bool command_save_savefiles(command_t *cmd, const char* arg);
+@@ -451,6 +454,8 @@ static const struct cmd_action_map action_map[] = {
+    { "GET_STATUS",       command_get_status,       "No argument" },
+    { "GET_CONFIG_PARAM", command_get_config_param, "<param name>" },
+    { "SHOW_MSG",         command_show_osd_msg,     "No argument" },
++   { "SET_PAUSE",        command_set_pause,        "ON|OFF|TOGGLE" },
++   { "STEP_FRAME",       command_step_frame,       "<frame count>" },
+ #if defined(HAVE_CHEEVOS)
+    /* These functions use achievement addresses and only work if a game with achievements is
+     * loaded. READ_CORE_MEMORY and WRITE_CORE_MEMORY are preferred and use system addresses. */
+@@ -461,6 +466,7 @@ static const struct cmd_action_map action_map[] = {
+    { "WRITE_CORE_MEMORY",command_write_memory,     "<address> <byte1> <byte2> ..." },
+ 
+    { "LOAD_STATE_SLOT",command_load_state_slot, "<slot number>"},
++   { "LOAD_STATE_SLOT_PAUSED",command_load_state_slot_paused, "<slot number>"},
+    { "PLAY_REPLAY_SLOT",command_play_replay_slot, "<slot number>"},
+    { "SEEK_REPLAY",command_seek_replay, "<frame number>"},
+ 
+-- 
+2.54.0
+

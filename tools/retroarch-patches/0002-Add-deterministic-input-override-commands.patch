@@ -1,0 +1,229 @@
+From 3fa128947badf1518dbc80804aa57b33f8059d7f Mon Sep 17 00:00:00 2001
+From: Hunter Sadler <auro@hsadler.com>
+Date: Sat, 21 Mar 2026 17:03:24 -0600
+Subject: [PATCH 2/7] Add deterministic input override commands
+
+---
+ command.c            | 97 ++++++++++++++++++++++++++++++++++++++++++++
+ command.h            |  6 +++
+ input/input_driver.c | 50 +++++++++++++++++++++++
+ input/input_driver.h |  3 ++
+ 4 files changed, 156 insertions(+)
+
+diff --git a/command.c b/command.c
+index f053ae1427..8d6fdbe6fb 100644
+--- a/command.c
++++ b/command.c
+@@ -802,6 +802,103 @@ bool command_step_frame(command_t *cmd, const char *arg)
+    return true;
+ }
+ 
++bool command_set_input_port(command_t *cmd, const char *arg)
++{
++   char reply[160];
++   char joypad_mask_str[32]       = "";
++   size_t _len                   = 0;
++   unsigned long port            = 0;
++   unsigned long long joypad_mask= 0;
++   long left_x                   = 0;
++   long left_y                   = 0;
++   long right_x                  = 0;
++   long right_y                  = 0;
++   int matched                   = 0;
++   input_driver_state_t *input_st= input_state_get_ptr();
++
++   if (!cmd || !cmd->replier || !input_st || string_is_empty(arg))
++      return false;
++
++   matched = sscanf(arg, "%lu %31s %ld %ld %ld %ld",
++         &port, joypad_mask_str, &left_x, &left_y, &right_x, &right_y);
++   if (matched < 2 || port >= MAX_USERS)
++      return false;
++
++   joypad_mask = strtoull(joypad_mask_str, NULL, 0);
++
++   input_st->agent_input_override[port]      = true;
++   input_st->agent_input_joypad_mask[port]   = (uint16_t)joypad_mask;
++   input_st->agent_input_analog[port][0][0]  = (matched >= 3) ? (int16_t)left_x : 0;
++   input_st->agent_input_analog[port][0][1]  = (matched >= 4) ? (int16_t)left_y : 0;
++   input_st->agent_input_analog[port][1][0]  = (matched >= 5) ? (int16_t)right_x : 0;
++   input_st->agent_input_analog[port][1][1]  = (matched >= 6) ? (int16_t)right_y : 0;
++
++   _len  = strlcpy(reply, "SET_INPUT_PORT ", sizeof(reply));
++   _len += snprintf(reply + _len, sizeof(reply) - _len,
++         "%lu mask=%u lx=%d ly=%d rx=%d ry=%d\n",
++         port,
++         (unsigned)input_st->agent_input_joypad_mask[port],
++         input_st->agent_input_analog[port][0][0],
++         input_st->agent_input_analog[port][0][1],
++         input_st->agent_input_analog[port][1][0],
++         input_st->agent_input_analog[port][1][1]);
++   cmd->replier(cmd, reply, _len);
++   return true;
++}
++
++bool command_clear_input_port(command_t *cmd, const char *arg)
++{
++   char reply[64];
++   size_t _len                   = 0;
++   unsigned long port            = 0;
++   input_driver_state_t *input_st= input_state_get_ptr();
++
++   if (!cmd || !cmd->replier || !input_st || string_is_empty(arg))
++      return false;
++
++   port = strtoul(arg, NULL, 10);
++   if (port >= MAX_USERS)
++      return false;
++
++   input_st->agent_input_override[port]     = false;
++   input_st->agent_input_joypad_mask[port]  = 0;
++   memset(input_st->agent_input_analog[port], 0,
++         sizeof(input_st->agent_input_analog[port]));
++
++   _len  = strlcpy(reply, "CLEAR_INPUT_PORT ", sizeof(reply));
++   _len += snprintf(reply + _len, sizeof(reply) - _len, "%lu\n", port);
++   cmd->replier(cmd, reply, _len);
++   return true;
++}
++
++bool command_get_input_port(command_t *cmd, const char *arg)
++{
++   char reply[160];
++   size_t _len                   = 0;
++   unsigned long port            = 0;
++   input_driver_state_t *input_st= input_state_get_ptr();
++
++   if (!cmd || !cmd->replier || !input_st || string_is_empty(arg))
++      return false;
++
++   port = strtoul(arg, NULL, 10);
++   if (port >= MAX_USERS)
++      return false;
++
++   _len  = strlcpy(reply, "GET_INPUT_PORT ", sizeof(reply));
++   _len += snprintf(reply + _len, sizeof(reply) - _len,
++         "%lu enabled=%s mask=%u lx=%d ly=%d rx=%d ry=%d\n",
++         port,
++         input_st->agent_input_override[port] ? "true" : "false",
++         (unsigned)input_st->agent_input_joypad_mask[port],
++         input_st->agent_input_analog[port][0][0],
++         input_st->agent_input_analog[port][0][1],
++         input_st->agent_input_analog[port][1][0],
++         input_st->agent_input_analog[port][1][1]);
++   cmd->replier(cmd, reply, _len);
++   return true;
++}
++
+ 
+ bool command_load_state_slot(command_t *cmd, const char *arg)
+ {
+diff --git a/command.h b/command.h
+index 8fda5eb388..93b891df7d 100644
+--- a/command.h
++++ b/command.h
+@@ -432,6 +432,9 @@ bool command_get_config_param(command_t *cmd, const char* arg);
+ bool command_show_osd_msg(command_t *cmd, const char* arg);
+ bool command_set_pause(command_t *cmd, const char *arg);
+ bool command_step_frame(command_t *cmd, const char *arg);
++bool command_set_input_port(command_t *cmd, const char *arg);
++bool command_clear_input_port(command_t *cmd, const char *arg);
++bool command_get_input_port(command_t *cmd, const char *arg);
+ bool command_load_state_slot(command_t *cmd, const char* arg);
+ bool command_load_state_slot_paused(command_t *cmd, const char *arg);
+ bool command_play_replay_slot(command_t *cmd, const char* arg);
+@@ -456,6 +459,9 @@ static const struct cmd_action_map action_map[] = {
+    { "SHOW_MSG",         command_show_osd_msg,     "No argument" },
+    { "SET_PAUSE",        command_set_pause,        "ON|OFF|TOGGLE" },
+    { "STEP_FRAME",       command_step_frame,       "<frame count>" },
++   { "SET_INPUT_PORT",   command_set_input_port,   "<port> <joypad_mask> [left_x left_y right_x right_y]" },
++   { "CLEAR_INPUT_PORT", command_clear_input_port, "<port>" },
++   { "GET_INPUT_PORT",   command_get_input_port,   "<port>" },
+ #if defined(HAVE_CHEEVOS)
+    /* These functions use achievement addresses and only work if a game with achievements is
+     * loaded. READ_CORE_MEMORY and WRITE_CORE_MEMORY are preferred and use system addresses. */
+diff --git a/input/input_driver.c b/input/input_driver.c
+index 365e374672..8827eb2a8b 100644
+--- a/input/input_driver.c
++++ b/input/input_driver.c
+@@ -157,6 +157,54 @@ static void input_null_grab_mouse(void *data, bool state) { }
+ static bool input_null_grab_stdin(void *data) { return false; }
+ static void input_null_keypress_vibrate(void) { }
+ 
++static bool input_driver_agent_override_active(
++      input_driver_state_t *input_st, unsigned port)
++{
++   return port < MAX_USERS && input_st->agent_input_override[port];
++}
++
++static int16_t input_driver_agent_override_state(
++      input_driver_state_t *input_st,
++      unsigned port, unsigned device,
++      unsigned idx, unsigned id,
++      int16_t fallback)
++{
++   uint16_t joypad_mask = 0;
++
++   if (!input_driver_agent_override_active(input_st, port))
++      return fallback;
++
++   joypad_mask = input_st->agent_input_joypad_mask[port];
++   device     &= RETRO_DEVICE_MASK;
++
++   if (device == RETRO_DEVICE_JOYPAD)
++   {
++      if (id == RETRO_DEVICE_ID_JOYPAD_MASK)
++         return (int16_t)joypad_mask;
++      if (id < 16)
++         return (joypad_mask & (1u << id)) ? 1 : 0;
++      return 0;
++   }
++
++   if (device == RETRO_DEVICE_ANALOG)
++   {
++      if (idx > RETRO_DEVICE_INDEX_ANALOG_RIGHT)
++         return 0;
++
++      switch (id)
++      {
++         case RETRO_DEVICE_ID_ANALOG_X:
++            return input_st->agent_input_analog[port][idx][0];
++         case RETRO_DEVICE_ID_ANALOG_Y:
++            return input_st->agent_input_analog[port][idx][1];
++         default:
++            return 0;
++      }
++   }
++
++   return fallback;
++}
++
+ static input_driver_t input_null = {
+    input_null_init,
+    input_null_poll,
+@@ -7070,6 +7118,8 @@ int16_t input_driver_state_wrapper(unsigned port, unsigned device,
+ 
+    /* Read input state */
+    result = input_state_internal(input_st, settings, port, device, idx, id);
++   result = input_driver_agent_override_state(
++         input_st, port, device, idx, id, result);
+ 
+    /* Register any analog stick input requests for
+     * this 'virtual' (core) port */
+diff --git a/input/input_driver.h b/input/input_driver.h
+index 2cd9a23e0a..cab5192442 100644
+--- a/input/input_driver.h
++++ b/input/input_driver.h
+@@ -681,6 +681,9 @@ typedef struct
+    bool frontend_sensors_enabled;
+    unsigned core_accel_rate; /* >0 means core wants accel at this rate */
+    unsigned core_gyro_rate;  /* >0 means core wants gyro at this rate */
++   uint16_t agent_input_joypad_mask[MAX_USERS];
++   int16_t agent_input_analog[MAX_USERS][2][2];
++   bool agent_input_override[MAX_USERS];
+ } input_driver_state_t;
+ 
+ 
+-- 
+2.54.0
+

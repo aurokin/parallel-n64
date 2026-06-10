@@ -1,0 +1,91 @@
+From 3470c7bd10c1145c0025ecca64395dc29c22095f Mon Sep 17 00:00:00 2001
+From: Hunter Sadler <auro@hsadler.com>
+Date: Sat, 21 Mar 2026 19:19:04 -0600
+Subject: [PATCH 4/7] Fallback READ_CORE_MEMORY to system RAM
+
+---
+ command.c | 44 +++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 39 insertions(+), 5 deletions(-)
+
+diff --git a/command.c b/command.c
+index a65b3f7ff6..89f4baef05 100644
+--- a/command.c
++++ b/command.c
+@@ -1222,12 +1222,11 @@ static const rarch_memory_descriptor_t* command_memory_get_descriptor(const rarc
+ 
+ static uint8_t *command_memory_get_pointer(
+       const rarch_system_info_t* sys_info,
++      const runloop_state_t *runloop_st,
+       unsigned address, unsigned int* max_bytes,
+       int for_write, char *s, size_t len)
+ {
+-   if (!sys_info || sys_info->mmaps.num_descriptors == 0)
+-      strlcpy(s, " -1 no memory map defined\n", len);
+-   else
++   if (sys_info && sys_info->mmaps.num_descriptors > 0)
+    {
+       size_t offset;
+       const rarch_memory_descriptor_t* desc = command_memory_get_descriptor(&sys_info->mmaps, address, &offset);
+@@ -1243,6 +1242,41 @@ static uint8_t *command_memory_get_pointer(
+          return (uint8_t*)desc->core.ptr + desc->core.offset + offset;
+       }
+    }
++   else if (runloop_st
++         && runloop_st->current_core.retro_get_memory_data
++         && runloop_st->current_core.retro_get_memory_size)
++   {
++      unsigned mapped_address = address;
++      uint8_t *data           = (uint8_t*)runloop_st->current_core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM);
++      size_t size             = runloop_st->current_core.retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
++
++      if (!data || !size)
++      {
++         strlcpy(s, " -1 no system ram data\n", len);
++      }
++      else
++      {
++         /* Some cores do not publish a libretro memory map but still expose
++          * system RAM directly. Accept both raw offsets and common cached/
++          * uncached MIPS address forms when they fit inside the RAM window. */
++         if (mapped_address >= 0x80000000U)
++         {
++            unsigned mirrored_address = mapped_address & 0x1FFFFFFFU;
++            if (mirrored_address < size)
++               mapped_address = mirrored_address;
++         }
++
++         if (mapped_address < size)
++         {
++            *max_bytes = (unsigned int)(size - mapped_address);
++            return data + mapped_address;
++         }
++
++         strlcpy(s, " -1 address outside system ram\n", len);
++      }
++   }
++   else
++      strlcpy(s, " -1 no memory map defined\n", len);
+ 
+    *max_bytes = 0;
+    return NULL;
+@@ -1355,7 +1389,7 @@ bool command_read_memory(command_t *cmd, const char *arg)
+    reply_at   = reply + snprintf(reply, alloc_size - 1, "READ_CORE_MEMORY %x", address);
+ 
+    if ((data = command_memory_get_pointer(
+-               sys_info, address, &max_bytes,
++               sys_info, runloop_st, address, &max_bytes,
+                0, reply_at, alloc_size - strlen(reply))))
+    {
+       if (nbytes > max_bytes)
+@@ -1384,7 +1418,7 @@ bool command_write_memory(command_t *cmd, const char *arg)
+    const rarch_system_info_t
+       *sys_info                 = &runloop_st->system;
+    char *reply_at               = reply + snprintf(reply, sizeof(reply) - 1, "WRITE_CORE_MEMORY %x", address);
+-   uint8_t *data                = command_memory_get_pointer(sys_info, address, &max_bytes, 1,
++   uint8_t *data                = command_memory_get_pointer(sys_info, runloop_st, address, &max_bytes, 1,
+          reply_at, sizeof(reply) - strlen(reply) - 1);
+ 
+    if (data)
+-- 
+2.54.0
+

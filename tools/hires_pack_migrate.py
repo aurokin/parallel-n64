@@ -634,7 +634,14 @@ def build_imported_index(entries, requested_pairs, source_cache_path, bundle_con
             variant_group_entries,
         )
 
-        if family_summary["recommended_tier"] == "exact-authoritative" and selector_policy.get("status") == "deterministic":
+        if family_summary["recommended_tier"] == "exact-authoritative":
+            # A deterministic selector picks one family-level canonical image.
+            # Without one, the family is still servable: every candidate
+            # carries its own full 64-bit key (palette CRC in the high half),
+            # so exact-key lookups disambiguate by construction and only
+            # family-level (low32) fallback would be ambiguous - and the
+            # runtime gates that behind an explicit opt-in. Emit the whole
+            # variant set as exact-only authority instead of parking it.
             exact_authorities.append(
                 {
                     "alias_id": family_policy_key,
@@ -645,7 +652,9 @@ def build_imported_index(entries, requested_pairs, source_cache_path, bundle_con
                         "active_pool": family_summary["active_pool"],
                     },
                     "resolution_policy": {
-                        "rule": "exact-authoritative",
+                        "rule": "exact-authoritative"
+                        if selector_policy.get("status") == "deterministic"
+                        else "exact-variant-set",
                         "uniform_replacement_dims": family_summary["active_unique_repl_dim_count"] == 1,
                     },
                     "policy_key": family_policy_key,
@@ -693,7 +702,7 @@ def build_imported_index(entries, requested_pairs, source_cache_path, bundle_con
                     },
                 }
             )
-        elif family_summary["recommended_tier"] in ("ambiguous-import-or-policy", "missing-active-pool", "exact-authoritative"):
+        elif family_summary["recommended_tier"] in ("ambiguous-import-or-policy", "missing-active-pool"):
             unresolved_families.append(
                 {
                     "policy_key": family_policy_key,
@@ -702,8 +711,6 @@ def build_imported_index(entries, requested_pairs, source_cache_path, bundle_con
                     "reason": (
                         "legacy-family-ambiguous"
                         if family_summary["recommended_tier"] == "ambiguous-import-or-policy"
-                        else "exact-family-ambiguous"
-                        if family_summary["recommended_tier"] == "exact-authoritative"
                         else "missing-active-pool"
                     ),
                     "active_pool": family_summary["active_pool"],

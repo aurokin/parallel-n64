@@ -62,7 +62,7 @@ if report.get("gate_failures"):
     raise SystemExit(f"FAIL: report recorded gate failures: {report.get('gate_failures')!r}.")
 if not report.get("gate_success"):
     raise SystemExit("FAIL: report did not record gate_success.")
-if report.get("conversion_outcome") not in ("partial-runtime-package", "full-runtime-package"):
+if report.get("conversion_outcome") not in ("partial-runtime-package", "promotable-runtime-package", "full-runtime-package"):
     raise SystemExit(f"FAIL: unexpected conversion outcome: {report.get('conversion_outcome')!r}.")
 if report.get("context_bundle_class") != "zero-context":
     raise SystemExit(f"FAIL: expected zero-context conversion, got {report.get('context_bundle_class')!r}.")

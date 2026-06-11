@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../../.." && pwd)"
 
-DEFAULT_CACHE_PATH="$REPO_ROOT/artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb"
+DEFAULT_CACHE_PATH="$REPO_ROOT/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb"
 CACHE_PATH="${EMU_RUNTIME_PM64_FULL_CACHE_PHRB:-$DEFAULT_CACHE_PATH}"
 BUNDLE_ROOT="${EMU_RUNTIME_PM64_FULL_CACHE_BUNDLE_ROOT:-}"
 

@@ -27,6 +27,7 @@ scenario_sha256_file() {
 scenario_default_paper_mario_hires_cache() {
   local repo_root="$1"
   local -a candidates=(
+    "$repo_root/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb"
     "$repo_root/artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb"
   )
 

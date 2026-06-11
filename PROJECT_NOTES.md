@@ -1615,3 +1615,72 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   exists). Also note: SM64 pack letter glyph entries appear recolored
   relative to the original PRESS START palette (artist choice in the
   Reloaded pack), which is visible now that the letters actually replace.
+
+## 2026-06-11 Copy-rect upscale lift + CI palette-CRC forensics + pack promotion
+
+- Copy-rect snap lift landed (8dd25b02): replaced COPY-mode tex-rects now
+  rasterize at full upscale. Pre-edit falsification on the PM title fixture
+  (PARALLEL_RDP_NATIVE_TEXRECT_OVERRIDE=disabled on the then-current shader)
+  proved unsnapped copy placement holds and T gains sub-native detail free
+  via per-upscaled-line spans, while S stays native-stepped because
+  interpolate_st_copy collapses dx. Three pieces: (1) the draw-time
+  exemption clears DISABLE_UPSCALING for copy rects with a bound
+  replacement (no uses_texel0 there; flip rects keep the snap; unreplaced
+  copy rects keep stock behavior, so the fragile strip protection stays);
+  (2) the copy branch recovers the sub-native S phase (dx remainder) and
+  feeds it to the replacement coordinate only; (3) copy replacement
+  fetches use a plain ratio map (st*scale) instead of the centered remap -
+  the copy phase walks a texel's footprint from its sample point, and the
+  centered remap straddles texel boundaries at abutting strip seams.
+- Two falsified-then-fixed artifacts during that pass: (a) the centered
+  remap was NOT the seam cause; (b) a sub-row phase probe (paint phases
+  green/blue/white/red) showed the real one - PM ends strips at fractional
+  yl (10.2 .75 convention) and the span clip y_subs >= yl*4 drops every
+  subpixel of the rect's last upscaled row, a 1-row backdrop gap per seam.
+  Fix: in the lift arm only, round queued yl up to the next whole native
+  line ((yl+3)&~3): restores exactly the clipped sub-rows, adds no native
+  line, keeps allocate_span_jobs' (yl-1)>>2 coherent. Seam detector clean.
+- Verified: PM title diorama at replacement resolution (Mario hat "M"
+  legible, was an unreadable blob); SM64 PRESS START letters full-res;
+  kmr_03 ON unchanged; OFF digests bit-exact (title 351cf979, kmr_03
+  35213195); both gates green. Evidence: artifacts/experiments/copy-lift-111824/.
+- Missing-texture forensics (file-select boxes, the user-reported gap):
+  full miss census across title/file-select/kmr_03 logs = 15
+  family-variants-only keys (all tile-mode CI with palette CRC in high32)
+  + 59 absent keys (all pcrc=0 Nx1 block-strip loads - true pack gaps,
+  explicit fallback is correct) + 1 zero-key fill rect. The four file-box
+  textures upload as CI8 but draw as CI4; upload-time keying hashes the
+  CI8 view (byte cimax=102 -> 103 stale TLUT entries -> pcrc 678bdb87,
+  matches nothing GlideN64 ever dumped). GlideN64 keys from the render
+  tile (GLideN64 source at ~/code/mupen64plus-libretro-nx/GLideN64,
+  TxUtil::checksum64: palette CRC = RiceCRC32 over cimax+1 flat u16
+  entries, CI4 bank at palette*32; flat TexFilterPalette memcpy'd from
+  RDRAM at LoadTLUT). Our draw-time GlideN64-compat hook already
+  implements exactly that; an offline Rice-CRC brute force over the
+  captured runtime TLUT (READ_CORE_MEMORY at the paused fixture frame)
+  reproduced pack variant CRCs exactly (banks 0x2f4560/80/0x2f4600 ->
+  c3984de7/c4f5f086/373fa1d0; full-bank and used-count widths never
+  match). So the runtime key was right; the pack record was the blocker.
+- Pack blocker: hts2phrb parked 649 multi-variant exact families as
+  canonical-only (reason exact-family-ambiguous, runtime_ready=false,
+  blobs never emitted; loader skips such records wholesale). The
+  ambiguity only exists for family-level low32 serving; exact 64-bit keys
+  disambiguate by construction and low32 fallback is env-gated off.
+  hires_pack_migrate.py now emits those families as exact-only authority
+  (rule exact-variant-set) - e0d59c63. PM reconversion: outcome
+  promotable-runtime-package, 0 unresolved families. New canonical pack:
+  artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb
+  (scenario default + conformance lane updated).
+- Results with the promoted pack: file-select textured-draw misses
+  114 -> 1 (the four file boxes render hi-res, rubric yes; draw-time hits
+  on c3984de7-keyed variants); kmr_03 57 -> 13; title ON bit-identical to
+  pre-promotion (no family-variant misses there); emu-required 43/43
+  (budget contract allowlist now accepts the higher outcome tier);
+  emu-runtime-conformance 2/2.
+- Remaining known gaps, classified: 59 absent keys are Nx1 16/32-bit
+  block-strip loads the MasterKillua pack does not cover (3 recur across
+  all scenes: 1d27afb6 fs768, 979ed05d fs514, de3dac2a fs516) - correct
+  explicit fallback, pack-side work if ever. kmr_03's residual 13
+  textured-draw misses are in that class. Upload-time keying-miss lines
+  for split-view CI textures (CI8 upload / CI4 draw) are expected noise;
+  the draw-time compat lane is the GlideN64-faithful resolver.

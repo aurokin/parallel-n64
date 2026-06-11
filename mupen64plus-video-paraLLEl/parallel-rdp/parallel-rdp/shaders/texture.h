@@ -93,13 +93,12 @@ ivec2 remap_hires_st_fp5(TileInfo tile, ivec2 st_fp5)
 
 ivec2 remap_hires_st_fp5_copy(TileInfo tile, ivec2 st_fp5, int s_offset)
 {
-	ivec2 remapped = ivec2(
+	// interpolate_st_copy already collapses dx to the native pixel grid
+	// (dx >>= SCALING_LOG2), so copy-pipe ST is native-domain here. Do not
+	// divide by SCALING_FACTOR again like the non-copy remap does.
+	return ivec2(
 			remap_hires_coord_fp5(st_fp5.x + (s_offset << 5), tile.mask_s, (tile.flags & TILE_INFO_MIRROR_S_BIT) != 0),
 			remap_hires_coord_fp5(st_fp5.y, tile.mask_t, (tile.flags & TILE_INFO_MIRROR_T_BIT) != 0));
-#if SCALING_FACTOR > 1
-	remapped /= SCALING_FACTOR;
-#endif
-	return remapped;
 }
 
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT

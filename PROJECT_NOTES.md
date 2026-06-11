@@ -1580,3 +1580,38 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   (hirestex-filter provably inert with hi-res off); emu-required 43/43,
   emu-runtime-conformance 2/2. Review bundles + pairs under
   artifacts/experiments/trilinear-default-204024/.
+- Copy-pipe hi-res sampling fixed (SM64 UI investigation). User report:
+  SM64 title/HUD elements "don't look hi-res". Instrumented run
+  (PARALLEL_RDP_HIRES_DEBUG) showed 100% of textured draws binding
+  replacements (943k triangle draws, 111 unique keys, zero misses) - but
+  PRESS START letters and HUD glyphs are COPY-mode TEX_RECTs, and
+  remap_hires_st_fp5_copy divided ST by SCALING_FACTOR even though
+  interpolate_st_copy already collapses dx to the native grid
+  (dx >>= SCALING_LOG2). The double division compressed every copy-pipe
+  replacement lookup into the top-left corner of the HD image, so
+  copy-mode UI never showed pack art. One-line shader fix (remove the
+  second division) + slangmosh regen. Verification was probe-driven
+  after visual comparison proved unreliable (the SM64 Reloaded letter
+  art is a faithful redraw, and the native-res tex-rect snap decimates
+  it back to ~16x16, so fixed vs broken looks similar at a glance):
+  magenta probe proved the copy hires branch executes for the letter
+  rects; a red-channel grayscale probe matched the pack letters'
+  per-glyph red pattern exactly (both R's dark at 28, P/E/A/T bright
+  230+, S mid 102) in both words; offline provider dump
+  (tools/hires_dump_entry) confirmed runtime resolution returns the same
+  art as the PHRB inventory. HUD digits/icons (coin, star, x, lives 4,
+  camera) now render pack art visibly. Gates: emu-required 43/43,
+  emu-runtime-conformance 2/2, kmr_03 feature-off digest bit-exact
+  (35213195...), kmr_03 hi-res ON visually unchanged (triangle-dominated
+  scene; expected). Evidence bundles under
+  artifacts/experiments/sm64-ui-coverage-261610/.
+- Open follow-up from the same investigation: replaced COPY-mode
+  tex-rects still rasterize with the native-resolution snap (the
+  draw-time exemption in rdp_renderer.cpp deliberately excludes copy
+  rects), so copy-pipe UI replacements render as ~orig-res decimations
+  of the HD art rather than full-res. Lifting the snap for replaced copy
+  rects is the remaining headroom; it needs its own falsification pass
+  (copy-mode strips at upscale were the reason native_resolution_tex_rect
+  exists). Also note: SM64 pack letter glyph entries appear recolored
+  relative to the original PRESS START palette (artist choice in the
+  Reloaded pack), which is visible now that the letters actually replace.

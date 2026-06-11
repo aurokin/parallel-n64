@@ -91,13 +91,15 @@ ivec2 remap_hires_st_fp5(TileInfo tile, ivec2 st_fp5)
 			remap_hires_coord_fp5(st_fp5.y, tile.mask_t, (tile.flags & TILE_INFO_MIRROR_T_BIT) != 0));
 }
 
-ivec2 remap_hires_st_fp5_copy(TileInfo tile, ivec2 st_fp5, int s_offset)
+ivec2 remap_hires_st_fp5_copy(TileInfo tile, ivec2 st_fp5, int s_offset, int s_frac_fp5)
 {
 	// interpolate_st_copy already collapses dx to the native pixel grid
 	// (dx >>= SCALING_LOG2), so copy-pipe ST is native-domain here. Do not
 	// divide by SCALING_FACTOR again like the non-copy remap does.
+	// s_frac_fp5 is the sub-native S remainder of an unsnapped copy rect,
+	// scaled to a fraction of the one-texel-per-native-pixel copy step.
 	return ivec2(
-			remap_hires_coord_fp5(st_fp5.x + (s_offset << 5), tile.mask_s, (tile.flags & TILE_INFO_MIRROR_S_BIT) != 0),
+			remap_hires_coord_fp5(st_fp5.x + (s_offset << 5) + s_frac_fp5, tile.mask_s, (tile.flags & TILE_INFO_MIRROR_S_BIT) != 0),
 			remap_hires_coord_fp5(st_fp5.y, tile.mask_t, (tile.flags & TILE_INFO_MIRROR_T_BIT) != 0));
 }
 
@@ -169,6 +171,31 @@ i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 st_fp5, bool linea
 		ivec2 repl_coord = ivec2(floor(repl_texel_clamped + vec2(0.5)));
 		repl = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], repl_coord, 0);
 	}
+
+	repl = normalize_hires_replacement_texel(tile, repl);
+	ivec4 expanded = ivec4(clamp(repl * vec4(255.0) + vec4(0.5), vec4(0.0), vec4(255.0)));
+	return i16x4(expanded);
+#else
+	return i16x4(0);
+#endif
+}
+
+i16x4 sample_hires_replacement_texel_copy_fp5(TileInfo tile, ivec2 st_fp5)
+{
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	ivec2 orig_dims = max(ivec2(tile.repl_orig_w, tile.repl_orig_h), ivec2(1));
+	ivec2 repl_dims = max(ivec2(tile.repl_w, tile.repl_h), ivec2(1));
+	vec2 st_texel = vec2(st_fp5) * (1.0 / 32.0);
+
+	// The copy pipe's sub-native phase walks a texel's footprint from its
+	// sample point, so map it onto that texel's own replacement rows/cols
+	// (plain ratio map). The centered remap the non-copy path uses would
+	// straddle texel boundaries here and tear at copy-strip seams, where
+	// the neighboring rows live in a different strip's replacement image.
+	vec2 repl_texel = st_texel * (vec2(repl_dims) / vec2(orig_dims));
+	vec2 repl_texel_clamped = clamp(repl_texel, vec2(0.0), vec2(repl_dims - 1));
+	ivec2 repl_coord = ivec2(floor(repl_texel_clamped + vec2(0.5)));
+	vec4 repl = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], repl_coord, 0);
 
 	repl = normalize_hires_replacement_texel(tile, repl);
 	ivec4 expanded = ivec4(clamp(repl * vec4(255.0) + vec4(0.5), vec4(0.0), vec4(255.0)));
@@ -607,7 +634,7 @@ int sample_texture_copy_word(TileInfo tile, uint tmem_instance, ivec2 st, int s_
 	return samp;
 }
 
-int sample_texture_copy(TileInfo tile, uint tmem_instance, ivec2 st, int s_offset, bool tlut, bool tlut_type)
+int sample_texture_copy(TileInfo tile, uint tmem_instance, ivec2 st, int s_offset, int sub_px, bool tlut, bool tlut_type)
 {
 	ivec2 st_fp5;
 	st_fp5.x = shift_coord(st.x, int(tile.slo), int(tile.shift_s));
@@ -616,8 +643,9 @@ int sample_texture_copy(TileInfo tile, uint tmem_instance, ivec2 st, int s_offse
 
 	if (tile_uses_hires_replacement(tile))
 	{
-		ivec2 st_repl_fp5 = remap_hires_st_fp5_copy(tile, st_fp5, s_offset);
-		i16x4 repl_texel = sample_hires_replacement_texel_fp5(tile, st_repl_fp5, false, 0.0);
+		int s_frac_fp5 = (sub_px << 5) >> SCALING_LOG2;
+		ivec2 st_repl_fp5 = remap_hires_st_fp5_copy(tile, st_fp5, s_offset, s_frac_fp5);
+		i16x4 repl_texel = sample_hires_replacement_texel_copy_fp5(tile, st_repl_fp5);
 		uvec4 repl = uvec4(clamp(ivec4(repl_texel), ivec4(0), ivec4(255)));
 		if (global_constants.fb_info.fb_size == 1)
 			return int(repl.x);

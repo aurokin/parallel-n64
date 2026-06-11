@@ -2231,15 +2231,26 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	// native_resolution_tex_rect exists to keep copy-mode strips stable at
 	// upscale, but it also snaps rasterization to the native pixel grid,
 	// capping replacement detail for the texrects hi-res packs care about
-	// most (UI, text). When a replacement is bound to a non-copy, non-flip
-	// texrect, drop the snap so the replacement rasterizes at full scale.
-	// The bit is only consumed GPU-side, so patching the queued setup here,
-	// after the draw-time CRC fallback has resolved, stays coherent.
-	if (draw_class == HiresDrawClass::TexRect &&
-	    texel0_state.hit && uses_texel0 &&
-	    (raster_flags & RASTERIZATION_COPY_BIT) == 0)
+	// most (UI, text). When a replacement is bound to a non-flip texrect,
+	// drop the snap so the replacement rasterizes at full scale. Copy-mode
+	// rects qualify only when replaced (no uses_texel0 there): the
+	// replacement branch bypasses TMEM, so the fragile raw-transport strips
+	// the option protects are exactly the unreplaced ones, which keep the
+	// snap. The bit is only consumed GPU-side, so patching the queued setup
+	// here, after the draw-time CRC fallback has resolved, stays coherent.
+	if (draw_class == HiresDrawClass::TexRect && texel0_state.hit &&
+	    (uses_texel0 || (raster_flags & RASTERIZATION_COPY_BIT) != 0))
 	{
-		stream.triangle_setup.last().flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
+		auto &queued_setup = stream.triangle_setup.last();
+		queued_setup.flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
+		// A fractional bottom edge (yl & 3) clips every subpixel of the
+		// rect's last upscaled row once the snap is lifted, leaving a
+		// one-row gap at abutting strip seams. Round it up to the next
+		// whole native line: that restores exactly the clipped sub-rows,
+		// never adds a native line, and keeps allocate_span_jobs'
+		// (yl - 1) >> 2 coherent with the already-queued span jobs.
+		if (caps.upscaling > 1 && (queued_setup.yl & 3) != 0)
+			queued_setup.yl = (queued_setup.yl + 3) & ~3;
 	}
 
 	if (hires_debug)

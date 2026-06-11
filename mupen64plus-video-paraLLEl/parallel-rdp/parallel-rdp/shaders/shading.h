@@ -139,6 +139,19 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		int s_offset;
 		interpolate_st_copy(span_setup, attr.dstzw_dx, x, perspective, flip, st, s_offset);
 
+		// interpolate_st_copy collapses dx to the native pixel grid, so an
+		// unsnapped (replacement-exempted) copy rect still steps S one whole
+		// native texel per native pixel. Recover the sub-native remainder of
+		// the same dx counter so the replacement path can resolve S detail
+		// past the native grid. Snapped rects keep sub_px = 0 to stay
+		// bit-identical with stock behavior.
+		int sub_px = 0;
+		if (SCALING_FACTOR > 1 && (setup_flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) == 0u)
+		{
+			int dxu = flip ? (x - span_setup.start_x) : (span_setup.end_x - x);
+			sub_px = dxu & (SCALING_FACTOR - 1);
+		}
+
 		uint tile0 = uint(setup_tile) & 7u;
 		uint tile_info_index0 = uint(state_indices.elems[primitive_index].tile_infos[tile0]);
 		TileInfo tile_info0 = load_tile_info(tile_info_index0);
@@ -149,7 +162,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 			tile_info0.size = u8(TEX_SIZE);
 		}
 #endif
-		int texel0 = sample_texture_copy(tile_info0, tmem_instance_index, st, s_offset, tlut, tlut_type);
+		int texel0 = sample_texture_copy(tile_info0, tmem_instance_index, st, s_offset, sub_px, tlut, tlut_type);
 		shaded.z_dith = texel0;
 		shaded.coverage_count = U8_C(COVERAGE_COPY_BIT);
 

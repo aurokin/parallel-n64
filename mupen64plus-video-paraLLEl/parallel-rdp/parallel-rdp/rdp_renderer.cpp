@@ -136,6 +136,21 @@ static bool compute_hires_tile_size_pixels(const TileSize &size, uint32_t &width
 	return width_pixels != 0 && height_pixels != 0;
 }
 
+// GlideN64 sizes its texture-cache entries (the space hi-res replacements
+// are authored in) from the rendering tile's SetTileSize extent clamped by
+// the coordinate masks. This is also the window its Rice CRC hashes over.
+static bool compute_hires_gliden64_display_dims(const TileMeta &meta, const TileSize &size,
+                                                uint32_t &width_pixels, uint32_t &height_pixels)
+{
+	if (!compute_hires_tile_size_pixels(size, width_pixels, height_pixels))
+		return false;
+	if (meta.mask_s != 0)
+		width_pixels = std::min(width_pixels, 1u << meta.mask_s);
+	if (meta.mask_t != 0)
+		height_pixels = std::min(height_pixels, 1u << meta.mask_t);
+	return width_pixels != 0 && height_pixels != 0;
+}
+
 
 struct HiresSampledObjectIdentity
 {
@@ -281,16 +296,7 @@ static uint64_t compute_gliden64_compat_checksum64(
 		return 0;
 
 	uint32_t tile_width = 0, tile_height = 0;
-	if (!compute_hires_tile_size_pixels(tile_size, tile_width, tile_height))
-		return 0;
-
-	// Apply mask clamping (GlideN64 convention for non-tile-loaded textures)
-	if (meta.mask_s != 0)
-		tile_width = std::min(tile_width, 1u << meta.mask_s);
-	if (meta.mask_t != 0)
-		tile_height = std::min(tile_height, 1u << meta.mask_t);
-
-	if (tile_width == 0 || tile_height == 0)
+	if (!compute_hires_gliden64_display_dims(meta, tile_size, tile_width, tile_height))
 		return 0;
 
 	// Stride = tile line bytes. For 32bpp GlideN64 uses line << 4 instead of line << 3.
@@ -2223,7 +2229,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			if (compat_hit)
 			{
 				uint32_t compat_w = 0, compat_h = 0;
-				compute_hires_tile_size_pixels(base_size, compat_w, compat_h);
+				compute_hires_gliden64_display_dims(base_meta, base_size, compat_w, compat_h);
 				ReplacementMeta compat_repl_meta = compat_resolution.meta;
 				compat_repl_meta.orig_w = compat_w;
 				compat_repl_meta.orig_h = compat_h;
@@ -2270,6 +2276,33 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				     miss_w, miss_h, base_meta.stride,
 				     hires_rdram_load_addr[base_tile] & 0x00ffffffu,
 				     unsigned(tlut_shadow_valid));
+			}
+		}
+	}
+
+	// Replacements are authored against GlideN64's texture-cache view: the
+	// rendering tile's SetTileSize extent clamped by the coordinate masks.
+	// The upload lane binds before the rendering tile is known and stores
+	// the LOAD key window instead, which diverges for reshaped or mirrored
+	// loads (e.g. an 8x16 LoadTile window rendered as a 16-wide mask-wrapped
+	// tile) and skews the GPU ratio map. Rebase orig dims here, where the
+	// rendering tile is known, for every bound texel tile.
+	if (replacement_provider)
+	{
+		const unsigned rebase_tiles[2] = { base_tile, texel1_tile };
+		for (unsigned t : rebase_tiles)
+		{
+			auto &repl_state = replacement_tiles[t];
+			if (!repl_state.hit)
+				continue;
+			uint32_t display_w = 0, display_h = 0;
+			if (!compute_hires_gliden64_display_dims(tiles[t].meta, tiles[t].size, display_w, display_h))
+				continue;
+			if (repl_state.orig_w != display_w || repl_state.orig_h != display_h)
+			{
+				repl_state.orig_w = uint16_t(display_w);
+				repl_state.orig_h = uint16_t(display_h);
+				apply_hires_tile_binding(t, repl_state);
 			}
 		}
 	}

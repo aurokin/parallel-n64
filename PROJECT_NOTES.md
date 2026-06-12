@@ -1977,3 +1977,50 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   curation. Open follow-up: I-format draws with tlut=1 natively recolor
   through the TLUT; serving baked RGBA bypasses that — check sampler
   semantics before considering a tlut-gated serve rule.
+
+## 2026-06-12 Star-shape family root cause + orig-dims rebase (task #25)
+
+- Falsification pass on the "copy-path star family" (kmr03 sky seam, battle
+  damage-star slab, backdrop cloud offset) overturned the copy-path framing:
+  the damage star is NOT a copy TEX_RECT. It is 36 2-cycle triangles/frame
+  sampling small I4/I8 sheets (silhouette abac4435 16x64-load, 2dbebb76
+  16x32-load, fill atlas 816a81b8, numeral 2958367f 8x16-load).
+- Root cause (H2 confirmed): hi-res replacements are authored against
+  GlideN64's texture-cache view = the RENDERING tile's SetTileSize extent
+  clamped by the coordinate masks. The upload lane binds at load time and
+  stored the LOAD key window as orig dims instead. For reshaped/mirrored
+  loads the two diverge (glide-dump vs load-window: 16x16 vs 8x16, 32x64 vs
+  16x64, 32x32 vs 16x32 — pack assets 80x80, 307x614, 256x256 scale to the
+  glide dims, not ours), skewing the GPU ratio map: squeezed numeral, star
+  upper half sampled from interior rows -> opaque slab. Proven by pack-entry
+  dumps vs pack-less glide txdump natives; P2 (COMPAT_CRC=0) exonerated the
+  compat lane (slab persisted on upload-lane hits).
+- Fix: new compute_hires_gliden64_display_dims (SetTileSize extent clamped
+  by mask_s/mask_t — the same window the compat CRC hashes), used by the
+  compat lane's stored dims, and a draw-time rebase in
+  draw_shaded_primitive that rewrites orig_w/h of every bound texel tile
+  from the rendering tile's regs. Upload-lane key/identity is untouched;
+  copy strips (render==load window) are bit-identical by construction.
+- Verification: battle damage star regains full 5-point silhouette + HD
+  numeral, matching glide g048 (star-fix/verify, /tmp 3-ways archived in
+  user-beats-dimsfix). Beats: u09 fixed, u13 damage stars star-shaped, u12
+  gray blob gone, u10/u15 unchanged (star not in frame; glide drift).
+  kmr03 0.5% pixel delta (sprites), toad-town content-equivalent (sub-texel
+  resample shifts only). Gates: emu-required 43/43, emu-runtime-conformance
+  2/2. SM64 copy-pipe letters unaffected by construction but flag for a
+  breadth re-check when that rig is next staged.
+- Backdrop "cloud ~150px low" RECLASSIFIED pack-content: the 296x6 sky
+  strips bind per-strip exact (pcrc,tcrc) pack entries whose art (plain
+  sky + 3 clouds) structurally diverges from the native strips (hills/
+  meadow per glide's own dumps of the same keys). GlideN64 serves the same
+  art (g039 vs our kmr03 ON: identical clouds) -> equivalent-to-glide,
+  out of renderer scope; remedy is pack curation.
+- Remaining renderer item from the family: 1px vertical strip-junction
+  seam in vignette skies (present before and after this fix, absent OFF);
+  S-axis analog of the yl-round-up class. Needs shader-level probe; gated
+  on verifying tools/regen-parallel-rdp-shaders.sh (Reboot Plan step 2).
+- Session tooling notes: adapter load-slot caps at slot 9 (use raw
+  LOAD_STATE_SLOT_PAUSED for beats 10+); --state-source must contain the
+  "ParaLLEl N64" core subdir or RetroArch sees 0-byte states; two soft
+  WEDGES under PARALLEL_RDP_HIRES_DEBUG flood (threads parked in futex,
+  main in nanosleep, no SIGSEGV — new #24 signature, /tmp/p2-hang-backtrace.txt).

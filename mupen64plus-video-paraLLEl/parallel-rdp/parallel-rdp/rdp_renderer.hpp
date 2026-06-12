@@ -358,6 +358,7 @@ private:
 	uint64_t hires_compat_draw_time_hits = 0;
 	uint64_t hires_compat_draw_time_ci_attempts = 0;
 	uint64_t hires_compat_draw_time_ci_hits = 0;
+	uint64_t hires_compat_draw_time_bank0_hits = 0;
 	std::unordered_set<uint64_t> hires_compat_draw_miss_logged;
 	std::unordered_set<std::string> hires_block_shape_probe_logged_hits;
 	std::unordered_set<std::string> hires_block_shape_probe_logged_contexts;

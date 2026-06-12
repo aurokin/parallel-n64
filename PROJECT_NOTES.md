@@ -1891,3 +1891,89 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   divergence scrambled the targeted vignette saves. Next pass: watch
   the attract live and save slots at sight, then A/B with the proven
   exact-shot recipe; GlideN64 side-by-side for content judgment.
+
+## 2026-06-12 Glide-vs-ParaLLEl beat comparison (17 user-flagged states)
+
+- Rig: user saved 17 states live (F2, savestate_auto_index) while watching
+  the hi-res ON title attract. Parallel side: paused load + STEP_FRAME 3 +
+  screenshot per state (user-beats-parallel/beats/u01..u17.png, frame-exact).
+  Glide side: cross-core state load is impossible (mupen64plus-next
+  segfaults parsing our m64p state), so GLideN64 was captured from a
+  natural boot of the same deterministic attract (glide-attract-watch/seq,
+  90 captures at ~4 s cadence, .hts pack active and verified visually).
+- Timeline matching: intro movie aligns exactly (lightning beat +84 s in
+  both runs); the stage-vignette section drifts (glide runs ahead, ~5-15 s
+  by +287 s). Matching used drift-aware candidate windows + content match.
+- Review panel (workflow, 17 judge + 11 adversarial verify agents, rubric
+  only, no pixel metrics): 10 of 11 adverse findings upheld. Verdicts:
+  clean/equivalent at u01,u02,u12,u13,u15 (+u10 refuted on verify);
+  sprite-class deficit (hi-res in glide, native in parallel) upheld at
+  u03,u04,u05,u07,u08,u09,u11,u14,u16,u17.
+- HEADLINE REFUTATION: the txDump three-way "pack gap -> GLideN64 renders
+  these natively too" verdict is wrong for the stage vignettes. Direct
+  side-by-sides show glide serving hi-res (untinted) repaints for the
+  scene-tinted sprite variants we render native. Mechanism check:
+  GLideN64's lookup order is exact crc64 -> pcrc-only -> tcrc-only
+  (TxFilter.cpp:513), but the pack contains NO pcrc-only/tcrc-only entries
+  for the affected low32s, so glide must COMPUTE a pack-present
+  (tcrc,pcrc) at these draws (suspect: single global TexFilterPalette
+  last-loaded-TLUT quirk yielding the base palette pcrc). Note glide pays
+  a price: its sprites lose the scene tint (bright sprite on dark scene).
+- Fallback probe falsified as a remedy: PARALLEL_RDP_HIRES_CI_LOW32_FALLBACK=2
+  on states 3,4,8,14,16,17 (user-beats-low32/3way.png) serves repaints but
+  WRONG variants (dark/silhouette where the scene needs lit) — including
+  for single-variant low32s (u03 carrier 0476e714 served its only pack
+  variant 74d1211b and rendered near-black vs glide's bright yellow), so
+  variant selection, not mere fallback, is the crux. Next: GLN64_TXDUMP
+  over the stage vignettes to learn glide's computed keys per draw (#26).
+- NEW always-fail defect: sewer vignette (states 6/7) shows Mario/Kooper
+  as opaque white gradient quads with black ovals under hi-res ON; hi-res
+  OFF renders the same states perfectly (user-beats-off/beats/) — hi-res
+  corruption class, deterministic repro, queued as #29. Likely the
+  original "untextured Mario" report. Panel scored u06 "yes" only because
+  my scene hint described the corruption as "lit door rectangles" —
+  reviewer hints must describe the scene, not the artifact.
+- Evidence: per-beat side-by-side gallery user-beats-parallel/gallery/
+  pairs0..4.png; panel verdicts /tmp/panel-results.json (copy in bundle);
+  matches /tmp/beat-matches.json.
+
+## 2026-06-12 CI palette-bank keying fix (bank-0 compat candidate)
+
+- Root cause chain for the tinted-sprite miss family (panel forensics +
+  offline savestate probes, full trail in user-beats-parallel/
+  keying-probe-findings.md): the census keys (da772d55...) come from the
+  UPLOAD lane, which keys CI sprites from the LOAD tile (CI8 view: byte-scan
+  cimax inflates toward 256, CRC window swallows the full 512B shadow,
+  computed before the draw's LoadTLUT). The draw-time GlideN64-compat lane
+  is byte-perfect on the reference convention (render tile, nibble cimax,
+  bank window) but keys the RENDER tile's palette bank; packs authored from
+  HLE dumps key CI sprites against the TLUT BASE (HLE regenerates tile
+  state with palette index 0), so render tiles with pal!=0 missed pack
+  entries the reference pipeline resolves. Verified offline from state7
+  RDRAM: pack pcrc 74d1211b == RiceCRC(bank0 palette @0x357d18, nibble
+  cimax+1=15); our compat miss d7cb65b9 == RiceCRC(bank1 @0x159880 'abad'
+  filler, 15) — exact byte-level reproduction of both values.
+- Fix: compute_gliden64_compat_checksum64 now emits a second candidate for
+  CI4 tiles with pal!=0, keyed against the bank-0 window; the rescue lane
+  retries it after the primary misses. New class-level counter
+  compat_draw_bank0_hits in the keying summary.
+- Verification: rebuilt core; states 3,4,6,7,14,16,17 recaptured —
+  compat_draw_bank0_hits=78, predicted key 74d1211b-0de2e188 hits at draw
+  time, sprites render as hi-res repaints matching the GLideN64 side-by-
+  sides (user-beats-fixA/before-after.png). Gates: emu-required 43/43,
+  emu-runtime-conformance PASS (see commit). OFF path untouched by
+  construction (lane requires replacement_provider).
+- u06/u07 'white quad' RESOLUTION (task #29 reframed): NOT renderer
+  corruption. The slabs are pack-served I-format replacements at lightning-
+  flash frames; the dominant occluder is the d7f736aa entry — 65x65 slate
+  art Rice-colliding with the sewer beam texture INSIDE the pack's own
+  keying scheme (old-version .hts: no formatsize metadata, GLideN64's own
+  old-version path has no gate either, so glide plausibly shows the same
+  flash artifact; our 4s glide captures straddle the flash windows).
+  Dims-based guards are impossible: legit pack sprites have arbitrary
+  non-integer scales (Peach 210x315 for 24x72; numeral 19x3 for 24x8).
+  Remedies: PARALLEL_RDP_HIRES_FILTER_SIGNATURES opt-out (proven: blocking
+  the fs=260 16x32/64x32 tile signatures yields a clean scene), pack-side
+  curation. Open follow-up: I-format draws with tlut=1 natively recolor
+  through the TLUT; serving baked RGBA bypasses that — check sampler
+  semantics before considering a tlut-gated serve rule.

@@ -261,14 +261,22 @@ static uint32_t scan_rdram_ci_max_index(
 // Compute Rice CRC using GlideN64-compatible parameters derived from the draw-time tile descriptor.
 // GlideN64 computes CRC lazily at draw time using the rendering tile's SetTileSize dimensions
 // and the tile's line-based stride, not the upload-path's raw LoadBlock dimensions.
+// For CI4 tiles with a non-zero palette index, *alt_checksum64 receives a second candidate
+// keyed against the bank-0 palette window: packs authored from HLE dumps key CI sprites
+// against the palette at the TLUT base (the HLE pipeline regenerates tile state with
+// palette index 0), so an LLE render tile that selects another bank misses pack entries
+// the reference pipeline resolves.
 static uint64_t compute_gliden64_compat_checksum64(
 	const uint8_t *cpu_rdram, size_t rdram_size,
 	uint32_t rdram_load_addr,
 	const TileMeta &meta,
 	const TileSize &tile_size,
 	const uint8_t *tlut_shadow,
-	bool tlut_shadow_valid)
+	bool tlut_shadow_valid,
+	uint64_t *alt_checksum64)
 {
+	if (alt_checksum64)
+		*alt_checksum64 = 0;
 	if (!cpu_rdram || rdram_size == 0)
 		return 0;
 
@@ -332,6 +340,15 @@ static uint64_t compute_gliden64_compat_checksum64(
 				palette_crc = rice_crc32_wrapped(
 					tlut_shadow, 512, bank_offset,
 					cimax + 1, 1, 2, 32);
+			}
+
+			if (alt_checksum64 && bank_offset != 0)
+			{
+				const uint32_t bank0_palette_crc = rice_crc32_wrapped(
+					tlut_shadow, 512, 0,
+					cimax + 1, 1, 2, 32);
+				if (bank0_palette_crc != palette_crc)
+					*alt_checksum64 = (uint64_t(bank0_palette_crc) << 32) | uint64_t(texture_crc);
 			}
 		}
 
@@ -1168,6 +1185,7 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_compat_draw_time_hits = 0;
 	hires_compat_draw_time_ci_attempts = 0;
 	hires_compat_draw_time_ci_hits = 0;
+	hires_compat_draw_time_bank0_hits = 0;
 	hires_block_shape_probe_logged_hits.clear();
 	hires_block_shape_probe_logged_contexts.clear();
 	hires_ci_palette_probe_logged_hits.clear();
@@ -1334,7 +1352,7 @@ void Renderer::log_hires_summary() const
 	if (replacement_provider)
 	{
 		ReplacementProviderStats provider_stats = replacement_provider->get_stats();
-		LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu filtered=%llu block_probe_hits=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
+		LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu filtered=%llu block_probe_hits=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
 		     static_cast<unsigned long long>(hires_lookup_total),
 		     static_cast<unsigned long long>(hires_lookup_hits),
 		     static_cast<unsigned long long>(hires_lookup_misses),
@@ -1343,6 +1361,7 @@ void Renderer::log_hires_summary() const
 		     static_cast<unsigned long long>(hires_compat_draw_time_hits),
 		     static_cast<unsigned long long>(hires_compat_draw_time_ci_hits),
 		     static_cast<unsigned long long>(hires_compat_draw_time_ci_attempts),
+		     static_cast<unsigned long long>(hires_compat_draw_time_bank0_hits),
 		     provider_stats.entry_count,
 		     provider_stats.native_sampled_entry_count,
 		     provider_stats.compat_entry_count,
@@ -2161,11 +2180,13 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	    replacement_provider && cpu_rdram && rdram_size > 0 &&
 	    hires_rdram_load_addr[base_tile] != 0)
 	{
-		const uint64_t compat_checksum64 = compute_gliden64_compat_checksum64(
+		uint64_t compat_alt_checksum64 = 0;
+		uint64_t compat_checksum64 = compute_gliden64_compat_checksum64(
 			cpu_rdram, rdram_size,
 			hires_rdram_load_addr[base_tile],
 			base_meta, base_size,
-			tlut_shadow, tlut_shadow_valid);
+			tlut_shadow, tlut_shadow_valid,
+			&compat_alt_checksum64);
 
 		const bool is_ci_compat_texture = (compat_checksum64 >> 32) != 0;
 		if (is_ci_compat_texture)
@@ -2174,14 +2195,30 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		if (compat_checksum64 != 0)
 		{
 			const uint16_t compat_formatsize = formatsize_key(base_meta.fmt, base_meta.size);
-			const uint32_t compat_low32 = uint32_t(compat_checksum64 & 0xffffffffu);
-			const uint32_t compat_palette_crc = uint32_t(compat_checksum64 >> 32u);
+			uint32_t compat_low32 = uint32_t(compat_checksum64 & 0xffffffffu);
+			uint32_t compat_palette_crc = uint32_t(compat_checksum64 >> 32u);
 			ReplacementResolution compat_resolution = {};
 			bool compat_hit = replacement_provider->resolve_upload_candidate(
 				compat_formatsize,
 				uint32_t(base_meta.fmt), uint32_t(base_meta.size),
 				base_meta.offset, base_meta.stride,
 				0, 0, compat_low32, compat_palette_crc, 0, &compat_resolution);
+
+			if (!compat_hit && compat_alt_checksum64 != 0)
+			{
+				compat_low32 = uint32_t(compat_alt_checksum64 & 0xffffffffu);
+				compat_palette_crc = uint32_t(compat_alt_checksum64 >> 32u);
+				compat_hit = replacement_provider->resolve_upload_candidate(
+					compat_formatsize,
+					uint32_t(base_meta.fmt), uint32_t(base_meta.size),
+					base_meta.offset, base_meta.stride,
+					0, 0, compat_low32, compat_palette_crc, 0, &compat_resolution);
+				if (compat_hit)
+				{
+					compat_checksum64 = compat_alt_checksum64;
+					hires_compat_draw_time_bank0_hits++;
+				}
+			}
 
 			if (compat_hit)
 			{

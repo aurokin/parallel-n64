@@ -295,6 +295,7 @@ summary_re = re.compile(
     r"(?: compat_draw_hits=(\d+))?"
     r"(?: compat_draw_ci_hits=(\d+))?"
     r"(?: compat_draw_ci_attempts=(\d+))?"
+    r"(?: compat_draw_bank0_hits=(\d+))?"
     r" provider=(on|off)"
     r"(?: entries=(\d+) native_sampled=(\d+) compat=(\d+) sampled_index=(\d+)"
     r"(?: sampled_dupe_keys=(\d+) sampled_dupe_entries=(\d+))?"
@@ -865,49 +866,50 @@ for line in log_path.read_text(errors="replace").splitlines():
             "compat_draw_hits": int(m.group(6) or 0),
             "compat_draw_ci_hits": int(m.group(7) or 0),
             "compat_draw_ci_attempts": int(m.group(8) or 0),
-            "provider": m.group(9),
+            "compat_draw_bank0_hits": int(m.group(9) or 0),
+            "provider": m.group(10),
         }
-        if m.group(10) is not None:
+        if m.group(11) is not None:
             source_counts = {
-                "phrb": int(m.group(18)),
-                "hts": int(m.group(19) or 0),
-                "htc": int(m.group(20) or 0),
+                "phrb": int(m.group(19)),
+                "hts": int(m.group(20) or 0),
+                "htc": int(m.group(21) or 0),
             }
-            summary["entry_count"] = int(m.group(10))
-            summary["native_sampled_entry_count"] = int(m.group(11))
-            summary["compat_entry_count"] = int(m.group(12))
-            summary["sampled_index_count"] = int(m.group(13))
-            summary["sampled_duplicate_key_count"] = int(m.group(14) or 0)
-            summary["sampled_duplicate_entry_count"] = int(m.group(15) or 0)
-            summary["sampled_family_count"] = int(m.group(16))
-            summary["compat_low32_family_count"] = int(m.group(17))
+            summary["entry_count"] = int(m.group(11))
+            summary["native_sampled_entry_count"] = int(m.group(12))
+            summary["compat_entry_count"] = int(m.group(13))
+            summary["sampled_index_count"] = int(m.group(14))
+            summary["sampled_duplicate_key_count"] = int(m.group(15) or 0)
+            summary["sampled_duplicate_entry_count"] = int(m.group(16) or 0)
+            summary["sampled_family_count"] = int(m.group(17))
+            summary["compat_low32_family_count"] = int(m.group(18))
             summary["source_counts"] = source_counts
-            if m.group(21) is not None:
+            if m.group(22) is not None:
                 summary["descriptor_path_counts"] = {
-                    "sampled": int(m.group(21)),
-                    "native_checksum": int(m.group(22)),
-                    "generic": int(m.group(23)),
-                    "compat": int(m.group(24)),
+                    "sampled": int(m.group(22)),
+                    "native_checksum": int(m.group(23)),
+                    "generic": int(m.group(24)),
+                    "compat": int(m.group(25)),
                 }
-            if m.group(25) is not None:
+            if m.group(26) is not None:
                 sampled_detail = {
-                    "sampled_family_singleton": int(m.group(25)),
-                    "sampled_ordered_surface_singleton": int(m.group(26)),
+                    "sampled_family_singleton": int(m.group(26)),
+                    "sampled_ordered_surface_singleton": int(m.group(27)),
                 }
-                if m.group(27) is not None:
-                    sampled_detail["sampled_exact_selector"] = int(m.group(27))
+                if m.group(28) is not None:
+                    sampled_detail["sampled_exact_selector"] = int(m.group(28))
                 summary["descriptor_path_detail_counts"] = sampled_detail
-            if m.group(28) is not None:
+            if m.group(29) is not None:
                 detail_counts = summary.get("descriptor_path_detail_counts") or {}
                 detail_counts.update({
-                    "generic_identity_assisted": int(m.group(28)),
-                    "generic_plain": int(m.group(29)),
+                    "generic_identity_assisted": int(m.group(29)),
+                    "generic_plain": int(m.group(30)),
                 })
-                if m.group(30) is not None:
+                if m.group(31) is not None:
                     detail_counts.update({
-                        "generic_native_plain": int(m.group(30)),
-                        "generic_compat_plain": int(m.group(31)),
-                        "generic_unknown_plain": int(m.group(32)),
+                        "generic_native_plain": int(m.group(31)),
+                        "generic_compat_plain": int(m.group(32)),
+                        "generic_unknown_plain": int(m.group(33)),
                     })
                 summary["descriptor_path_detail_counts"] = detail_counts
             if source_counts["phrb"] > 0 and source_counts["hts"] == 0 and source_counts["htc"] == 0:

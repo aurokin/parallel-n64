@@ -2024,3 +2024,39 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   "ParaLLEl N64" core subdir or RetroArch sees 0-byte states; two soft
   WEDGES under PARALLEL_RDP_HIRES_DEBUG flood (threads parked in futex,
   main in nanosleep, no SIGSEGV — new #24 signature, /tmp/p2-hang-backtrace.txt).
+
+## 2026-06-12 Docs reform: ADR set, progressive disclosure, lab repo split
+
+- Added docs/adr/ (17 records + index): the durable decisions from the
+  pre-reboot research through 2026-06-12, distilled from this notebook.
+  Spine: 0001 reboot, 0002 protected property, 0003 architecture
+  boundaries, 0004 hi-res-ON validation methodology, 0005 GlideN64 oracle
+  policy, 0006 identity (compat Rice-CRC primary), 0007 PHRB-only pack
+  pipeline, 0008 fixtures/evidence, 0009 interactive adapter, 0010
+  sampling semantics, 0011 texrect policy, 0012 reference rig + txDump
+  MISS-set semantics, 0013 keying refinements, 0014 orig-dims rebase,
+  0015 pack-curation boundary, 0016 test surface trim, 0017 lab repo.
+- Progressive disclosure pass: README.md (mission/status/reading path),
+  AGENTS.md (Active Scope synced to the frontier, ADR + lab-repo entries),
+  docs/README.md (ADR section; history blurb generalized), REBOOT_PLAN.md
+  (per-step DONE/PARTIAL/ACTIVE status, current-frontier section, .phrb
+  decision recorded, 11,463-entry count fix). Step 2 (shader regen) is
+  recorded as PARTIAL: toolchain proven, full reproducible-regen
+  verification still open and gating the strip-seam probe.
+- Doc freshness fixes from the audited sweep: WORKSPACE_PATHS (packs on
+  disk, /pluto read-only + koopa interim, exact-variant-set preference,
+  ladder reminted, txdump patch committed, staged breadth ROMs);
+  EMU_TESTING (guardrails gate listed, SM64/OoT profile-exclusion claim
+  corrected, loud-fail guarantee scoped vs breadth-lane exit-77 skips);
+  N64_EXACT_KEY_DELTA_SHEET (status banner, sections retitled past-tense,
+  contradicted conclusion annotated); PAPER_MARIO_SIGNAL_TABLE
+  (previous-machine digests relabeled, decomp paths fixed, "What We Still
+  Need" closed by the remint, tracked windows 47-49 added);
+  HIRES_REFERENCE_NOTES (trimmed to the durable survey + supersession
+  note); VI_SOURCE_MAPPING_RESEARCH archived to docs/history/ with banner.
+- Lab repo split (ADR-0017): private github.com/aurokin/parallel-n64-lab
+  (local /home/auro/code/parallel-n64-lab) now preserves the session
+  drivers, gdb/slangmosh wrappers, analysis utilities (phrb_extract,
+  sheet, alpha_map, strip_stack), and forensics notes that lived in /tmp
+  and gitignored artifacts/. Boundary: product tooling stays here; the lab
+  repo is never a correctness authority.

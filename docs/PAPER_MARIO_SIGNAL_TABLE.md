@@ -6,13 +6,18 @@
 
 - Define which Paper Mario runtime signals are currently safe to trust against the vanilla ROM.
 - Separate authoritative state signals from advisory or unsafe ones.
-- Give Phase 1 probing a tighter target than screenshot-only branch hunting.
+- Provide the rationale for the semantic trace addresses baked into
+  `tools/scenarios/lib/common.sh` bundle evidence, under
+  [docs/REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md).
 
 ## Evidence Basis
 
 - Runtime bundles from `parallel-n64`
-- Upstream vanilla reference: [papermario](/home/auro/code/paper_mario/papermario)
-- Behavior reference: [papermario-dx](/home/auro/code/paper_mario/papermario-dx)
+- Upstream vanilla reference: [papermario](/home/auro/code/papermario)
+  (the decomp now lives at `/home/auro/code/papermario`; inline citations below
+  keep their original pre-reset `/home/auro/code/paper_mario/...` paths)
+- Behavior reference: `papermario-dx` (no longer on disk; cited links are dead but
+  the agreement claims were verified when written)
 
 ## Current Signal Classes
 
@@ -28,7 +33,7 @@
   - Current limitation: all tracked file-select probe branches still read `FILE_MENU_MAIN`, so this signal is safe but not yet sufficient.
 
 - Fixture-relative frame and screenshot hash
-  - Why: the Phase 0 runtime contract is now deterministic for these Paper Mario fixtures.
+  - Why: the fixture runtime contract is now deterministic for these Paper Mario fixtures.
   - Current use: this is still the authoritative branch identity when deeper semantic signals are missing.
 
 - `filemenu_menus` at `0x80249B84`
@@ -53,9 +58,13 @@
   - Rule: use them for immediate input-delivery debugging, not for settled-state identity.
 
 - `gWindows` file-select window snapshots at `0x80159D50 + windowID * 0x20`
-  - Current tracked windows:
+  - Current tracked windows (the 7 traced by `tools/scenarios/lib/common.sh`
+    `window_trace_specs`):
     - `WIN_FILES_TITLE = 45`
     - `WIN_FILES_CONFIRM_PROMPT = 46`
+    - `WIN_FILES_MESSAGE = 47`
+    - `WIN_FILES_INPUT_FIELD = 48`
+    - `WIN_FILES_INPUT_KEYBOARD = 49`
     - `WIN_FILES_CONFIRM_OPTIONS = 50`
     - `WIN_FILES_SLOT2_BODY = 57`
   - Why: upstream vanilla window layout and window IDs are stable, and file-select logic uses `set_window_update()` on these windows during branch transitions.
@@ -154,6 +163,8 @@
   - Combined with local inspection and current project knowledge, the safer interpretation is that this `.srm` is not a meaningful populated-slot source for the current plan.
   - So the current next question is no longer “why does this `.srm` fail to populate slots?”
   - It is “what stronger Paper Mario state source should promote the next authoritative branch?”
+    (Answered 2026-06-10: the reminted 960-frame attract ladder to `kmr_03 ENTRY_5`
+    — see "What We Still Need" below.)
 
 - A no-input settle from the authoritative file-select state back to `frame=423` reproduces the canonical file-select hash:
   - `4b517fba6aa46afac587b776a3adf0a5fdfc9ebfcd91ba086e27e72b6ceb5011`
@@ -162,7 +173,12 @@
   - With the current long settle, both collapse into the first deeper deterministic branch:
   - `89cb1bddd5c2dd2a62b063210af11c2324eca04d3060e746042edc0323b00e8e`
 
-- The currently verified deterministic ladder is:
+- The deterministic ladder verified on the previous machine was
+  (digest note: only `4b517fba...` was re-anchored on this machine by commit
+  366754c6; the deeper-branch screenshot digests below are previous-machine
+  evidence and would need re-verification before reuse as gates — the RAM-derived
+  semantic window hash `d118c7cf...` above is machine-independent and distinct
+  from these):
   - authority + no input -> `4b517fba6aa46afac587b776a3adf0a5fdfc9ebfcd91ba086e27e72b6ceb5011`
   - authority + `START` -> `89cb1bddd5c2dd2a62b063210af11c2324eca04d3060e746042edc0323b00e8e`
   - authority + `A` -> `89cb1bddd5c2dd2a62b063210af11c2324eca04d3060e746042edc0323b00e8e`
@@ -171,7 +187,15 @@
   - `89cb1b...` + `A -> START` -> `fece26f3ac694b9cbf9c395c10a4cb0543499cdc8eb2aa9beaacb896c2acd1ad`
   - `89cb1b...` + `START -> START` -> `86d3d0a9f7db600bdc0f0f4b8ec29d9c7ff1418a7e7c7ac346dc9a710c2dd3a7`
 
-## What We Still Need
+## What We Still Need (closed 2026-06-10, kept for the record)
+
+The open questions this section tracked were answered by the savestate ladder
+remint: the 960-frame attract ladder to `kmr_03 ENTRY_5`
+(`tools/fixtures/paper-mario-authority-graph.yaml`) promoted an authoritative
+in-world state without resolving the file-select confirm/start branch, and menu
+scenes are reached from a post-prologue save (new-game recipes recorded
+2026-06-12). The remaining file-select-exit discriminator is dormant research,
+not an active need.
 
 - A vanilla-safe signal that can distinguish:
   - `FM_MAIN_SELECT_FILE`
@@ -186,5 +210,5 @@
 - Keep using callback pairs, `filemenu_currentMenu`, frame, and screenshot hash as the current safe bundle semantics.
 - Keep panel snapshots in the bundle as advisory research traces.
 - Keep the `gWindows` file-select snapshots in the bundle as the current strongest branch discriminator short of an actual mode/menu transition.
-- Use the branch ladder as a bounded search tree until a stronger vanilla-safe substate signal is found.
+- The branch ladder remains available as a bounded search tree if the dormant file-select-exit discriminator research is reopened (see "What We Still Need" above).
 - Do not treat the current local `.srm` as a required dependency for the next Paper Mario milestone.

@@ -2,7 +2,8 @@
 
 ## Start Here
 - [README.md](/home/auro/code/parallel-n64/README.md)
-- [Reboot Plan](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md) — the controlling plan
+- [Reboot Plan](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md) — the controlling plan, with per-step status
+- [Decision Records](/home/auro/code/parallel-n64/docs/adr/README.md) — why things are the way they are
 - [Workspace Paths](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md)
 - [Docs Index](/home/auro/code/parallel-n64/docs/README.md)
 - [Project Notebook](/home/auro/code/parallel-n64/PROJECT_NOTES.md)
@@ -21,16 +22,14 @@
 | Rebuild live libretro core for ParaLLEl scenarios | `make -j4 -B HAVE_PARALLEL=1 parallel_n64_libretro.so` |
 
 ## Active Scope
-Work order (details and per-step verification in the [Reboot Plan](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md)):
-1. remint the savestate ladder (title -> file select -> `kmr_03 ENTRY_5`) and verify the live control stack
-2. verify `tools/regen-parallel-rdp-shaders.sh` regenerates `slangmosh.hpp` (gates all shader work)
-3. 1x-vs-4x sampler falsification experiment before any shader edit
-4. sampler fix as dictated + mipmaps + wire the `hirestex-filter` option + exempt hires-replaced TEX_RECTs from `native_resolution_tex_rect`
-5. bounded GlideN64 reference rig
-6. interactive agent-play adapter mode (no daemons, no sockets)
-7. breadth: SM64/OoT packs when acquired
+The Reboot Plan work order is substantially complete (per-step status in the
+[Reboot Plan](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md)). Current frontier:
+1. GlideN64-compat keying conformance on the draw-time lane (see ADR-0013/0014 for the landed fixes)
+2. glide-vs-parallel beat comparison as the standing validation methodology
+3. pack-curation triage for content reclassified out of renderer scope (ADR-0015)
+4. open items: full shader-regen verification (gates the strip-junction seam probe), the I-format tlut=1 recolor semantics check, the debug-flood session wedge forensics
 
-Paper Mario is the strict validation title until the first major milestone is stable; SM64/OoT are compat-path breadth checks only.
+Paper Mario is the strict validation title until the first major milestone is stable; SM64/OoT/MK64/MM are compat-path breadth checks only.
 
 ## Key Paths
 - Active renderer work: [mupen64plus-video-paraLLEl](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl)
@@ -46,6 +45,7 @@ Paper Mario is the strict validation title until the first major milestone is st
 - parallel-n64: planning source of truth, fixture metadata, scenario runners, adapters, evidence conventions, video-core implementation
 - RetroArch (`agent-control` branch): frontend/tooling patch target for deterministic control, capture, reporting
 - papermario (upstream decomp): optional debug-only semantic reference, not a correctness authority
+- parallel-n64-lab (private, `/home/auro/code/parallel-n64-lab`): session-lab experiment scripts and forensics notes; never a correctness authority, nothing here may depend on it (ADR-0017)
 - Do not put emulator-specific renderer meaning into RetroArch
 - Keep cross-project orchestration in parallel-n64
 

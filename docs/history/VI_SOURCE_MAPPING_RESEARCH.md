@@ -1,5 +1,14 @@
 # VI Source Mapping Research
 
+> Archived 2026-06-12 (attempt-A salvage; superseded by
+> [docs/REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md)).
+> The experimental heuristic VI lane described under "Current Interpretation" was
+> removed; the committed VI path is upstream-equivalent, refactored into
+> `vi_scanout_policy.hpp` / `vi_scale_policy.hpp` with dedicated tests. The
+> hardware-semantics notes (accumulated Y_SCALE, field-relative half-line offsets,
+> the X_SCALE 0x200 quirk, interlaced line weighting) remain genuine reference
+> material not recorded elsewhere.
+
 ## Purpose
 
 Capture the current theory for the native 4x scaling bug, then update it with findings from the read-only N64 documentation set in `/home/auro/code/n64_docs`.

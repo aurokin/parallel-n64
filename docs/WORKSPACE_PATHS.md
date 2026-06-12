@@ -1,7 +1,9 @@
 # Workspace Paths
 
-Machine-specific workspace layout as of the 2026-06-10 reboot. This machine is
-essentially fresh; this file is the source of truth for local path assumptions.
+Machine-specific workspace layout (last refreshed 2026-06-12). This file is the
+source of truth for local path assumptions; status detail defers to
+[assets/TEXTURE_PACKS.md](/home/auro/code/parallel-n64/assets/TEXTURE_PACKS.md) and
+[PROJECT_NOTES.md](/home/auro/code/parallel-n64/PROJECT_NOTES.md).
 
 ## Primary Repo
 
@@ -28,8 +30,10 @@ essentially fresh; this file is the source of truth for local path assumptions.
 - Core options (prefix `mupen64plus-`): `rdp-plugin=gliden64`, `txHiresEnable=True`,
   `EnableEnhancedHighResStorage=True`, `txCacheCompression=True`,
   `txHiresFullAlphaChannel=True`.
-- Source clone for patched builds: `/home/auro/code/mupen64plus-libretro-nx`
-  (txDump support needs a one-line patch there).
+- Source clone for patched builds: `/home/auro/code/mupen64plus-libretro-nx`.
+  The env-gated txDump patch (`GLN64_TXDUMP=1`) is committed at
+  [tools/gliden64-txdump-patch/](/home/auro/code/parallel-n64/tools/gliden64-txdump-patch)
+  (base commit `98c1b0d`); rebuild steps in its README.
 
 ## Game References
 
@@ -44,19 +48,27 @@ essentially fresh; this file is the source of truth for local path assumptions.
 ## ROMs
 
 - ROM root: `/pluto/game/rom/n64` (full No-Intro set, NFS mount).
-- Staged working ROM: `assets/Paper Mario (USA).zip` (untracked).
+- Staged working ROMs (untracked): `assets/Paper Mario (USA).zip` plus the SM64,
+  OoT, MK64, and MM (USA) working copies for the breadth lanes.
 - Never point runtime scenarios at the NFS mount; stage working copies in `assets/`.
 
 ## Texture Packs And Runtime Packages
 
 - Tracking file (committed): [assets/TEXTURE_PACKS.md](/home/auro/code/parallel-n64/assets/TEXTURE_PACKS.md)
   — status, source URL, and sha256 for every pack.
-- On disk now: `assets/PAPER MARIO_HIRESTEXTURES.hts` (Paper Mario Redone HD) plus its
-  original archive. SM64 and OoT packs are NEEDED; the user is acquiring them.
+- On disk now: all five packs — `assets/PAPER MARIO_HIRESTEXTURES.hts` (Paper Mario
+  Redone HD) plus its original archive, and the SM64/OoT/MK64/MM Reloaded packs
+  under `assets/packs/<name>-hts/`. Status, sources, and hashes in
+  `assets/TEXTURE_PACKS.md`.
 - Cold-storage convention: archive original downloads and extracted `.hts` files to
-  `/pluto/game/texture_packs/n64/` before use (create the directory on first archive).
-- Active runtime package: `artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb`
-  (405MB, zero-config compat, untracked).
+  `/pluto/game/texture_packs/n64/` before use. NOTE: `/pluto` is currently mounted
+  read-only on this box; originals sit on `koopa:/Users/auro/Downloads/` as interim
+  cold storage (see `assets/TEXTURE_PACKS.md`), with `/pluto` the eventual destination.
+- Runtime packages (untracked, regenerable): fixtures pin
+  `artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb`, while live
+  scenario tooling prefers `local-pm64-exact-variant-set` first; boot-validated
+  zero-config packages also exist for sm64/oot/mk64/mm under
+  `artifacts/hts2phrb-review/`. See the PHRB table in `assets/TEXTURE_PACKS.md`.
 
 ## Local Assets And Generated Output
 
@@ -65,9 +77,10 @@ essentially fresh; this file is the source of truth for local path assumptions.
   - packs and ROMs are re-acquirable/re-stageable per `assets/TEXTURE_PACKS.md`.
   - the `.hts` originals are the assets to protect (cold storage rule above).
 - Savestates live under `assets/states/<fixture>/ParaLLEl N64/` (untracked). The
-  authoritative savestate ladder is being reminted on this machine
-  (REBOOT_PLAN work order step 1); treat existing state files as unverified until
-  the remint promotes them.
+  authoritative ladder (title -> file select -> `kmr_03 ENTRY_5`) was reminted and
+  promoted on this machine on 2026-06-10 (REBOOT_PLAN step 1, DONE; details in
+  PROJECT_NOTES.md). Note RetroArch writes 0-byte states if a state-source dir
+  lacks the `ParaLLEl N64` core subdir.
 
 ## Maintenance Rule
 

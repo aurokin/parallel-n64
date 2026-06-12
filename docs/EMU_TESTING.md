@@ -16,8 +16,9 @@ Run profiles through `./run-tests.sh --profile <name>`:
     hi-res compat-CRC override, texture replacement provider, CI palette policy,
     command ring, worker thread, and similar).
   - `emu.support.*` — functional shell contracts: fixture verification, the hi-res
-    capability runtime contract, and the `hts2phrb` converter contracts
-    (smoke, round trip, directory input, all-families, gates, full-cache).
+    capability runtime contract, the GlideN64 reference-rig no-metric guardrails
+    (`emu.support.gliden64_reference_guardrails`), and the `hts2phrb` converter
+    contracts (smoke, round trip, directory input, all-families, gates, full-cache).
   - the static `emu.conformance.*` C++ checks: VI register contract, VI scanout
     range, VI scaling crop, RDP command fields, RDP command lengths, RDP texture
     load sequence.
@@ -61,12 +62,16 @@ evidence bundles with `EMU_RUNTIME_PM64_FULL_CACHE_BUNDLE_ROOT`.
   TSAN preflight.
 - Once opted in, missing runtime prerequisites (PHRB package, ROM, savestate,
   RetroArch binary, scenario runtime env) FAIL LOUDLY with a staging message that
-  says what is missing and how to stage it. There are no silent exit-77 skips for
-  missing assets.
+  says what is missing and how to stage it. This loud-fail guarantee covers the
+  gating lanes (the Paper Mario authority lane and the lavapipe smoke); the
+  on-demand SM64/OoT breadth lanes instead exit-77 skip with a printed reason when
+  their pack/ROM/core/RetroArch is unstaged, even with the opt-in set.
 
 ## On-Demand Cross-Game Lanes
 
-The SM64/OoT lanes are registered in ctest but excluded from every profile. Run
+The SM64/OoT lanes are registered in ctest but excluded from the gating profiles
+(`emu-required`, `emu-runtime-conformance`); the `all` and `emu-conformance`
+regexes do match them, where they skip cleanly without the runtime opt-in. Run
 them explicitly when their packs/states are staged:
 
 ```sh

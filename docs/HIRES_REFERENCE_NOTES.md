@@ -1,27 +1,35 @@
 # HIRES Reference Notes
 
+Cross-emulator survey of how hi-res texture replacement is keyed and bound
+elsewhere. The survey sections are the durable content; the attempt-era analysis
+that used to close this doc was superseded by the 2026-06-10 reboot (note at the
+end).
+
 ## Reference Roots
-- Local reference bundle:
-  - `/home/auro/code/emulator_references`
-- Most relevant repos/files:
-  - Dolphin:
-    - `/home/auro/code/emulator_references/dolphin-upstream/Source/Core/VideoCommon/HiresTextures.cpp`
-    - `/home/auro/code/emulator_references/dolphin-upstream/Source/Core/VideoCommon/TextureCacheBase.cpp`
-    - `/home/auro/code/emulator_references/dolphin-upstream/Source/Core/VideoCommon/Assets/TextureAssetUtils.cpp`
-  - PPSSPP:
-    - `/home/auro/code/emulator_references/ppsspp-upstream/GPU/Common/TextureReplacer.cpp`
-    - `/home/auro/code/emulator_references/ppsspp-upstream/GPU/Common/TextureReplacer.h`
-  - Flycast:
-    - `/home/auro/code/emulator_references/flycast-upstream/core/rend/CustomTexture.cpp`
-    - `/home/auro/code/emulator_references/flycast-upstream/core/rend/TexCache.cpp`
-  - PCSX2:
-    - `/home/auro/code/emulator_references/pcsx2-upstream/pcsx2/GS/Renderers/HW/GSTextureReplacements.cpp`
-    - `/home/auro/code/emulator_references/pcsx2-upstream/pcsx2/GS/Renderers/HW/GSTextureReplacementLoaders.cpp`
-  - DuckStation:
-    - `/home/auro/code/emulator_references/duckstation-upstream/src/core/gpu_hw_texture_cache.cpp`
-    - `/home/auro/code/emulator_references/duckstation-upstream/src/core/settings.cpp`
+
+The `emulator_references` bundle is not currently on disk; re-clone the upstreams
+if needed (see [WORKSPACE_PATHS.md](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md)).
+Most relevant files, relative to a fresh checkout of each upstream:
+
+- Dolphin:
+  - `Source/Core/VideoCommon/HiresTextures.cpp`
+  - `Source/Core/VideoCommon/TextureCacheBase.cpp`
+  - `Source/Core/VideoCommon/Assets/TextureAssetUtils.cpp`
+- PPSSPP:
+  - `GPU/Common/TextureReplacer.cpp`
+  - `GPU/Common/TextureReplacer.h`
+- Flycast:
+  - `core/rend/CustomTexture.cpp`
+  - `core/rend/TexCache.cpp`
+- PCSX2:
+  - `pcsx2/GS/Renderers/HW/GSTextureReplacements.cpp`
+  - `pcsx2/GS/Renderers/HW/GSTextureReplacementLoaders.cpp`
+- DuckStation:
+  - `src/core/gpu_hw_texture_cache.cpp`
+  - `src/core/settings.cpp`
 
 ## Shared Patterns In Other Emulators
+
 - Replacement binding is cache-owned, not draw-owned.
   - Dolphin loads custom texture data in the texture cache and creates the cache entry from it before later draw composition.
   - Flycast checks custom textures in `TexCache` and loads them onto the cache object, not in a later combiner path.
@@ -38,43 +46,25 @@
     - VRAM-write replacements
     - replacement upload tracking
   - This is important for copy/write/compositor-heavy scenes.
+- Diagnostic upload tracking exists as a dedicated mode.
+  - DuckStation's `AlwaysTrackUploads` records upload ownership without broadening
+    replacement consumption — a useful model for future debug modes here.
 
-## Processes We Appear To Be Missing
-- Exact upload-owner binding.
-  - Other emulators keep replacement ownership attached to the texture-cache/upload identity.
-  - Our fork currently reinterprets replacements later in the RDP draw path through fallback matching and alias propagation.
-- Early replacement validation.
-  - We do not currently validate native-vs-replacement shape in the same strong way before binding.
-- Explicit replacement classes.
-  - We do not separate page-style, write-style, and normal texture replacements as cleanly as DuckStation.
-- Metadata-driven aliasing.
-  - PPSSPP-style aliases are pack-declared.
-  - Our alias propagation is inferred from tile relationships at runtime, which is much riskier.
-- Upload tracking as a diagnostic mode.
-  - DuckStation's `AlwaysTrackUploads` is a useful model for a future debug mode that records upload ownership without immediately broadening replacement consumption.
+## Historical note (attempt-era analysis, superseded 2026-06-10)
 
-## Current Architectural Read
-- Our current HIRES path is most unlike Dolphin/Flycast/PCSX2 in one specific way:
-  - replacements are accepted permissively and then consumed inside the RDP draw/composition path
-  - this creates the exact bug class we keep seeing: washed-out stitching, fallback-backed misbinds, and lane-specific composition corruption
-- The `strict` lookup probe confirms this:
-  - on `intro22-state + 1f`, `strict` lookup produced `lookups=4738 hits=0 draw_with_replacement=0`
-  - the current Paper Mario path is therefore heavily dependent on permissive fallback matching
-
-## Best Candidate Re-Engineering Directions
-- Stage 1:
-  - instrument and classify actual hit sources by fallback family
-  - exact match
-  - CI low32 fallback
-  - tile-mask fallback
-  - tile-stride fallback
-  - block-tile fallback
-  - block-shape fallback
-  - alias propagation
-- Stage 2:
-  - move toward upload-owner replacement binding instead of draw-time reinterpretation
-- Stage 3:
-  - split fallback-backed copy/write consumers from normal texture consumers
-  - DuckStation's page/write split is the closest model in the current reference set
-- Stage 4:
-  - only keep wildcard/alias behavior that can be justified by explicit pack metadata or a narrow compatibility rule
+This doc previously closed with an architectural read of the pre-reboot fork
+(permissive draw-path replacement consumption, a `strict`-lookup probe, and a
+staged re-engineering plan toward upload-owner binding and fallback-family
+classification). That analysis was recovered from the Attempt A stack
+(`origin/hires/current-stack-2026-03-18`, salvage commit c501cdef) and described
+the pre-reboot replacement path; the lookup mode and fixture it cited no longer
+exist, and the fallback-family program it targeted is the one frozen at the
+reboot. The adopted direction is the
+GlideN64-compat Rice-CRC draw-time lane with strict identity — see
+[ADR-0006](/home/auro/code/parallel-n64/docs/adr/0006-replacement-identity.md)
+and the Identity Decision in
+[docs/REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md). Note the
+survey's "cache-owned, not draw-owned" pattern did not transfer to N64: pack
+identities are authored against GlideN64's render-tile view, which is only fully
+known at draw time (ADR-0014), so the strictness lives in the identity convention
+rather than in upload-owner binding.

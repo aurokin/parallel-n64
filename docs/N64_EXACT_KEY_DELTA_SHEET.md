@@ -1,14 +1,28 @@
 # N64 Exact Key Delta Sheet
 
-## Purpose
+> **Status (2026-06):** research record from 2026-03 (Attempt B). The action items
+> below are superseded by the Identity Decision in
+> [docs/REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md) and
+> [ADR-0006](/home/auro/code/parallel-n64/docs/adr/0006-replacement-identity.md):
+> the GlideN64-compat Rice-CRC lane is the primary replacement-identity path and
+> the native-sampled-identity program is frozen (code dormant, debug-flag only,
+> no gates). Kept as the derivation record of which N64 identity fields exist and
+> why upload-blob keying missed.
 
-- Make the current ParaLLEl exact hi-res key explicit
+## Purpose (as written, 2026-03)
+
+- Make the then-current ParaLLEl exact hi-res key explicit
 - Compare it against the latest N64 identity research
-- Name the highest-probability gaps behind the current Paper Mario CI/menu misses
+- Name the highest-probability gaps behind the then-current Paper Mario CI/menu misses
 
-## Current ParaLLEl Exact Key
+## ParaLLEl Exact Key (as of 2026-03, Attempt B)
 
-Current exact lookup is effectively:
+Today's primary lane is instead the GlideN64-compat Rice-CRC computed at draw time
+from the tile descriptor (`rdp_renderer.cpp`, `rice_crc32_wrapped`; bank-0 palette
+candidate for CI4 per ADR-0013), with the sampled-object exact lookup surviving
+only behind the `hires_debug_sampled_object_exact_lookup` debug flag.
+
+The Attempt B exact lookup described below was effectively:
 
 - `checksum64 = compose_hires_checksum64(texture_crc, palette_crc)`
 - `formatsize = formatsize_key(meta.fmt, meta.size)`
@@ -18,7 +32,7 @@ Current source:
 - [rdp_renderer.cpp](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_renderer.cpp)
 - [rdp_hires_ci_palette_policy.hpp](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_hires_ci_palette_policy.hpp)
 
-What that means today:
+What that meant (2026-03):
 
 - `texture_crc` is computed from the raw RDRAM upload bytes selected by:
   - source base address
@@ -29,7 +43,7 @@ What that means today:
 - `palette_crc` is only populated for CI textures when TLUT shadow state is valid
 - `formatsize` comes from the sampled tile format/size
 
-## What The Current Exact Key Includes
+## What The Attempt B Exact Key Included
 
 Directly included:
 
@@ -44,7 +58,7 @@ Implicitly but not explicitly named:
 - width/height only affect lookup through the raw texel CRC input
 - source row stride only affects lookup through the raw texel CRC input
 
-## What The Current Exact Key Does Not Include Explicitly
+## What The Attempt B Exact Key Did Not Include Explicitly
 
 - `LoadTile` vs `LoadBlock` provenance
 - copy-cycle vs normal textured draw provenance
@@ -80,11 +94,11 @@ High-confidence provenance classes:
 - copy / texrect / BG-copy style path
 - framebuffer-derived or readback-derived source
 
-## Highest-Probability Gaps Right Now
+## Gaps Identified (2026-03)
 
 ### 1. We May Still Be Keying The Wrong Object
 
-Current exact lookup is still dominated by raw upload bytes plus the current palette CRC.
+The Attempt B exact lookup was dominated by raw upload bytes plus its palette CRC.
 
 Research direction:
 
@@ -97,7 +111,10 @@ Why this matters for current misses:
 
 ### 2. `tlut_type` Is Missing From Exact Identity
 
-Current palette CRC computation does not take `tlut_type`.
+The Attempt B palette CRC computation did not take `tlut_type`.
+(2026-06 note: the logical TLUT diagnostic decode now takes `tlut_type`
+(`rdp_hires_ci_palette_policy.hpp`), while the Rice-CRC palette CRC intentionally
+hashes raw TLUT words for GlideN64 compatibility.)
 
 Research direction:
 
@@ -107,9 +124,9 @@ Why this matters:
 
 - exact CI identity can be wrong even when the raw palette bytes are “correct”
 
-### 3. TMEM / Sampler State Are Only Side Conditions Today
+### 3. TMEM / Sampler State Were Only Side Conditions
 
-Current exact lookup does not carry TMEM address, TMEM line, or sampler-state fields explicitly.
+The Attempt B exact lookup did not carry TMEM address, TMEM line, or sampler-state fields explicitly.
 
 Research direction:
 
@@ -131,7 +148,7 @@ Why this matters:
 
 - some “missing textures” may not be authored replacement candidates at all
 
-## Current Conclusion
+## Conclusion At The Time (superseded 2026-06-10)
 
 The likely next breakthrough is not a broader compatibility rule.
 
@@ -142,9 +159,14 @@ It is:
 3. move exact lookup closer to the sampled N64 object
 4. keep compatibility/import policy explicit for the remaining ambiguous families
 
+(2026-06 annotation: the reboot outcome contradicted this conclusion directly —
+the adopted path WAS the broader compatibility rule (the GlideN64-compat Rice-CRC
+lane, see the Reboot Plan Identity Decision), and item 3 is the program that was
+frozen. The field analysis above remains the durable part of this sheet.)
+
 ## Direct Sampled-Object Evidence
 
-The latest strict file-select sampled-object probe turns the abstract delta into a concrete mismatch:
+A strict file-select sampled-object probe (2026-03) turned the abstract delta into a concrete mismatch:
 
 - dominant upload-side miss family:
   - upload family `ab53409b` / `pcrc=00000000`
@@ -160,7 +182,15 @@ The latest strict file-select sampled-object probe turns the abstract delta into
 
 That means the missing field set is not just “one more palette tweak.” The canonical identity object has shifted.
 
-## Immediate Follow-On Work
+(2026-06 note: the legacy `.hts` pack index described here is gone — runtime packs
+are `.phrb`-only (ADR-0007), and the misses this probe chased were later resolved
+through the Rice-CRC compat lane and pack curation, not sampled-object keying.)
+
+## Immediate Follow-On Work (superseded 2026-06-10)
+
+All items below belong to the frozen native-sampled program; in particular the
+imported-records design was abandoned — imported records are `.phrb` compat
+exact-variant sets via `hts2phrb` (ADR-0007).
 
 - keep the new provenance logging on strict title/file fixtures
 - keep the logical TLUT diagnostic view that includes `tlut_type`

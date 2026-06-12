@@ -1684,3 +1684,71 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   textured-draw misses are in that class. Upload-time keying-miss lines
   for split-view CI textures (CI8 upload / CI4 draw) are expected noise;
   the draw-time compat lane is the GlideN64-faithful resolver.
+
+## 2026-06-12 Gameplay validation campaign, first sweep
+
+- Watch wrapper landed (641210a5): tools/scenarios/watch-hires-intros.sh
+  plays the four hi-res-ON intros serially on the display; verified
+  end-to-end twice (all four PASS both runs), user watched the second run
+  and reported no missing textures.
+- First gameplay campaign ran on Paper Mario (evidence:
+  artifacts/experiments/gameplay-campaign-011041/). Method: interactive
+  adapter sessions (paused + STEP_FRAME throughout), savestate slots per
+  scene, then a deterministic pair driver (tooling/gp-pairs.sh) replayed
+  identical load/step/input recipes in hi-res ON and OFF sessions over a
+  merged slot set (pair-states/, slots 0-9), giving identical-frame pairs
+  for 14 scenes: road, battle set/damage, fortress cutscenes, gray fade,
+  house interior/exterior, letter dialogue/screen/page, Toad Town,
+  mailbox, file select.
+- Fixture discoveries that change future gameplay work: the kmr_03
+  ENTRY_5 state sits inside the prologue's scripted Goomba-squad
+  sequence - within ~2-4 s of unpausing, engagement triggers and the
+  flow (forest battle -> fortress cutscene -> title) runs scripted; it
+  is not a free-roam start. The staged .srm has no save (file select
+  shows 4x NEW), so free gameplay = new game: name entry (START
+  confirms), house intro, letter cutscene, Toad Town walk all
+  controllable; pause menu is locked through the prologue (START does
+  nothing) - a post-prologue save is needed for menu scenes and a
+  player-driven battle with HUD. New-game path recipes and slots are in
+  the bundle.
+- 28-agent review panel (reviewer + adversarial skeptic per scene, 0
+  arbitrations): 11/14 yes, 3 wrong-region, all ONE family - copy-mode
+  strip/sprite replacement geometry with hi-res ON (panel-results.json,
+  findings-crops.png):
+  (1) kmr03-road: thin dashed vertical seam in the HD sky at x~748,
+  scroll-offset dependent (absent in the trilinear-default capture at a
+  different backdrop offset) - S-direction strip-boundary artifact;
+  (2) battle-damage: damage-star popup's upper half renders opaque
+  white past the star silhouette, top point missing, '1' glyph offset -
+  alpha/coverage break in the replacement fetch (breaking severity);
+  (3) toad-town: backdrop strip sampled ~150 px low - treeline band
+  lost, HD cloud lands where the treeline belongs (T placement).
+  Suspect area: the 8dd25b02 copy-path replacement mapping (ratio map /
+  sub-native S phase) at multi-strip boundaries. Queued as the next
+  renderer work item; needs its own falsification pass.
+- Stability: one real SIGSEGV - RetroArch dumped core on
+  LOAD_STATE_SLOT_PAUSED after the play path kmr_03 -> fortress ->
+  scripted sequence (session-on log lines 269-271). NOT reproducible:
+  fresh-boot load, saves-then-loads, frame-perfect full replay to the
+  same frame (1623), and 20x mid-step load races all passed. Narrow
+  timing race, likely state load vs in-flight renderer work
+  (savestates_load_m64p pokes gfx.viStatusChanged/viWidthChanged
+  mid-load). Mitigation: campaign sessions run RetroArch under
+  tooling/retroarch-gdb-wrapper.sh so any recurrence prints an
+  all-thread backtrace into the bundle log. Still open.
+- Protected property held throughout: the OFF pair capture of
+  kmr03-road from the merged-slot session reproduced the canonical
+  digest 35213195... bit-exact. The gray "void" frames seen during play
+  are the game's own fade fill (ON and OFF pairs both flat 208,208,208)
+  - baseline behavior, not a hi-res bug.
+- Telemetry (class-level): every ON session provider=on, phrb-only,
+  15059 entries, compat draw hits 27k-351k; hires-evidence.json written
+  per bundle. The crashed session has no exit summary (expected).
+- Attract hunt (26 captures, 10 s cadence): intro story montage covers
+  prologue fortress, Koopa Village Fuzzy scene, train, Toybox, Mt
+  Lavalava, Crystal Palace, General Guy. The user-reported
+  "Mario untextured while walking with the bomb" frame was not in the
+  sample, but that defect class (CI palette-variant miss on Mario's
+  sprite) is what e0d59c63 fixed, and Mario renders HD in every sampled
+  scene. Re-check visually on the next watch run with a longer PM
+  window.

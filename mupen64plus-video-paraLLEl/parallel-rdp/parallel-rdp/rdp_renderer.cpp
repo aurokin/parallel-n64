@@ -2222,6 +2222,18 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 					}
 				}
 			}
+			else if (hires_debug && hires_compat_draw_miss_logged.insert(compat_checksum64).second)
+			{
+				uint32_t miss_w = 0, miss_h = 0;
+				compute_hires_tile_size_pixels(base_size, miss_w, miss_h);
+				LOGI("Hi-res GlideN64-compat draw-time miss: tile=%u key=%016llx fmt=%u siz=%u wh=%ux%u stride=%u addr=0x%06x tlut_valid=%u.\n",
+				     base_tile,
+				     static_cast<unsigned long long>(compat_checksum64),
+				     unsigned(base_meta.fmt), unsigned(base_meta.size),
+				     miss_w, miss_h, base_meta.stride,
+				     hires_rdram_load_addr[base_tile] & 0x00ffffffu,
+				     unsigned(tlut_shadow_valid));
+			}
 		}
 	}
 
@@ -5104,14 +5116,21 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				}
 			}
 
+			// GlideN64 fills its keying palette (gDP.TexFilterPalette) from the texture
+			// image base address, ignoring the load tile's uls/ult offset; the pack keys
+			// were generated against that convention, so the keying shadow must match it.
+			// The TMEM mirror above keeps the offset address (real LoadTlut semantics).
 			for (uint32_t i = 0; i < max_copy; i++)
-				tlut_shadow[tlut_shadow_offset + i] = wrapped_read_u8(cpu_rdram, rdram_size, src_base_addr + i);
+				tlut_shadow[tlut_shadow_offset + i] = wrapped_read_u8(cpu_rdram, rdram_size, info.tex_addr + i);
 			tlut_shadow_valid = tlut_shadow_valid || (max_copy > 0);
 
 			if (hires_debug)
 			{
-				LOGI("Hi-res keying TLUT update: addr=0x%06x bytes=%u tile=%u tmem=0x%03x shadow_off=%u.\n",
-				     src_base_addr & 0x00ffffffu, max_copy, tile,
+				LOGI("Hi-res keying TLUT update: addr=0x%06x base=0x%06x sxy=%ux%u bytes=%u tile=%u tmem=0x%03x shadow_off=%u.\n",
+				     src_base_addr & 0x00ffffffu,
+				     info.tex_addr & 0x00ffffffu,
+				     key_start_x, key_start_y,
+				     max_copy, tile,
 				     unsigned(upload.tmem_offset) & 0xfff,
 				     tlut_shadow_offset);
 			}

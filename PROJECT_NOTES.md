@@ -1799,3 +1799,95 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   attempted key, so the draw-lane vs GlideN64 pcrc comparison ran on
   upload-lane keys (noisier). Add attempted-key logging to the compat
   miss path before the next census.
+
+## 2026-06-12 CORRECTION: montage misses are OUR keying bug, not pack gaps
+
+- The user refuted the verdict above: they watched the same beats render
+  REPLACED in the GlideN64 reference run. They are right; the txDump
+  interpretation in the previous entry is wrong and is retracted.
+- Flipped-join proof: joining the 1,864 dumped identities against the
+  pack under all three GLideNHQ lookup forms (full crc64, pcrc-alone,
+  tcrc-alone) yields ZERO pack-served entries in the dump set. txDump
+  dumps only what GlideN64 could NOT serve from the pack - the dump set
+  is GlideN64's MISS set, despite dmptx() itself having no pack skip
+  (the skip is call-site ordering in Textures.cpp: the hires replacement
+  attempt returns before the dump path runs). "GlideN64 dumps the same
+  identity" therefore means GlideN64 ALSO missed that exact variant -
+  it says nothing about the beats GlideN64 served, which never appear
+  in the dump at all.
+- Root cause found by source-level oracle comparison (sanctioned
+  GlideN64 use): in gDPLoadTLUT (GLideN64 gDP.cpp), the keying palette
+  GlideN64 CRCs for pack lookups (gDP.TexFilterPalette) is memcpy'd
+  from RDRAM at gDP.textureImage.address - the texture image BASE -
+  ignoring the load tile's uls/ult offsets. The actual TMEM load above
+  it uses the offset address; the keying copy does not. Our tlut_shadow
+  copied from the uls/ult-offset address (src_base_addr). Any LoadTlut
+  with nonzero uls/ult makes our keying palette content diverge from
+  GlideN64's, producing pcrcs the pack never contains. It also explains
+  the pcrc=00000000 CI8 caption family (key 00000000bc4587b8, 6,072
+  events): reading past the real palette into zero bytes gives a Rice
+  CRC of 0 (Rice CRC of all-zero input is 0), while GlideN64 reads the
+  real palette from base and computes 52940002.
+- Change: tlut_shadow keying copy now reads from info.tex_addr (image
+  base), matching the TexFilterPalette convention bug-for-bug; the TMEM
+  mirror keeps the offset address (real LoadTlut semantics). The new
+  base/sxy probe field on "Hi-res keying TLUT update" then FALSIFIED
+  this as the Paper Mario root cause: every montage TLUT load has
+  addr==base, sxy=0x0, so the change is functionally inert for this
+  title. It is kept as oracle-convention parity (protective for titles
+  that do load TLUTs with uls/ult offsets), verified non-regressive:
+  feature-off kmr03-road digest bit-exact
+  (35213195f6ffca55458f76821198390880f135f4331efbca2cb139885b3ad879),
+  emu-required 43/43, and all nine beat captures sha256-identical
+  between the pre-change and post-change cores.
+- Tooling additions in the same build: draw-time compat misses now log
+  the attempted key once per unique checksum64 ("Hi-res GlideN64-compat
+  draw-time miss"), and TLUT shadow updates log base address + slo/tlo
+  so offset loads are visible in the evidence.
+
+## 2026-06-12 Montage beat evidence: per-beat decomposition + exact-shot rig
+
+- Built nine montage beat savestates (montage-hunt/beat-states/ with
+  MANIFEST.md) and an exact-shot recipe: paused state load + STEP_FRAME 3
+  + screenshot. Rig determinism PROVEN: all nine beat captures are
+  bit-identical (sha256) across two separate sessions and two core
+  builds. This is the mechanism the user asked for ("100% accurate
+  sync'd shots"); no RetroArch fork needed.
+- WORKFLOW DISCOVERY: long-range savestate replays through the attract
+  montage DIVERGE. Stepping ~6k-24k frames from an anchor state does not
+  reproduce the original timeline content (m64p savestate AI-FIFO
+  restore is best-effort per savestates.c, and the attract movie is
+  audio-synced), so beat states must be saved at sight during the live
+  run, not derived by long offset replay. Short-range (<~400 frames)
+  load+step recipes remain bit-exact (14-pair campaign + this beat set).
+- LOAD RENDER SEMANTICS: LOAD_STATE_SLOT_PAUSED does not render the
+  loaded frame; the framebuffer (and hence SCREENSHOT) shows stale
+  content until at least one stepped frame runs. All capture recipes
+  must step >=1 after load (the gp-pairs step-3 convention was load-
+  bearing). Also: STEP_FRAME acks can vanish under PARALLEL_RDP_HIRES_
+  DEBUG log flood - send with tolerance and poll status frame instead.
+- Per-beat draw census (debug evidence sessions over the nine states):
+  every sampled vignette/movie beat renders predominantly replaced -
+  e.g. desert vignette 478 texel0-hits vs 28 native draws, Bowser
+  closeup 303 vs 39, caption scene 1127 vs 134. The caption strips of
+  the sampled scene hit via the compat upload path with full palette
+  keys. Remaining native draws decompose into three classes:
+  (a) scene-tinted CI8 sprite palette variants absent from the pack
+  (same texture crc with a distinct pcrc per vignette scene, e.g.
+  c2d8beed 40x13 under four different scene pcrcs; GlideN64 dumped
+  these same identities, i.e. it misses them too - true pack gaps);
+  (b) montage caption text variants absent from the pack (73dc82d8xxxx
+  264x7 family); (c) the known Nx1 strip family (b5356810 64x1 etc.).
+- The earlier census-derived "sprite keys" (0b110a9b/5084b592 etc.)
+  carry pcrcs that vary because the montage palette-animates; the
+  draw-time compat lane already rescues the steady-state variants
+  (53cf36db compat hits in BOTH old and new logs). The upload-lane
+  pcrc=0 caption case is an upload-order artifact (strip uploads keyed
+  before its TLUT load lands; compat lane re-keys at draw with the
+  loaded palette).
+- STILL OPEN (#26): the user's exact reported moments (Parakarry
+  gap-carry, Bombette wall fracture, lava Koopa, Peach balcony) were
+  not pinned to a captured state in this pass - the long-range replay
+  divergence scrambled the targeted vignette saves. Next pass: watch
+  the attract live and save slots at sight, then A/B with the proven
+  exact-shot recipe; GlideN64 side-by-side for content judgment.

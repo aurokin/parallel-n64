@@ -2060,3 +2060,31 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   sheet, alpha_map, strip_stack), and forensics notes that lived in /tmp
   and gitignored artifacts/. Boundary: product tooling stays here; the lab
   repo is never a correctness authority.
+
+## 2026-06-12 Reboot Plan step 2 CLOSED: reproducible shader regeneration verified
+
+- Toolchain state at verification: 2020-vintage slangmosh at
+  ~/code/mupen/parallel-rdp-upstream/build-2020/Granite/tools/slangmosh,
+  upstream checkout at the fork's pin 7a3e561e, Granite submodule carrying
+  exactly the committed gcc patch (tools/parallel-rdp-toolchain-patches/);
+  the regen script already carries --vk11 -O --strip --namespace RDP (the
+  lab-repo slangmosh-vk11-wrapper documented a gap in an earlier script
+  version, since fixed).
+- Reproducibility: two forced regens both produced sha256
+  9b0fc2fb6e414ee81ed178dd70d622f22d0740e85d51c9765176ac850dff1326 —
+  byte-identical to the committed slangmosh.hpp (itself written by the
+  copy-lift regen, 8dd25b02) — with changed mtimes proving real rewrites.
+- Pipeline-live canary (falsification-shaped): mutating a constant that
+  survives -O in clear_indirect_buffer.comp (uvec4(0,1,1,0)->uvec4(0,2,1,0))
+  changed the header (0a3a4182...); git-reverting the source made the
+  script auto-regenerate WITHOUT --force (staleness detection correctly
+  named the stale input) back to byte-exact 9b0fc2fb...; a follow-up
+  no-force run reported "up to date". So source edits provably flow
+  end-to-end and the mtime contract works both directions.
+- Build/feature-off criterion: regenerated output is byte-identical to
+  the committed header, so the build and feature-off behavior are
+  unchanged by construction; emu-required 43/43 re-run green on it.
+- Consequence: the strip-junction seam shader probe (#30) is unblocked.
+  Possible future hardening (not built, avoid unneeded surface): an
+  on-demand support lane that runs the regen + byte-compare when the
+  local slangmosh toolchain is staged.

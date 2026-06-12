@@ -68,12 +68,16 @@ See [ADR-0005](/home/auro/code/parallel-n64/docs/adr/0005-gliden64-oracle-policy
    [ADR-0008](/home/auro/code/parallel-n64/docs/adr/0008-fixture-and-evidence-authority.md)).
 2. **Verify shader regeneration**: `tools/regen-parallel-rdp-shaders.sh` must
    regenerate `slangmosh.hpp` reproducibly. This gates all shader work.
-   **PARTIAL.** The toolchain is proven: modern slangmosh emits an incompatible
+   **DONE 2026-06-12.** Toolchain: modern slangmosh emits an incompatible
    interface, so a 2020-vintage slangmosh built from the fork's pinned parallel-rdp
-   upstream snapshot is used, with the Granite include path rewritten at run time;
-   regens already shipped the copy-pipe replacement-sampling fix (1f38a85e).
-   Full reproducible-regeneration verification is still open and gates new shader
-   probes (the strip-junction seam).
+   upstream snapshot is used (recipe in the script header; Granite gcc patch in
+   `tools/parallel-rdp-toolchain-patches/`), with the Granite include path
+   rewritten at run time. Verified: two forced regens byte-identical to the
+   committed header (sha256 `9b0fc2fb…`, mtimes proving real rewrites); a
+   constant-mutation canary changed the header and the revert auto-regenerated
+   back to byte-identity via the script's staleness detection; feature-off
+   unchanged by construction (byte-identical output) with emu-required 43/43.
+   Regens previously shipped the copy-pipe replacement-sampling fix (1f38a85e).
 3. **1x-vs-4x sampler falsification experiment** before any shader edit.
    **DONE 2026-06-10** (artifacts/experiments/sampler-falsification-062900): the
    suspected `st_fp5 /= SCALING_FACTOR` wrong-region bug was FALSIFIED (ST is
@@ -117,10 +121,11 @@ refinement on the compat lane plus curation triage:
   paired captures and adversarial panels.
 - Pack-curation lane for content reclassified out of renderer scope
   ([ADR-0015](/home/auro/code/parallel-n64/docs/adr/0015-pack-content-curation-boundary.md)).
-- Open items: the 1px vertical strip-junction seam (behind step 2's regen gate);
-  the I-format tlut=1 recolor sampler-semantics check; the debug-flood session
-  wedge forensics (soft session hangs under `PARALLEL_RDP_HIRES_DEBUG` log flood —
-  see the PROJECT_NOTES 2026-06-12 star-family entry's session tooling notes).
+- Open items: the 1px vertical strip-junction seam (shader probe now unblocked —
+  step 2 closed 2026-06-12); the I-format tlut=1 recolor sampler-semantics check;
+  the debug-flood session wedge forensics (soft session hangs under
+  `PARALLEL_RDP_HIRES_DEBUG` log flood — see the PROJECT_NOTES 2026-06-12
+  star-family entry's session tooling notes).
 
 ## Success Criteria Style
 

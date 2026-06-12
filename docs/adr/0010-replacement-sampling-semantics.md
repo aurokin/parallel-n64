@@ -53,8 +53,9 @@ possible without modernizing the Vulkan backend.
 - Minification quality now depends on the CPU mip chain.
 - Later sampling work builds on replacement-texel space; the combine reduction is
   the template for future "replaced draws diverge deliberately" decisions.
-- Full regen-script verification remains Reboot Plan step 2's residual gate for
-  new shader probes (strip-seam work is queued behind it).
+- The regen gate closed 2026-06-12 (Reboot Plan step 2): forced regens are
+  byte-identical to the committed header and a mutation canary proved the
+  pipeline live end-to-end, so shader probes (the strip-seam work) are unblocked.
 
 ## Evidence
 

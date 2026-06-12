@@ -1752,3 +1752,50 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   sprite) is what e0d59c63 fixed, and Mario renders HD in every sampled
   scene. Re-check visually on the next watch run with a longer PM
   window.
+
+## 2026-06-12 Intro-movie miss forensics (txDump oracle, first live use)
+
+- User watched the montage live and reported old/native textures on
+  specific beats: Parakarry carrying Mario over a gap, Bombette blowing
+  the cracked wall, the lava scene with a Koopa, Peach walking onto the
+  balcony. Dense debug run (montage-debug bundle: 60 captures at 4 s,
+  PARALLEL_RDP_HIRES_DEBUG=1, ~5M log lines) censused: 4,024 unique
+  upload keying-miss keys; draw-level misses dominated by CI4 16x16
+  2-cycle sprite triangles (88k draws) plus caption strips (264x7 CI8)
+  and the known Nx1 block-strip backdrops.
+- txDump oracle ran for real for the first time
+  (gliden64-montage-txdump bundle): mupen64plus-next + GLN64_TXDUMP=1
+  idled through the same montage, dumping 1,864 Rice-named identities.
+  Verified in GLideN64 source that dmptx dumps EVERY cached texture
+  load (no pack-present skip), so the dump set is the full drawn-
+  identity set, not just GlideN64's misses.
+- Three-way verdict (dump set x our miss keys x 15,067 pack pairs):
+  - Montage sprite beats are TRUE PACK GAPS: for the missing sprite
+    texture CRCs (e.g. 0b110a9b 8x16 + 5084b592 16x32 CI8 pairs),
+    GlideN64 dumps its own palette CRCs for the same low32s and those
+    pairs are not in the pack either - GlideN64 renders these beats
+    natively too. The montage palette-tints these sprites (multiple
+    pcrcs per low32 in one run); MasterKillua never authored those
+    variants. Explicit fallback is the correct behavior per plan.
+  - 973 (low32,pcrc) pairs are missed identically by both renderers
+    and absent from the pack (montage caption strips 296x6/264x7/
+    200x2, IA8 16x128, etc.) - same class.
+  - 2,297 of our miss keys (all the high-volume Nx1/block keys)
+    correspond to no GlideN64 identity at all - upload-lane noise as
+    documented; backdrops resolve via render-tile keys.
+  - Optional remedies if these beats ever matter: opt-in
+    PARALLEL_RDP_HIRES_CI_LOW32_FALLBACK serves the nearest-palette
+    art (tint will be wrong); pack-side variant authoring.
+- NEW wrong-region instance from the user, folded into that family:
+  Bowser in the dark Star Rod intro scene ("big spiky guy, purple
+  shell") renders his shell as giant flat gray slabs pointed the wrong
+  way with a gap; correct on GlideN64 (montage-debug caps 9-13). This
+  is a triangle-drawn sprite, so the wrong-region family is NOT
+  copy-pipe-only - suspects shift toward replacement remap
+  mirror/orientation or dims handling shared across draw classes.
+  GlideN64's oracle captures also show ITS damage star rendering
+  correctly, confirming the battle-damage star break is ours.
+- Census tooling gap noted: draw-time compat MISSES do not log the
+  attempted key, so the draw-lane vs GlideN64 pcrc comparison ran on
+  upload-lane keys (noisier). Add attempted-key logging to the compat
+  miss path before the next census.

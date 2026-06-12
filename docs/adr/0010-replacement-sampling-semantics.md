@@ -38,6 +38,19 @@ Replacement sampling operates in replacement-texel space, with these rules:
 6. **Pack art renders as UNORM**; the dead `hirestex-srgb` option was deleted
    (a020212b) — sRGB-authored art rendered as UNORM matches GlideN64's behavior.
 
+7. **Replacement texels are served verbatim for every format** (2026-06-12). The
+   first-light-era I-format flatten (RGB collapsed to intensity, alpha
+   overwritten with it) was removed after the #29 semantics check: the reference
+   pipeline uploads replacements verbatim and never recolors them — for I-format
+   draws with tlut=1 it palette-qualifies the Rice key but falls back to the
+   texture-CRC-only key, which is the only key form packs can carry for non-CI
+   art — so packs author I repaints expecting their RGBA (especially the alpha
+   mask) to be honored. The same check settled that NO tlut-gated serve rule is
+   wanted: serving baked art on I+tlut draws (bypassing the native TLUT recolor)
+   is the reference pipeline's own behavior, and content that cannot survive a
+   single baked look (per-phase effect recolors, Rice collisions like the sewer
+   slate) is pack-curation class, not a renderer gate.
+
 Replaced draws thereby diverge deliberately from N64 filter semantics — sanctioned,
 because direct sampling is the point of replacement. Feature-off is provably inert
 for every rule (digest checks, ADR-0002).

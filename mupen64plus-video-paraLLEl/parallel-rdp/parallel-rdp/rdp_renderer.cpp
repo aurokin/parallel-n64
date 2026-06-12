@@ -2350,10 +2350,12 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 
 	if (hires_debug)
 	{
-		LOGI("Hi-res draw usage: draw_class=%s cycle=%s copy=%u base_tile=%u uses_texel0=%u uses_texel1=%u texel0_hit=%u texel0_key=%016llx texel0_fs=%u texel0_w=%u texel0_h=%u texel1_tile=%u texel1_hit=%u texel1_key=%016llx texel1_fs=%u texel1_w=%u texel1_h=%u fmt=%u siz=%u pal=%u offset=%u stride=%u sl=%u tl=%u sh=%u th=%u mask_s=%u shift_s=%u mask_t=%u shift_t=%u clamp_s=%u mirror_s=%u clamp_t=%u mirror_t=%u.\n",
+		LOGI("Hi-res draw usage: draw_class=%s cycle=%s copy=%u tlut=%u tlut_type=%u base_tile=%u uses_texel0=%u uses_texel1=%u texel0_hit=%u texel0_key=%016llx texel0_fs=%u texel0_w=%u texel0_h=%u texel1_tile=%u texel1_hit=%u texel1_key=%016llx texel1_fs=%u texel1_w=%u texel1_h=%u fmt=%u siz=%u pal=%u offset=%u stride=%u sl=%u tl=%u sh=%u th=%u mask_s=%u shift_s=%u mask_t=%u shift_t=%u clamp_s=%u mirror_s=%u clamp_t=%u mirror_t=%u.\n",
 		     get_hires_draw_class(draw_class),
 		     get_hires_cycle_class(raster_flags),
 		     (raster_flags & RASTERIZATION_COPY_BIT) != 0 ? 1 : 0,
+		     (raster_flags & RASTERIZATION_TLUT_BIT) != 0 ? 1 : 0,
+		     (raster_flags & RASTERIZATION_TLUT_TYPE_BIT) != 0 ? 1 : 0,
 		     base_tile,
 		     uses_texel0 ? 1 : 0,
 		     uses_texel1 ? 1 : 0,

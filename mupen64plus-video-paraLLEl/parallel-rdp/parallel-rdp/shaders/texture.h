@@ -53,12 +53,11 @@ bool tile_uses_hires_replacement(TileInfo tile)
 
 vec4 normalize_hires_replacement_texel(TileInfo tile, vec4 repl)
 {
-	if (tile.fmt == TEXTURE_FORMAT_I)
-	{
-		float intensity = dot(repl.rgb, vec3(1.0 / 3.0));
-		repl = vec4(intensity);
-	}
-
+	// Replacements are served verbatim for every format, matching the
+	// reference loader: packs author I-format repaints expecting their RGBA
+	// (notably the alpha mask) to be honored. The old I-format flatten
+	// (alpha := intensity) turned soft luminance masks into near-opaque
+	// rectangles wherever the art is bright.
 	return repl;
 }
 

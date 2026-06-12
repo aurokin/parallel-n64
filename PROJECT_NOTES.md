@@ -2133,3 +2133,55 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
 - Follow-on flag: SM64 copy-pipe breadth re-check now has two accumulated
   reasons (orig-dims rebase + this coverage change) for when that rig is next
   staged.
+
+## 2026-06-12 I-format tlut=1 semantics check CLOSED: serve verbatim, no tlut gate (task #29)
+
+- The open question from the sewer forensics: I-format draws with tlut=1
+  natively recolor intensity through the TLUT; serving baked RGBA bypasses
+  that. Checked at source level (4-reader adversarially-verified sweep over
+  parallel-rdp native fetch, GlideN64 conversion, GlideN64/GLideNHQ hires
+  keying+serving, and our serve lane; 27/28 claims confirmed by skeptic
+  re-reads) plus a live A/B probe at the sewer beats.
+- Native semantics CONFIRMED in both implementations: with en_tlut, I4/I8
+  fetch through the TLUT exactly like CI (parallel-rdp texture.h tlut branch
+  dispatches on size only; GlideN64's tlp table maps I to "I as CI"), so the
+  flash-frame recolor is real.
+- Reference-pipeline behavior settles the policy: GlideN64 palette-qualifies
+  the hires Rice key for ANY sub-16-bit format when TLUT is on
+  (Textures.cpp:1214), but GLideNHQ's lookup falls back palette-only then
+  texture-CRC-only (TxFilter.cpp:513-514), and its dumper never palette-names
+  non-CI dumps (TxFilter.cpp:626-633) — so packs can only carry
+  texture-CRC-keyed I entries and glide serves the SAME entry for every TLUT
+  mode/palette, verbatim, with no recolor (replacement upload bypasses the
+  GetTexel conversion entirely). Consequences: (a) the sewer slate collision
+  d7f736aa hits GlideN64 identically via the fallback — equivalent-to-glide,
+  pack-curation class as previously judged, now source-proven instead of
+  "plausibly"; (b) a tlut-gated serve rule would refuse content the reference
+  pipeline serves — REJECTED.
+- Ours-only divergence found and removed: normalize_hires_replacement_texel
+  (texture.h, from first-light commit 5f79450d, no recorded rationale)
+  collapsed fmt=I replacement RGB to intensity AND overwrote alpha with it —
+  discarding authored color (e.g. pack 3facedd4, a colored translucent brick
+  repaint with zero fully-opaque pixels) and authored alpha masks (18b5e3be,
+  shaped 25%-transparent glow mask). Replacements now serve verbatim for every
+  format (ADR-0010 rule 7). slangmosh regenerated via the step-2 pipeline
+  (374d6059...).
+- Live A/B at the real sewer beats (lab sessions/iflat-probe-p1.sh; evidence
+  artifacts/experiments/iflat-probe-202533): u06/u07 dark boxes + black blob
+  are NOT the flatten (B-noflat visually identical at those beats, pixel delta
+  0.06-0.52% scattered in I-replacement texels) — they are the served 16x32/
+  64x32 fs=260 I8 effect-mask family, dominated by the d7f736aa collision;
+  with that signature class filtered (B-noslate = post-curation preview) the
+  scene is fully clean against the OFF reference. u13 battle damage stars
+  (I-sheet content verified under #25) render correctly under verbatim serving
+  — no regression. Per-draw telemetry gained tlut=/tlut_type= fields
+  ("Hi-res draw usage" log).
+- Probe-run telemetry showed the same sewer textures draw tlut=0 2cycle on
+  normal frames and tlut=1 1cycle at flash frames with the SAME key both ways
+  (pcrc=0) — matching the reference convention (palette-qualified glide keys
+  fall back to the same texture-only key).
+- Gates: canonical feature-off kmr_03 digest bit-exact (35213195..., fresh
+  run), emu-required 43/43, emu-runtime-conformance 2/2.
+- Remaining from #29 (split out): pack curation to drop d7f736aa from the
+  runtime package (hts2phrb has no exclusion mechanism yet — needs a curation
+  affordance in the converter or package post-edit, ADR-0015 lane).

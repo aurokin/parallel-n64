@@ -37,9 +37,12 @@ falsification-backed exemptions for replaced content:
 - The copy-path plain-ratio mapping was re-falsified during the 2026-06-12
   star-family investigation and stands; that family's root cause was orig-dims
   (ADR-0014).
-- Known remaining family member: the 1px vertical strip-junction seam in vignette
-  skies (S-axis analog of the yl round-up class), queued behind shader-regen
-  verification.
+- The 1px vertical strip-junction seam (S-axis analog of the yl round-up class)
+  was fixed 2026-06-12: COPY coverage natively includes the whole pixel
+  containing `xl`, but at upscale the inclusive `end_x` covered only that
+  pixel's first sub-column; `span_setup.comp` now completes the native pixel
+  for unsnapped copy rects (scissor-capped). Probe trail in the PROJECT_NOTES
+  2026-06-12 seam entry.
 
 ## Evidence
 

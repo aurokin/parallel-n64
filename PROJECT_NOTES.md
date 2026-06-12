@@ -2088,3 +2088,48 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   Possible future hardening (not built, avoid unneeded surface): an
   on-demand support lane that runs the regen + byte-compare when the
   local slangmosh toolchain is staged.
+
+## 2026-06-12 Strip-junction seam FIXED: inclusive copy right edge at upscale (task #30)
+
+- Symptom (long-standing, hi-res 4x only): a 1px native-blue vertical seam in
+  the kmr_03 vignette backdrop at native x≈172, absent at 1x and feature-off.
+- Geometry from the copy-rect telemetry probe (sessions/seam-probe-p1.sh in the
+  lab repo; evidence artifacts/experiments/seam-probe-194331): the backdrop is
+  a wrapped parallax scroll — each 296x6 CI8 strip is drawn as TWO copy
+  texrects, left x=[12,171] sampling texture columns 136–295 (s raw 136.0) and
+  right x=[172,307] sampling columns 0–135 (s=0); the junction at x≈171.5 is
+  the texture wrap line, 34 strips x 2 = 68 rects/frame, dsdx=4096.
+- Sampling hypotheses eliminated before touching coverage: the pack's 592x12
+  replacement strips are UNIFORM (164,218,213,255) in every column (extracted
+  to /tmp/seam-strips), so no sampled content could produce the seam color —
+  the native-blue line is the BACKDROP FILL showing through a coverage gap.
+- Root cause (S-axis sibling of the (yl+3)&~3 copy-lift yl fix, ADR-0011):
+  COPY-mode rasterization coverage is inclusive (`x >= start_x && x <= end_x`
+  in shading.h). Natively, end_x covers the whole native pixel containing xl.
+  At upscale, span_setup.comp computes end_x in upscaled pixels as
+  floor-of-xl, which is only that native pixel's FIRST sub-column — for the
+  left rect ending xl=171.0 (quarters 684) at 4x, upscaled columns 685–687
+  (the remaining 3/4 of native pixel 171) were covered by neither abutting
+  rect.
+- Fix (span_setup.comp, after start_x/end_x derivation): complete the native
+  pixel for unsnapped copy rects, capped at the scissor —
+  `end_x = min(end_x | (SCALING_FACTOR - 1), int(hi_scissor.x) >> 3)` gated on
+  SCALING_FACTOR > 1 && SKIP_XFRAC_BIT && !DISABLE_UPSCALING_BIT. Inert by
+  construction for snapped rects, non-copy primitives, FILL, 1x, and
+  feature-off. Binning is safe untouched: the [px*SF, px*SF+SF-1] block always
+  lies within one >=8-wide power-of-2-aligned bin tile, so the extension never
+  lands in an unbinned tile. slangmosh.hpp regenerated through the step-2
+  pipeline (506f75b3a86660b4f5a5cf45e85b10c7d518042ef6b0fdf25bca3e43997005ac).
+- Verification (falsification-shaped, no ON-path digests): the pre-fix 4x
+  column detector found the junction group "x=748..751 w=4 native_x=172.1..173.0"
+  present ONLY at 4x; post-fix the group is GONE and every other detected group
+  is identical. 1x ON captures are sha256-identical pre/post-fix (fbd10f98…),
+  the canonical feature-off kmr_03 digest reproduced bit-exact (35213195…,
+  sanctioned OFF-side gate), emu-required 43/43, emu-runtime-conformance 2/2
+  (one transient lavapipe smoke failure immediately after the heavy display
+  sessions; clean on re-run).
+- The copy-rect geometry telemetry (screen rect + S origin under hires_debug)
+  is kept in rdp_renderer.cpp — it is what located the junction geometry.
+- Follow-on flag: SM64 copy-pipe breadth re-check now has two accumulated
+  reasons (orig-dims rebase + this coverage change) for when that rig is next
+  staged.

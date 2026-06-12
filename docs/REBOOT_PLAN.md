@@ -121,11 +121,12 @@ refinement on the compat lane plus curation triage:
   paired captures and adversarial panels.
 - Pack-curation lane for content reclassified out of renderer scope
   ([ADR-0015](/home/auro/code/parallel-n64/docs/adr/0015-pack-content-curation-boundary.md)).
-- Open items: the 1px vertical strip-junction seam (shader probe now unblocked —
-  step 2 closed 2026-06-12); the I-format tlut=1 recolor sampler-semantics check;
-  the debug-flood session wedge forensics (soft session hangs under
+- Open items: the I-format tlut=1 recolor sampler-semantics check; the
+  debug-flood session wedge forensics (soft session hangs under
   `PARALLEL_RDP_HIRES_DEBUG` log flood — see the PROJECT_NOTES 2026-06-12
-  star-family entry's session tooling notes).
+  star-family entry's session tooling notes). The 1px vertical strip-junction
+  seam was fixed 2026-06-12 (inclusive copy right-edge completion at upscale,
+  span_setup.comp; PROJECT_NOTES entry).
 
 ## Success Criteria Style
 

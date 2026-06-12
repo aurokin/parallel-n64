@@ -205,6 +205,19 @@ void main()
     int start_x = min4(xleft) >> 3;
     int end_x = max4(xright) >> 3;
 
+    // COPY-mode coverage includes the whole native pixel containing the right
+    // edge (xl). At upscale the inclusive end_x lands on that pixel's first
+    // sub-column only, leaving its remaining sub-columns uncovered -- a
+    // sub-native vertical gap where abutting copy rects meet. Complete the
+    // native pixel for unsnapped copy rects, capped at the scissor's stock
+    // bound; snapped rects (DISABLE_UPSCALING) keep stock behavior.
+    if (SCALING_FACTOR > 1 &&
+        (setup.flags & TRIANGLE_SETUP_SKIP_XFRAC_BIT) != 0 &&
+        (setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) == 0)
+    {
+        end_x = min(end_x | (SCALING_FACTOR - 1), int(hi_scissor.x) >> 3);
+    }
+
     span_setup.xleft = xleft;
     span_setup.xright = xright;
     span_setup.start_x = start_x;

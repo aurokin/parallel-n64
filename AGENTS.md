@@ -27,7 +27,7 @@ The Reboot Plan work order is substantially complete (per-step status in the
 1. GlideN64-compat keying conformance on the draw-time lane (see ADR-0013/0014 for the landed fixes)
 2. glide-vs-parallel beat comparison as the standing validation methodology
 3. pack-curation triage for content reclassified out of renderer scope (ADR-0015)
-4. open items: the strip-junction seam shader probe (unblocked — regen gate closed 2026-06-12), the I-format tlut=1 recolor semantics check, the debug-flood session wedge forensics
+4. open items: the I-format tlut=1 recolor semantics check, the debug-flood session wedge forensics (the strip-junction seam was fixed 2026-06-12)
 
 Paper Mario is the strict validation title until the first major milestone is stable; SM64/OoT/MK64/MM are compat-path breadth checks only.
 

@@ -2333,6 +2333,19 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		// (yl - 1) >> 2 coherent with the already-queued span jobs.
 		if (caps.upscaling > 1 && (queued_setup.yl & 3) != 0)
 			queued_setup.yl = (queued_setup.yl + 3) & ~3;
+
+		// Copy-rect geometry telemetry: screen rect + S origin is what locates
+		// strip-junction defects (wrapped parallax backdrops split mid-screen).
+		if (hires_debug && (raster_flags & RASTERIZATION_COPY_BIT) != 0)
+		{
+			const auto &queued_attr = stream.attribute_setup.last();
+			LOGI("Hi-res copy-lift rect: key=%016llx xh_q=%d xl_q=%d yh_q=%d yl_q=%d s=%d t=%d dsdx=%d.\n",
+			     static_cast<unsigned long long>(texel0_state.checksum64),
+			     int(queued_setup.xh >> 13), int(queued_setup.xl >> 13),
+			     int(queued_setup.yh), int(queued_setup.yl),
+			     int(queued_attr.s >> 16), int(queued_attr.t >> 16),
+			     int(queued_attr.dsdx >> 11));
+		}
 	}
 
 	if (hires_debug)

@@ -35,6 +35,8 @@ inline void write_hires_lookup_tile_state(TileState &state,
 	state.formatsize = formatsize;
 	state.orig_w = clamp_hires_dimension_u16(orig_w);
 	state.orig_h = clamp_hires_dimension_u16(orig_h);
+	state.key_w = state.orig_w;
+	state.key_h = state.orig_h;
 }
 }
 }

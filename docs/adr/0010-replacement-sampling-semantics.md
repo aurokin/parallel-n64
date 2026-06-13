@@ -51,6 +51,12 @@ Replacement sampling operates in replacement-texel space, with these rules:
    single baked look (per-phase effect recolors, Rice collisions like the sewer
    slate) is pack-curation class, not a renderer gate.
 
+   *Correction (2026-06-12, ADR-0018):* the "sewer slate collision" example was
+   wrong — re-verification proved the entries are faithful repaints with no
+   collision, and the sewer artifacts were a composition-semantics gap on our
+   side, fixed by the cutout/alpha kill rules in ADR-0018. Verbatim serving
+   itself stands unchanged.
+
 Replaced draws thereby diverge deliberately from N64 filter semantics — sanctioned,
 because direct sampling is the point of replacement. Feature-off is provably inert
 for every rule (digest checks, ADR-0002).

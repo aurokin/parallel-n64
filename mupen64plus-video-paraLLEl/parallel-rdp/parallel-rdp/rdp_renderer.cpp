@@ -2304,11 +2304,45 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				repl_state.orig_h = uint16_t(display_h);
 				apply_hires_tile_binding(t, repl_state);
 			}
+
+			// GlideN64 keys its draw-time texture lookup over the rendering
+			// tile's view, so a view that reads past this binding's keyed
+			// window can never be served by the reference pipeline -- the
+			// CRC over the longer window is a different key. It also samples
+			// RDRAM the replacement was never authored against (PM64's
+			// effect-compositing buffers: 32-row keyed windows rendered as
+			// 56-row sprite-stencil views whose extra rows are other live
+			// buffers; serving the static repaint there replaces the dynamic
+			// stencil alpha and materializes the flash quad as a box). Drop
+			// the binding for this draw; the next in-window view rebases and
+			// rebinds. Draw-time compat hits key over the view itself, so
+			// they always pass.
+			uint32_t view_bytes = display_h * tiles[t].meta.stride;
+			uint32_t key_bytes = (uint32_t(repl_state.key_w) << (repl_state.formatsize >> 8)) >> 1;
+			key_bytes *= repl_state.key_h;
+			if (repl_state.key_w != 0 && repl_state.key_h != 0 && view_bytes > key_bytes)
+			{
+				if (hires_debug)
+				{
+					LOGI("Hi-res view exceeds keyed window: tile=%u key=%016llx key_wh=%ux%u view_wh=%ux%u stride=%u -> serving native.\n",
+					     t, static_cast<unsigned long long>(repl_state.checksum64),
+					     unsigned(repl_state.key_w), unsigned(repl_state.key_h),
+					     display_w, display_h, tiles[t].meta.stride);
+				}
+				clear_hires_tile_binding(t);
+			}
 		}
 	}
 
 	const auto &texel0_state = replacement_tiles[base_tile];
 	const auto &texel1_state = replacement_tiles[texel1_tile];
+	// Effective GPU-visible bindings: a hit whose view exceeded the keyed
+	// window above serves native this draw and must not carry replaced-draw
+	// semantics (snap exemption, HLE alpha kill).
+	const bool texel0_bound = texel0_state.hit &&
+	                          detail::hires_descriptor_index_valid(tiles[base_tile].replacement.repl_desc_index);
+	const bool texel1_bound = texel1_state.hit &&
+	                          detail::hires_descriptor_index_valid(tiles[texel1_tile].replacement.repl_desc_index);
 
 	// native_resolution_tex_rect exists to keep copy-mode strips stable at
 	// upscale, but it also snaps rasterization to the native pixel grid,
@@ -2320,7 +2354,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	// the option protects are exactly the unreplaced ones, which keep the
 	// snap. The bit is only consumed GPU-side, so patching the queued setup
 	// here, after the draw-time CRC fallback has resolved, stays coherent.
-	if (draw_class == HiresDrawClass::TexRect && texel0_state.hit &&
+	if (draw_class == HiresDrawClass::TexRect && texel0_bound &&
 	    (uses_texel0 || (raster_flags & RASTERIZATION_COPY_BIT) != 0))
 	{
 		auto &queued_setup = stream.triangle_setup.last();
@@ -2346,6 +2380,28 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			     int(queued_attr.s >> 16), int(queued_attr.t >> 16),
 			     int(queued_attr.dsdx >> 11));
 		}
+	}
+
+	if (hires_debug && (texel0_state.hit || texel1_state.hit))
+	{
+		// Combine/blend forensics for replaced draws: raw decoded combiner
+		// inputs per cycle, blend mux, and the per-draw constant colors --
+		// what locates composition divergences on served replacements.
+		const auto *c0 = reinterpret_cast<const uint8_t *>(&stream.static_raster_state.combiner[0]);
+		const auto *c1 = reinterpret_cast<const uint8_t *>(&stream.static_raster_state.combiner[1]);
+		const auto *b = reinterpret_cast<const uint8_t *>(&stream.depth_blend_state.blend_cycles[0]);
+		const auto &cst = stream.derived_setup.last().constants;
+		LOGI("Hi-res draw combine: comb0=%02x%02x%02x%02x.%02x%02x%02x%02x comb1=%02x%02x%02x%02x.%02x%02x%02x%02x blend=%02x%02x%02x%02x.%02x%02x%02x%02x db_flags=%02x cov=%u raster_flags=%08x const0_mul=%02x%02x%02x%02x const0_add=%02x%02x%02x%02x const1_mul=%02x%02x%02x%02x const1_add=%02x%02x%02x%02x.\n",
+		     c0[0], c0[1], c0[2], c0[3], c0[4], c0[5], c0[6], c0[7],
+		     c1[0], c1[1], c1[2], c1[3], c1[4], c1[5], c1[6], c1[7],
+		     b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+		     unsigned(stream.depth_blend_state.flags),
+		     unsigned(stream.depth_blend_state.coverage_mode),
+		     raster_flags,
+		     cst[0].mul[0], cst[0].mul[1], cst[0].mul[2], cst[0].mul[3],
+		     cst[0].add[0], cst[0].add[1], cst[0].add[2], cst[0].add[3],
+		     cst[1].mul[0], cst[1].mul[1], cst[1].mul[2], cst[1].mul[3],
+		     cst[1].add[0], cst[1].add[1], cst[1].add[2], cst[1].add[3]);
 	}
 
 	if (hires_debug)
@@ -2812,7 +2868,34 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	}
 
 	InstanceIndices indices = {};
-	indices.static_index = stream.static_raster_state_cache.add(normalize_static_state(stream.static_raster_state));
+	auto normalized_static_state = normalize_static_state(stream.static_raster_state);
+
+	// HLE-alpha-kill eligibility: a draw that samples a replaced texture and
+	// whose final blend cycle is one of the src-alpha-over-memory closures
+	// (P*A_in + M*A_mem or P*A_in + M*(1-A_in)) composes to nothing in the
+	// HLE renderers packs are authored on whenever combined alpha is ~0 --
+	// those renderers blend with GL src-alpha unconditionally. The faithful
+	// blender writes interior pixels unblended when force_blend is off,
+	// materializing quads the pack expects to vanish (effect redraws
+	// choreographed by shade alpha). Flag the draw so the shading stage can
+	// kill ~0-alpha pixels. Triangle lane only; fill never samples and copy
+	// keeps its raw alpha-bit transport semantics.
+	if ((raster_flags & (RASTERIZATION_FILL_BIT | RASTERIZATION_COPY_BIT)) == 0 &&
+	    ((texel0_bound && uses_texel0) ||
+	     (texel1_bound && (raster_flags & RASTERIZATION_USES_TEXEL1_BIT) != 0)))
+	{
+		const auto &final_blend = stream.depth_blend_state.blend_cycles[
+				(raster_flags & RASTERIZATION_MULTI_CYCLE_BIT) != 0 ? 1 : 0];
+		if (final_blend.blend_1b == BlendMode1B::PixelAlpha &&
+		    final_blend.blend_2a == BlendMode2A::MemoryColor &&
+		    (final_blend.blend_2b == BlendMode2B::MemoryAlpha ||
+		     final_blend.blend_2b == BlendMode2B::InvPixelAlpha))
+		{
+			normalized_static_state.flags |= RASTERIZATION_HIRES_ALPHA_KILL_BIT;
+		}
+	}
+
+	indices.static_index = stream.static_raster_state_cache.add(normalized_static_state);
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);
 	indices.tile_instance_index = uint8_t(stream.tmem_upload_infos.size());
 	for (unsigned i = 0; i < 8; i++)

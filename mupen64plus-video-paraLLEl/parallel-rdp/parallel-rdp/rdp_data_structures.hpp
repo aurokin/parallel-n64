@@ -69,6 +69,11 @@ enum StaticRasterizationFlagBits
 	RASTERIZATION_CONVERT_ONE_BIT = 1 << 22,
 	RASTERIZATION_BILERP_0_BIT = 1 << 23,
 	RASTERIZATION_BILERP_1_BIT = 1 << 24,
+	// Hi-res replacement HLE-alpha-kill (see shading.h): the draw samples a
+	// replaced texture and its final blend cycle is a src-alpha-over-memory
+	// mode, so pixels whose combined alpha is ~0 must not be written at all,
+	// matching the HLE renderers packs are authored against.
+	RASTERIZATION_HIRES_ALPHA_KILL_BIT = 1 << 25,
 	RASTERIZATION_UPSCALING_LOG2_BIT_OFFSET = 26,
 	RASTERIZATION_NEED_NOISE_BIT = 1 << 28,
 	RASTERIZATION_USE_STATIC_TEXTURE_SIZE_FORMAT_BIT = 1 << 29,

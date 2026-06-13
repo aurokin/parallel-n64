@@ -38,6 +38,19 @@ const int TEXTURE_FORMAT_IA = 3;
 const int TEXTURE_FORMAT_I = 4;
 const uint HIRES_INVALID_DESC_INDEX = 0xffffffffu;
 
+// Set by sample_texture when a sampled replacement texel is a pack cutout
+// (filtered alpha == 0). Reset per pixel by the shading loop, which kills
+// the pixel outright: packs encode "no repaint content here" as alpha == 0
+// and are authored against HLE renderers whose always-on src-alpha blending
+// makes such pixels vanish. The faithful blender writes interior pixels
+// unblended (force_blend off), so a verbatim serve would draw them as
+// opaque black (pack art stores black RGB under transparent texels), and
+// serving the native texel instead cannot work either: redraw-effect quads
+// are invisible natively only because their texel products color-match a
+// background that is itself pack-recomposed. The only composition that
+// matches the pack contract is no write at all.
+bool hires_replacement_cutout = false;
+
 bool tile_uses_hires_replacement(TileInfo tile)
 {
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
@@ -728,13 +741,7 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 
 	if (tile_uses_hires_replacement(tile))
 	{
-		yuv = false;
 		ivec2 st_fp5 = (st << 5) + hires_frac_fp5;
-		// Replacement texels are already continuous RGBA filtered at the
-		// replacement resolution; running the N64 quad filter on top
-		// re-samples that signal at native-texel spacing and aliases into
-		// dashes under minification. Direct-sample for TLUT draws too.
-		bool hires_direct_sample = true;
 		bool hires_linear = global_constants.fb_info.hires_filter != HIRES_FILTER_NEAREST;
 
 		// Replacement-texel footprint of one output pixel, from the
@@ -760,25 +767,28 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 				hires_lod = log2(rho);
 		}
 
-		if (hires_direct_sample)
-		{
-			// Zero frac AND sum_frac so the N64 3-point combine below
-			// reduces exactly to t_base (sum_frac >= 32 would otherwise
-			// blend the unsampled t10/t01 at full weight).
-			sample_quad = false;
-			mid_texel = false;
-			frac = ivec2(0);
-			sum_frac = 0;
-		}
-
 		t_base = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5), hires_linear, hires_lod);
-		if (sample_quad)
-		{
-			t10 = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 0)), hires_linear, hires_lod);
-			t01 = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5 + ivec2(0, 32)), hires_linear, hires_lod);
-		}
-		if (mid_texel)
-			t11 = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5 + ivec2(32, 32)), hires_linear, hires_lod);
+
+		// Pack cutout: flag the pixel for the shading loop to kill (see
+		// hires_replacement_cutout). The alpha-weighted RGB filter in
+		// hires_filtered_fetch_level guarantees filtered alpha == 0 iff
+		// every contributing tap is transparent, i.e. the repaint truly
+		// has no content for this pixel.
+		if (t_base.w == I16_C(0))
+			hires_replacement_cutout = true;
+
+		yuv = false;
+		// Replacement texels are already continuous RGBA filtered at the
+		// replacement resolution; running the N64 quad filter on top
+		// re-samples that signal at native-texel spacing and aliases into
+		// dashes under minification. Direct-sample for TLUT draws too:
+		// zero frac AND sum_frac so the N64 3-point combine below reduces
+		// exactly to t_base (sum_frac >= 32 would otherwise blend the
+		// unsampled t10/t01 at full weight).
+		sample_quad = false;
+		mid_texel = false;
+		frac = ivec2(0);
+		sum_frac = 0;
 	}
 	else if (tlut)
 	{

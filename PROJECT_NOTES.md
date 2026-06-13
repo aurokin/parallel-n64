@@ -2185,3 +2185,70 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
 - Remaining from #29 (split out): pack curation to drop d7f736aa from the
   runtime package (hts2phrb has no exclusion mechanism yet — needs a curation
   affordance in the converter or package post-edit, ADR-0015 lane).
+
+## 2026-06-13 Sewer/stage effect family ROOT-CAUSED and FIXED: composition + view keying (task #34, ADR-0018)
+
+- The user challenged the pack-curation plan for d7f736aa ("are we sure we're
+  not covering up another bug?") — re-verification overturned the entire
+  collision story. The pack entries are faithful repaints (native RDRAM
+  windows rendered as I4 and matched against the pack art); glide serves all
+  five family checksums (txdump miss-set) AND composes clean; the artifact
+  reproduces at 1x and is insensitive to texel alpha policy and texel RGB at
+  the affected pixels. The d7f736aa "slate collision" never existed; nothing
+  was curated.
+- New instrument: per-draw combine/blend forensics ("Hi-res draw combine"
+  log: raw combiner cycle bytes, blend mux, db_flags, coverage mode,
+  raster_flags, per-cycle constants). This decoded both artifact mechanisms
+  where checksum- and texel-level reasoning had failed repeatedly (five
+  hypotheses falsified by instrument on the way: slate collision,
+  formatsize divergence, PHRB alpha conversion, upscale mapping, texel-alpha
+  sensitivity; then native-texel fallback, composed-alpha kill as white-box
+  fixes).
+- Dark boxes / black ovals / blob: wall-redraw quads (T0*T1*SHADE, final
+  blend P*A+M*Amem, force_blend OFF) write interior pixels unblended on
+  faithful hardware — invisibility is color-match, not alpha. Pack cutouts
+  (alpha=0, black RGB) materialized as opaque black. FIX: cutout kill —
+  filtered replacement alpha == 0 kills the pixel (texture.h flag +
+  shading.h return false). HLE renderers blend every pixel by src alpha, so
+  this is exactly the contract packs are authored against (ADR-0018 rule 1).
+- White boxes around characters (persistent, 36/94 parallel frames, 0/97
+  glide frames in the paired panel review): the flash-stencil draws (tlut=1
+  2cycle, combiner alpha = TEXEL1 alpha ONLY, CVG_TIMES_ALPHA) view the
+  effect-mask buffer as 32x56 while its checksum key covers 16x32 (512B) —
+  the mask is a DYNAMIC compositing buffer and the repaint's white field
+  replaced the per-frame stencil alpha. GlideN64 keys draw-time lookups over
+  the rendering view (56-row CRC = different key -> miss -> native): that is
+  glide's clean mechanism. FIX: view-keyed serving — a view whose byte
+  extent exceeds the binding's keyed window serves native for that draw
+  (key_w/key_h retained on ReplacementTileState; check at the draw-time
+  rebase; "Hi-res view exceeds keyed window" telemetry). Same
+  keying-convention family as ADR-0013/0014 (rule 3).
+- Also landed: HLE alpha kill for replaced draws in src-alpha-over-memory
+  blend modes (combined alpha < 8 -> no write; RASTERIZATION_HIRES_ALPHA_KILL
+  bit, CPU eligibility at draw enqueue). No firing case in this family (its
+  alpha routes through coverage) — contract-completion guard (rule 2).
+- Sprite replacements were never the problem: hi-res Mario (74d1211b,
+  138x241) and Koopa (4a179ba0, 241x282) bind via the draw-time compat lane
+  (key == view) and keep serving.
+- Verification: paired 94-frame attract-segment rubric review re-run on the
+  final build — zero white/dark boxes in any frame (programmatic bright-box
+  scan 0/97 glide, 0/94 parallel), and the koopa-paratroopa wing-blur halo
+  seen in interim builds is gone too (the wing-blur masks are the same
+  view-exceeds-key shape, fixed by rule 3); u06/u07/u13 probes clean incl.
+  battle damage stars; gates green (feature-off digest bit-exact via
+  emu-runtime-conformance 2/2, emu-required 43/43). Evidence:
+  artifacts/experiments/iflat-probe-202533 (A-head .. J-viewkey),
+  sewer-segment-203400{,-fixed,-fixed2,-final}.
+- Docs: ADR-0018 (composition pack contract); ADR-0010 rule 7 correction
+  note (the "sewer slate collision / pack-curation class" claim was wrong);
+  the f5609e45 commit message's same claim is superseded by this entry.
+- Follow-ups (new, both PRE-EXISTING — three-way f10812 comparison shows
+  the pre-fix build renders both identically, so neither is a regression
+  from the ADR-0018 rules; jungle tail scene, evidence
+  sewer-segment-203400-final f10770-f10818 vs glide):
+  - Mist band left of the jungle tree trunk renders whitish-translucent
+    with the fern visible through it where glide renders opaque dark slate
+    (~7 frames).
+  - Sushie sprite renders as a dark low-res dithered fallback instead of a
+    hi-res pack sprite (~4 frames) — replacement miss or keying gap, needs
+    its own combine/keying forensics pass.

@@ -324,6 +324,10 @@ private:
 		uint16_t formatsize = 0;
 		uint16_t orig_w = 0;
 		uint16_t orig_h = 0;
+		// Dimensions the checksum key was computed over (orig_w/orig_h get
+		// rebased to the rendering view at draw time; these do not).
+		uint16_t key_w = 0;
+		uint16_t key_h = 0;
 		uint16_t repl_w = 0;
 		uint16_t repl_h = 0;
 		uint32_t vk_image_index = 0xffffffffu;

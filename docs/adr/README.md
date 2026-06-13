@@ -30,6 +30,7 @@ recorded in the same ADR with its date.
 | [0015](0015-pack-content-curation-boundary.md) | Pack-content defects are curation; three-class miss taxonomy | Accepted |
 | [0016](0016-test-surface-trim.md) | Trimmed test surface: behavior-backed lanes, loud failures | Accepted |
 | [0017](0017-lab-repo-split.md) | Session-lab tooling lives in the private parallel-n64-lab repo | Accepted |
+| [0018](0018-hires-composition-pack-contract.md) | Replaced-draw composition follows the HLE pack contract (cutout kill, alpha kill, view-keyed serving) | Accepted |
 
 ## Decision spine (read in this order for onboarding)
 

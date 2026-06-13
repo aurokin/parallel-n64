@@ -256,6 +256,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	}
 
 	i16x4 texel0, texel1;
+	hires_replacement_cutout = false;
 
 	if (uses_texel0)
 	{
@@ -323,6 +324,14 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		}
 	}
 
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	// A sampled replacement texel was a pack cutout (filtered alpha == 0):
+	// the pack authored "nothing here", so the pixel must not be written in
+	// any blend mode (see hires_replacement_cutout in texture.h).
+	if (hires_replacement_cutout)
+		return false;
+#endif
+
 	int rgb_dith, alpha_dith;
 	dither_coefficients(x, y >> int(interlace_en), static_state_dither >> 2, static_state_dither & 3, rgb_dith, alpha_dith);
 
@@ -372,6 +381,19 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 
 		alpha_reference = combined.a;
 	}
+
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	// HLE-alpha-kill (RASTERIZATION_HIRES_ALPHA_KILL_BIT): this draw samples
+	// a replacement and its final blend cycle is a src-alpha-over-memory
+	// mode. HLE renderers, which packs are authored against, blend such
+	// pixels away when combined alpha is ~0; the faithful blender would
+	// write them unblended (force_blend off ignores alpha on interior
+	// pixels), materializing effect quads choreographed to be invisible
+	// through shade alpha. The < 8 threshold absorbs alpha dither; an HLE
+	// renderer leaves under 3% contribution for such pixels anyway.
+	if ((static_state_flags & RASTERIZATION_HIRES_ALPHA_KILL_BIT) != 0 && combined.a < U8_C(8))
+		return false;
+#endif
 
 	// After combiner, color can be modified to 0 through alpha-to-cvg, so check for potential write_enable here.
 	// If we're not using AA, the first coverage bit is used instead, coverage count is ignored.

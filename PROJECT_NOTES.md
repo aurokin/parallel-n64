@@ -2252,3 +2252,27 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   - Sushie sprite renders as a dark low-res dithered fallback instead of a
     hi-res pack sprite (~4 frames) — replacement miss or keying gap, needs
     its own combine/keying forensics pass.
+
+## 2026-06-13 Ledger sweep: breadth re-check PASS, debug-flood wedge not reproducible (#24 closed)
+
+- Cross-game breadth re-check after the ADR-0018 composition rules (the
+  copy-pipe lane was triply flagged: orig-dims rebase, copy end_x change,
+  verbatim I serving — now also cutout kill / view-keyed serving):
+  watch-hires-intros sm64 oot mk64, all PASS at class level (provider on,
+  phrb-only source mode, compat-only entry class; compat draw hits sm64
+  64913, oot 91487 + 15992 CI, mk64 20445 + 5933 CI) and at the visual
+  rubric (yes/clean all three; SM64's copy-pipe title screen intact;
+  MK64's alpha-cutout kart smoke renders correctly under the cutout-kill
+  rule). Evidence: artifacts/experiments/watch-intros-260613-001646.
+- Debug-flood soft-wedge forensics (#24): wedge-hunt-p1 drove 40
+  load/step cycles alternating the battle state (slot 13, heaviest flood
+  ~1100 lines/frame) and sewer (slot 6) — 40 paused state loads, 8400
+  frames stepped under full PARALLEL_RDP_HIRES_DEBUG flood, gdb wrapper
+  armed for SIGSEGV-poke backtrace harvest. NO WEDGE. Exposure exceeds
+  the original two-occurrence day by a wide margin, and today's flood is
+  heavier (the combine-forensics telemetry adds per-draw lines). The
+  original SIGSEGV also never reproduced under the wrapper.
+- #24 closed as not-reproducible on the current build. Debug flood is a
+  forensics-only mode (never user-facing); the harvest harness
+  (parallel-n64-lab sessions/wedge-hunt-p1.sh) stays ready to capture
+  thread stacks in one run if the signature ever recurs.

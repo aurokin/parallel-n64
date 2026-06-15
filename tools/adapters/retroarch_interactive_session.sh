@@ -52,7 +52,11 @@ EOF
 }
 
 sha256_file() {
-  sha256sum "$1" | awk '{print $1}'
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
 }
 
 log_size_bytes() {
@@ -60,6 +64,162 @@ log_size_bytes() {
     wc -c < "$RA_LOG"
   else
     echo 0
+  fi
+}
+
+file_size_bytes() {
+  local path="$1"
+  if command -v stat >/dev/null 2>&1 && stat -c %s "$path" >/dev/null 2>&1; then
+    stat -c %s "$path"
+  elif command -v gstat >/dev/null 2>&1; then
+    gstat -c %s "$path"
+  else
+    python3 - "$path" <<'PY'
+import os
+import sys
+try:
+    print(os.path.getsize(sys.argv[1]))
+except OSError:
+    print(0)
+PY
+  fi
+}
+
+newest_capture_path() {
+  local captures_dir="$1"
+  python3 - "$captures_dir" <<'PY'
+import sys
+from pathlib import Path
+
+captures_dir = Path(sys.argv[1])
+files = [p for p in captures_dir.iterdir() if p.is_file()]
+if not files:
+    raise SystemExit(1)
+print(max(files, key=lambda p: (p.stat().st_mtime_ns, p.name)))
+PY
+}
+
+running_retroarch_processes() {
+  ps -axo pid=,stat=,comm=,command= | awk '
+    $2 !~ /^Z/ && $3 ~ /(^|\/)(RetroArch|retroarch)$/ { print }
+  '
+}
+
+is_darwin() {
+  [[ "$(uname -s)" == "Darwin" ]]
+}
+
+default_retroarch_bin() {
+  if is_darwin; then
+    local mvk141_bin="${RETROARCH_MVK141_BIN:-$REPO_ROOT/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch}"
+    if [[ -x "$mvk141_bin" ]]; then
+      echo "$mvk141_bin"
+      return
+    fi
+    if [[ -x "/Applications/RetroArch.app/Contents/MacOS/RetroArch" ]]; then
+      echo "/Applications/RetroArch.app/Contents/MacOS/RetroArch"
+      return
+    fi
+  fi
+  echo "/home/auro/code/RetroArch/retroarch"
+}
+
+default_base_config() {
+  local mac_config="${HOME:-}/code/RetroArch/retroarch.cfg"
+  if is_darwin && [[ -f "$mac_config" ]]; then
+    echo "$mac_config"
+  else
+    echo "/home/auro/code/RetroArch/retroarch.cfg"
+  fi
+}
+
+apply_macos_runtime_defaults() {
+  if ! is_darwin; then
+    return
+  fi
+
+  local mode="${1:-off}"
+  local retroarch_bin="${2:-}"
+  local mvk141_bin="${RETROARCH_MVK141_BIN:-$REPO_ROOT/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch}"
+  local argument_buffers_default="0"
+  if [[ "$mode" == "on" && "$retroarch_bin" == "$mvk141_bin" ]]; then
+    argument_buffers_default="1"
+  fi
+
+  export MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS="${MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-$argument_buffers_default}"
+  if [[ "$mode" != "on" ]]; then
+    export PARALLEL_RDP_DISABLE_HIRES_SHADER="${PARALLEL_RDP_DISABLE_HIRES_SHADER:-1}"
+  fi
+}
+
+start_session_leader() {
+  local pid_file="$1" lock_file="$2" ttl_seconds="$3" retroarch_bin="$4"
+  local base_config="$5" append_config="$6" core_path="$7" rom_path="$8"
+  local fifo_path="$9" ra_log="${10}"
+
+  if command -v setsid >/dev/null 2>&1; then
+    setsid bash -c '
+      echo "$$" > "$1"
+      exec flock -n "$2" timeout --signal=TERM "$3" "$4" \
+        --verbose --config "$5" --appendconfig "$6" -L "$7" "$8" \
+        0<> "$9" >> "${10}" 2>&1
+    ' _ "$pid_file" "$lock_file" "$ttl_seconds" "$retroarch_bin" \
+        "$base_config" "$append_config" "$core_path" "$rom_path" \
+        "$fifo_path" "$ra_log" &
+  else
+    python3 - "$pid_file" "$lock_file" "$ttl_seconds" "$retroarch_bin" \
+        "$base_config" "$append_config" "$core_path" "$rom_path" \
+        "$fifo_path" "$ra_log" <<'PY' &
+import os
+import sys
+from pathlib import Path
+
+(
+    pid_file,
+    lock_file,
+    ttl_seconds,
+    retroarch_bin,
+    base_config,
+    append_config,
+    core_path,
+    rom_path,
+    fifo_path,
+    ra_log,
+) = sys.argv[1:]
+
+os.setsid()
+Path(pid_file).write_text(f"{os.getpid()}\n")
+
+fifo_fd = os.open(fifo_path, os.O_RDWR)
+log_fd = os.open(ra_log, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)
+os.dup2(fifo_fd, 0)
+os.dup2(log_fd, 1)
+os.dup2(log_fd, 2)
+for fd in (fifo_fd, log_fd):
+    if fd > 2:
+        os.close(fd)
+
+os.execvp(
+    "flock",
+    [
+        "flock",
+        "-n",
+        lock_file,
+        "timeout",
+        "--signal=TERM",
+        ttl_seconds,
+        retroarch_bin,
+        "--verbose",
+        "--config",
+        base_config,
+        "--appendconfig",
+        append_config,
+        "-L",
+        core_path,
+        rom_path,
+    ],
+)
+PY
   fi
 }
 
@@ -124,8 +284,12 @@ ack_for_command() {
 }
 
 cmd_start() {
-  local MODE="off" RETROARCH_BIN="${RETROARCH_BIN:-/home/auro/code/RetroArch/retroarch}"
-  local BASE_CONFIG="${BASE_CONFIG:-/home/auro/code/RetroArch/retroarch.cfg}"
+  local DEFAULT_RETROARCH_BIN DEFAULT_BASE_CONFIG
+  DEFAULT_RETROARCH_BIN="$(default_retroarch_bin)"
+  DEFAULT_BASE_CONFIG="$(default_base_config)"
+
+  local MODE="off" RETROARCH_BIN="${RETROARCH_BIN:-$DEFAULT_RETROARCH_BIN}"
+  local BASE_CONFIG="${BASE_CONFIG:-$DEFAULT_BASE_CONFIG}"
   local ROM_PATH="" CORE_PATH="" CORE_OPTIONS_TEMPLATE="" EXTRA_APPEND_CONFIG=""
   local STATE_SOURCE="" TTL_SECONDS=3600
 
@@ -164,10 +328,11 @@ cmd_start() {
     echo "Extra append config not found: $EXTRA_APPEND_CONFIG" >&2
     exit 1
   fi
+  apply_macos_runtime_defaults "$MODE" "$RETROARCH_BIN"
 
   # Same singleton rule as the batch adapter.
   local matches
-  matches="$(ps -C retroarch -o pid=,stat=,cmd= 2>/dev/null | awk '$2 !~ /^Z/ { print }' || true)"
+  matches="$(running_retroarch_processes || true)"
   if [[ -n "$matches" ]]; then
     echo "Another RetroArch process is already running:" >&2
     printf '%s\n' "$matches" >&2
@@ -182,11 +347,31 @@ cmd_start() {
       echo "State source not found: $STATE_SOURCE" >&2
       exit 1
     fi
-    cp -r "$STATE_SOURCE"/. "$BUNDLE_DIR/states/"
+    if [[ "$(basename "$STATE_SOURCE")" == "ParaLLEl N64" ]] &&
+        find "$STATE_SOURCE" -maxdepth 1 -type f -name '*.state*' -print -quit | rg -q .; then
+      mkdir -p "$BUNDLE_DIR/states/$(basename "$STATE_SOURCE")"
+      cp -r "$STATE_SOURCE"/. "$BUNDLE_DIR/states/$(basename "$STATE_SOURCE")/"
+    else
+      cp -r "$STATE_SOURCE"/. "$BUNDLE_DIR/states/"
+    fi
   fi
 
   local APPEND_CONFIG="$BUNDLE_DIR/retroarch.append.cfg"
   local CORE_OPTIONS_FILE="$BUNDLE_DIR/core-options.opt"
+  local VIDEO_FULLSCREEN_DEFAULT="true"
+  local VIDEO_WINDOWED_FULLSCREEN_DEFAULT="true"
+  local VIDEO_WINDOW_SIZE_CONFIG_DEFAULT="false"
+  if is_darwin; then
+    VIDEO_FULLSCREEN_DEFAULT="false"
+    VIDEO_WINDOWED_FULLSCREEN_DEFAULT="false"
+    VIDEO_WINDOW_SIZE_CONFIG_DEFAULT="true"
+  fi
+  local VIDEO_DRIVER_VALUE="${RETROARCH_VIDEO_DRIVER_OVERRIDE:-vulkan}"
+  local VIDEO_FULLSCREEN_VALUE="${RETROARCH_VIDEO_FULLSCREEN_OVERRIDE:-$VIDEO_FULLSCREEN_DEFAULT}"
+  local VIDEO_WINDOWED_FULLSCREEN_VALUE="${RETROARCH_VIDEO_WINDOWED_FULLSCREEN_OVERRIDE:-$VIDEO_WINDOWED_FULLSCREEN_DEFAULT}"
+  local VIDEO_WINDOW_SIZE_CONFIG_VALUE="${RETROARCH_VIDEO_WINDOW_SIZE_CONFIG_OVERRIDE:-$VIDEO_WINDOW_SIZE_CONFIG_DEFAULT}"
+  local VIDEO_WINDOW_WIDTH_VALUE="${RETROARCH_VIDEO_WINDOW_WIDTH_OVERRIDE:-1920}"
+  local VIDEO_WINDOW_HEIGHT_VALUE="${RETROARCH_VIDEO_WINDOW_HEIGHT_OVERRIDE:-1080}"
 
   # Mirrors the batch adapter's tracked-session profile (see its README notes).
   cat > "$APPEND_CONFIG" <<EOF
@@ -197,6 +382,7 @@ config_save_on_exit = "false"
 stdin_cmd_enable = "true"
 network_cmd_enable = "false"
 confirm_quit = "false"
+pause_nonactive = "false"
 state_slot = "0"
 savestate_directory = "$BUNDLE_DIR/states"
 savefile_directory = "$BUNDLE_DIR/savefiles"
@@ -206,12 +392,21 @@ menu_enable_widgets = "false"
 notification_show_save_state = "false"
 notification_show_screenshot = "false"
 notification_show_screenshot_flash = "0"
-video_driver = "vulkan"
-video_fullscreen = "true"
-video_windowed_fullscreen = "true"
+video_driver = "$VIDEO_DRIVER_VALUE"
+video_fullscreen = "$VIDEO_FULLSCREEN_VALUE"
+video_windowed_fullscreen = "$VIDEO_WINDOWED_FULLSCREEN_VALUE"
 video_fullscreen_x = "0"
 video_fullscreen_y = "0"
 EOF
+  if [[ "$VIDEO_WINDOW_SIZE_CONFIG_VALUE" == "true" ]]; then
+    cat >> "$APPEND_CONFIG" <<EOF
+video_window_custom_size_enable = "true"
+video_windowed_position_width = "$VIDEO_WINDOW_WIDTH_VALUE"
+video_windowed_position_height = "$VIDEO_WINDOW_HEIGHT_VALUE"
+video_window_auto_width_max = "$VIDEO_WINDOW_WIDTH_VALUE"
+video_window_auto_height_max = "$VIDEO_WINDOW_HEIGHT_VALUE"
+EOF
+  fi
   if [[ -n "$EXTRA_APPEND_CONFIG" ]]; then
     cat "$EXTRA_APPEND_CONFIG" >> "$APPEND_CONFIG"
   fi
@@ -221,18 +416,39 @@ EOF
   else
     local HIRES_VALUE="disabled"
     [[ "$MODE" == "on" ]] && HIRES_VALUE="enabled"
+    local GFXPLUGIN_VALUE="${PARALLEL_N64_GFX_PLUGIN_OVERRIDE:-${PARALLEL_N64_GFXPLUGIN_OVERRIDE:-parallel}}"
     local UPSCALING_VALUE="${PARALLEL_RDP_UPSCALING_OVERRIDE:-4x}"
     local NATIVE_TEXRECT_VALUE="${PARALLEL_RDP_NATIVE_TEXRECT_OVERRIDE:-enabled}"
-    cat > "$CORE_OPTIONS_FILE" <<EOF
-parallel-n64-gfxplugin = "parallel"
+    local CPUCORE_VALUE="${PARALLEL_N64_CPUCORE_OVERRIDE:-}"
+    local RSPPLUGIN_VALUE="${PARALLEL_N64_RSPPLUGIN_OVERRIDE:-}"
+    if [[ -n "$CPUCORE_VALUE" ]]; then
+      printf 'parallel-n64-cpucore = "%s"\n' "$CPUCORE_VALUE" > "$CORE_OPTIONS_FILE"
+    else
+      : > "$CORE_OPTIONS_FILE"
+    fi
+    cat >> "$CORE_OPTIONS_FILE" <<EOF
+parallel-n64-gfxplugin = "$GFXPLUGIN_VALUE"
 parallel-n64-parallel-rdp-upscaling = "$UPSCALING_VALUE"
 parallel-n64-parallel-rdp-hirestex = "$HIRES_VALUE"
 parallel-n64-parallel-rdp-native-tex-rect = "$NATIVE_TEXRECT_VALUE"
 parallel-n64-parallel-rdp-native-texture-lod = "enabled"
 EOF
+    if [[ -n "$RSPPLUGIN_VALUE" ]]; then
+      printf 'parallel-n64-rspplugin = "%s"\n' "$RSPPLUGIN_VALUE" >> "$CORE_OPTIONS_FILE"
+    fi
   fi
   local CORE_OPTIONS_LAUNCH_FILE="$BUNDLE_DIR/core-options.launch.opt"
   cp "$CORE_OPTIONS_FILE" "$CORE_OPTIONS_LAUNCH_FILE"
+  local BASE_CONFIG_SHA256 APPEND_CONFIG_SHA256 CORE_OPTIONS_FILE_SHA256
+  local HIRES_CACHE_PATH HIRES_CACHE_SHA256
+  BASE_CONFIG_SHA256="$(sha256_file "$BASE_CONFIG")"
+  APPEND_CONFIG_SHA256="$(sha256_file "$APPEND_CONFIG")"
+  CORE_OPTIONS_FILE_SHA256="$(sha256_file "$CORE_OPTIONS_LAUNCH_FILE")"
+  HIRES_CACHE_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-}"
+  HIRES_CACHE_SHA256="${PARALLEL_RDP_HIRES_CACHE_SHA256:-}"
+  if [[ -n "$HIRES_CACHE_PATH" && -f "$HIRES_CACHE_PATH" && -z "$HIRES_CACHE_SHA256" ]]; then
+    HIRES_CACHE_SHA256="$(sha256_file "$HIRES_CACHE_PATH")"
+  fi
 
   rm -f "$FIFO_PATH" "$PID_FILE"
   mkfifo "$FIFO_PATH"
@@ -240,14 +456,9 @@ EOF
 
   # Session leader writes its own pid (== PGID of the whole chain), holds the
   # runtime lock for the session lifetime, and dies on its own after TTL.
-  setsid bash -c '
-    echo "$$" > "$1"
-    exec flock -n "$2" timeout --signal=TERM "$3" "$4" \
-      --verbose --config "$5" --appendconfig "$6" -L "$7" "$8" \
-      0<> "$9" >> "${10}" 2>&1
-  ' _ "$PID_FILE" "$LOCK_FILE" "$TTL_SECONDS" "$RETROARCH_BIN" \
+  start_session_leader "$PID_FILE" "$LOCK_FILE" "$TTL_SECONDS" "$RETROARCH_BIN" \
       "$BASE_CONFIG" "$APPEND_CONFIG" "$CORE_PATH" "$ROM_PATH" \
-      "$FIFO_PATH" "$RA_LOG" &
+      "$FIFO_PATH" "$RA_LOG"
 
   local deadline=$(( $(date +%s) + 10 ))
   while [[ ! -s "$PID_FILE" ]] && (( $(date +%s) < deadline )); do
@@ -268,13 +479,18 @@ BASE_CONFIG=$BASE_CONFIG
 APPEND_CONFIG=$APPEND_CONFIG
 CORE_OPTIONS_FILE=$CORE_OPTIONS_FILE
 CORE_OPTIONS_LAUNCH_FILE=$CORE_OPTIONS_LAUNCH_FILE
-CORE_OPTIONS_FILE_SHA256=$(sha256_file "$CORE_OPTIONS_LAUNCH_FILE")
+BASE_CONFIG_SHA256=$BASE_CONFIG_SHA256
+APPEND_CONFIG_SHA256=$APPEND_CONFIG_SHA256
+CORE_OPTIONS_FILE_SHA256=$CORE_OPTIONS_FILE_SHA256
 STDIN_FIFO=$FIFO_PATH
 ROM_PATH=$ROM_PATH
 CORE_PATH=$CORE_PATH
 ROM_SHA256=$(sha256_file "$ROM_PATH")
 CORE_SHA256=$(sha256_file "$CORE_PATH")
-HIRES_CACHE_PATH=${PARALLEL_RDP_HIRES_CACHE_PATH:-}
+HIRES_CACHE_PATH=$HIRES_CACHE_PATH
+HIRES_CACHE_SHA256=$HIRES_CACHE_SHA256
+MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=${MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-}
+PARALLEL_RDP_DISABLE_HIRES_SHADER=${PARALLEL_RDP_DISABLE_HIRES_SHADER:-}
 MODE=$MODE
 TTL_SECONDS=$TTL_SECONDS
 EOF
@@ -447,11 +663,11 @@ cmd_screenshot() {
     local now
     now="$(find "$BUNDLE_DIR/captures" -maxdepth 1 -type f | wc -l)"
     if (( now > before )); then
-      newest="$(find "$BUNDLE_DIR/captures" -maxdepth 1 -type f -printf '%T@ %p\n' | sort -n | tail -n1 | cut -d' ' -f2-)"
+      newest="$(newest_capture_path "$BUNDLE_DIR/captures")"
       # The screenshot task writes asynchronously: wait until the file is
       # non-empty and its size is stable across two polls.
       local size
-      size="$(stat -c %s "$newest" 2>/dev/null || echo 0)"
+      size="$(file_size_bytes "$newest")"
       if (( size > 0 && size == last_size )); then
         printf '%s\n' "$newest"
         return 0
@@ -560,6 +776,11 @@ cmd_load_slot() {
     start_bytes="$(log_size_bytes)"
     send_fifo "$verb $SLOT"
     if wait_for_log_pattern_after "$start_bytes" "[State] Loading state" 15; then
+      sleep 0.5
+      if tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -q "\\[State\\] Failed to load state"; then
+        (( attempt == 1 )) && sleep 1
+        continue
+      fi
       echo "[interactive] loaded slot $SLOT"
       return 0
     fi

@@ -13,12 +13,13 @@ Current tracked adapter seeds:
 
 - [`retroarch_stdin_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_stdin_session.sh)
 - [`retroarch_interactive_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_interactive_session.sh)
+- [`prepare_retroarch_mvk141_app.sh`](/home/auro/code/parallel-n64/tools/adapters/prepare_retroarch_mvk141_app.sh)
 
 Current RetroArch adapter notes:
 
 - the adapter refuses to start if any other `retroarch` process is already running
 - the adapter now also holds a runtime lock so concurrent tracked launches cannot race past the singleton check
-- runtime launches are standardized as fullscreen borderless windows for consistent local capture framing
+- runtime launches are standardized for tracked capture; macOS launches are windowed by default with a 1920x1080 target so Computer Use can observe and operate RetroArch without fullscreen Spaces
 - commands are sent serially over the stdin command interface
 - `WAIT <seconds>` is a local adapter pseudo-command and is not forwarded to RetroArch
 - `WAIT_COMMAND_READY <timeout_seconds>` is a local adapter pseudo-command that waits for a `PING OK` reply from RetroArch before tracked command sequences proceed
@@ -30,6 +31,8 @@ Current RetroArch adapter notes:
 - the adapter disables RetroArch widgets and screenshot/save-state notifications in tracked runs so capture bytes remain stable
 - the adapter writes bundle-local core options and points RetroArch at them so tracked runs can force a deterministic local core configuration
 - tracked Paper Mario runs currently force `video_driver = "vulkan"` and `PARALLEL_N64_GFX_PLUGIN_OVERRIDE=parallel` to keep the baseline on the intended ParaLLEl path
+- on macOS, prepare `artifacts/external/RetroArch-MVK141.app` with `tools/adapters/prepare_retroarch_mvk141_app.sh`; the runtime adapters prefer that app copy when it exists, because the stock 1.2.8 MoltenVK bundle cannot run the hi-res Metal argument-buffer path
+- on macOS `--mode off` keeps `PARALLEL_RDP_DISABLE_HIRES_SHADER=1`; `--mode on` defaults `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=1` only when the selected RetroArch binary is the prepared MVK141 app copy
 - the current RetroArch stdin agent command surface includes explicit pause, frame-step, savestate-load-paused, save-task wait, and input-port control commands
 - the current RetroArch stdin command surface also includes `PING`, which is used only as a readiness probe for the adapter
 - tracked Paper Mario flows now use a log-gated startup handoff plus `WAIT_COMMAND_READY` instead of blind startup sleeps

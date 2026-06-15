@@ -47,6 +47,13 @@ bool hires_textures = false;
 unsigned hires_filter = 2;
 string hires_cache_path;
 
+static bool hires_shader_disabled_by_env()
+{
+	if (const char *env = getenv("PARALLEL_RDP_DISABLE_HIRES_SHADER"))
+		return strtol(env, nullptr, 0) != 0;
+	return false;
+}
+
 void process_commands()
 {
 	detail::CommandIngestState state = {};
@@ -415,8 +422,14 @@ bool parallel_create_device(struct retro_vulkan_context *frontend_context, VkIns
                             const VkPhysicalDeviceFeatures *required_features)
 {
 	::RDP::detail::CreateDeviceHooks hooks = {};
+	const bool request_bindless = ::RDP::hires_textures && !::RDP::hires_shader_disabled_by_env();
 	hooks.userdata = &::RDP::context;
-	hooks.context_creation_flags = Vulkan::CONTEXT_CREATION_DISABLE_BINDLESS_BIT;
+	hooks.context_creation_flags = request_bindless ? 0 : Vulkan::CONTEXT_CREATION_DISABLE_BINDLESS_BIT;
+	if (::RDP::hires_textures && log_cb)
+	{
+		log_cb(RETRO_LOG_INFO, "parallel-rdp: %s bindless Vulkan device features for hi-res textures.\n",
+		       request_bindless ? "requesting" : "not requesting");
+	}
 	hooks.init_loader = [](PFN_vkGetInstanceProcAddr proc_addr, void *) -> bool {
 		return Vulkan::Context::init_loader(proc_addr);
 	};

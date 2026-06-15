@@ -1654,25 +1654,25 @@ DECLARE_INSTRUCTION(DDIVU)
 
 DECLARE_INSTRUCTION(ADD)
 {
-   rrd = SE32(rrs32 + rrt32);
+   rrd = SE32((uint32_t) rrs32 + (uint32_t) rrt32);
    ADD_TO_PC(1);
 }
 
 DECLARE_INSTRUCTION(ADDU)
 {
-   rrd = SE32(rrs32 + rrt32);
+   rrd = SE32((uint32_t) rrs32 + (uint32_t) rrt32);
    ADD_TO_PC(1);
 }
 
 DECLARE_INSTRUCTION(SUB)
 {
-   rrd = SE32(rrs32 - rrt32);
+   rrd = SE32((uint32_t) rrs32 - (uint32_t) rrt32);
    ADD_TO_PC(1);
 }
 
 DECLARE_INSTRUCTION(SUBU)
 {
-   rrd = SE32(rrs32 - rrt32);
+   rrd = SE32((uint32_t) rrs32 - (uint32_t) rrt32);
    ADD_TO_PC(1);
 }
 

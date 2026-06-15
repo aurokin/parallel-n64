@@ -1514,16 +1514,16 @@ void update_variables(bool startup)
 #endif
 
 
-   CFG_HLE_GFX = 0;
+   CFG_HLE_GFX = 1;
 
 #ifdef HAVE_THR_AL
-   if (gfx_plugin != GFX_ANGRYLION)
-      CFG_HLE_GFX = 1;
+   if (gfx_plugin == GFX_ANGRYLION)
+      CFG_HLE_GFX = 0;
 #endif
 
 #ifdef HAVE_PARALLEL
-   if (gfx_plugin != GFX_PARALLEL)
-      CFG_HLE_GFX = 1;
+   if (gfx_plugin == GFX_PARALLEL)
+      CFG_HLE_GFX = 0;
 #endif
    CFG_HLE_AUD = 0; /* There is no HLE audio code in libretro audio plugin. */
 

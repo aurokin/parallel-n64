@@ -22,6 +22,23 @@ source of truth for local path assumptions; status detail defers to
   (committed here, also pushed to `aurokin/RetroArch`). See its README for rebuild
   and verification steps.
 
+### metapod macOS RetroArch
+
+- Checkout: `/Users/auro/code/RetroArch`, branch `agent-control`; the worktree is
+  intentionally dirty with macOS/agent-control changes.
+- Source app: `/Applications/RetroArch.app`.
+- Tracked macOS runtime target: `/Users/auro/code/parallel-n64/artifacts/external/RetroArch-MVK141.app`.
+  Build or refresh it with
+  `/Users/auro/code/parallel-n64/tools/adapters/prepare_retroarch_mvk141_app.sh --force`.
+- The prepared app copy replaces only the app-local `MoltenVK.framework` with
+  MoltenVK 1.4.1 and is ad-hoc signed. Runtime adapters prefer it on macOS when
+  it exists; pass `--retroarch-bin /Applications/RetroArch.app/Contents/MacOS/RetroArch`
+  only for explicit vanilla-bundle negative tests.
+- Paper Mario hi-res validation on this host requires
+  `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=1` and the prepared MoltenVK 1.4.1 app.
+  The stock `/Applications/RetroArch.app` bundle carries MoltenVK 1.2.8 and is
+  not a valid hi-res Metal argument-buffer path.
+
 ## GlideN64 Reference Vehicle
 
 - Prebuilt core: `/home/auro/code/cores/mupen64plus_next_libretro.so`

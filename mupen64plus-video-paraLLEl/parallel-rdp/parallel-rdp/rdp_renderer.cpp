@@ -43,6 +43,7 @@
 #include "shaders/slangmosh.hpp"
 #endif
 #include <algorithm>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 
@@ -736,6 +737,14 @@ bool Renderer::init_caps()
 			can_support_minimum_subgroup_size(32),
 			subgroup_size);
 	caps.hires_replacement_shader = features.supports_descriptor_indexing;
+	if (const char *env = getenv("PARALLEL_RDP_DISABLE_HIRES_SHADER"))
+	{
+		if (strtol(env, nullptr, 0) != 0)
+		{
+			LOGW("Disabling hi-res replacement shader path due to PARALLEL_RDP_DISABLE_HIRES_SHADER.\n");
+			caps.hires_replacement_shader = false;
+		}
+	}
 
 	if (caps.hires_replacement_shader && !init_hires_resources(1))
 	{

@@ -52,7 +52,7 @@ acquire_runtime_lock() {
 
 fail_if_retroarch_running() {
   local matches
-  matches="$(ps -C retroarch -o pid=,stat=,cmd= 2>/dev/null | awk '$2 !~ /^Z/ { print }' || true)"
+  matches="$(running_retroarch_processes || true)"
   if [[ -n "$matches" ]]; then
     echo "Another RetroArch process is already running. Stop it before starting a tracked runtime scenario." >&2
     printf '%s\n' "$matches" >&2
@@ -60,12 +60,67 @@ fail_if_retroarch_running() {
   fi
 }
 
+running_retroarch_processes() {
+  ps -axo pid=,stat=,comm=,command= | awk '
+    $2 !~ /^Z/ && $3 ~ /(^|\/)(RetroArch|retroarch)$/ { print }
+  '
+}
+
+is_darwin() {
+  [[ "$(uname -s)" == "Darwin" ]]
+}
+
+default_retroarch_bin() {
+  if is_darwin; then
+    local mvk141_bin="${RETROARCH_MVK141_BIN:-$REPO_ROOT/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch}"
+    if [[ -x "$mvk141_bin" ]]; then
+      echo "$mvk141_bin"
+      return
+    fi
+    if [[ -x "/Applications/RetroArch.app/Contents/MacOS/RetroArch" ]]; then
+      echo "/Applications/RetroArch.app/Contents/MacOS/RetroArch"
+      return
+    fi
+  fi
+  echo "/home/auro/code/RetroArch/retroarch"
+}
+
+default_base_config() {
+  local mac_config="${HOME:-}/code/RetroArch/retroarch.cfg"
+  if is_darwin && [[ -f "$mac_config" ]]; then
+    echo "$mac_config"
+  else
+    echo "/home/auro/code/RetroArch/retroarch.cfg"
+  fi
+}
+
+apply_macos_runtime_defaults() {
+  if ! is_darwin; then
+    return
+  fi
+
+  local mode="${1:-off}"
+  local retroarch_bin="${2:-}"
+  local mvk141_bin="${RETROARCH_MVK141_BIN:-$REPO_ROOT/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch}"
+  local argument_buffers_default="0"
+  if [[ "$mode" == "on" && "$retroarch_bin" == "$mvk141_bin" ]]; then
+    argument_buffers_default="1"
+  fi
+
+  export MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS="${MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-$argument_buffers_default}"
+  if [[ "$mode" != "on" ]]; then
+    export PARALLEL_RDP_DISABLE_HIRES_SHADER="${PARALLEL_RDP_DISABLE_HIRES_SHADER:-1}"
+  fi
+}
+
 BUNDLE_DIR=""
 ROM_PATH=""
 CORE_PATH=""
 MODE="off"
-RETROARCH_BIN="${RETROARCH_BIN:-/home/auro/code/RetroArch/retroarch}"
-BASE_CONFIG="${BASE_CONFIG:-/home/auro/code/RetroArch/retroarch.cfg}"
+DEFAULT_RETROARCH_BIN="$(default_retroarch_bin)"
+DEFAULT_BASE_CONFIG="$(default_base_config)"
+RETROARCH_BIN="${RETROARCH_BIN:-$DEFAULT_RETROARCH_BIN}"
+BASE_CONFIG="${BASE_CONFIG:-$DEFAULT_BASE_CONFIG}"
 STARTUP_WAIT="${STARTUP_WAIT:-8}"
 EXIT_WAIT="${EXIT_WAIT:-10}"
 STEP_FRAME_ACK_TIMEOUT_SECONDS="${STEP_FRAME_ACK_TIMEOUT_SECONDS:-30}"
@@ -164,6 +219,8 @@ if [[ -n "$EXTRA_APPEND_CONFIG" && ! -f "$EXTRA_APPEND_CONFIG" ]]; then
   exit 1
 fi
 
+apply_macos_runtime_defaults "$MODE" "$RETROARCH_BIN"
+
 sha256_file() {
   local path="$1"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -209,6 +266,20 @@ COMMAND_PROOF_LOG="$BUNDLE_DIR/retroarch.command-proofs.log"
 SESSION_ENV="$BUNDLE_DIR/retroarch.session.env"
 RA_LOG="$BUNDLE_DIR/logs/retroarch.log"
 printf '%s\n' "${COMMANDS[@]}" > "$EXPECTED_COMMAND_LOG"
+VIDEO_FULLSCREEN_DEFAULT="true"
+VIDEO_WINDOWED_FULLSCREEN_DEFAULT="true"
+VIDEO_WINDOW_SIZE_CONFIG_DEFAULT="false"
+if is_darwin; then
+  VIDEO_FULLSCREEN_DEFAULT="false"
+  VIDEO_WINDOWED_FULLSCREEN_DEFAULT="false"
+  VIDEO_WINDOW_SIZE_CONFIG_DEFAULT="true"
+fi
+VIDEO_DRIVER_VALUE="${RETROARCH_VIDEO_DRIVER_OVERRIDE:-vulkan}"
+VIDEO_FULLSCREEN_VALUE="${RETROARCH_VIDEO_FULLSCREEN_OVERRIDE:-$VIDEO_FULLSCREEN_DEFAULT}"
+VIDEO_WINDOWED_FULLSCREEN_VALUE="${RETROARCH_VIDEO_WINDOWED_FULLSCREEN_OVERRIDE:-$VIDEO_WINDOWED_FULLSCREEN_DEFAULT}"
+VIDEO_WINDOW_SIZE_CONFIG_VALUE="${RETROARCH_VIDEO_WINDOW_SIZE_CONFIG_OVERRIDE:-$VIDEO_WINDOW_SIZE_CONFIG_DEFAULT}"
+VIDEO_WINDOW_WIDTH_VALUE="${RETROARCH_VIDEO_WINDOW_WIDTH_OVERRIDE:-1920}"
+VIDEO_WINDOW_HEIGHT_VALUE="${RETROARCH_VIDEO_WINDOW_HEIGHT_OVERRIDE:-1080}"
 
 HIRES_VALUE="disabled"
 if [[ "$MODE" == "on" ]]; then
@@ -223,6 +294,7 @@ config_save_on_exit = "false"
 stdin_cmd_enable = "true"
 network_cmd_enable = "false"
 confirm_quit = "false"
+pause_nonactive = "false"
 state_slot = "0"
 savestate_directory = "$BUNDLE_DIR/states"
 savefile_directory = "$BUNDLE_DIR/savefiles"
@@ -232,12 +304,22 @@ menu_enable_widgets = "false"
 notification_show_save_state = "false"
 notification_show_screenshot = "false"
 notification_show_screenshot_flash = "0"
-video_driver = "vulkan"
-video_fullscreen = "true"
-video_windowed_fullscreen = "true"
+video_driver = "$VIDEO_DRIVER_VALUE"
+video_fullscreen = "$VIDEO_FULLSCREEN_VALUE"
+video_windowed_fullscreen = "$VIDEO_WINDOWED_FULLSCREEN_VALUE"
 video_fullscreen_x = "0"
 video_fullscreen_y = "0"
 EOF
+
+if [[ "$VIDEO_WINDOW_SIZE_CONFIG_VALUE" == "true" ]]; then
+  cat >> "$APPEND_CONFIG" <<EOF
+video_window_custom_size_enable = "true"
+video_windowed_position_width = "$VIDEO_WINDOW_WIDTH_VALUE"
+video_windowed_position_height = "$VIDEO_WINDOW_HEIGHT_VALUE"
+video_window_auto_width_max = "$VIDEO_WINDOW_WIDTH_VALUE"
+video_window_auto_height_max = "$VIDEO_WINDOW_HEIGHT_VALUE"
+EOF
+fi
 
 if [[ -n "$EXTRA_APPEND_CONFIG" ]]; then
   cat "$EXTRA_APPEND_CONFIG" >> "$APPEND_CONFIG"
@@ -248,18 +330,29 @@ if [[ -n "$CORE_OPTIONS_TEMPLATE" ]]; then
 else
   # Experiment overrides: default to the canonical runtime config (4x, native
   # texrect on); scaling/sampler experiments sweep these per-session.
+  GFXPLUGIN_VALUE="${PARALLEL_N64_GFX_PLUGIN_OVERRIDE:-${PARALLEL_N64_GFXPLUGIN_OVERRIDE:-parallel}}"
   UPSCALING_VALUE="${PARALLEL_RDP_UPSCALING_OVERRIDE:-4x}"
   NATIVE_TEXRECT_VALUE="${PARALLEL_RDP_NATIVE_TEXRECT_OVERRIDE:-enabled}"
   HIRES_FILTER_VALUE="${PARALLEL_RDP_HIRES_FILTER_OVERRIDE:-trilinear}"
+  CPUCORE_VALUE="${PARALLEL_N64_CPUCORE_OVERRIDE:-}"
+  RSPPLUGIN_VALUE="${PARALLEL_N64_RSPPLUGIN_OVERRIDE:-}"
+  if [[ -n "$CPUCORE_VALUE" ]]; then
+    printf 'parallel-n64-cpucore = "%s"\n' "$CPUCORE_VALUE" > "$CORE_OPTIONS_FILE"
+  else
+    : > "$CORE_OPTIONS_FILE"
+  fi
 
-  cat > "$CORE_OPTIONS_FILE" <<EOF
-parallel-n64-gfxplugin = "parallel"
+  cat >> "$CORE_OPTIONS_FILE" <<EOF
+parallel-n64-gfxplugin = "$GFXPLUGIN_VALUE"
 parallel-n64-parallel-rdp-upscaling = "$UPSCALING_VALUE"
 parallel-n64-parallel-rdp-hirestex = "$HIRES_VALUE"
 parallel-n64-parallel-rdp-hirestex-filter = "$HIRES_FILTER_VALUE"
 parallel-n64-parallel-rdp-native-tex-rect = "$NATIVE_TEXRECT_VALUE"
 parallel-n64-parallel-rdp-native-texture-lod = "enabled"
 EOF
+  if [[ -n "$RSPPLUGIN_VALUE" ]]; then
+    printf 'parallel-n64-rspplugin = "%s"\n' "$RSPPLUGIN_VALUE" >> "$CORE_OPTIONS_FILE"
+  fi
 fi
 
 BASE_CONFIG_SHA256="$(sha256_file "$BASE_CONFIG")"
@@ -521,6 +614,8 @@ ROM_SHA256=$ROM_SHA256
 CORE_SHA256=$CORE_SHA256
 HIRES_CACHE_PATH=$HIRES_CACHE_PATH
 HIRES_CACHE_SHA256=$HIRES_CACHE_SHA256
+MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=${MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-}
+PARALLEL_RDP_DISABLE_HIRES_SHADER=${PARALLEL_RDP_DISABLE_HIRES_SHADER:-}
 COMMAND_SIGNATURE=$COMMAND_SIGNATURE
 MODE=$MODE
 STARTUP_WAIT=$STARTUP_WAIT

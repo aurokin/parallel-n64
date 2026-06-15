@@ -14,6 +14,7 @@ Current tracked adapter seeds:
 - [`retroarch_stdin_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_stdin_session.sh)
 - [`retroarch_interactive_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_interactive_session.sh)
 - [`prepare_retroarch_mvk141_app.sh`](/home/auro/code/parallel-n64/tools/adapters/prepare_retroarch_mvk141_app.sh)
+- [`promote_interactive_state.py`](/home/auro/code/parallel-n64/tools/adapters/promote_interactive_state.py)
 
 Current RetroArch adapter notes:
 
@@ -31,9 +32,11 @@ Current RetroArch adapter notes:
 - the adapter disables RetroArch widgets and screenshot/save-state notifications in tracked runs so capture bytes remain stable
 - the adapter writes bundle-local core options and points RetroArch at them so tracked runs can force a deterministic local core configuration
 - tracked Paper Mario runs currently force `video_driver = "vulkan"` and `PARALLEL_N64_GFX_PLUGIN_OVERRIDE=parallel` to keep the baseline on the intended ParaLLEl path
-- on macOS, prepare `artifacts/external/RetroArch-MVK141.app` with `tools/adapters/prepare_retroarch_mvk141_app.sh`; the runtime adapters prefer that app copy when it exists, because the stock 1.2.8 MoltenVK bundle cannot run the hi-res Metal argument-buffer path
+- on macOS, prepare `artifacts/external/RetroArch-MVK141.app` with `tools/adapters/prepare_retroarch_mvk141_app.sh`; for `--mode on`, the runtime adapters prefer that app copy when it exists unless `--retroarch-bin` is passed explicitly, because the stock 1.2.8 MoltenVK bundle cannot run the hi-res Metal argument-buffer path
+- for current Paper Mario hi-res gameplay evidence, export `PARALLEL_RDP_HIRES_CACHE_PATH=/Users/auro/code/parallel-n64/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb` before launch; the metapod host config currently does not set that package path
 - on macOS `--mode off` keeps `PARALLEL_RDP_DISABLE_HIRES_SHADER=1`; `--mode on` defaults `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=1` only when the selected RetroArch binary is the prepared MVK141 app copy
 - the current RetroArch stdin agent command surface includes explicit pause, frame-step, savestate-load-paused, save-task wait, and input-port control commands
+- pause via `SET_PAUSE ON|OFF|TOGGLE`; use `ON` before frame-stepped agent play
 - the current RetroArch stdin command surface also includes `PING`, which is used only as a readiness probe for the adapter
 - tracked Paper Mario flows now use a log-gated startup handoff plus `WAIT_COMMAND_READY` instead of blind startup sleeps
 - when a core does not publish a libretro memory map, the local RetroArch build now falls back to `RETRO_MEMORY_SYSTEM_RAM` for `READ_CORE_MEMORY`
@@ -42,11 +45,15 @@ Current RetroArch adapter notes:
 Interactive agent-play adapter notes (`retroarch_interactive_session.sh`):
 
 - `start` keeps one session alive across agent turns: RetroArch runs in its own setsid process group, holds the same runtime flock as the batch adapter, and self-terminates after `--ttl-seconds` (default 3600) so a forgotten session can never become a daemon
+- `start --savefile-source PATH` stages an explicit `.srm` or savefile directory into the bundle-local savefile directory before launch; use this for real gameplay file-select/loading tests
 - `send`/`input`/`screenshot`/`status`/`save-slot`/`load-slot` talk to the live session over the bundle FIFO; `stop` QUITs and falls back to killing the process group
 - the game runs in REAL TIME between agent commands; for deterministic play keep the session paused and use `input --frames N` (TAS-style: input held for exactly N stepped frames, proven bit-identical on replay), reserving `--hold-seconds` for menus/title screens
+- when using Computer Use on macOS/metapod, attach to the exact prepared app path (`/Users/auro/code/parallel-n64/artifacts/external/RetroArch-MVK141.app`) instead of the app name `RetroArch`; the generic name can start the stock `/Applications/RetroArch.app` bundle and violate the singleton assumption
+- RetroPad mask bits include `A=0x100`, `B=0x1`, `START=0x8`, d-pad `UP=0x10 DOWN=0x20 LEFT=0x40 RIGHT=0x80`, `L=0x400`, `R=0x800`, `Z/L2=0x1000`, `R2=0x2000`, `L3=0x4000`, `R3=0x8000`; analog values are raw signed 16-bit values
 - `save-slot` tracks the active slot locally (STATE_SLOT_PLUS/MINUS are silent) and verifies the save log names the expected `.state<N>` file
 - screenshots are written asynchronously by RetroArch; the adapter waits for a non-empty, size-stable capture file before reporting its path
 - state loads can transiently fail while another frontend task is in flight; `load-slot` retries once before failing loudly
+- use `promote_interactive_state.py` to copy a scratch slot into a named durable bundle under `artifacts/durable-states/`; the promoted state is normalized to slot 0 and carries a manifest with ROM/core/config/pack hashes, logs, capture hash, source slot, and lineage notes
 
 Adapters should translate between systems.
 They should not become the main source of truth for renderer correctness or scene semantics.

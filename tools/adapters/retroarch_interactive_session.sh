@@ -36,18 +36,21 @@ start options:
   --core-options-template PATH  Use PATH as core options instead of parallel-n64 defaults
   --extra-append-config PATH    Extra appendconfig lines (last value wins)
   --state-source DIR            Copy DIR's contents into the bundle states dir
+  --savefile-source PATH        Copy a .srm file or savefile directory into the bundle savefiles dir
   --ttl-seconds SEC             Hard session lifetime; timeout kills RetroArch (default: 3600)
   --retroarch-bin PATH          RetroArch executable
   --base-config PATH            Base RetroArch config
 
 RetroPad mask bits for input: B=0x1 Y=0x2 SELECT=0x4 START=0x8 UP=0x10
 DOWN=0x20 LEFT=0x40 RIGHT=0x80 A=0x100 X=0x200 L=0x400 R=0x800
+Z/L2=0x1000 R2=0x2000 L3=0x4000 R3=0x8000
 
 Agent-play note: the game runs in REAL TIME while you think. For
 deterministic play, keep the session paused and use `input --frames N`
 (TAS-style: input held for exactly N stepped frames, session stays
-paused). `--hold-seconds` is wall-clock and only suited to menus and
-title screens.
+paused). Pause with `send --command "SET_PAUSE ON"`; the command accepts
+ON, OFF, or TOGGLE. `--hold-seconds` is wall-clock and only suited to
+menus and title screens.
 EOF
 }
 
@@ -122,6 +125,23 @@ default_retroarch_bin() {
     fi
   fi
   echo "/home/auro/code/RetroArch/retroarch"
+}
+
+prefer_macos_hires_retroarch_bin() {
+  local mode="${1:-off}"
+  local retroarch_bin="${2:-}"
+  local explicit="${3:-0}"
+  if ! is_darwin || [[ "$mode" != "on" || "$explicit" == "1" ]]; then
+    echo "$retroarch_bin"
+    return
+  fi
+
+  local mvk141_bin="${RETROARCH_MVK141_BIN:-$REPO_ROOT/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch}"
+  if [[ -x "$mvk141_bin" ]]; then
+    echo "$mvk141_bin"
+    return
+  fi
+  echo "$retroarch_bin"
 }
 
 default_base_config() {
@@ -291,7 +311,7 @@ cmd_start() {
   local MODE="off" RETROARCH_BIN="${RETROARCH_BIN:-$DEFAULT_RETROARCH_BIN}"
   local BASE_CONFIG="${BASE_CONFIG:-$DEFAULT_BASE_CONFIG}"
   local ROM_PATH="" CORE_PATH="" CORE_OPTIONS_TEMPLATE="" EXTRA_APPEND_CONFIG=""
-  local STATE_SOURCE="" TTL_SECONDS=3600
+  local STATE_SOURCE="" SAVEFILE_SOURCE="" TTL_SECONDS=3600 RETROARCH_BIN_EXPLICIT=0
 
   while (($#)); do
     case "$1" in
@@ -302,8 +322,9 @@ cmd_start() {
       --core-options-template) shift; CORE_OPTIONS_TEMPLATE="${1:-}" ;;
       --extra-append-config) shift; EXTRA_APPEND_CONFIG="${1:-}" ;;
       --state-source) shift; STATE_SOURCE="${1:-}" ;;
+      --savefile-source) shift; SAVEFILE_SOURCE="${1:-}" ;;
       --ttl-seconds) shift; TTL_SECONDS="${1:-}" ;;
-      --retroarch-bin) shift; RETROARCH_BIN="${1:-}" ;;
+      --retroarch-bin) shift; RETROARCH_BIN="${1:-}"; RETROARCH_BIN_EXPLICIT=1 ;;
       --base-config) shift; BASE_CONFIG="${1:-}" ;;
       *) echo "Unknown start option: $1" >&2; exit 2 ;;
     esac
@@ -314,6 +335,7 @@ cmd_start() {
     echo "start requires --bundle-dir, --rom, and --core." >&2
     exit 2
   fi
+  RETROARCH_BIN="$(prefer_macos_hires_retroarch_bin "$MODE" "$RETROARCH_BIN" "$RETROARCH_BIN_EXPLICIT")"
   for f in "$ROM_PATH" "$CORE_PATH" "$BASE_CONFIG"; do
     if [[ ! -f "$f" ]]; then
       echo "Not found: $f" >&2
@@ -353,6 +375,23 @@ cmd_start() {
       cp -r "$STATE_SOURCE"/. "$BUNDLE_DIR/states/$(basename "$STATE_SOURCE")/"
     else
       cp -r "$STATE_SOURCE"/. "$BUNDLE_DIR/states/"
+    fi
+  fi
+  if [[ -n "$SAVEFILE_SOURCE" ]]; then
+    if [[ -f "$SAVEFILE_SOURCE" ]]; then
+      mkdir -p "$BUNDLE_DIR/savefiles/ParaLLEl N64"
+      cp "$SAVEFILE_SOURCE" "$BUNDLE_DIR/savefiles/ParaLLEl N64/$(basename "${ROM_PATH%.*}").srm"
+    elif [[ -d "$SAVEFILE_SOURCE" ]]; then
+      if [[ "$(basename "$SAVEFILE_SOURCE")" == "ParaLLEl N64" ]] &&
+          find "$SAVEFILE_SOURCE" -maxdepth 1 -type f -name '*.srm' -print -quit | rg -q .; then
+        mkdir -p "$BUNDLE_DIR/savefiles/$(basename "$SAVEFILE_SOURCE")"
+        cp -r "$SAVEFILE_SOURCE"/. "$BUNDLE_DIR/savefiles/$(basename "$SAVEFILE_SOURCE")/"
+      else
+        cp -r "$SAVEFILE_SOURCE"/. "$BUNDLE_DIR/savefiles/"
+      fi
+    else
+      echo "Savefile source not found: $SAVEFILE_SOURCE" >&2
+      exit 1
     fi
   fi
 
@@ -489,6 +528,8 @@ ROM_SHA256=$(sha256_file "$ROM_PATH")
 CORE_SHA256=$(sha256_file "$CORE_PATH")
 HIRES_CACHE_PATH=$HIRES_CACHE_PATH
 HIRES_CACHE_SHA256=$HIRES_CACHE_SHA256
+SAVEFILE_SOURCE=$SAVEFILE_SOURCE
+SAVEFILE_SOURCE_SHA256=$(if [[ -n "$SAVEFILE_SOURCE" && -f "$SAVEFILE_SOURCE" ]]; then sha256_file "$SAVEFILE_SOURCE"; fi)
 MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=${MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-}
 PARALLEL_RDP_DISABLE_HIRES_SHADER=${PARALLEL_RDP_DISABLE_HIRES_SHADER:-}
 MODE=$MODE

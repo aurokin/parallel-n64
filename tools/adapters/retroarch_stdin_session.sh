@@ -85,6 +85,23 @@ default_retroarch_bin() {
   echo "/home/auro/code/RetroArch/retroarch"
 }
 
+prefer_macos_hires_retroarch_bin() {
+  local mode="${1:-off}"
+  local retroarch_bin="${2:-}"
+  local explicit="${3:-0}"
+  if ! is_darwin || [[ "$mode" != "on" || "$explicit" == "1" ]]; then
+    echo "$retroarch_bin"
+    return
+  fi
+
+  local mvk141_bin="${RETROARCH_MVK141_BIN:-$REPO_ROOT/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch}"
+  if [[ -x "$mvk141_bin" ]]; then
+    echo "$mvk141_bin"
+    return
+  fi
+  echo "$retroarch_bin"
+}
+
 default_base_config() {
   local mac_config="${HOME:-}/code/RetroArch/retroarch.cfg"
   if is_darwin && [[ -f "$mac_config" ]]; then
@@ -121,6 +138,7 @@ DEFAULT_RETROARCH_BIN="$(default_retroarch_bin)"
 DEFAULT_BASE_CONFIG="$(default_base_config)"
 RETROARCH_BIN="${RETROARCH_BIN:-$DEFAULT_RETROARCH_BIN}"
 BASE_CONFIG="${BASE_CONFIG:-$DEFAULT_BASE_CONFIG}"
+RETROARCH_BIN_EXPLICIT=0
 STARTUP_WAIT="${STARTUP_WAIT:-8}"
 EXIT_WAIT="${EXIT_WAIT:-10}"
 STEP_FRAME_ACK_TIMEOUT_SECONDS="${STEP_FRAME_ACK_TIMEOUT_SECONDS:-30}"
@@ -150,6 +168,7 @@ while (($#)); do
     --retroarch-bin)
       shift
       RETROARCH_BIN="${1:-}"
+      RETROARCH_BIN_EXPLICIT=1
       ;;
     --base-config)
       shift
@@ -188,6 +207,8 @@ if [[ -z "$BUNDLE_DIR" || -z "$ROM_PATH" || -z "$CORE_PATH" ]]; then
   echo "--bundle-dir, --rom, and --core are required." >&2
   exit 2
 fi
+
+RETROARCH_BIN="$(prefer_macos_hires_retroarch_bin "$MODE" "$RETROARCH_BIN" "$RETROARCH_BIN_EXPLICIT")"
 
 if [[ ! -x "$RETROARCH_BIN" ]]; then
   echo "RetroArch binary not executable: $RETROARCH_BIN" >&2

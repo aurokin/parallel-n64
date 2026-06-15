@@ -2276,3 +2276,31 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   forensics-only mode (never user-facing); the harvest harness
   (parallel-n64-lab sessions/wedge-hunt-p1.sh) stays ready to capture
   thread stacks in one run if the signature ever recurs.
+
+## 2026-06-15 macOS agent-play readiness: first controllable Paper Mario state
+
+- macOS/metapod must use the prepared MVK141 bundle for hi-res gameplay:
+  `/Users/auro/code/parallel-n64/artifacts/external/RetroArch-MVK141.app`.
+  The host config still exports stock `/Applications/RetroArch.app`, so the
+  runtime adapters now prefer MVK141 for `--mode on` unless `--retroarch-bin`
+  is passed explicitly. A stock-bundle control run produced black captures and
+  repeated MoltenVK compute-pipeline failures.
+- Computer Use is useful as the live visual loop, but attach it to the exact
+  prepared `.app` path. Asking for generic `RetroArch` can launch the stock app
+  and violate the one-emulator-at-a-time assumption.
+- First real in-game control proof reached Peach's Castle hall from title/file
+  select on macOS with Paper Mario hi-res enabled. The durable settled state is
+  `artifacts/durable-states/paper-mario-peachs-castle-first-control-settled-20260615`.
+  Load recipe: `load-slot --slot 0 --paused`, settle 3 stepped frames, then
+  capture or apply input.
+- Evidence bundle:
+  `artifacts/local-runs/play-control-promoted-reload-mvk141-20260615-0916`.
+  Settle replay proof: two load+settle3 captures sha256
+  `4f00453a73287ef2d6540d9f04ee04bbe14bd03d288c00da3206fda4a3600929`.
+  Movement replay proof: load+settle3, hold right analog `32767 0 0 0` for
+  90 stepped frames twice; both captures sha256
+  `6efc40be99613f641116b0d9696789089250b36fc953499fac8d12472cd71907`.
+- For this host's current Paper Mario hi-res gameplay evidence, export
+  `PARALLEL_RDP_HIRES_CACHE_PATH=/Users/auro/code/parallel-n64/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb`
+  before launching tracked sessions; the host config does not currently set
+  the package path.

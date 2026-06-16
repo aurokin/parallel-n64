@@ -101,7 +101,7 @@ uint32_t jump_to_address;
          cp0_update_count(); \
       } \
       last_addr = PC->addr; \
-      if (next_interrupt <= g_cp0_regs[CP0_COUNT_REG]) gen_interrupt(); \
+      if ((int)(g_cp0_regs[CP0_COUNT_REG] - next_interrupt) >= 0) gen_interrupt(); \
    } \
    static void name##_OUT(void) \
    { \
@@ -132,7 +132,7 @@ uint32_t jump_to_address;
          cp0_update_count(); \
       } \
       last_addr = PC->addr; \
-      if (next_interrupt <= g_cp0_regs[CP0_COUNT_REG]) gen_interrupt(); \
+      if ((int)(g_cp0_regs[CP0_COUNT_REG] - next_interrupt) >= 0) gen_interrupt(); \
    } \
    static void name##_IDLE(void) \
    { \

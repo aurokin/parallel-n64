@@ -794,7 +794,7 @@ DECLARE_INSTRUCTION(MTC0)
     case CP0_COUNT_REG:
       cp0_update_count();
       interrupt_unsafe_state = 1;
-      if (next_interrupt <= g_cp0_regs[CP0_COUNT_REG]) gen_interrupt();
+      if ((int)(g_cp0_regs[CP0_COUNT_REG] - next_interrupt) >= 0) gen_interrupt();
       interrupt_unsafe_state = 0;
       translate_event_queue(rrt32);
       g_cp0_regs[CP0_COUNT_REG] = rrt32;
@@ -822,7 +822,7 @@ DECLARE_INSTRUCTION(MTC0)
       ADD_TO_PC(1);
       check_interrupt();
       interrupt_unsafe_state = 1;
-      if (next_interrupt <= g_cp0_regs[CP0_COUNT_REG]) gen_interrupt();
+      if ((int)(g_cp0_regs[CP0_COUNT_REG] - next_interrupt) >= 0) gen_interrupt();
       interrupt_unsafe_state = 0;
       ADD_TO_PC(-1);
       break;
@@ -2182,6 +2182,6 @@ DECLARE_INSTRUCTION(ERET)
    llbit = 0;
    check_interrupt();
    last_addr = PCADDR;
-   if (next_interrupt <= g_cp0_regs[CP0_COUNT_REG]) gen_interrupt();
+   if ((int)(g_cp0_regs[CP0_COUNT_REG] - next_interrupt) >= 0) gen_interrupt();
 }
 

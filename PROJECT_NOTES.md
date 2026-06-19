@@ -24,6 +24,10 @@ This restart should not behave like a normal feature branch. It should behave li
 - Make the feature stable enough for real gameplay, not just isolated demos.
 - Build the tooling needed for autonomous and semi-autonomous debugging, including save-state-driven testing and repeatable scene capture.
 
+## Gameplay/TAS Repo Boundary
+
+Long playthrough work, Paper Mario route notes, TAS macro experiments, and durable gameplay state indexes now live in `parallel-n64-lab` (`/Users/auro/code/parallel-n64-lab` on metapod). This repo keeps the renderer/core work, fixture contracts, and low-level RetroArch adapter bridge.
+
 ## Non-Negotiable Constraints
 
 - If the new support is disabled, behavior should remain as close as possible to the standard stable renderer path.
@@ -152,6 +156,10 @@ If we want agents to make repeated renderer changes safely, we need deterministi
 - reproducible
 - scoped to the feature area
 - understandable when it fails
+
+## Runtime Playthrough Notes
+
+Moved to `parallel-n64-lab`: see `docs/AGENT_GAMEPLAY.md`, `docs/DURABLE_STATES.md`, and `docs/games/paper-mario/ROUTE_NOTES.md` in that repo.
 
 ## Suggested Project Shape
 

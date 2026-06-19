@@ -12,6 +12,7 @@
 
 - [WORKSPACE_PATHS.md](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md) — machine-specific paths (source of truth)
 - [EMU_TESTING.md](/home/auro/code/parallel-n64/docs/EMU_TESTING.md) — test tiers and profiles
+- Gameplay/TAS docs and durable gameplay-state indexes live in `parallel-n64-lab` (`/Users/auro/code/parallel-n64-lab` on metapod). Keep this repo focused on renderer/core validation and the low-level RetroArch adapter bridge.
 - [N64_EXACT_KEY_DELTA_SHEET.md](/home/auro/code/parallel-n64/docs/N64_EXACT_KEY_DELTA_SHEET.md) — N64 identity-field landscape behind the identity decision (2026-03 derivation record; action items superseded)
 - [PAPER_MARIO_SIGNAL_TABLE.md](/home/auro/code/parallel-n64/docs/PAPER_MARIO_SIGNAL_TABLE.md) — Paper Mario RAM signal reference (rationale for the semantic trace addresses)
 - [HIRES_REFERENCE_NOTES.md](/home/auro/code/parallel-n64/docs/HIRES_REFERENCE_NOTES.md) — how other emulators do hi-res replacement (cross-emulator survey)

@@ -5,7 +5,6 @@ This directory is for wrapper glue that connects this repo to external projects 
 Expected adapter targets include:
 
 - RetroArch command/control helpers
-- Paper Mario debug/instrumentation helpers
 - local environment discovery
 - artifact collection and normalization
 
@@ -15,6 +14,9 @@ Current tracked adapter seeds:
 - [`retroarch_interactive_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_interactive_session.sh)
 - [`prepare_retroarch_mvk141_app.sh`](/home/auro/code/parallel-n64/tools/adapters/prepare_retroarch_mvk141_app.sh)
 - [`promote_interactive_state.py`](/home/auro/code/parallel-n64/tools/adapters/promote_interactive_state.py)
+
+Higher-level TAS step/capture loops, Paper Mario probes, gameplay macros, and
+durable gameplay state indexes live in `parallel-n64-lab`.
 
 Current RetroArch adapter notes:
 
@@ -48,12 +50,13 @@ Interactive agent-play adapter notes (`retroarch_interactive_session.sh`):
 - `start --savefile-source PATH` stages an explicit `.srm` or savefile directory into the bundle-local savefile directory before launch; use this for real gameplay file-select/loading tests
 - `send`/`input`/`screenshot`/`status`/`save-slot`/`load-slot` talk to the live session over the bundle FIFO; `stop` QUITs and falls back to killing the process group
 - the game runs in REAL TIME between agent commands; for deterministic play keep the session paused and use `input --frames N` (TAS-style: input held for exactly N stepped frames, proven bit-identical on replay), reserving `--hold-seconds` for menus/title screens
-- when using Computer Use on macOS/metapod, attach to the exact prepared app path (`/Users/auro/code/parallel-n64/artifacts/external/RetroArch-MVK141.app`) instead of the app name `RetroArch`; the generic name can start the stock `/Applications/RetroArch.app` bundle and violate the singleton assumption
 - RetroPad mask bits include `A=0x100`, `B=0x1`, `START=0x8`, d-pad `UP=0x10 DOWN=0x20 LEFT=0x40 RIGHT=0x80`, `L=0x400`, `R=0x800`, `Z/L2=0x1000`, `R2=0x2000`, `L3=0x4000`, `R3=0x8000`; analog values are raw signed 16-bit values
 - `save-slot` tracks the active slot locally (STATE_SLOT_PLUS/MINUS are silent) and verifies the save log names the expected `.state<N>` file
 - screenshots are written asynchronously by RetroArch; the adapter waits for a non-empty, size-stable capture file before reporting its path
 - state loads can transiently fail while another frontend task is in flight; `load-slot` retries once before failing loudly
-- use `promote_interactive_state.py` to copy a scratch slot into a named durable bundle under `artifacts/durable-states/`; the promoted state is normalized to slot 0 and carries a manifest with ROM/core/config/pack hashes, logs, capture hash, source slot, and lineage notes
+- use `promote_interactive_state.py` only for legacy/manual promotion flows; new
+  gameplay durable states should be indexed and documented from
+  `parallel-n64-lab`.
 
 Adapters should translate between systems.
 They should not become the main source of truth for renderer correctness or scene semantics.

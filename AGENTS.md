@@ -63,6 +63,7 @@ Paper Mario is the strict validation title until the first major milestone is st
 - Prefer explicit classification: baseline issue, hi-res issue, scaling issue, or tooling/fixture issue
 - Keep machine-specific path assumptions aligned with [WORKSPACE_PATHS.md](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md)
 - Emulator-facing runtime tests run at `4x` internal scale, one at a time; they are heavy and occupy the display
+- Gameplay/TAS/state-minting work lives in `parallel-n64-lab` (`/Users/auro/code/parallel-n64-lab` on metapod). This repo owns the low-level RetroArch adapter bridge and renderer/core validation surface; keep long playthrough notes, durable gameplay state indexes, macro libraries, and exploratory evidence in the lab repo.
 
 ## Commit Attribution
 AI commits must include a `Co-Authored-By` line identifying the actual agent and provider, e.g.:

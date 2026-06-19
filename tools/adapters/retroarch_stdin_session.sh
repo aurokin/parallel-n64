@@ -273,7 +273,17 @@ COMMAND_SIGNATURE="$(printf '%s\n' "${COMMANDS[@]}" | sha256_stream)"
 acquire_runtime_lock
 fail_if_retroarch_running
 
-mkdir -p "$BUNDLE_DIR"/captures "$BUNDLE_DIR"/logs "$BUNDLE_DIR"/traces "$BUNDLE_DIR"/states "$BUNDLE_DIR"/savefiles
+mkdir -p \
+  "$BUNDLE_DIR"/captures \
+  "$BUNDLE_DIR"/logs \
+  "$BUNDLE_DIR"/playlists/builtin \
+  "$BUNDLE_DIR"/playlists/logs \
+  "$BUNDLE_DIR"/records \
+  "$BUNDLE_DIR"/records_config \
+  "$BUNDLE_DIR"/traces \
+  "$BUNDLE_DIR"/states \
+  "$BUNDLE_DIR"/savefiles \
+  "$BUNDLE_DIR"/system
 
 APPEND_CONFIG="$BUNDLE_DIR/retroarch.append.cfg"
 CORE_OPTIONS_FILE="$BUNDLE_DIR/core-options.opt"
@@ -320,6 +330,17 @@ state_slot = "0"
 savestate_directory = "$BUNDLE_DIR/states"
 savefile_directory = "$BUNDLE_DIR/savefiles"
 screenshot_directory = "$BUNDLE_DIR/captures"
+playlist_directory = "$BUNDLE_DIR/playlists"
+content_favorites_path = "$BUNDLE_DIR/playlists/builtin/content_favorites.lpl"
+content_history_path = "$BUNDLE_DIR/playlists/builtin/content_history.lpl"
+content_image_history_path = "$BUNDLE_DIR/playlists/builtin/content_image_history.lpl"
+content_music_history_path = "$BUNDLE_DIR/playlists/builtin/content_music_history.lpl"
+content_video_history_path = "$BUNDLE_DIR/playlists/builtin/content_video_history.lpl"
+runtime_log_directory = "$BUNDLE_DIR/playlists/logs"
+system_directory = "$BUNDLE_DIR/system"
+log_dir = "$BUNDLE_DIR/logs"
+recording_config_directory = "$BUNDLE_DIR/records_config"
+recording_output_directory = "$BUNDLE_DIR/records"
 savestate_thumbnail_enable = "false"
 menu_enable_widgets = "false"
 notification_show_save_state = "false"

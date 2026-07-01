@@ -355,6 +355,13 @@ EOF
 
 if [[ "$VIDEO_WINDOW_SIZE_CONFIG_VALUE" == "true" ]]; then
   cat >> "$APPEND_CONFIG" <<EOF
+aspect_ratio_index = "22"
+video_aspect_ratio_auto = "false"
+video_force_aspect = "true"
+custom_viewport_width = "1440"
+custom_viewport_height = "1080"
+custom_viewport_x = "240"
+custom_viewport_y = "0"
 video_window_custom_size_enable = "true"
 video_windowed_position_width = "$VIDEO_WINDOW_WIDTH_VALUE"
 video_windowed_position_height = "$VIDEO_WINDOW_HEIGHT_VALUE"

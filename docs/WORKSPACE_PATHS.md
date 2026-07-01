@@ -38,6 +38,10 @@ source of truth for local path assumptions; status detail defers to
   `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=1` and the prepared MoltenVK 1.4.1 app.
   The stock `/Applications/RetroArch.app` bundle carries MoltenVK 1.2.8 and is
   not a valid hi-res Metal argument-buffer path.
+- `--mode on` sessions must also export a staged `.phrb` path, for example:
+  `PARALLEL_RDP_HIRES_CACHE_PATH=/Users/auro/code/parallel-n64/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb`.
+  Without that package env, the core can enable the hi-res option but render
+  native textures only.
 
 ## GlideN64 Reference Vehicle
 

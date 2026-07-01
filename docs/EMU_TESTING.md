@@ -51,6 +51,11 @@ It does not compare captures and does not assert exact entry/descriptor counts.
 Capture digests remain valid only for feature-off baseline parity and remint
 authority verification.
 
+For manual tester/gameplay sessions, prefer hi-res mode whenever the host has a
+valid pack and graphics path. Feature-off sessions remain important for the
+protected baseline property and explicit off-vs-on comparisons, but day-to-day
+Paper Mario validation should exercise the hi-res path when possible.
+
 Override the package under test with `EMU_RUNTIME_PM64_FULL_CACHE_PHRB`; keep the
 evidence bundles with `EMU_RUNTIME_PM64_FULL_CACHE_BUNDLE_ROOT`.
 

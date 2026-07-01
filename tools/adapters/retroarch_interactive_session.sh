@@ -459,6 +459,13 @@ video_fullscreen_y = "0"
 EOF
   if [[ "$VIDEO_WINDOW_SIZE_CONFIG_VALUE" == "true" ]]; then
     cat >> "$APPEND_CONFIG" <<EOF
+aspect_ratio_index = "22"
+video_aspect_ratio_auto = "false"
+video_force_aspect = "true"
+custom_viewport_width = "1440"
+custom_viewport_height = "1080"
+custom_viewport_x = "240"
+custom_viewport_y = "0"
 video_window_custom_size_enable = "true"
 video_windowed_position_width = "$VIDEO_WINDOW_WIDTH_VALUE"
 video_windowed_position_height = "$VIDEO_WINDOW_HEIGHT_VALUE"
@@ -505,6 +512,16 @@ EOF
   CORE_OPTIONS_FILE_SHA256="$(sha256_file "$CORE_OPTIONS_LAUNCH_FILE")"
   HIRES_CACHE_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-}"
   HIRES_CACHE_SHA256="${PARALLEL_RDP_HIRES_CACHE_SHA256:-}"
+  if [[ "$MODE" == "on" ]]; then
+    if [[ -z "$HIRES_CACHE_PATH" ]]; then
+      echo "--mode on requires PARALLEL_RDP_HIRES_CACHE_PATH to point at a staged .phrb package." >&2
+      exit 2
+    fi
+    if [[ ! -f "$HIRES_CACHE_PATH" ]]; then
+      echo "PARALLEL_RDP_HIRES_CACHE_PATH does not exist: $HIRES_CACHE_PATH" >&2
+      exit 2
+    fi
+  fi
   if [[ -n "$HIRES_CACHE_PATH" && -f "$HIRES_CACHE_PATH" && -z "$HIRES_CACHE_SHA256" ]]; then
     HIRES_CACHE_SHA256="$(sha256_file "$HIRES_CACHE_PATH")"
   fi

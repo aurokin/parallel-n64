@@ -2390,3 +2390,19 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   Lab suite on metapod: 83/83, tsc clean, node v24.16.0 / pnpm 11.7.0. The
   TAS runtime can now run on metapod for battle-menu repro (#40) and macro
   promotion; metapod repos updated to head + dylib rebuilt this session.
+- #40 (battle Abilities/help-box checkerboard) CLOSED pack-content defect,
+  renderer conformant: the panel body is an I4 16x16 texrect (2cycle,
+  tlut=0, key 00000000fbebebeb) whose pack replacement is a 200x200
+  transparency-grid artifact — 2x2 cells, alpha 0/255, black RGB in the
+  transparent cells — while the native weave is near-opaque fine grain.
+  GLideN64 source oracle (sanctioned): identical checksum key for
+  I4/tlut=0, the shipped .hts is an old-version cache (header 0x40a20000)
+  matched checksum-only with no format-size check, and replacement alpha
+  feeds the combiner verbatim (txHiresFullAlphaChannel is build-time-only
+  and skips fmt=4) — GLideN64 would composite the same checkerboard from
+  this pack file. Strict audit of all 15,059 assets found exactly one
+  transparency-grid entry: fbebebeb. Curation slate: drop
+  legacy-low32-fbebebeb-fs0 in the same pass as the d7f736aa slate
+  collision (ADR-0015 lane). Repro'd cross-host from the metapod TAS
+  scratch state with input replay (confirm x3 frames -> Abilities menu);
+  evidence: artifacts/experiments/nok03-abilities-{on,off}-260701.

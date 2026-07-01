@@ -1609,7 +1609,7 @@ void update_variables(bool startup)
          astick_snap_active = 0;
    }
 
-   var.key = "parallel-n64-astick-snap-angle";
+   var.key = "parallel-n64-astick-snap-max-angle";
    var.value = NULL;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)

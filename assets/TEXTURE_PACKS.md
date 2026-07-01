@@ -45,7 +45,8 @@ packs).
 
 | Source pack | Package | Status |
 |-------------|---------|--------|
-| Paper Mario Redone HD | `artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb` (405MB, zero-config compat, built 2026-06-10) | **ACTIVE** — referenced by all Paper Mario fixtures |
+| Paper Mario Redone HD | `artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb` (446MB, exact-variant-set, minted 2026-06-11, **curated 2026-07-01**) | **ACTIVE** — first in scenario resolution order (`tools/scenarios/lib/common.sh`) and the runtime-conformance gate default. Curated: the `fbebebeb` transparency-grid placeholder family is excluded (8,980 records / 15,058 assets; see `tools/hires_pack_curation_pm64_exclusions.json` and `artifacts/experiments/nok03-abilities-on-260701/notes.md`). sha256 pre-curation `544f94d91f149df7f6e9cdc120dd82626b5462114fdb96fadb5cc43546529ef2`, curated `43e14cf000e82f7334e0317346f621d02ba320428a36182c6637a1ded814c7ee`. Curation provenance (loader/package manifests + result JSON) in `artifacts/hts2phrb-review/local-pm64-exact-variant-set-curated/`. |
+| Paper Mario Redone HD | `artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb` (405MB, zero-config compat, built 2026-06-10) | **FALLBACK** — second in scenario resolution order; still named by the fixture YAMLs; not curated |
 | MK64 Reloaded HD | `artifacts/hts2phrb-review/local-mk64-zero-config/package.phrb` (3.6GB, 10,906 records, promotable, zero-config compat) | **BOOT-VALIDATED** — 20,212 entries loaded, 7,488 upload + 20,632 compat draw hits, clean attract-mode capture |
 | OoT Reloaded HD | `artifacts/hts2phrb-review/local-oot-zero-config/package.phrb` (9.5GB, 43,267 records, 1 deferred, zero-config compat) | **BOOT-VALIDATED** — 43,322 entries loaded, 17,498 upload + 105,190 compat draw hits, clean title capture |
 | SM64 Reloaded HD | `artifacts/hts2phrb-review/local-sm64-zero-config/package.phrb` (700MB, 2,530 records, promotable, zero-config compat) | **BOOT-VALIDATED** — 2,530 entries loaded, 65,145 compat draw hits (upload-path hits 0: SM64 resolves entirely via the draw-time CRC lane), clean title capture |
@@ -53,3 +54,17 @@ packs).
 
 PHRB packages are regenerable from their `.hts` via
 `tools/hts2phrb.py` (zero-config); the `.hts` originals are the assets to protect.
+
+To regenerate the curated Paper Mario package: run `tools/hts2phrb.py` against
+`assets/PAPER MARIO_HIRESTEXTURES.hts` (exact-variant-set mode), then from the
+repo root apply the checked-in curation review:
+
+```sh
+python3 tools/hires_pack_apply_exclusion_review.py \
+  --loader-manifest artifacts/hts2phrb-review/local-pm64-exact-variant-set/loader-manifest.json \
+  --exclusion-review tools/hires_pack_curation_pm64_exclusions.json \
+  --output-dir artifacts/hts2phrb-review/local-pm64-exact-variant-set-curated
+```
+
+(Run from the repo root: legacy blob streaming resolves the `.hts` source path
+relative to the CWD.)

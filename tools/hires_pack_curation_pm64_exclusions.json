@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "kind": "family-exclusion-review",
+  "pack": "Paper Mario Redone HD v4.0.1 (MasterKillua), assets/PAPER MARIO_HIRESTEXTURES.hts",
+  "exclusions": [
+    {
+      "policy_key": "legacy-low32-fbebebeb-fs0",
+      "sampled_low32": "fbebebeb",
+      "reason": "transparency-grid placeholder art, not a repaint: the 200x200 replacement is a 2x2 checkerboard with alpha exactly 0/255 and black RGB in the transparent cells, while the native I4 16x16 paper-weave it keys against is near-opaque fine grain (~8 cells per tile). Renders as a hard white/transparent checkerboard across battle menu panels and help boxes. GLideN64 serves this entry identically from the shipped old-version .hts (checksum-only matching, alpha verbatim), so this is pack content, not renderer divergence. Unique in the pack: a strict uniform-cell binary-alpha checker audit of all 15,059 assets matched only this entry.",
+      "evidence": "artifacts/experiments/nok03-abilities-on-260701/notes.md (full chain: repro, OFF baseline, telemetry, pack art, GLideN64 source oracle, pack-wide audit)"
+    }
+  ]
+}

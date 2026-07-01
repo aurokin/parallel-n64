@@ -2426,3 +2426,41 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   collision (ADR-0015 lane). Repro'd cross-host from the metapod TAS
   scratch state with input replay (confirm x3 frames -> Abilities menu);
   evidence: artifacts/experiments/nok03-abilities-{on,off}-260701.
+
+## 2026-07-01 — pm64 pack-curation pass executed (#45): fbebebeb excluded, curated package serving
+
+- Curation affordance landed: `tools/hires_pack_apply_exclusion_review.py`
+  applies a checked-in family-exclusion review to a loader manifest and
+  remints the binary package through the same packaging stage as hts2phrb
+  (in-memory materialize, no PNG previews, legacy blobs streamed from the
+  source `.hts` — run from the repo root). Fail-loud contract: unknown
+  policy_key, multi-match, or sampled_low32 mismatch abort the mint. The
+  review itself is checked in as
+  `tools/hires_pack_curation_pm64_exclusions.json` (one exclusion:
+  `legacy-low32-fbebebeb-fs0`, full forensic reason, evidence pointer to
+  the #40 notes bundle).
+- Curated mint: 8,980 records / 15,058 assets (from 8,981 / 15,059),
+  446,324,299 bytes; loader manifest carries `applied_exclusion_reviews`
+  provenance. Output dir:
+  `artifacts/hts2phrb-review/local-pm64-exact-variant-set-curated/`.
+- On-scene verify (Abilities menu repro, curated pack): panels render as
+  clean near-opaque paper via native fallback; telemetry shows
+  128 draws with texel0_hit=0 for fbebebeb (explicit miss), the 8x8 IA8
+  texel1 corner masks still hit, 117 distinct hit keys overall. Bundle:
+  `artifacts/experiments/nok03-abilities-curated-on-260701`.
+- Negative control (Kammy block scene, curated pack): post-load hit-key
+  set identical to the original-pack run (20 distinct keys), captures
+  visually indistinguishable. Bundle:
+  `artifacts/experiments/kammy-block-curated-260701`.
+- Swap: curated package copied over the serving path
+  `artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb`
+  (path-stable for every recipe; loader/package manifests synced to
+  match the served binary). sha256 pre-curation `544f94d9…`, curated
+  `43e14cf0…` — full hashes and the regen chain recorded in
+  `assets/TEXTURE_PACKS.md`. Gates after the swap: emu-required 43/43,
+  emu-runtime-conformance 2/2 (PHRB authorities validated against the
+  curated pack in place).
+- Correction to the #40 entry above: there is no d7f736aa curation item —
+  the "slate collision" was overturned 2026-06-13 (nothing was curated).
+  This pass drops ONLY fbebebeb; CLAUDE.md active-scope line updated to
+  match.

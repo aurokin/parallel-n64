@@ -130,6 +130,11 @@ for cmd in "${SCENE_COMMANDS[@]}"; do
   CMD_ARGS+=(--command "$cmd")
 done
 
+# GlideN64 gates txDump behind this env var (nx commit 8865474). The dump
+# set IS the miss-set oracle (ADR-0012); without the export it is silently
+# empty and a "dump set = miss set" proof would pass vacuously.
+export GLN64_TXDUMP=1
+
 exec "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" \
   --bundle-dir "$BUNDLE_DIR" \
   --rom "$ROM_PATH" \

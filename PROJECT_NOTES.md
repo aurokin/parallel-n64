@@ -2312,3 +2312,53 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   `PARALLEL_RDP_HIRES_CACHE_PATH=/Users/auro/code/parallel-n64/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb`
   before launching tracked sessions; the host config does not currently set
   the package path.
+
+## 2026-07-01 Metapod import: branches reviewed and merged, playthrough evidence analyzed
+
+- New host: metapod (ARM64 Mac, Darwin 25.5, MoltenVK 1.4.1). SSH auro@metapod.
+  An agent arc there took Paper Mario hi-res gameplay from Peach's Castle
+  through the CHAPTER 2 title card (durable state
+  paper-mario-chapter2-title-card-hires-20260623, metapod lab repo), built a
+  TypeScript TAS workflow runner, and left branch work in four repos.
+- Imported (all fast-forward, 8-reviewer workflow + adversarial verify first):
+  - parallel-n64 codex/osx-agent-readiness (3 commits): MoltenVK bring-up.
+    mips_instructions.def ADD/SUB via uint32 casts (UB fix, bit-identical);
+    PARALLEL_RDP_DISABLE_HIRES_SHADER escape hatch (inert unset); bindless
+    device-feature request when hires on (Linux hires-off path byte-identical
+    — protected property verified in review); CFG_HLE_GFX inversion (latent
+    HLE-routing fix); macOS adapter support + promote_interactive_state.py +
+    MVK141 app prep. Plus the uncommitted metapod work (hi-res-preferred
+    tester guidance, --mode on hard-requires a staged .phrb) imported with
+    one fix: the 4:3 viewport pin is now gated to the darwin window path
+    (was unconditional -> would have changed Linux capture framing).
+  - parallel-n64-lab codex/osx-agent-readiness-lab (4 commits): the TAS
+    runtime (src/runtime.ts, evidence.ts, adapters, CLI, 83 tests) — the lab
+    is now the primary gameplay surface. Fix stack landed on top: host
+    portability (paths probed /home then /Users), DURABLE_STATES index wipe
+    guard, field_probe --fast honesty (no fabricated dialog/timeFreeze),
+    paused-step preconditions + frame-overshoot rejection in the adapter.
+  - RetroArch agent-control d8a560738c: macOS compat + patch-stack capture.
+    Fix on top (f9c5910204): the commit had replaced retroarch.cfg with the
+    mac runtime dump — restored the Linux template, dump relocated to
+    agent-control-patches/metapod-macos-retroarch.cfg.
+  - mupen64plus-libretro-nx: GLN64_TXDUMP env gate for txDump. Rig follow-up
+    in parallel-n64 (7b013767): gliden64-reference-capture.sh now exports
+    GLN64_TXDUMP=1 so ADR-0012 miss-set proofs cannot pass vacuously.
+- Also fixed from evidence: libretro.c queried the unregistered key
+  parallel-n64-astick-snap-angle (registered: ...-astick-snap-max-angle);
+  the snap max angle was never read and every options refresh logged an
+  ERROR in all 16 metapod bundles (9957e887).
+- Evidence sweep (16 playthrough bundles, workflow): the "packfix" story is
+  launch wiring, not pack content — sessions with hirestex=enabled but no
+  PARALLEL_RDP_HIRES_CACHE_PATH silently rendered native (~13h of one
+  session, several whole bundles); package.phrb itself unchanged since
+  06-14 (mtime+sha proof). The imported --mode on guard is the durable fix.
+- Bugs revealed by the playthrough, now tracked: Kammy yellow-block black
+  blobs (#39, wrong-texture), battle Abilities-menu checkerboard backdrop
+  (#40, composition), hos_01 sprite pack-miss + miss-rate baseline question
+  (#41), MoltenVK first-launch death during parallel-RDP init + teardown
+  mutex crash (#42), adapter evidence hardening: TTL summary loss / black
+  first captures / duplicated logs / SET_INPUT_PORT echo errors (#43).
+- Gates after import: emu-required 43/43; emu-runtime-conformance 2/2 with
+  the feature-off digest bit-exact — protected property intact across the
+  merged renderer/core/adapter changes. Lab suite 83/83, tsc clean.

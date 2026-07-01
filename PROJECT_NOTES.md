@@ -2390,6 +2390,26 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   Lab suite on metapod: 83/83, tsc clean, node v24.16.0 / pnpm 11.7.0. The
   TAS runtime can now run on metapod for battle-menu repro (#40) and macro
   promotion; metapod repos updated to head + dylib rebuilt this session.
+- #42 (MoltenVK "first-launch death" during parallel-RDP init) CLOSED as a
+  log artifact — there is no death. Upstream RetroArch double-writes every
+  log line on macOS (verbosity.c TARGET_OS_OSX: printf to stdout AND
+  fprintf to fp/stderr). Adapter sessions redirect both streams into one
+  file: the stderr copy lands immediately, the stdout copy sits in a 16K
+  block buffer and flushes late, replaying the entire early log — read as
+  a second startup banner + "relaunch" at exactly the parallel-RDP init
+  line. Proof: pid-stable process watch across the window; a main-init
+  entry probe fired once while the log showed two banners; splitting the
+  streams gave 70 identical lines on each with one banner apiece.
+  Fix landed on RetroArch agent-control (0d6acdf62a: mirror to stdout only
+  when the sink is a real log file) and verified single-banner on a direct
+  metapod build. Deploying it into the adapter's app binary is blocked on
+  recovering the original app build recipe (the June binary's configure
+  environment isn't reproduced by non-interactive SSH; a HEAD rebuild
+  loses the cocoa vulkan context and dies with "Failed to get context
+  data"). Metapod binaries restored from backup; sessions verified
+  working. The a87be1e328 open-files dedupe guard stays as a correct
+  defensive fix for cocoa-UI builds. This also resolves the
+  "double-written logs" line of #43.
 - #40 (battle Abilities/help-box checkerboard) CLOSED pack-content defect,
   renderer conformant: the panel body is an I4 16x16 texrect (2cycle,
   tlut=0, key 00000000fbebebeb) whose pack replacement is a 200x200

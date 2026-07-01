@@ -2362,3 +2362,31 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
 - Gates after import: emu-required 43/43; emu-runtime-conformance 2/2 with
   the feature-off digest bit-exact — protected property intact across the
   merged renderer/core/adapter changes. Lab suite 83/83, tsc clean.
+
+## 2026-07-01 — #39/#41 forensics closed; dual-host lane online
+
+- #41 (hos_01 sprite pack-miss) CLOSED not-a-bug: fresh durable-state loads
+  on both hosts show draw-time hits and visually identical hi-res sprites at
+  matched scale (three-way crop proof); the original session had zero hi-res
+  telemetry because PARALLEL_RDP_HIRES_CACHE_PATH was never exported (the
+  same launch-wiring story as the packfix sweep), and the "still pixelated"
+  read was a pixel-peep scale artifact — sprite repaints are ~4.3x native vs
+  8-16x for environment art, so they look chunkier at retina zoom. Evidence:
+  artifacts/experiments/hos01-repro-260701 (Linux) + metapod mirror
+  artifacts/local-runs/hos01-mirror-260701. Cross-host savestate portability
+  proven en route (metapod-minted state loads on the Linux .so; view-exceeds
+  rule fires identically, 34 events, same effect-mask keys).
+- #39 (Kammy yellow-block "black eye blobs") CLOSED pack-look: the OFF
+  baseline shows the native block HAS the marks (sharp vertical slits); the
+  marks are I8 16x16 decal draws (keys 2958367f, 4567ae66) replaced with
+  exact-source hits, and the pack's authored replacements are rounded
+  quarter-disc / rounded-rect alpha masks that mirror-compose into the
+  observed ovals. Right texture, right region, replaced as authored — a
+  curation question at most (ADR-0015 lane), no renderer change. Evidence +
+  materialized pack art: artifacts/experiments/kammy-block-repro-260701
+  (ON + pack-art/) and kammy-block-off-260701 (OFF baseline).
+- Metapod toolchain unblocked: node/pnpm live under mise
+  (~/.local/share/mise/shims — non-interactive SSH needs the shims on PATH).
+  Lab suite on metapod: 83/83, tsc clean, node v24.16.0 / pnpm 11.7.0. The
+  TAS runtime can now run on metapod for battle-menu repro (#40) and macro
+  promotion; metapod repos updated to head + dylib rebuilt this session.

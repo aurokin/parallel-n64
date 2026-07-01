@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "family-exclusion-review",
+  "pack": "Paper Mario Redone HD v4.0.1 (MasterKillua), assets/PAPER MARIO_HIRESTEXTURES.hts",
+  "exclusions": [
+    {
+      "policy_key": "legacy-low32-816a81b8-fs0",
+      "sampled_low32": "816a81b8",
+      "reason": "jungle mist overlay (I4 16x32): native invisibility is exact color-match compositing (T0*SHADE == background, blend writes unblended color both cycles) -- the same wall-redraw mechanism ADR-0018 documented for the sewer family. Any repaint breaks exact texel equality (the 80x160 repaint has continuous 22-225 levels vs the 16 quantized I4 steps), so the element materializes as a visible band in EVERY renderer that serves it: GLideN64+pack renders it as the June 'opaque dark slate' band, ours as a whitish veil. Pack-less GLideN64 and our feature-off baseline both render the beat clean. Native fallback is the only faithful serving.",
+      "evidence": "artifacts/experiments/jungle-tail-260701/notes.md (frame-exact ON/OFF pairs from a shared savestate, per-draw combine decode, pack-vs-native texel stats, pack-less GLideN64 txdump oracle)"
+    },
+    {
+      "policy_key": "legacy-low32-23ff3d81-fs0",
+      "sampled_low32": "23ff3d81",
+      "reason": "jungle water surface sheet (IA16 32x32): the native texture is constant white intensity with a STRUCTURED alpha ripple field (92-241, mean 164) that drives water translucency; the 512x512 replacement flattens alpha to a constant 203 over constant white -- an objectively lossy repaint that thickens the water veil everywhere it serves. It is what turns Sushie (a native, runtime-composed sprite with no replacement lane of her own) into the dark muddy blob and inverts the stage-spotlight phase composition (attract jungle beat). Native fallback restores the authored translucency.",
+      "evidence": "artifacts/experiments/jungle-tail-260701/notes.md (native alpha histogram vs replacement constant, dual-texel draw telemetry, Sushie lane absence proof)"
+    }
+  ]
+}

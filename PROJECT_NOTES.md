@@ -2464,3 +2464,50 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   the "slate collision" was overturned 2026-06-13 (nothing was curated).
   This pass drops ONLY fbebebeb; CLAUDE.md active-scope line updated to
   match.
+
+## 2026-07-01 — jungle mist band (#35) + Sushie dark blob (#36) ROOT-CAUSED and CLOSED: one overlay family, curation pass 2
+
+- Both defects are pack-content defects on two attract-jungle overlay
+  entries, served faithfully by our draw-time lane (renderer conformant):
+  - `816a81b8` (I4 16x32 mist): native invisibility is exact color-match
+    compositing (combine decodes to T0·SHADE·PRIM with white PRIM, blend
+    writes unblended color both cycles — the ADR-0018 wall-redraw
+    mechanism). The pack repaint is statistically identical to the native
+    wisps (mean 138.6 vs 138.9!) but continuous-valued at 5x scale, so
+    exact texel match — hence invisibility — is unpreservable by ANY
+    repaint. GLideN64+pack materializes it as the June "opaque dark slate"
+    band; we materialize it whitish. Pack-less GLideN64 and our OFF render
+    the beat clean.
+  - `23ff3d81` (IA16 32x32 water sheet): native is constant white intensity
+    with a STRUCTURED alpha ripple field (92–241, mean 164) driving water
+    translucency; the pack flattened alpha to a constant 203. The thickened
+    veil is what turned Sushie into the dark muddy blob (#36) — she has no
+    replacement lane of her own (runtime-composed sprite, zero draw-usage
+    telemetry; she renders native in both modes) — and it also inverted
+    the stage-spotlight phase composition.
+- Method highlights: frame-exact ON/OFF pairs stepped from ONE shared
+  savestate (game frame 10667) so labels align exactly; per-draw telemetry
+  windows anchored on STEP_FRAME command echoes in the session log; pack
+  art materialized per key (slim manifest + hires_pack_materialize_package
+  CLI); pack-less GLideN64 GLN64_TXDUMP oracle over the same beats gave
+  glide's computed keys (identical: 816A81B8#4#0, 23FF3D81#3#2) and the
+  native texel ground truth. Cross-run frame labels vs the June bundles are
+  offset ~50 frames (counter bookkeeping) — align by content.
+- Fix: curation pass 2 with the #45 affordance —
+  tools/hires_pack_curation_pm64_jungle_exclusions.json applied on top of
+  the pass-1 manifest → local-pm64-exact-variant-set-curated-r2 (8,978
+  records / 15,056 assets; applied_exclusion_reviews carries both files).
+  Verify: band GONE, Sushie colors restored, other content unaffected
+  (on-r2 f10800–f10854 vs off-ext, same state chain); spotlight phase
+  covered by class reasoning (the dropped pair were the only overlay-class
+  hits in those windows). Swapped into the serving path; gates emu-required
+  43/43 + emu-runtime-conformance 2/2. sha256 chain in
+  assets/TEXTURE_PACKS.md. Evidence:
+  artifacts/experiments/jungle-tail-260701/ (notes.md + off/on/off-ext/
+  on-ext/on-r2/glide-txdump).
+- Operational lessons for the adapter (#43 fodder): PARALLEL_RDP_HIRES_DEBUG
+  flood from boot writes ~680MB before the attract tail and starves the
+  status probe — run ON-debug sessions from a savestate; under flood the
+  send-ack grep misses (commands DO execute) — poll the frame counter with
+  patient deadlines instead of trusting acks; and `pkill -f` with a bundle
+  name matches your own driver shell.

@@ -238,10 +238,14 @@ flags explicitly — several hosts have aggressive defaults in user config, so u
 codex  exec -C <ws> -m gpt-5.5 -c model_reasoning_effort=xhigh -s workspace-write \
        -c approval_policy=never --json -o last.txt "<prompt>"        # wrap in GNU timeout
 cursor-agent -p --output-format json --force --workspace <ws> --model composer-2.5 "<prompt>"
-grok   -p "<prompt>" --cwd <ws> -m grok-build --always-approve --output-format json
+grok   -p "<prompt>" --cwd <ws> -m grok-build --permission-mode bypassPermissions \
+       --effort max --output-format streaming-json   # streaming: transcript survives cap kills
+                                                     # (claude's end-only json lost the opus-4.8 transcript)
 droid  exec --cwd <ws> -m glm-5.2 -r high --auto medium -o json "<prompt>"
 opencode run --dir <ws> -m opencode-go/glm-5.2 --format json "<prompt>"
-claude -p --output-format json --model claude-sonnet-5 --permission-mode bypassPermissions "<prompt>"
+claude -p --output-format stream-json --verbose --model claude-sonnet-5 --permission-mode bypassPermissions "<prompt>"
+       # stream-json (needs --verbose in -p mode) replaces end-only json after the
+       # opus-4.8 pilot: the cap kill (rc 124) lost the entire transcript
 ```
 
 droid note: `--auto medium` refuses MCP tool calls ("insufficient permission to

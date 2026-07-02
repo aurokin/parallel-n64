@@ -27,6 +27,14 @@ Rationale (this was the open "own repo?" question):
   owns: eval definitions, workspace-export generator, runner, scorer, results ledger.
 - parallel-n64 stays the planning source of truth; this doc is the plan of record
   until the evals repo exists, then moves there.
+- **Long-term direction (owner note 2026-07-02)**: the lab stays private
+  permanently; the evals repo may go public once mature. Two consequences:
+  (a) generally-useful material that accumulates in the evals repo (playbook
+  methods, harness patterns, telemetry teaching) should be periodically
+  backported into the lab's own docs so the private workflow benefits too;
+  (b) nothing lab-private (macros, routes, durable states, solution notes)
+  may migrate into the evals repo — the export contamination scan is the
+  enforcement backstop, publishability is the standing test.
 
 ## 2. Eval definition (the reusable unit)
 
@@ -173,6 +181,26 @@ technique that historically separates runs); the method is game-agnostic so
 it survives the multi-game roadmap, and it stays clear of the contamination
 line, which protects concrete solution artifacts, not techniques. Guide
 revisions are provenance-tracked by each record's export_sha256.
+
+**The general playbook** (owner approval 2026-07-02, guide iteration 3,
+label `guide=playbook`): every workspace ships `PLAYBOOK.md`, a
+game-agnostic method doc pointed to by a four-line guide section
+(progressive disclosure: the guide stays lean, the playbook carries depth).
+Standing constraint from the owner: all such guidance stays **high-level
+and game-agnostic** — reusable across the multi-game roadmap, never Paper
+Mario-specific; per-game optimization happens in tools, not instructions.
+Contents (ordered by observed time waste in the pilots): never wait in
+real time through cutscenes/dialogue (probe skippability early, press
+sooner than feels safe, step big with a savestate + periodic-screenshot
+guard, script long waits); calibrate movement before navigating
+(units-per-frame, axis mapping); detect stuck mechanically (position delta
+vs held input); verify transitions and re-localize instead of retrying;
+keep a route journal; systematic room sweeps behind a checkpoint;
+savestates as an optimizer (slot discipline, retry costly encounters);
+observation-loop budgeting (poll numbers, screenshot at decisions). The
+cutscene item is the owner's own diagnosis: nearly the whole pre-castle
+stretch is one save screen plus cutscenes, so waiting is the largest
+silent cost.
 **Not allowed**: writing game memory (WRITE_CORE_MEMORY), cheat files,
 tampering with emulator/config/logs/scoring, and **using other agents' runs or
 artifacts** (the one hard anti-cheat rule). The contamination scan now targets

@@ -269,6 +269,18 @@ must be readily available in the environment (§4). **The violations**:
   anchor catches it — replayed traces re-create every self-minted state, so a
   load of a state the replay never created diverges. Savestate ops replay as
   part of the trace (replay_verify.py); only WRITE_CORE_MEMORY refuses replay.
+**Run validity (owner ruling 2026-07-02)**: a run where the agent fought the
+environment — application startup failures, harness or renderer defects, tool
+bugs — is INVALID for model comparison, even when the agent wins the fight:
+the eval measures tool-assisted play in a working environment, not
+environment debugging. Invalid runs stay in the ledger (`valid: false` +
+reason) as harness-shakeout evidence; the defect gets fixed and the run
+re-run. Records carry `session_starts` for review — restarting the emulator
+is allowed tool use, but a defect-caused restart is the common invalidation
+signature. First application: pilot-gpt55-toolkit-001 (the agent diagnosed
+the MoltenVK argument-buffers wedge and relaunched; adapter fixed, rerun
+scheduled).
+
 Score integrity mechanics unchanged: harness-owned scoring channel, identity
 hashes at start/end, input-trace replay verification (§3). No egress allowlist
 (walkthroughs are allowed); the transcript audit still classifies what was
@@ -384,10 +396,23 @@ evals repo; a results table is generated, never hand-edited.
    missable kmr_20 dwell, frame clock is the u16 at gGameStatus+0x134
    (1 tick per 2 stepped VI frames, measured), SIGTERM flushes the vector.
    A deliberate-tamper red-team agent remains todo alongside the pilot.
-3. Pilot: codex gpt-5.4 + gpt-5.5 on eval #1, axis A both values (self-built +
-   scripts-provided), linux/haste. This calibrates the gates and the audit.
+3. ~~Pilot: codex gpt-5.4 + gpt-5.5 on eval #1, axis A both values.~~ RAN
+   2026-07-02 (ledger: gpt-5.4 bare + toolkit on mander, gpt-5.5 toolkit on
+   metapod — the latter invalidated per the §8 validity ruling). The pilots
+   were the harness shakeout they were meant to be: MVK argument-buffers
+   default fixed, send serialization, scorer poll backoff, SESSION_START
+   markers, multi-session replay, doctor preflight/reap, pinned-identity
+   verification, TTL scaled to cap, auto post-run processing.
+   **Owner directive 2026-07-02: continue the matrix with gpt-5.5
+   EXCLUSIVELY until the harness is stable**; other models only after runs
+   stop finding harness defects.
 4. Sweep order per §6; metapod runs the computer-use axis with codex/claude.
 5. Fable-5 last, after every other model's results are in.
+6. **Finals round (owner 2026-07-02)**: once the sweep settles, the top ~3
+   contenders re-run on a much higher time cap to see how far into the game
+   they get — marathon spend is not worth it on models that stall early.
+   Harness-ready: TTL now scales with `--cap-minutes`; usage-limit pauses
+   remain the manual v1 caveat to watch on long runs.
 
 ## 13. Recordings lane (long-term; owner note 2026-07-02)
 

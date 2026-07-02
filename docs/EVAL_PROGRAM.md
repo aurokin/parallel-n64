@@ -161,6 +161,18 @@ retry/branch), walkthroughs and any external reference incl. web, reading RAM,
 reading the provided decomp, and inspecting the ROM/binary (allowed, guide
 notes it is rarely worth it next to the decomp), building own scripts and
 macros in-workspace.
+
+**Telemetry method is taught, addresses are not** (owner direction
+2026-07-02): the guide describes the generic build-your-own-telemetry
+process — decomp symbols when provided, community RAM maps/TAS resources via
+allowed web, differential memory probing as the always-works fallback — but
+never names game addresses. Rationale: the eval scores play skill, not
+whether a model happens to rediscover RAM telemetry (gpt-5.5 invented it
+unaided on the first rerun, navigating the castle by live x/y/z reads — the
+technique that historically separates runs); the method is game-agnostic so
+it survives the multi-game roadmap, and it stays clear of the contamination
+line, which protects concrete solution artifacts, not techniques. Guide
+revisions are provenance-tracked by each record's export_sha256.
 **Not allowed**: writing game memory (WRITE_CORE_MEMORY), cheat files,
 tampering with emulator/config/logs/scoring, and **using other agents' runs or
 artifacts** (the one hard anti-cheat rule). The contamination scan now targets

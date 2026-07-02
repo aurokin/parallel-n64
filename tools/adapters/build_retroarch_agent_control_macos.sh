@@ -85,6 +85,12 @@ make -j"$JOBS"
 
 # The app bundles carry a stripped binary (June deployment style).
 strip -S -o retroarch.stripped retroarch
+# RetroArch dlopens the bare name "MoltenVK"; dyld resolves it through
+# these rpaths into the app bundle's Frameworks dir. Without them the
+# vulkan loader open fails ("[Vulkan] Failed to open Vulkan loader.").
+# The June binary carried the same rpaths.
+install_name_tool -add_rpath "@executable_path/../Frameworks" retroarch.stripped
+install_name_tool -add_rpath "@executable_path/../Frameworks/MoltenVK.framework" retroarch.stripped
 codesign --force --sign - retroarch.stripped
 # Do NOT run the bare binary here: outside an app bundle it parks in the
 # Cocoa event loop and never exits (--version/--features included).

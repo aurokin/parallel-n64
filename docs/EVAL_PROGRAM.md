@@ -147,10 +147,20 @@ not blind play**. Generated export containing:
   macros are our solutions (owner can override).
 - Fresh single-commit git history (codex trust check; agent checkpointing);
   no lab/project history, no prior captures.
+- **The game's decompiled source as a provided reference** (owner ruling
+  2026-07-02): when a decomp exists for the game (papermario for eval #1,
+  present on mander and metapod at the same commit), the guide points the
+  agent at the read-only host checkout — in every axis variant, like
+  walkthroughs. Not copied (large); referenced by path (`DECOMP_ROOT`,
+  default: sibling `papermario` of PN64_ROOT). Not available for every game;
+  that's fine. The scored gate symbols live in that source — knowing them
+  doesn't help (see §8 scorer-visibility caveat).
 
 **Allowed** (and advertised in the guide): emulator savestates (checkpoint/
-retry/branch), walkthroughs and any external reference incl. web, reading RAM
-and inspecting the ROM/binary, building own scripts and macros in-workspace.
+retry/branch), walkthroughs and any external reference incl. web, reading RAM,
+reading the provided decomp, and inspecting the ROM/binary (allowed, guide
+notes it is rarely worth it next to the decomp), building own scripts and
+macros in-workspace.
 **Not allowed**: writing game memory (WRITE_CORE_MEMORY), cheat files,
 tampering with emulator/config/logs/scoring, and **using other agents' runs or
 artifacts** (the one hard anti-cheat rule). The contamination scan now targets

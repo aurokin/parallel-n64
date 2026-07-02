@@ -257,10 +257,15 @@ precedents (VideoGameBench, PokeAgent, lmgame-Bench), prioritized:
 | Host | OS | Role |
 |---|---|---|
 | haste | CachyOS, RTX 5090 | **image-tool service host** (qwen3.6-35B + LocateAnything sidecar via self-host-llm, co-resident profile); gameplay-capable (validated 2026-07-02) but NOT used as a gameplay runner while the vision models are serving |
-| linux | Linux | agent runner (the standing renderer-validation host — schedule around gate runs) |
 | mander | Linux | gameplay runner / orchestration (this host) |
 | metapod | macOS | gameplay runner; the computer-use axis (codex/claude); MVK141 app path |
 | koopa | macOS | **OFF-LIMITS** (primary work machine) |
+
+(A separate "linux" host was listed in earlier drafts — a network sweep
+2026-07-02 found no such host (DNS, tailnet, Proxmox); the phrase "haste
+linux" in the fleet notes meant haste itself. Nearest candidate is the
+dual-boot desktop chassis, offline in Windows. If it comes online as a Linux
+runner, re-add it here.)
 
 Vision serving builds on haste's existing `self-host-llm` stack (docker-compose
 vLLM profiles; validated OpenAI-compatible endpoints :8020/:8021, vision enabled):

@@ -314,9 +314,21 @@ evals repo; a results table is generated, never hand-edited.
 
 ## 12. Rollout
 
-1. Attest the three new telemetry fields against lab durable states (§2).
-2. Build the workspace-export generator + AGENT_GUIDE.md + start wrapper; red-team
-   with null/random/tamper agents (must score 0).
+1. ~~Attest the three new telemetry fields against lab durable states (§2).~~
+   DONE 2026-07-02 — 4/4 exact (§2 table).
+2. ~~Build the workspace-export generator + AGENT_GUIDE.md + start wrapper;
+   red-team with null/random agents.~~ DONE 2026-07-02 — the repo exists at
+   `~/code/n64-agent-evals` (local only, no remote yet). Null agent scored 0
+   with a clean end record. The random agent scored 0 on G2+ but **genuinely
+   reached G1 in ~2 min** (PM64 file-select survives button-mashing; verified
+   via the .srm flash magic, and it exercised the gSaveSlotHasData 0→1 live
+   transition §2 wanted observed). Criterion refined: null scores 0, random
+   scores nothing beyond G1 — G1 is a sanity gate, discrimination starts at
+   G2. Scorer hardening from the runs: gates arm only after the frame clock
+   advances (pre-init RAM pattern-matches gates at frame 0), G1 dropped the
+   missable kmr_20 dwell, frame clock is the u16 at gGameStatus+0x134
+   (1 tick per 2 stepped VI frames, measured), SIGTERM flushes the vector.
+   A deliberate-tamper red-team agent remains todo alongside the pilot.
 3. Pilot: codex gpt-5.4 + gpt-5.5 on eval #1, axis A both values (self-built +
    scripts-provided), linux/haste. This calibrates the gates and the audit.
 4. Sweep order per §6; metapod runs the computer-use axis with codex/claude.

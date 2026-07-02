@@ -2698,3 +2698,26 @@ glm-5.2 tests: opencode `opencode.json` snippet works as-is; droid
 MCP calls). While the vision models serve, haste is a tools host, not a
 gameplay runner (mander/metapod take gameplay). EVAL_PROGRAM.md §6/§7/§9
 updated to the as-built architecture.
+
+Eval rollout steps 1–2 closed (2026-07-02). Gate telemetry attested 4/4 exact
+against lab durable states with predictions written before reading (storyByte
+−128/−122/−115/−107; battleID 0x2301 in the prologue Bowser fight at kkj_13
+area 4/map 7; no-battle sentinel 0x0; context s8 at gGameStatus+0x70). Found
+and fixed a real adapter concurrency bug on the way: cmd_send's ack matcher
+took the last pattern match after a log offset, so concurrent same-verb sends
+(scorer + agent both reading RAM) could swap replies — now serialized by a
+per-bundle flock, verified with a 2×30 parallel hammer (60/60 correctly
+attributed). The evals repo exists: ~/code/n64-agent-evals (LOCAL ONLY — no
+remote minted yet), holding the pinned pm64-intro-bowser YAML, the
+export-not-repo workspace generator (contamination-scanned, vision-tools and
+scripts-provided axes), the AGENT_GUIDE template + start-game.sh wrapper, the
+harness-owned scorer, run_eval.sh, and red-team agents. First end-to-end runs:
+null agent 0 gates (clean SIGTERM flush); random agent 0 on G2+ but genuinely
+reached G1 in ~2 min — PM64's file select survives mashing (.srm flash magic
+verified), so G1 is a sanity gate and discrimination starts at G2. Scorer
+hardened from live findings: liveness arming (boot RAM garbage pattern-matches
+gates at frame 0 — observed storyByte=16, saveSlots all-true), G1 keyed on
+long-lived signals instead of the missable kmr_20 dwell, frame clock corrected
+to the u16 at gGameStatus+0x134 (1 tick per 2 stepped VI frames, measured
+live). Next: pilot codex gpt-5.4/5.5 on eval #1 (axis A both values) + the
+deliberate-tamper red-team agent.

@@ -121,13 +121,17 @@ refinement on the compat lane plus curation triage:
   paired captures and adversarial panels.
 - Pack-curation lane for content reclassified out of renderer scope
   ([ADR-0015](/home/auro/code/parallel-n64/docs/adr/0015-pack-content-curation-boundary.md)).
-- Open items: the debug-flood session wedge forensics (soft session hangs under
-  `PARALLEL_RDP_HIRES_DEBUG` log flood — see the PROJECT_NOTES 2026-06-12
-  star-family entry's session tooling notes); sewer-pack curation (drop the
-  d7f736aa slate collision from the runtime package — ADR-0015 lane). Closed
-  2026-06-12: the 1px strip-junction seam (inclusive copy right-edge completion
-  at upscale, span_setup.comp) and the I-format tlut=1 semantics check (verdict:
-  serve replacements verbatim, no tlut-gated serve rule; ADR-0010 rule 7).
+- Open items: none in this lane as of 2026-07-02. Closed 2026-06-12: the 1px
+  strip-junction seam (inclusive copy right-edge completion at upscale,
+  span_setup.comp) and the I-format tlut=1 semantics check (verdict: serve
+  replacements verbatim, no tlut-gated serve rule; ADR-0010 rule 7). Closed
+  2026-06-13: the d7f736aa "slate collision" was overturned (nothing to
+  curate). Closed 2026-07-01: the debug-flood session wedge (not reproducible
+  — ledger sweep, PROJECT_NOTES). Closed 2026-07-02: adapter evidence
+  hardening (#43: TTL grace-quit with recorded end reasons, black-capture
+  detection) and the metapod RetroArch rebuild (#44: recovered build recipe
+  `tools/adapters/build_retroarch_agent_control_macos.sh`, log double-write
+  fixed, deployed and replay-neutral per the lab's MACROS.md).
 
 ## Success Criteria Style
 

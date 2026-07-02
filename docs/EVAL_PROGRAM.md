@@ -282,6 +282,16 @@ mitigation ladder when we get to it:
    and un-hiding it would itself show in the transcript).
 3. Long-term: dedicated runner accounts or VMs with read-only curated mounts.
 
+Fleet reality for rung 3 (owner, 2026-07-02): mander is already a Proxmox VM
+(host bront) running the full Vulkan gameplay stack — so clean-sandbox runner
+VMs (template clone or snapshot-rollback per run, only curated sources
+mounted) are a real option on the Linux side. Constraints: the workload needs
+GPU passthrough, and vfio exclusivity means one gameplay VM per physical GPU
+at a time (which happens to match the one-session-per-host rule anyway). The
+macOS hosts needed for the computer-use axis have no passthrough/VM option —
+metapod stays physical and gets the cheaper mitigations (transcript grep,
+run-scoped lab-dir hiding) instead.
+
 ## 9. Hosts
 
 | Host | OS | Role |

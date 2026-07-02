@@ -220,11 +220,18 @@ precedents (VideoGameBench, PokeAgent, lmgame-Bench), prioritized:
 
 | Host | OS | Role |
 |---|---|---|
-| haste | CachyOS, RTX 5090 | agent runner + image-tool service; validated end-to-end 2026-07-02 |
+| haste | CachyOS, RTX 5090 | **image-tool service host** (qwen3.6-35B + LocateAnything sidecar via self-host-llm, co-resident profile); gameplay-capable (validated 2026-07-02) but NOT used as a gameplay runner while the vision models are serving |
 | linux | Linux | agent runner (the standing renderer-validation host — schedule around gate runs) |
-| mander | Linux | agent runner / orchestration (this host) |
-| metapod | macOS | the computer-use axis (codex/claude); MVK141 app path |
+| mander | Linux | gameplay runner / orchestration (this host) |
+| metapod | macOS | gameplay runner; the computer-use axis (codex/claude); MVK141 app path |
 | koopa | macOS | **OFF-LIMITS** (primary work machine) |
+
+Vision serving builds on haste's existing `self-host-llm` stack (docker-compose
+vLLM profiles; validated OpenAI-compatible endpoints :8020/:8021, vision enabled):
+the describer is the already-deployed qwen-multi profile — no new deployment — and
+LocateAnything runs as the sidecar its README already plans (CPU ggml today, so it
+coexists with the GPU-resident Qwen; a co-resident GPU build is a later
+optimization). The image-tool MCP server proxies to both.
 
 One gameplay session per host, ever (flock-enforced). A full 11-model sweep of one
 eval ≈ 11 × ≤90 min across 3–4 hosts ≈ one long afternoon, before retries.

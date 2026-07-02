@@ -388,3 +388,41 @@ evals repo; a results table is generated, never hand-edited.
    scripts-provided), linux/haste. This calibrates the gates and the audit.
 4. Sweep order per §6; metapod runs the computer-use axis with codex/claude.
 5. Fable-5 last, after every other model's results are in.
+
+## 13. Recordings lane (long-term; owner note 2026-07-02)
+
+TAS recordings of agent/lab play, wanted for three consumers: observability
+(frame-accurate record of what actually happened), optimization (segment and
+route timing comparisons across runs/models), and content (visuals for blog
+posts). Approach lightly and incrementally — the hard part is that RetroArch
+crashes at random points, so no single unbroken recording exists; the system
+must sew segments together.
+
+Already in place (input-level recording is essentially done):
+- Every eval run's tamper-evident command log IS a complete input recording;
+  `replay_verify.py` re-drives a trace on a clean workspace with inline
+  trace-position scoring — exactly the "replay a segment from an anchor"
+  primitive a stitcher needs.
+- Lab TAS scripts are semantic recordings (frame-counted inputs from named
+  states) with per-step screenshot/trace evidence bundles.
+- Sessions record end reasons (TTL/crash detection, #43/#44), so segment
+  boundaries at crashes are already observable.
+
+The new work (sketch, not commitment):
+- **Segment-anchored AV recording**: every segment starts at a savestate
+  anchor with identity hashes; capture input trace per segment plus optional
+  audio/video; a crash costs only the tail of the current segment.
+- **The stitcher**: validate adjacency (replaying segment N from anchor N
+  must reproduce anchor N+1 — replay_verify semantics), then concat AV
+  (ffmpeg) for content cuts. Corruption stays fail; a documented gap with a
+  reported reason is acceptable, matching the evidence contract.
+- **Content-grade rendering**: interactive stepped play makes stuttery
+  real-time video; for blog visuals, re-render by replaying the validated
+  trace at normal pacing with recording on (RetroArch's ffmpeg recorder),
+  rather than recording live play.
+- Open questions: whether the agent-control patch set needs RECORD_START/
+  STOP commands; recording overhead during play; storage/retention.
+
+Path: prototype lab-side first (ADR-0017 — the lab is never a correctness
+authority); promote the stitcher into parallel-n64 tools once stable; evals
+then get an optional per-run recording flag.

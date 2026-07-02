@@ -2721,3 +2721,26 @@ long-lived signals instead of the missable kmr_20 dwell, frame clock corrected
 to the u16 at gGameStatus+0x134 (1 tick per 2 stepped VI frames, measured
 live). Next: pilot codex gpt-5.4/5.5 on eval #1 (axis A both values) + the
 deliberate-tamper red-team agent.
+
+## 2026-07-02 — Pilots landed, replay verifier live, two owner rulings mapped
+
+Codex pilots complete on eval #1, all clean audits: gpt-5.4 bare (G1 9.9m /
+G2 28.0m / G3 40.1m), gpt-5.4 toolkit rules-v2 (11.7/20.7/30.1 — slower to
+first save reading the toolkit docs, then ~10 min faster to the castle: the
+first clean axis-A signal), gpt-5.5 toolkit rules-v2 on metapod (G1+G3,
+capped mid-castle; a scorer outage 0–45min left G2 unobserved — caveats in
+the ledger record; scorer since hardened with poll backoff). The first live
+replay_verify invocations earned their keep three times: (1) found the
+adapter's MVK141 argument-buffers default can never match in exported
+workspaces (macOS hi-res compute pipeline fails; the ORIGINAL gpt-5.5 run
+only worked because the agent itself diagnosed MoltenVK and relaunched with
+MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=1 — fixed in the adapter, 80e640d4);
+(2) ack windows must be generous behind real-time stepping; (3) wall-clock
+scoring cannot score a replayed trace (feed starves the poller; transient
+area gates pass between polls) — replay_verify now scores inline at trace
+positions. Owner rulings mapped: the game's decomp is a PROVIDED read-only
+reference in every axis variant when it exists (papermario pinned at the
+same commit on mander+metapod; guide DECOMP_BLOCK; lab_snoop_audit tiers
+decomp reads as allowed); and a long-term recordings lane (EVAL_PROGRAM
+§13): segment-anchored TAS/AV recording with a crash-sewing stitcher —
+input-level recording already exists via command traces + replay_verify.

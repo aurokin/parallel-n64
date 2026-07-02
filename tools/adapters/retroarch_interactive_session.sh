@@ -32,6 +32,7 @@ Usage:
   retroarch_interactive_session.sh save-slot --bundle-dir D --slot N   (N in 1..9)
   retroarch_interactive_session.sh load-slot --bundle-dir D --slot N [--paused]
   retroarch_interactive_session.sh stop --bundle-dir D
+  retroarch_interactive_session.sh doctor [--reap]   (find/kill leftover sessions; run BEFORE start)
 
 start options:
   --mode off|on                 Hi-res mode label for generated core options (default: off)
@@ -993,6 +994,90 @@ cmd_stop() {
   echo "[interactive] session terminated."
 }
 
+session_chain_pids() {
+  # Every process in an adapter-launched session chain carries one of these
+  # on its command line: the runtime lock path (the flock leader) or the
+  # "-L <core>" argument (timeout + frontend). The TTL watchdog does NOT
+  # match (it carries "--core", not "-L ") — it self-exits once its session
+  # dies and must not be group-killed: it may share the caller's group.
+  {
+    pgrep -f 'flock .*parallel-n64-retroarch-runtime\.lock' || true
+    pgrep -f -- '-L .*parallel_n64_libretro' || true
+  } | sort -un
+}
+
+cmd_doctor() {
+  # Find and (optionally) reap leftover emulator session trees. Extra
+  # RetroArch processes are a recurring failure mode (wedged sessions,
+  # dead drivers, TTL not yet fired) that breaks the one-session-per-host
+  # rule; run this BEFORE starting a session — during a live session it
+  # will (correctly) report that session too. Unmanaged RetroArch
+  # processes (e.g. the GUI app without our core) are reported, never
+  # killed. Exit 0 = host clean (after reaping if requested), 1 = sessions
+  # present (or reap incomplete).
+  local reap=0
+  while (($#)); do
+    case "$1" in
+      --reap) reap=1 ;;
+      *) echo "Unknown doctor option: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+
+  local own_pgid pid pgid
+  own_pgid="$(ps -o pgid= -p $$ | tr -d ' ')"
+
+  local found=0 pgids=""
+  for pid in $(session_chain_pids); do
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    [[ -z "$pgid" || "$pgid" == "$own_pgid" ]] && continue
+    found=1
+    echo "SESSION pid=$pid pgid=$pgid cmd=$(ps -o args= -p "$pid" 2>/dev/null | cut -c1-160)"
+    case " $pgids " in *" $pgid "*) ;; *) pgids="$pgids $pgid" ;; esac
+  done
+
+  local session_pids
+  session_pids=" $(session_chain_pids | tr '\n' ' ') "
+  for pid in $(pgrep -x RetroArch 2>/dev/null || true); do
+    [[ "$session_pids" == *" $pid "* ]] && continue
+    echo "UNMANAGED pid=$pid cmd=$(ps -o args= -p "$pid" 2>/dev/null | cut -c1-160)"
+  done
+
+  if (( ! found )); then
+    echo "DOCTOR clean"
+    return 0
+  fi
+  if (( ! reap )); then
+    echo "DOCTOR sessions-found (use --reap to kill)"
+    return 1
+  fi
+  for pgid in $pgids; do
+    echo "REAP pgid=$pgid (TERM)"
+    kill -TERM -- "-$pgid" 2>/dev/null || true
+  done
+  sleep 3
+  for pgid in $pgids; do
+    if kill -0 -- "-$pgid" 2>/dev/null; then
+      echo "REAP pgid=$pgid (KILL)"
+      kill -KILL -- "-$pgid" 2>/dev/null || true
+    fi
+  done
+  sleep 1
+  local remaining=0
+  for pid in $(session_chain_pids); do
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    [[ -z "$pgid" || "$pgid" == "$own_pgid" ]] && continue
+    remaining=1
+    echo "REMAINS pid=$pid pgid=$pgid"
+  done
+  if (( remaining )); then
+    echo "DOCTOR reap-incomplete"
+    return 1
+  fi
+  echo "DOCTOR clean (reaped)"
+  return 0
+}
+
 SUBCOMMAND="${1:-}"
 shift || true
 case "$SUBCOMMAND" in
@@ -1004,6 +1089,7 @@ case "$SUBCOMMAND" in
   save-slot) cmd_save_slot "$@" ;;
   load-slot) cmd_load_slot "$@" ;;
   stop) cmd_stop "$@" ;;
+  doctor) cmd_doctor "$@" ;;
   -h|--help|"") usage; [[ "$SUBCOMMAND" == "" ]] && exit 2 || exit 0 ;;
   *) echo "Unknown subcommand: $SUBCOMMAND" >&2; usage >&2; exit 2 ;;
 esac

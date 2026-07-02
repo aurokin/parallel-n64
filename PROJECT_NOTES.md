@@ -2548,3 +2548,36 @@ Remaining candidates (#46 stays open): `battle.jrTroopaChapter1RefreshBombHammer
 (timing-sensitive, needs battle telemetry), `mac03.bombStationRockWithBombette`
 (needs a semantic field-ability input for the 0x2001 composite), and
 `mac03.boardTrainToMtRugged`.
+
+## 2026-07-02 — #46 closed: 6 of 7 promoted, 1 blocked; black-capture incident
+
+The mac03 pair finished the arc: `mac03.bombStationRockWithBombette`
+(5 float-identical replays from packfix slot 4; semantic
+`pm64.button.fieldAbility()` composite `0x2001` = R2|B = N64 C-down;
+rock-collider `curWall 16384 -> -1` as supporting telemetry; visual
+rubric yes/yes on the re-mint captures) and `mac03.boardTrainToMtRugged`
+(6 identical replays from packfix slot 3; stop cue at exactly 1144
+frames aboard the departing train; the conductor retry-tap opening
+landed at exactly 66 frames every run — NPC wander is deterministic from
+a fixed savestate start). `battle.jrTroopaChapter1RefreshBombHammer` is
+**blocked, not failed**: a live census of all packfix-bundle slots found
+no battle-context state (the June battle ran live; only world states
+were saved), so a replay "from the same start identity" is impossible
+until a battle-start durable state is minted. Full records in the lab's
+`docs/games/paper-mario/MACROS.md`.
+
+Cross-repo incident worth remembering (feeds #43/#44): every capture
+from the lab's chain-macro session runner came back black while all
+telemetry stayed healthy. Root cause was the runner's
+`${RETROARCH_BIN:-default}` inheriting the ambient `RETROARCH_BIN` from
+the metapod host dotfile — the stock RetroArch.app (MoltenVK 1.2.8),
+which renders black with the parallel core. The tell is the MoltenVK
+version line in the bundle's retroarch.log and byte-identical small
+PNGs across unrelated scenes. Fixes: the runner defaults to the restored
+RetroArch-MVK141 app and only honors an explicit `RETROARCH_BIN_OVERRIDE`;
+plus two hardenings kept from the diagnosis — `video_gpu_screenshot =
+"false"` (core-framebuffer screenshots survive console screen lock) and
+`caffeinate` for the session lifetime. The dotfile itself still points
+at the stock app; updating it rides with the #44 rebuild. Promotion
+evidence disposition: telemetry cues were identical across black-era and
+re-mint runs; one re-mint per macro carries the real captures.

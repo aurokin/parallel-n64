@@ -365,7 +365,7 @@ run-scoped lab-dir hiding) instead.
 | haste | CachyOS, RTX 5090 | **image-tool service host** (qwen3.6-35B + LocateAnything sidecar via self-host-llm, co-resident profile) — vision containers **stopped while unused** (2026-07-02, `docker start qwen-multi-35b-nvfp4` restores); gameplay-capable, pending a scored-eval smoke (redteam-null + codex-smoke) before real runs. Vision-serving and gameplay-running are exclusive roles unless VRAM co-residency is proven |
 | mander | Linux | **development primary** (owner ruling 2026-07-02: orchestration + renderer/harness fixes live here; agents play on the other hosts) — gameplay runner only opportunistically |
 | metapod | macOS | gameplay runner; the computer-use axis (codex/claude); MVK141 app path |
-| luma | macOS (M3 Max laptop) | **incoming** (owner offer 2026-07-02): intermittently online — owner brings it up on request; needs onboarding (scripted macOS recipe, see task); second computer-use-capable host + extra sweep lane |
+| luma | macOS (M3 Max laptop) | **onboarded + validated 2026-07-02** (null + codex smokes clean, MoltenVK 1.4.1 argument buffers confirmed): gameplay runner; second computer-use-capable host (owner: codex has latest computer use here). Intermittently online; keep docked for runs (battery profile sleeps in 1 min; driver wraps caffeinate). Onboarding gotchas in WORKSPACE_PATHS §luma. cursor-agent needs the login keychain unlocked in ssh sessions |
 | koopa | macOS | **OFF-LIMITS** (primary work machine) |
 
 (A separate "linux" host was listed in earlier drafts — a network sweep

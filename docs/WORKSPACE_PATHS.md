@@ -43,6 +43,38 @@ source of truth for local path assumptions; status detail defers to
   Without that package env, the core can enable the hi-res option but render
   native textures only.
 
+### luma macOS RetroArch (M3 Max laptop; onboarded 2026-07-02)
+
+- Same layout as metapod: `/Users/auro/code/{parallel-n64, papermario (SHALLOW
+  clone), parallel-n64-lab, n64-agent-evals, RetroArch@agent-control}`; assets
+  (ROM zip, exact-variant-set `.phrb`, MoltenVK 1.4.1 tar) scp'd from
+  mander/metapod, sha-pin verified.
+- Built with `tools/adapters/build_retroarch_agent_control_macos.sh` + `deploy`.
+  Onboarding gotchas, all host-state (not recipe) issues:
+  - The pre-existing consumer `/Applications/RetroArch.app` had
+    `NSPrincipalClass: RApplication` in Info.plist — our source build does not
+    register that class and exits ("Unable to find class: RApplication").
+    Both staged apps were set to `NSApplication` (matches metapod).
+  - Gatekeeper killed the modified bundle (`Killed: 9`) — quarantine xattrs
+    inherited from the consumer install; cleared with `xattr -dr`.
+  - `/Applications/RetroArch.app` here has NO app-local MoltenVK.framework
+    (the consumer install had no Frameworks dir), so eval-workspace adapter
+    copies MUST export
+    `RETROARCH_MVK141_BIN=/Users/auro/code/parallel-n64/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch`
+    (the workspace-relative REPO_ROOT default cannot resolve it). The MVK141
+    app itself was transplanted from metapod (tar over scp) and re-signed.
+  - `brew install molten-vk` is required for the Khronos-loader ICD path
+    (`/opt/homebrew/etc/vulkan/icd.d/MoltenVK_icd.json`); `vulkan-loader`,
+    `vulkan-headers`, `pkg-config` also installed.
+  - Non-login ssh PATH lacks `~/.local/bin` (agent CLIs) and
+    `/opt/homebrew/bin`; the eval driver exports both.
+  - Laptop: AC profile never sleeps, battery profile sleeps in 1 minute —
+    keep docked for runs; the driver wraps `run_eval.sh` in `caffeinate -is`.
+  - cursor-agent stores auth in the login keychain, which is locked in ssh
+    sessions — `security unlock-keychain` needed before cursor runs.
+- Eval driver: `/tmp/luma-eval-run.sh` (volatile — recreate from this doc or
+  the metapod driver pattern after reboot).
+
 ## GlideN64 Reference Vehicle
 
 - Prebuilt core: `/home/auro/code/cores/mupen64plus_next_libretro.so`

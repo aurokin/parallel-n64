@@ -225,7 +225,7 @@ Every run record states its axis values; results never mix axes silently.
 |---|---|---|---|---|
 | 1 | codex | gpt-5.4, gpt-5.5 | `model_reasoning_effort=xhigh` | priority; biggest window |
 | 2 | cursor-agent | composer-2.5 | — | cursor-vs-grok comparison |
-| 3 | grok | grok-build | — | |
+| 3 | grok | grok-build, composer-2.5 | — | owner 2026-07-02: the grok sub has plentiful usage — run grok evals freely, both models. Expectation: grok-build low ("I'd love to be proven wrong"), composer-2.5 the interesting one; pairs with the cursor-agent composer-2.5 run as a cross-CLI comparison |
 | 4 | droid | glm-5.2 → kimi-k2.7-code → minimax-m3 | `-r high`+ | **monthly org credits** — schedule sparingly |
 | 5 | opencode | opencode-go/{glm-5.2, kimi-k2.7-code, minimax-m3} | `--variant` | Go providers ONLY (never the ambient Vercel/Fireworks/Cloudflare env keys) |
 | 6 | claude | sonnet-5, opus-4.8 (may run once the harness is trusted — owner clarification 2026-07-02: "claude last" was really "FABLE last") → **fable-5 ABSOLUTELY last** | ultracode keyword / `--effort` | fable-5 is the dev/orchestration model — long eval runs on it are expensive; prove everything out first. sonnet/opus share usage with orchestration: watch limits |
@@ -358,9 +358,10 @@ run-scoped lab-dir hiding) instead.
 
 | Host | OS | Role |
 |---|---|---|
-| haste | CachyOS, RTX 5090 | **image-tool service host** (qwen3.6-35B + LocateAnything sidecar via self-host-llm, co-resident profile); gameplay-capable (validated 2026-07-02) but NOT used as a gameplay runner while the vision models are serving |
-| mander | Linux | gameplay runner / orchestration (this host) |
+| haste | CachyOS, RTX 5090 | **image-tool service host** (qwen3.6-35B + LocateAnything sidecar via self-host-llm, co-resident profile) — vision containers **stopped while unused** (2026-07-02, `docker start qwen-multi-35b-nvfp4` restores); gameplay-capable, pending a scored-eval smoke (redteam-null + codex-smoke) before real runs. Vision-serving and gameplay-running are exclusive roles unless VRAM co-residency is proven |
+| mander | Linux | **development primary** (owner ruling 2026-07-02: orchestration + renderer/harness fixes live here; agents play on the other hosts) — gameplay runner only opportunistically |
 | metapod | macOS | gameplay runner; the computer-use axis (codex/claude); MVK141 app path |
+| luma | macOS (M3 Max laptop) | **incoming** (owner offer 2026-07-02): intermittently online — owner brings it up on request; needs onboarding (scripted macOS recipe, see task); second computer-use-capable host + extra sweep lane |
 | koopa | macOS | **OFF-LIMITS** (primary work machine) |
 
 (A separate "linux" host was listed in earlier drafts — a network sweep

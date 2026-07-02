@@ -86,7 +86,8 @@ make -j"$JOBS"
 # The app bundles carry a stripped binary (June deployment style).
 strip -S -o retroarch.stripped retroarch
 codesign --force --sign - retroarch.stripped
-echo "[build] built $(./retroarch --version 2>&1 | head -1)"
+# Do NOT run the bare binary here: outside an app bundle it parks in the
+# Cocoa event loop and never exits (--version/--features included).
 ls -l retroarch retroarch.stripped
 
 if [[ "$DEPLOY" != "deploy" ]]; then

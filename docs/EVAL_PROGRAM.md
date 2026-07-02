@@ -204,9 +204,10 @@ capture):
   in the shim docstring. VLM-native models do NOT get these tools (they have
   eyes already); this is an equalizer, and run records note which vision path a
   model used.
-- **Measured latency** (co-resident, cross-host): describe ~1–2 s;
-  locate ~25 s single-target, ~80 s for a 3-target query. Budget locates
-  accordingly in eval time limits; a GPU locator build is the later optimization.
+- **Measured latency** (co-resident, cross-host): describe ~0.5–2 s;
+  locate ~75–85 s per query in hybrid mode (target count barely matters; fast
+  mode is quicker but over-matches). Budget locates accordingly in eval time
+  limits; a GPU locator build is the later optimization.
 
 ## 8. Anti-cheat (threat model: agents mine answers; scoring is the boundary)
 

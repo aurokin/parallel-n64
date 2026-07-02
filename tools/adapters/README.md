@@ -13,6 +13,7 @@ Current tracked adapter seeds:
 - [`retroarch_stdin_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_stdin_session.sh)
 - [`retroarch_interactive_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_interactive_session.sh)
 - [`prepare_retroarch_mvk141_app.sh`](/home/auro/code/parallel-n64/tools/adapters/prepare_retroarch_mvk141_app.sh)
+- [`build_retroarch_agent_control_macos.sh`](/home/auro/code/parallel-n64/tools/adapters/build_retroarch_agent_control_macos.sh)
 - [`promote_interactive_state.py`](/home/auro/code/parallel-n64/tools/adapters/promote_interactive_state.py)
 - [`png_uniform_black.py`](/home/auro/code/parallel-n64/tools/adapters/png_uniform_black.py)
 
@@ -36,6 +37,7 @@ Current RetroArch adapter notes:
 - the adapter writes bundle-local core options and points RetroArch at them so tracked runs can force a deterministic local core configuration
 - tracked Paper Mario runs currently force `video_driver = "vulkan"` and `PARALLEL_N64_GFX_PLUGIN_OVERRIDE=parallel` to keep the baseline on the intended ParaLLEl path
 - on macOS, prepare `artifacts/external/RetroArch-MVK141.app` with `tools/adapters/prepare_retroarch_mvk141_app.sh`; for `--mode on`, the runtime adapters prefer that app copy when it exists unless `--retroarch-bin` is passed explicitly, because the stock 1.2.8 MoltenVK bundle cannot run the hi-res Metal argument-buffer path
+- the agent-control RetroArch binary itself is rebuilt with `tools/adapters/build_retroarch_agent_control_macos.sh` (the recovered June recipe: metal+vulkan+coreaudio3 with homebrew paths pinned; `deploy` stages `/Applications/RetroArch.app` and refreshes the MVK141 copy); note the bare `retroarch` binary parks in the Cocoa event loop when launched outside an app bundle — always run/verify it from a bundle
 - for current Paper Mario hi-res gameplay evidence, export `PARALLEL_RDP_HIRES_CACHE_PATH=/Users/auro/code/parallel-n64/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb` before launch; the metapod host config currently does not set that package path
 - on macOS `--mode off` keeps `PARALLEL_RDP_DISABLE_HIRES_SHADER=1`; `--mode on` defaults `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=1` only when the selected RetroArch binary is the prepared MVK141 app copy
 - the current RetroArch stdin agent command surface includes explicit pause, frame-step, savestate-load-paused, save-task wait, and input-port control commands

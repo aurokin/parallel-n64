@@ -200,7 +200,7 @@ Every run record states its axis values; results never mix axes silently.
 | 3 | grok | grok-build | — | |
 | 4 | droid | glm-5.2 → kimi-k2.7-code → minimax-m3 | `-r high`+ | **monthly org credits** — schedule sparingly |
 | 5 | opencode | opencode-go/{glm-5.2, kimi-k2.7-code, minimax-m3} | `--variant` | Go providers ONLY (never the ambient Vercel/Fireworks/Cloudflare env keys) |
-| 6 | claude | sonnet-5 → opus-4.8 → **fable-5 last** | ultracode keyword / `--effort` | usage-sensitive; test at the end |
+| 6 | claude | sonnet-5, opus-4.8 (may run once the harness is trusted — owner clarification 2026-07-02: "claude last" was really "FABLE last") → **fable-5 ABSOLUTELY last** | ultracode keyword / `--effort` | fable-5 is the dev/orchestration model — long eval runs on it are expensive; prove everything out first. sonnet/opus share usage with orchestration: watch limits |
 
 Canonical non-interactive recipes (verified against installed CLIs; always pass
 flags explicitly — several hosts have aggressive defaults in user config, so use
@@ -417,7 +417,12 @@ evals repo; a results table is generated, never hand-edited.
    verification, TTL scaled to cap, auto post-run processing.
    **Owner directive 2026-07-02: continue the matrix with gpt-5.5
    EXCLUSIVELY until the harness is stable**; other models only after runs
-   stop finding harness defects.
+   stop finding harness defects. → EXITED later the same day:
+   pilot-gpt55-toolkit-002 completed the full gate vector (G4 at 70.8 min,
+   terminal-gate, zero harness defects), and the owner opened the roster
+   (first non-codex run: opus-4.8). Standing revert trigger: if new runs
+   surface harness defects, fall back to gpt-5.5-only — it is the model
+   with the most available inference.
 4. Sweep order per §6; metapod runs the computer-use axis with codex/claude.
 5. Fable-5 last, after every other model's results are in.
 6. **Finals round (owner 2026-07-02)**: once the sweep settles, the top ~3

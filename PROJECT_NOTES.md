@@ -2511,3 +2511,40 @@ The project rebooted today on branch `parallelish-reboot`. Decisions, all approv
   send-ack grep misses (commands DO execute) — poll the frame counter with
   patient deadlines instead of trusting acks; and `pkill -f` with a bundle
   name matches your own driver shell.
+
+## 2026-07-02 — TAS macro promotion arc (#46): 4 of 7 candidates promoted as scripts
+
+The lab TAS runtime carried its first promoted route macros today
+(work + evidence in `parallel-n64-lab`; this entry is the cross-repo
+record). `iwa11.advanceTrainRideToChapter2Title` plus the whole
+`nok15.heartBlockFullHeal` -> `nok15.toTrd00LowerEntry` ->
+`trd00.firstSaveBlockAndSave` chain are now **promoted**: each implemented
+as a TypeScript macro and live-replayed 3-4x on metapod from named,
+sha-recorded June-bundle slot states, with frame-identical stop cues
+(iwa11: 1725 neutral frames in all four runs; the route macro stabilized
+float-identical at (-899.999, 0, 200.104); the save macro wrote
+byte-identical srm content across all three runs — the in-game save is
+deterministic).
+
+Method notes that matter beyond the lab:
+- The TS runtime's `readMemory` returns the libretro word-swapped view
+  verbatim; the lab macros now carry a swap-aware field reader
+  (`macros/paper-mario/pm64-fields.ts`) calibrated live against the
+  chapter2 durable state before anything trusted it.
+- Durable-state audit that opened the arc: index listed 47 states, disk
+  had 47 on both hosts, and the one suspect
+  (`paper-mario-chapter2-title-card-hires-20260623`) sha-matches its
+  packfix slot-9 source exactly — nothing to re-materialize.
+- Pack-identity deviation recorded everywhere: June manual proofs ran
+  pre-curation `544f94d9…`, all scripted replays ran curated r2
+  `388bce41…`; frame-identical behavior across the boundary is itself
+  evidence the curation passes are render-only.
+- PM64 dialog scripting lesson: the save prompt and "Save completed."
+  text flow through one continuous printer window — phase machines must
+  cue on quiet-with-stability, not window edges (first attempt bundle
+  `trd00-save-proof1b`'s predecessor documents the deadlock).
+
+Remaining candidates (#46 stays open): `battle.jrTroopaChapter1RefreshBombHammer`
+(timing-sensitive, needs battle telemetry), `mac03.bombStationRockWithBombette`
+(needs a semantic field-ability input for the 0x2001 composite), and
+`mac03.boardTrainToMtRugged`.

@@ -76,11 +76,29 @@ must require `demoState==0`. "No saves at start": Paper Mario saves to FlashRAM
 private savefile dir, so clean-boot is the default — the harness additionally
 verifies the flash region is blank at start.
 
-**Before first scored run** (lab TELEMETRY.md rule — raw addresses need attestation):
-verify storyByte against existing durable states with known progress (Goompa-joined
-should read −121), observe gSaveSlotHasData 0→1 across a live file creation, and
-confirm battleID==0x2301 in the intro fight. These attestations are cheap lab
-sessions; the addresses above came from the decomp (semantic reference only).
+**Attested 2026-07-02** (mander, HEAD core, mode off, word-swap-corrected reads
+over `READ_CORE_MEMORY` against four lab durable states — predictions written
+down before reading):
+
+| Durable state | storyByte | battleID | demoState | area/map |
+|---|---|---|---|---|
+| bowser-prologue-battle-start | **−128** (=STORY_INTRO, predicted) | **0x2301** (predicted) | 0 | 4/7 = kkj_13 (predicted) |
+| kmr03-post-fall-first-control | **−122** (=STORY_CH0_FELL_OFF_CLIFF, predicted) | 0x0 | 0 | 0/2 |
+| kmr02-goombario-joined | **−115** (=STORY_CH0_GOOMBARIO_JOINED_PARTY, predicted) | 0x0 | 0 | 0/1 |
+| toad-town-plaza-saveblock-saved | **−107** (=STORY_CH0_ARRIVED_AT_TOAD_TOWN, predicted) | 0x0 | 0 | 1/2 |
+
+4/4 exact. New facts for the scorer: gCurrentBattleID's no-battle sentinel is
+**0x0** (not −1); areaID/mapID live at gGameStatus+0x86/+0x8C (s16). One caveat
+found in the decomp: `gSaveSlotHasData` initializes to all-true at title-screen
+data init and only becomes meaningful after the fio flash scan validates
+checksums — so G1's primary "save created" signal should be the harness's
+offline check of the bundle .srm flash region (blank = 0xFF-filled), with
+gSaveSlotHasData as the in-RAM cross-check. Still to observe live (during the
+pilot, not blocking): gSaveSlotHasData 0→1 across an in-eval file creation.
+Attestation driver: scratchpad attest_gates.py/attest-run.sh pattern — bundle
+per state, `--state-source <lab>/durable-states/<id>/state`, load slot 0
+paused, STEP_FRAME 3, read, stop (drop `--savefile-source` for pre-0617 mints
+that lack `savefiles/`).
 
 ## 3. Harness architecture
 

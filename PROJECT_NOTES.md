@@ -2744,3 +2744,49 @@ same commit on mander+metapod; guide DECOMP_BLOCK; lab_snoop_audit tiers
 decomp reads as allowed); and a long-term recordings lane (EVAL_PROGRAM
 §13): segment-anchored TAS/AV recording with a crash-sewing stitcher —
 input-level recording already exists via command traces + replay_verify.
+
+## 2026-07-02 (late) — Playbook iteration, fleet at four hosts, grok lane opened, guide-series verdict
+
+**Guide iteration 3 (`guide=playbook`)**: owner approved shipping a
+game-agnostic `PLAYBOOK.md` in every workspace (evals repo 6eca118; §4 of
+EVAL_PROGRAM records contents + the standing generality constraint). The
+owner's cutscene diagnosis (pre-castle ≈ one save screen + cutscenes) is
+section 1.
+
+**gpt-5.5 guide-version series complete** (same model/cap/harness):
+base -002 = G4 at 70.8min (still the only completion); telemetry -003 =
+G3 14.1min then kkj-door grind to cap; playbook -004 = G3 18.7min then
+capped mid castle-lift ascent (one story beat from the fight; late intro
+traced to an attract-demo detour + allowed clean session restart, NOT the
+playbook). Honest read: taught telemetry measurably compressed the
+overworld; no guide version has yet moved the castle wall; -002's
+completion currently looks like variance, and per-guide replication is
+needed before crediting instructions with completions.
+
+**Eval final-frame gallery** (owner request): every record now gets an
+end-of-run screenshot (run_eval 84e9f79); retrospective gallery assembled
+from run tarballs — the castle-climb ladder (party hall → staircase →
+star door → Peach chambers → battle) makes each run's death spot legible.
+Gallery also surfaced two hi-res renderer suspects, filed as task #67 with
+states + method staged in artifacts/triage-2026-07-02-eval-shots/
+(gitignored; README carries provenance): intro-Bowser backdrop
+(misoriented/wrong replacement tiles suspected) and Peach-chamber
+post-tremor balloon smear (overlay-pair class, cf. curation pass 2).
+
+**Fleet**: mander re-scoped to development primary (owner ruling); haste
+validated as scored host (null + codex smokes; vision containers stopped
+while unused — docker start restores); luma (M3 Max) onboarded from clean
+slate to validated host #4 in one evening — gotchas in WORKSPACE_PATHS
+§luma (RApplication plist, Gatekeeper quarantine, RETROARCH_MVK141_BIN
+requirement, brew molten-vk ICD, PATH, caffeinate); metapod unchanged.
+koopa still OFF-LIMITS. cursor-agent on luma blocked only on a keychain
+unlock (owner to run).
+
+**grok lane** (owner: sub has plentiful usage — run freely): grok-build
+scored 0 gates — died on the file-naming keyboard, 4s of game time in
+90min (owner prediction confirmed; ledger 0833d40). grok-composer-2.5-fast
+in flight at G3 18.7min with the best frame-efficiency profile yet.
+gpt-5.4 playbook rerun in flight on luma (the "could 5.4 pass now?"
+experiment). Transcript-survival recipes: grok streaming-json + claude
+stream-json --verbose (the opus-4.8 cap kill lost its entire transcript;
+recipes updated 12f063cc).

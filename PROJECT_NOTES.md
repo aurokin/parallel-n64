@@ -2679,3 +2679,22 @@ LocateAnything-3B (the locator for text-only models); q8_0 weights + CPU build
 in progress; describer pick is Qwen3.6-35B-A3B AWQ on vLLM per the research
 sweep. ChatGPT pack-catalog posts digested (top-10 + full format taxonomy);
 legacy Rice/DAT/Jabo packs earmarked as hts2phrb flexibility corpus.
+
+Image-tool lane closed (#58, 2026-07-02): vision tools are DEPLOYED, not just
+picked. Haste serves a co-resident profile — qwen3.6-35b-a3b-multi on the GPU
+(:8021, the already-running self-host-llm profile) + LocateAnything-3B q8_0 on
+CPU ggml — fronted by a FastAPI sidecar on :8022 (`self-host-llm` repo,
+`scripts/vision-tools start`; local commits only, that repo has no remote).
+The sidecar resizes locator inputs to ≤1440px (full-res 2880×2160 OOMs beside
+the resident vLLM), serializes locates, and rescales boxes to original-image
+pixel coords. Gameplay hosts reach it through a local stdio MCP shim
+(`tools/adapters/vision_tools_mcp.py`, uv/PEP 723): agents pass local
+screenshot paths; the shim does the network hop. Verified end-to-end from
+mander on a live f10440 capture (describe grounded and title-free ~0.5–2s;
+locate single tight Mario box, hybrid mode ~75–85s per query regardless of
+target count — budget accordingly), then live-wired with real one-tool-call
+glm-5.2 tests: opencode `opencode.json` snippet works as-is; droid
+`.factory/mcp.json` works but requires `--auto high` (`--auto medium` refuses
+MCP calls). While the vision models serve, haste is a tools host, not a
+gameplay runner (mander/metapod take gameplay). EVAL_PROGRAM.md §6/§7/§9
+updated to the as-built architecture.

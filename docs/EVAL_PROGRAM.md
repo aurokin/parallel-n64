@@ -168,6 +168,10 @@ opencode run --dir <ws> -m opencode-go/glm-5.2 --format json "<prompt>"
 claude -p --output-format json --model claude-sonnet-5 --permission-mode bypassPermissions "<prompt>"
 ```
 
+droid note: `--auto medium` refuses MCP tool calls ("insufficient permission to
+proceed... Re-run with --auto high"), so droid runs that use the image tools (§7)
+must pass `--auto high`.
+
 Usage-limit patterns (runner greps): codex `/hit your usage limit/i` (+`resets_at`
 in the turn.failed event); cursor server-provided messages; grok
 `usage limit reached|out of credits`; droid `monthly compute usage limit` (do not
@@ -201,9 +205,10 @@ capture):
   remote-streamable-HTTP option, where agents would have to move image bytes
   themselves). Project-level config only, scoped to the eval workspace: droid
   `.factory/mcp.json` (stdio), opencode `opencode.json` `mcp` (local) — snippets
-  in the shim docstring. VLM-native models do NOT get these tools (they have
-  eyes already); this is an equalizer, and run records note which vision path a
-  model used.
+  in the shim docstring. Both snippets live-verified 2026-07-02 with one-tool-call
+  glm-5.2 tests from mander; droid additionally requires `--auto high` (see §6).
+  VLM-native models do NOT get these tools (they have eyes already); this is an
+  equalizer, and run records note which vision path a model used.
 - **Measured latency** (co-resident, cross-host): describe ~0.5–2 s;
   locate ~75–85 s per query in hybrid mode (target count barely matters; fast
   mode is quicker but over-matches). Budget locates accordingly in eval time

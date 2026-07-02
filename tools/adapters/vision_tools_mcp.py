@@ -16,7 +16,8 @@ local stdio server rather than a remote streamable-HTTP MCP endpoint.
 
 Wire-up (project-level config, scoped to the eval workspace):
 
-droid `.factory/mcp.json`:
+droid `.factory/mcp.json` (droid exec must run with --auto high; --auto medium
+refuses MCP tool calls):
   {"mcpServers": {"vision-tools": {"type": "stdio",
     "command": "uv", "args": ["run", "<path>/vision_tools_mcp.py"]}}}
 

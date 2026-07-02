@@ -653,6 +653,15 @@ cmd_send() {
 
   local ack start_bytes
   ack="$(ack_for_command "$COMMAND")"
+  # Serialize the send+ack unit per bundle: the ack matcher takes the LAST
+  # pattern match after start_bytes, so two concurrent same-verb sends (e.g.
+  # a scorer polling READ_CORE_MEMORY while the agent probes RAM) can each
+  # collect the other's reply. flock releases on process exit.
+  exec 9>"$BUNDLE_DIR/logs/send.lock"
+  if ! flock -w "$((ACK_TIMEOUT + 15))" 9; then
+    echo "Timed out waiting for the bundle send lock." >&2
+    exit 1
+  fi
   start_bytes="$(log_size_bytes)"
   send_fifo "$COMMAND"
   if [[ -n "$ack" ]]; then

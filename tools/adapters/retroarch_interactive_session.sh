@@ -621,6 +621,14 @@ MODE=$MODE
 TTL_SECONDS=$TTL_SECONDS
 EOF
 
+  # Session boundary marker for trace consumers (replay verification, the
+  # recordings/stitching lane): the commands log accumulates across restarts
+  # in the same bundle, and a restart resets per-process state (savestate
+  # slot counter), so replaying a multi-session trace as one session forks.
+  # Not sent to the FIFO — this is not a frontend command.
+  printf 'SESSION_START pgid=%s\n' "$PGID" \
+    >> "$BUNDLE_DIR/logs/interactive.commands.log"
+
   local start_bytes=0
   deadline=$(( $(date +%s) + 120 ))
   while (( $(date +%s) < deadline )); do

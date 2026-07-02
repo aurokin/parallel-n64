@@ -14,6 +14,7 @@ Current tracked adapter seeds:
 - [`retroarch_interactive_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_interactive_session.sh)
 - [`prepare_retroarch_mvk141_app.sh`](/home/auro/code/parallel-n64/tools/adapters/prepare_retroarch_mvk141_app.sh)
 - [`promote_interactive_state.py`](/home/auro/code/parallel-n64/tools/adapters/promote_interactive_state.py)
+- [`png_uniform_black.py`](/home/auro/code/parallel-n64/tools/adapters/png_uniform_black.py)
 
 Higher-level TAS step/capture loops, Paper Mario probes, gameplay macros, and
 durable gameplay state indexes live in `parallel-n64-lab`.
@@ -44,9 +45,16 @@ Current RetroArch adapter notes:
 - when a core does not publish a libretro memory map, the local RetroArch build now falls back to `RETRO_MEMORY_SYSTEM_RAM` for `READ_CORE_MEMORY`
 - `SAVE_STATE` is asynchronous in RetroArch; tracked flows now use `WAIT_SAVE_STATE`, and save tasks should be sequenced before screenshot tasks when minting authoritative states
 
+Capture and end-of-session evidence hardening (both runtime adapters):
+
+- every completed capture is pixel-decoded (`png_uniform_black.py`, stdlib-only, exact — not a checksum heuristic); a uniformly black capture emits a warning and a `logs/capture.warnings.log` record but never fails the command, because black is legitimate mid-fade
+- the usual causes of black captures are a screenshot before the first presented frame after `LOAD_STATE_SLOT_PAUSED` (step at least one frame first) and GPU-backbuffer screenshots while presentation is suspended (`video_gpu_screenshot = "false"` reads the core framebuffer instead)
+- session end reasons are recorded in `logs/session.end-reason` so bundles explain their own truncation (explicit-fallback evidence contract)
+
 Interactive agent-play adapter notes (`retroarch_interactive_session.sh`):
 
 - `start` keeps one session alive across agent turns: RetroArch runs in its own setsid process group, holds the same runtime flock as the batch adapter, and self-terminates after `--ttl-seconds` (default 3600) so a forgotten session can never become a daemon
+- a TTL grace watchdog sends `QUIT` ~30s (`RETROARCH_TTL_GRACE_SECONDS`) before the hard kill and records `ttl-grace-quit` in `logs/session.end-reason`, so the core's end-of-run summaries (e.g. the hi-res keying summary) flush instead of dying with the process; the hard `timeout` kill remains as the backstop
 - `start --savefile-source PATH` stages an explicit `.srm` or savefile directory into the bundle-local savefile directory before launch; use this for real gameplay file-select/loading tests
 - `send`/`input`/`screenshot`/`status`/`save-slot`/`load-slot` talk to the live session over the bundle FIFO; `stop` QUITs and falls back to killing the process group
 - the game runs in REAL TIME between agent commands; for deterministic play keep the session paused and use `input --frames N` (TAS-style: input held for exactly N stepped frames, proven bit-identical on replay), reserving `--hold-seconds` for menus/title screens

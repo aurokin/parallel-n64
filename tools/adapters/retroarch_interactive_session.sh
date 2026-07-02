@@ -10,7 +10,9 @@
 #   - the session holds the same runtime flock as the batch adapter, so the
 #     one-emulator-at-a-time rule still holds across both adapters
 #   - RetroArch runs under `timeout`, so a forgotten session kills itself
-#     after --ttl-seconds (default 3600)
+#     after --ttl-seconds (default 3600); a grace watchdog sends QUIT
+#     shortly before that hard kill so core end-of-run summaries flush,
+#     and records the reason in logs/session.end-reason
 #   - the whole chain lives in its own setsid process group recorded in
 #     session.pid; `stop` QUITs politely, then kills the group
 set -euo pipefail
@@ -51,6 +53,11 @@ deterministic play, keep the session paused and use `input --frames N`
 paused). Pause with `send --command "SET_PAUSE ON"`; the command accepts
 ON, OFF, or TOGGLE. `--hold-seconds` is wall-clock and only suited to
 menus and title screens.
+
+Capture note: after LOAD_STATE_SLOT_PAUSED, step at least one frame
+before `screenshot` — the loaded frame has not been presented yet and
+the capture comes back black. The adapter decodes each capture and
+warns (without failing) when it is uniformly black.
 EOF
 }
 
@@ -266,6 +273,38 @@ session_paths() {
   SESSION_ENV="$BUNDLE_DIR/retroarch.session.env"
   PID_FILE="$BUNDLE_DIR/session.pid"
   SLOT_FILE="$BUNDLE_DIR/session.state-slot"
+  END_REASON_FILE="$BUNDLE_DIR/logs/session.end-reason"
+}
+
+record_end_reason() {
+  printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >> "$END_REASON_FILE"
+}
+
+# Evidence-contract hardening: a TTL kill used to be a silent hard stop
+# that lost the core's end-of-run summaries. This watchdog (outside the
+# session process group, so group liveness still means "RetroArch is
+# alive") asks RetroArch to QUIT shortly before the hard `timeout` kill
+# and records the reason, turning the TTL into an explicit, reported
+# fallback. If the QUIT doesn't land, the original hard kill still fires.
+start_ttl_grace_watchdog() {
+  local pgid="$1" launch_epoch="$2" ttl_seconds="$3"
+  local grace="${RETROARCH_TTL_GRACE_SECONDS:-30}"
+  (( ttl_seconds <= 2 * grace )) && grace=$(( ttl_seconds / 3 ))
+  (( grace < 3 )) && return 0
+  local fire_at=$(( launch_epoch + ttl_seconds - grace ))
+  (
+    while (( $(date +%s) < fire_at )); do
+      sleep 5
+      kill -0 -- "-$pgid" 2>/dev/null || exit 0
+    done
+    kill -0 -- "-$pgid" 2>/dev/null || exit 0
+    record_end_reason "ttl-grace-quit: sent QUIT ${grace}s before the hard TTL kill (ttl=${ttl_seconds}s)"
+    if [[ -p "$FIFO_PATH" ]]; then
+      timeout 10 bash -c 'printf "QUIT\n" > "$1"' _ "$FIFO_PATH" 2>/dev/null || true
+      printf 'QUIT\n' >> "$BUNDLE_DIR/logs/interactive.commands.log"
+    fi
+  ) </dev/null >/dev/null 2>&1 &
+  disown 2>/dev/null || true
 }
 
 require_live_session() {
@@ -532,6 +571,8 @@ EOF
 
   # Session leader writes its own pid (== PGID of the whole chain), holds the
   # runtime lock for the session lifetime, and dies on its own after TTL.
+  local LAUNCH_EPOCH
+  LAUNCH_EPOCH="$(date +%s)"
   start_session_leader "$PID_FILE" "$LOCK_FILE" "$TTL_SECONDS" "$RETROARCH_BIN" \
       "$BASE_CONFIG" "$APPEND_CONFIG" "$CORE_PATH" "$ROM_PATH" \
       "$FIFO_PATH" "$RA_LOG"
@@ -583,6 +624,7 @@ EOF
     start_bytes="$(log_size_bytes)"
     send_fifo "PING"
     if wait_for_log_pattern_after "$start_bytes" "PING OK" 2; then
+      start_ttl_grace_watchdog "$PGID" "$LAUNCH_EPOCH" "$TTL_SECONDS"
       echo "[interactive] session ready: pgid=$PGID bundle=$BUNDLE_DIR ttl=${TTL_SECONDS}s"
       exit 0
     fi
@@ -747,6 +789,7 @@ cmd_screenshot() {
       local size
       size="$(file_size_bytes "$newest")"
       if (( size > 0 && size == last_size )); then
+        warn_if_black_capture "$newest"
         printf '%s\n' "$newest"
         return 0
       fi
@@ -756,6 +799,23 @@ cmd_screenshot() {
   done
   echo "No completed capture appeared within 15s." >&2
   exit 1
+}
+
+# Uniformly-black captures are almost always tooling faults, not scenes:
+# a screenshot before the first presented frame after
+# LOAD_STATE_SLOT_PAUSED, or GPU-backbuffer screenshots while
+# presentation is suspended. Warn (a black scene is legitimate during
+# fades, so this must not fail) and leave a record in the bundle.
+warn_if_black_capture() {
+  local capture="$1" rc=0
+  python3 "$SCRIPT_DIR/png_uniform_black.py" "$capture" 2>/dev/null || rc=$?
+  if (( rc == 0 )); then
+    echo "[interactive] warning: capture is uniformly black: $capture" >&2
+    echo "  (likely no frame presented yet — step >=1 frame after a paused state load," >&2
+    echo "   or set video_gpu_screenshot=false if the display/presentation is suspended)" >&2
+    printf '%s black capture: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$capture" \
+      >> "$BUNDLE_DIR/logs/capture.warnings.log"
+  fi
 }
 
 cmd_status() {
@@ -886,6 +946,7 @@ cmd_stop() {
   PGID="$(cat "$PID_FILE")"
 
   if kill -0 -- "-$PGID" 2>/dev/null && [[ -p "$FIFO_PATH" ]]; then
+    record_end_reason "stop: agent-requested stop (QUIT)"
     send_fifo "QUIT" || true
   fi
   local deadline=$(( $(date +%s) + 10 ))
@@ -898,6 +959,7 @@ cmd_stop() {
     sleep 0.5
   done
   echo "[interactive] QUIT timed out; killing process group $PGID."
+  record_end_reason "stop: QUIT timed out; killed process group $PGID"
   kill -TERM -- "-$PGID" 2>/dev/null || true
   sleep 2
   if kill -0 -- "-$PGID" 2>/dev/null; then

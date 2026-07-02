@@ -588,6 +588,7 @@ handle_wait_new_capture() {
     current_count="$(capture_file_count)"
     if (( current_count > initial_count )); then
       PENDING_CAPTURE_BASELINE=""
+      warn_if_black_capture
       return 0
     fi
     sleep 0.2
@@ -595,6 +596,34 @@ handle_wait_new_capture() {
 
   PENDING_CAPTURE_BASELINE=""
   return 1
+}
+
+# Uniformly-black captures are almost always tooling faults (screenshot
+# before the first presented frame after a paused state load, or
+# GPU-backbuffer screenshots with presentation suspended), but a black
+# scene is legitimate during fades — warn and record, never fail.
+warn_if_black_capture() {
+  local newest rc=0
+  newest="$(ls -t "$BUNDLE_DIR/captures"/*.png 2>/dev/null | head -n1)"
+  [[ -n "$newest" ]] || return 0
+  # The screenshot task writes asynchronously; give the file a moment to
+  # finish before decoding it.
+  local last_size=-1 size waited=0
+  while (( waited < 50 )); do
+    size="$(wc -c < "$newest" | tr -d ' ')"
+    if (( size > 0 && size == last_size )); then
+      break
+    fi
+    last_size="$size"
+    sleep 0.2
+    waited=$(( waited + 1 ))
+  done
+  python3 "$SCRIPT_DIR/png_uniform_black.py" "$newest" 2>/dev/null || rc=$?
+  if (( rc == 0 )); then
+    echo "[adapter] warning: capture is uniformly black: $newest" >&2
+    printf '%s black capture: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$newest" \
+      >> "$BUNDLE_DIR/logs/capture.warnings.log"
+  fi
 }
 
 normalize_hex_string() {

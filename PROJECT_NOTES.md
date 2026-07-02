@@ -2629,3 +2629,53 @@ binary (`--features`, rpaths) and fixing forward:
 - Gotcha for future sessions: the bare `retroarch` binary parks in the
   Cocoa event loop outside an app bundle — even `--version` hangs; always
   run it from a bundle.
+
+## 2026-07-02: blog-support pack, seam-fix gating settled empirically, eval program v1, haste online
+
+Blog-post agent support (#54, all three requests served; deliverables under
+`artifacts/blog-support-260702/REPLY.md`):
+- f10440 "after" frame captured fresh on HEAD 71eb38cd + curated r2 pack
+  (`artifacts/experiments/sewer-segment-260702-current/`, IDENTITY.md inside;
+  rubric yes; sampled corpus review 13/13 clean vs the Jun 13 known-good corpus).
+- Changelog since the Jun 13 handoff boundary (5726fe02): 110 facts produced and
+  adversarially verified by workflow fan-out (two rounds; the first was cut by a
+  5-hour session limit and resumed from the journal). Highlights that would have
+  broken a naive post: option keys live in the legacy variables[] table (the
+  libretro_core_options.h header is vestigial and lacks the hirestex keys); the
+  pack file path never identifies the pack (curation overwrote in place —
+  sha lineage 544f94d9 → 43e14cf0 → 388bce41); June-vs-July frame indexes are
+  offset ~50 (align by content); all adapter hardening postdates the boundary.
+- Copy-edge seam fix (8695c902) gating settled EMPIRICALLY
+  (`artifacts/experiments/seam-featoff-260702/`, IDENTITY.md inside): with hi-res
+  OFF in all runs, the pre-fix core (built at 8695c902^ in a worktree) shows the
+  kmr_03 junction seam at capture columns x=749..750 with native-tex-rect
+  disabled at 4x — no pack involved — and HEAD is clean in the same config; the
+  full-frame column diff between the two cores differs in exactly that one column
+  run. The fix is gated on SCALING_FACTOR>1 + copy-mode + unsnapped, NOT on
+  hi-res. Feature-off default output is unchanged (default keeps texrects
+  snapped; 1x is inert by construction). The prior working assumption that the
+  seam still reproduces on HEAD with hi-res off + unsnapped texrects was
+  overturned — that memory matches the pre-fix build.
+
+Eval program v1 designed and landed as `docs/EVAL_PROGRAM.md` (#55): gate-scored
+clean-boot evals (PM64 intro→Bowser with concrete RAM cues from the decomp: story
+byte 0x800DBD70, gSaveSlotHasData 0x80077A24, battleID 0x800DC4E8==0x2301, all
+demoState-guarded — attestation against durable states required before first
+scored run); paused-stepped play; harness-owned scoring + input-trace replay as
+the integrity anchor; export-not-repo workspaces; two variation axes only
+(self-built vs scripts-provided tooling; computer-use mentioned vs not); roster
+codex→cursor→grok→droid→opencode→claude with fable-5 absolutely last; no dollar
+caps, 90-minute time cap. Recommendation: runnable program in a new evals repo.
+
+Fleet: haste (CachyOS, RTX 5090) set up as a full dev env + agent runner —
+repos cloned, core built (GCC 16 defaults to C23; build with `CC="gcc
+-std=gnu17"` or glibc's C23 fsqrt collides with the hacktarux dynarec's local
+fsqrt), RetroArch agent-control built, assets synced, end-to-end adapter session
+validated on the 5090 (Vulkan, state load, step, capture). All six agent CLIs
+(claude/codex/cursor-agent/grok/droid/opencode) now installed AND user-auth'd on
+metapod/haste/mander (+koopa, which stays off-limits for jobs). Image-tool lane
+(#58): haste's ~/code/locate-anything.cpp is the ggml port of NVIDIA
+LocateAnything-3B (the locator for text-only models); q8_0 weights + CPU build
+in progress; describer pick is Qwen3.6-35B-A3B AWQ on vLLM per the research
+sweep. ChatGPT pack-catalog posts digested (top-10 + full format taxonomy);
+legacy Rice/DAT/Jabo packs earmarked as hts2phrb flexibility corpus.

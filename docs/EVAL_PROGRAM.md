@@ -161,7 +161,7 @@ not vocabulary.
 
 | Axis | Values | When to run |
 |---|---|---|
-| A. Tooling provided | `toolkit` (default: TAS engine + adapter, per the owner ruling — this is the measured condition) vs `bare-adapter` (adapter only; quantifies the toolkit's value) | Pilot A/B on 1–2 models; then default toolkit |
+| A. Tooling provided | `toolkit` (default: TAS engine + adapter, NO macro library — agents designing their own macro libraries is a large part of what the eval measures, owner ruling) vs `toolkit+macros` (`--with-macros`: adds the lab route/battle macro library, for the with-vs-without comparison) vs `bare-adapter` (adapter only; quantifies the toolkit's value) | Pilot A/B on 1–2 models; then default toolkit |
 | B. Computer use | `unmentioned` (default) vs `enabled+recommended` | codex + claude only (only CLIs with computer use today), macOS host only. CUA drivers for other models: out of scope v1 |
 
 Fixed (not axes): hi-res ON at 4x (feature-off runs only as explicit baseline

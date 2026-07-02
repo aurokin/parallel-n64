@@ -176,25 +176,37 @@ retry in 5h); opencode `usage limit reached. It will reset in`; claude
 
 ## 7. Image tools for text-only models (droid + opencode only)
 
-Some Go-tier models lack image input. Equalizer service on **haste** (RTX 5090):
-- **Locator**: NVIDIA LocateAnything-3B — open-vocab boxes/points from text
-  ("the START button", "the green pipe"), GUI-grounding SOTA, [0,1000]-normalized
-  coords (×W/1000, ×H/1000 for pixels). Already staged:
-  `haste:~/code/locate-anything.cpp` (LocalAI's MIT ggml port, box-identical to the
-  official model; q8_0 GGUF ≈ 6.3 GB). License note: official weights are NVIDIA
-  non-commercial (research use) — fine for internal tooling; Qwen3-VL is the
-  Apache-2.0 fallback if that ever matters.
-- **Describer**: Qwen3.6-35B-A3B AWQ-4bit on vLLM ≥ 0.19 (~20 GB, ~10 GB headroom;
-  best open OCR/low-hallucination profile that fits 32 GB; ~3–5 s per structured
-  scene description). Fallback: Qwen3-VL-8B FP8 (boring, proven, huge headroom).
-  Use AWQ/INT4 quants on the 5090 (sm_120) — NVFP4 MoE backends still lag.
-- **Wiring**: ONE streamable-HTTP MCP server exposing `describe_image` +
-  `locate_on_image`, added via **project-level** config only (scoped to the eval
-  workspace): droid `.factory/mcp.json` (`type: http`, `enabledTools: [...]`),
-  opencode `opencode.json` `mcp` key (`type: remote`). Both CLIs speak
-  streamable-HTTP MCP natively — no per-CLI shims. VLM-native models do NOT get
-  these tools (they have eyes already); this is an equalizer, and run records note
-  which vision path a model used.
+Some Go-tier models lack image input. Equalizer service on **haste** (RTX 5090)
+— DEPLOYED and validated end-to-end 2026-07-02 (mander → haste on a live f10440
+capture):
+- **Locator**: NVIDIA LocateAnything-3B — open-vocab boxes from text ("the START
+  button", "the green pipe"). Running via LocalAI's MIT ggml port at
+  `haste:~/code/locate-anything.cpp` (q8_0 GGUF, CPU, `--mode hybrid`). License
+  note: official weights are NVIDIA non-commercial (research use) — fine for
+  internal tooling; Qwen3-VL is the Apache-2.0 fallback if that ever matters.
+- **Describer**: the already-serving qwen3.6-35b-a3b-multi vLLM profile (:8021),
+  called with a grounded system prompt (describe pixels only, never guess the
+  title) and `enable_thinking: false`.
+- **Service**: `self-host-llm` repo on haste, `scripts/vision-tools start` →
+  FastAPI on :8022 (`/describe`, `/locate`, `/health`). It resizes inputs
+  (locator ≤1440px longest side — full-res 2880×2160 OOMs next to the resident
+  vLLM), serializes locates (RAM guard), and rescales boxes back to
+  original-image pixel coords. Co-resident profile: qwen on GPU + locator on CPU
+  simultaneously, so haste serves both tools without touching the gameplay hosts.
+- **Wiring**: a local **stdio MCP shim** on each gameplay host —
+  `tools/adapters/vision_tools_mcp.py` (`uv run`, PEP 723) exposing
+  `describe_image(path, question?)` + `locate_on_image(path, query)`. The shim
+  reads the LOCAL screenshot and uploads it to :8022, so agents pass small local
+  paths and never handle image payloads (this beat the researched
+  remote-streamable-HTTP option, where agents would have to move image bytes
+  themselves). Project-level config only, scoped to the eval workspace: droid
+  `.factory/mcp.json` (stdio), opencode `opencode.json` `mcp` (local) — snippets
+  in the shim docstring. VLM-native models do NOT get these tools (they have
+  eyes already); this is an equalizer, and run records note which vision path a
+  model used.
+- **Measured latency** (co-resident, cross-host): describe ~1–2 s;
+  locate ~25 s single-target, ~80 s for a 3-target query. Budget locates
+  accordingly in eval time limits; a GPU locator build is the later optimization.
 
 ## 8. Anti-cheat (threat model: agents mine answers; scoring is the boundary)
 
@@ -229,9 +241,9 @@ precedents (VideoGameBench, PokeAgent, lmgame-Bench), prioritized:
 Vision serving builds on haste's existing `self-host-llm` stack (docker-compose
 vLLM profiles; validated OpenAI-compatible endpoints :8020/:8021, vision enabled):
 the describer is the already-deployed qwen-multi profile — no new deployment — and
-LocateAnything runs as the sidecar its README already plans (CPU ggml today, so it
-coexists with the GPU-resident Qwen; a co-resident GPU build is a later
-optimization). The image-tool MCP server proxies to both.
+LocateAnything runs as the CPU-ggml sidecar, co-resident with the GPU-resident
+Qwen (a GPU locator build is a later optimization). The :8022 vision-tools
+service fronts both; gameplay hosts reach it through the local stdio shim (§7).
 
 One gameplay session per host, ever (flock-enforced). A full 11-model sweep of one
 eval ≈ 11 × ≤90 min across 3–4 hosts ≈ one long afternoon, before retries.

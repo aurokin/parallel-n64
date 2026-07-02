@@ -2581,3 +2581,51 @@ plus two hardenings kept from the diagnosis — `video_gpu_screenshot =
 at the stock app; updating it rides with the #44 rebuild. Promotion
 evidence disposition: telemetry cues were identical across black-era and
 re-mint runs; one re-mint per macro carries the real captures.
+
+## 2026-07-02 — #43 + #44 closed: adapter evidence hardening, RetroArch rebuild deployed
+
+Adapter-side (#43, commit 34991273): TTL kills are no longer silent —
+a grace watchdog outside the session process group sends `QUIT` ~30s
+before the hard `timeout` kill and records `logs/session.end-reason`
+(stop paths record theirs too). Verified live: a 150s-TTL session quit
+cleanly at the grace point with the full hi-res keying summary flushed,
+where the old path lost it. Both runtime adapters now pixel-decode every
+completed capture (`tools/adapters/png_uniform_black.py`, exact stdlib
+PNG decode — deliberately not a checksum heuristic) and warn without
+failing on uniformly black frames (`logs/capture.warnings.log`).
+Verified both directions: screenshot immediately after
+`LOAD_STATE_SLOT_PAUSED` warns; after 3 stepped frames it captures
+clean. The step-before-screenshot contract is documented rather than
+auto-stepping, which would silently shift TAS frame counts.
+
+RetroArch rebuild (#44): the June recipe was never recorded and the June
+binary came from a dirty tree. Recovered by interrogating the working
+binary (`--features`, rpaths) and fixing forward:
+- Recipe: `tools/adapters/build_retroarch_agent_control_macos.sh` —
+  metal+vulkan+coreaudio3 enabled explicitly (metal selects
+  HAVE_COCOA_METAL, the only cocoa UI that builds outside Xcode/griffin),
+  sdl2/mic/builtinzlib/accessibility/translate/ffmpeg/freetype off,
+  homebrew paths pinned (the vulkan loader check needs
+  -L/opt/homebrew/lib), and `@executable_path/../Frameworks[...]` rpaths
+  added at staging (RetroArch dlopens bare "MoltenVK"; without the
+  rpaths the vulkan loader open fails).
+- Source fixes committed on agent-control (`6eb9a269be`): iOS-gated
+  draw-observer prototypes, missing includes in ui_cocoa.m, missing
+  cocoa objects/frameworks in Makefile.common's HAVE_COCOA_COMMON block,
+  PATH_MAX_LENGTH include order. The old binaries are preserved as
+  `RetroArch.bak-00dc8104` (the /Applications backup got ad-hoc
+  re-signed by the bundle codesign; the MVK141 backup keeps original
+  bytes).
+- Deployed to `/Applications/RetroArch.app` and the refreshed MVK141 app
+  (MoltenVK 1.4.1 manifest). Verified: adapter session PLAYING; hi-res
+  cache loads (15056 entries); the log double-write is gone (single
+  banner and capability lines — closing #43's duplicated-logs item); the
+  `Command "0" failed` stdin echo did not reproduce across a
+  stdin-heavy full macro run; `nok15.heartBlockFullHeal` replayed on the
+  new frontend with the exact promoted stop cue (full vitals at 150
+  waited frames) — the rebuild is replay-neutral.
+- The metapod host dotfile now points `RETROARCH_BIN` at the MVK141 app
+  binary (change left uncommitted in ~/.dotfiles for review).
+- Gotcha for future sessions: the bare `retroarch` binary parks in the
+  Cocoa event loop outside an app bundle — even `--version` hangs; always
+  run it from a bundle.

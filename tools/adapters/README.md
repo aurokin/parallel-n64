@@ -68,6 +68,21 @@ Interactive agent-play adapter notes (`retroarch_interactive_session.sh`):
   gameplay durable states should be indexed and documented from
   `parallel-n64-lab`.
 
+## Vision tools for text-only agents (eval program)
+
+`vision_tools_mcp.py` is a stdio MCP shim exposing `describe_image(path)` and
+`locate_on_image(path, query)` to coding agents without image input (droid /
+opencode Go-tier models). It reads the LOCAL screenshot and uploads it to the
+vision-tools HTTP service on haste (`VISION_TOOLS_URL`, default
+`http://haste.home.arpa:8022`), which fronts qwen3.6-35b-a3b (grounded scene
+description, thinking disabled) and NVIDIA LocateAnything-3B (open-vocab boxes,
+returned in original-image pixel coords). Run with `uv run` (PEP 723 inline
+deps); wire-up snippets for droid `.factory/mcp.json` and opencode
+`opencode.json` are in the script docstring. The haste side lives in the
+`self-host-llm` repo (`scripts/vision-tools start`; `/describe` needs the
+qwen-multi profile up). While the vision models are serving, haste is a tools
+host, not a gameplay runner (see `docs/EVAL_PROGRAM.md`).
+
 Adapters should translate between systems.
 They should not become the main source of truth for renderer correctness or scene semantics.
 

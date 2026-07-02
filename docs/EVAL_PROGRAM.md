@@ -266,6 +266,22 @@ retrieved vs derived, for analysis rather than enforcement. Red-team criteria:
 null scores 0; random scores nothing beyond G1; tamper's RAM poke must flag
 and its ledger forgery must fail (all verified 2026-07-02).
 
+**WATCH ITEM (owner, 2026-07-02) — host exploration reaching the lab repo.**
+The contamination that actually matters is an agent wandering the host into
+`parallel-n64-lab` (macro library, route notes, durable-state indexes — the
+withheld solutions). Full per-run sandbox hosts with only curated sources
+mounted are not feasible with the current fleet, and agents legitimately may
+analyze their own workspace tooling source and, if they choose, reference
+sources (papermario decomp, parallel-n64, RetroArch). Not enforced today;
+mitigation ladder when we get to it:
+1. Post-run transcript grep (already possible — the CLIs log their own
+   commands): flag any touch of `parallel-n64-lab`, `macros/`,
+   `durable-states`, route notes → audit verdict on the run.
+2. Cheap prevention: chmod 700 / rename the lab dir on gameplay hosts for the
+   run's duration (same-user, so not airtight — but casual exploration stops,
+   and un-hiding it would itself show in the transcript).
+3. Long-term: dedicated runner accounts or VMs with read-only curated mounts.
+
 ## 9. Hosts
 
 | Host | OS | Role |

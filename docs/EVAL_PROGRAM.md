@@ -129,36 +129,44 @@ that lack `savefiles/`).
   the limit strings, pauses the run clock, and resumes in the next window.
   Time-cap accounting counts only active-agent wall time.
 
-## 4. The agent workspace (zero ambiguity)
+## 4. The agent workspace (zero ambiguity; REVISED 2026-07-02 per owner rulings)
 
-Generated export containing exactly:
-- `AGENT_GUIDE.md` — the one entry point: what the game is, what the goal gates are,
-  **one command** that starts the emulator correctly (hi-res pack staged, 4x,
-  correct core, bundle dir made, telemetry probe available), the adapter command
-  reference (start/status/input/screenshot/load-slot rules incl. the
-  step-before-screenshot contract), and a clearly labeled RULES block (no savestate
-  loads beyond the minted start, no RAM writes, no cheat files, no external
-  walkthrough retrieval — violations = fail; rules stated so audits are
-  unambiguous, not because they prevent cheating).
-- The adapter scripts + a pinned probe tool (the observability we WANT them to use).
-- Nothing else. No git history (fresh `git init` if git is needed at all), no
-  macros, no route notes, no prior captures. A pre-run contamination grep scans the
-  export for goal strings/savestate names/solution-shaped content every batch.
+The eval measures **tool-assisted play — how far agents get WITH the toolset —
+not blind play**. Generated export containing:
+- `AGENT_GUIDE.md` — the one entry point: the game, the goals, **one command**
+  that starts the emulator correctly (`./start-game.sh`, host-correct absolute
+  paths written by the generator), the adapter command reference (input,
+  frame-stepping, screenshots, memory reads incl. the word-swap note,
+  save-slot/load-slot), and an allowed/not-allowed block (below).
+- The adapter scripts.
+- **The lab's Dynamic TAS workflow engine** (`tas/`: the TypeScript runtime,
+  semantic PM64 inputs, evidence traces, compiled dist + node_modules,
+  examples, and the TAS_SCRIPT_MODEL/AGENT_GAMEPLAY method docs) — the guide
+  frames TAS scripting as the intended way to play. The lab's route/battle
+  macro LIBRARY is deliberately not shipped: the engine is the tool, the
+  macros are our solutions (owner can override).
+- Fresh single-commit git history (codex trust check; agent checkpointing);
+  no lab/project history, no prior captures.
 
-The "start here" command is a thin wrapper (e.g. `./start-game.sh`) that the export
-generator writes with host-correct absolute paths — no path guessing, no env
-spelunking. The variation axes below only add/remove content relative to this base.
+**Allowed** (and advertised in the guide): emulator savestates (checkpoint/
+retry/branch), walkthroughs and any external reference incl. web, reading RAM
+and inspecting the ROM/binary, building own scripts and macros in-workspace.
+**Not allowed**: writing game memory (WRITE_CORE_MEMORY), cheat files,
+tampering with emulator/config/logs/scoring, and **using other agents' runs or
+artifacts** (the one hard anti-cheat rule). The contamination scan now targets
+concrete solution artifacts (scored gate internals, the lab macro library),
+not vocabulary.
 
 ## 5. Variation axes (deliberately few — run only to prove a point)
 
 | Axis | Values | When to run |
 |---|---|---|
-| A. Tooling provided | `self-built` (default: guide + adapter only; agent writes its own probe loops/macros — this is what's being measured) vs `scripts-provided` (add curated helper scripts) | Pilot A/B on 1–2 models to quantify the gap; then default self-built |
+| A. Tooling provided | `toolkit` (default: TAS engine + adapter, per the owner ruling — this is the measured condition) vs `bare-adapter` (adapter only; quantifies the toolkit's value) | Pilot A/B on 1–2 models; then default toolkit |
 | B. Computer use | `unmentioned` (default) vs `enabled+recommended` | codex + claude only (only CLIs with computer use today), macOS host only. CUA drivers for other models: out of scope v1 |
 
 Fixed (not axes): hi-res ON at 4x (feature-off runs only as explicit baseline
 comparisons); paused-stepped mode; image tools for text-only models (an equalizer,
-not a variable — see §7); egress allowlist (see §8).
+not a variable — see §7).
 Every run record states its axis values; results never mix axes silently.
 
 ## 6. Roster and run order
@@ -232,25 +240,31 @@ capture):
   mode is quicker but over-matches). Budget locates accordingly in eval time
   limits; a GPU locator build is the later optimization.
 
-## 8. Anti-cheat (threat model: agents mine answers; scoring is the boundary)
+## 8. Anti-cheat (REVISED 2026-07-02 per owner rulings)
 
-2026 consensus (NIST CAISI, Cursor audit, Berkeley/Meerkat, METR) + game-eval
-precedents (VideoGameBench, PokeAgent, lmgame-Bench), prioritized:
-- **P0 — score integrity**: harness-owned scoring channel (agent can't write it);
-  input-trace replay verification (see §3); hash ROM/core/pack/config at start AND
-  end and diff; the minted start state is the only allowed state load.
-- **P1 — workspace hygiene**: export-not-repo (§4); contamination grep per batch;
-  fresh workspace per attempt.
-- **P2 — network**: full isolation impossible (subscription APIs) ⇒ egress
-  allowlist of model-provider endpoints only; block GitHub/wikis/GameFAQs/YouTube;
-  log ALL egress into the audit. Walkthrough memorization of famous games is
-  unremovable — make it non-sufficient (score reached state only, perturb
-  starts/goals, keep a held-out goal set) rather than pretending to prevent it.
-- **P3 — audit**: an auditor-agent pass over every scored transcript + egress log
-  (classify retrieve-vs-derive, flag savestate/RAM/cheat keywords and
-  faster-than-TAS progress); METR escalation (one confirmed cheat on a goal ⇒
-  re-audit every run of that goal); pre-launch red team: null agent, random-input
-  agent, and a deliberate tampering agent must all score 0.
+Owner rulings reframed the threat model. **Allowed and in-bounds**: savestate
+save/load, walkthroughs and web reference, our tools, inspecting the binary/RAM
+however they like — the eval tests tool-assisted play, and allowed affordances
+must be readily available in the environment (§4). **The violations**:
+- **Copying other models' work**: agents must not read other runs' workspaces
+  or artifacts. Enforced structurally — fresh workspace per attempt, and each
+  run's workspace is archived (`workspace.tar.gz`) and DELETED at run end, so
+  later runs find nothing to mine; transcript audit catches snooping attempts.
+- **Faking the scored state**: WRITE_CORE_MEMORY (exists in our patched
+  frontend!) is flagged by the post-run audit from tamper-evident log copies
+  (streamed to a randomized 0700 dir the agent can't find — the tamper
+  red-team's ledger-forgery hunt came up empty). Log scrubbing is detected by
+  size comparison against the harness copies.
+- **Import of foreign savestates**: not directly observable, but the replay
+  anchor catches it — replayed traces re-create every self-minted state, so a
+  load of a state the replay never created diverges. Savestate ops replay as
+  part of the trace (replay_verify.py); only WRITE_CORE_MEMORY refuses replay.
+Score integrity mechanics unchanged: harness-owned scoring channel, identity
+hashes at start/end, input-trace replay verification (§3). No egress allowlist
+(walkthroughs are allowed); the transcript audit still classifies what was
+retrieved vs derived, for analysis rather than enforcement. Red-team criteria:
+null scores 0; random scores nothing beyond G1; tamper's RAM poke must flag
+and its ledger forgery must fail (all verified 2026-07-02).
 
 ## 9. Hosts
 

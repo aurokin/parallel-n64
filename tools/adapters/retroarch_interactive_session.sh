@@ -169,7 +169,14 @@ apply_macos_runtime_defaults() {
   local retroarch_bin="${2:-}"
   local mvk141_bin="${RETROARCH_MVK141_BIN:-$REPO_ROOT/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch}"
   local argument_buffers_default="0"
-  if [[ "$mode" == "on" && "$retroarch_bin" == "$mvk141_bin" ]]; then
+  # Recognize the MVK141 bundle by the launched path too, not only by the
+  # REPO_ROOT-rooted default: when this script runs as a copy inside an
+  # exported eval workspace, REPO_ROOT is the workspace parent and the
+  # equality can never hold — hi-res then silently loses argument buffers
+  # and the compute pipeline fails ("bind texture 0-65535 above limit 128";
+  # found via the pilot-gpt55 replay, 2026-07-02).
+  if [[ "$mode" == "on" && ( "$retroarch_bin" == "$mvk141_bin" \
+        || "$retroarch_bin" == *"/RetroArch-MVK141.app/"* ) ]]; then
     argument_buffers_default="1"
   fi
 

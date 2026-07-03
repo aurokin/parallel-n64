@@ -2790,3 +2790,48 @@ gpt-5.4 playbook rerun in flight on luma (the "could 5.4 pass now?"
 experiment). Transcript-survival recipes: grok streaming-json + claude
 stream-json --verbose (the opus-4.8 cap kill lost its entire transcript;
 recipes updated 12f063cc).
+
+## 2026-07-03 — Eval-shot triage: both beats reproduced off/on outside the harness (task #67)
+
+Composer 2.5 (grok CLI) ledgered (n64-agent-evals 67fc21a): G1 283.4 / G2
+766.0 / G3 1124.5, then EndTurn at 19.1 min — its wrap-up message shows it
+concluded G4 needs seven Star Spirits + Chapter 8 flags (kkj_25), i.e. it
+confused the endgame Bowser door with the intro battle and deliberately
+handed off. Most frame-efficient overworld of the pilot; same early-EndTurn
+class as grok-build. run_eval final-frame fallback hardened to skip 0-byte
+captures (the composer final_frame raced session teardown).
+
+Renderer triage (mander, feature-off vs hi-res ON exact-variant-set
+388bce41 @4x, evidence in artifacts/triage-2026-07-02-eval-shots/):
+
+- Scene identity corrected: the post-tremor "Oh! Are you all right,
+  Mario?" beat is osr_04 (window room on the risen castle), not kkj_03;
+  the intro chain is kkj_03 (day talk, tremor) -> GotoMap osr_04 (night).
+- Feature-off: BOTH beats clean (PROTECTED PROPERTY holds). Battle
+  backdrop hole renders soft dithered dark-navy; battle attack stars and
+  the balloon-corner star render crisp gold.
+- Hi-res ON: BOTH corruption classes reproduce deterministically outside
+  the eval harness — backdrop hole goes hard-edged flat black with stepped
+  boundary; the star/sparkle sprite family loses gold fill (battle stars
+  washed white/hollow; balloon-corner star the smeared yellow-brown blotch
+  from the -003 capture).
+- Common suspect: star/sparkle sprite replacements + window-hole backdrop
+  tiles. Next: GlideN64+same-.hts side-by-side (content judgment only) to
+  split ADR-0015 pack-curation vs ADR-0018 composition. Note GlideN64
+  cannot load parallel-n64 savestates — the comparison must replay the
+  route (recipe in the triage README) or use its own state ladder.
+- Vehicle notes: -003 slot 9 (mid-escort cutscene) restores input-locked /
+  script-deadlocked — mid-cutscene eval states are not usable triage
+  vehicles; slot 8 (free-roam kkj_01) restores cleanly. Minted a
+  mid-battle-0x2301 state (triage README, minted-states/) that loads fine
+  under both configs.
+- Tooling anomaly to A/B later: in the feature-off interactive session,
+  paused STEP_FRAME advanced game logic ~1:60 while unpaused ran normal
+  30fps; real-time holds + pause-for-reads was the workable driving mode.
+  If it reproduces broadly it matters for TAS-style agent play advice.
+
+Fleet: gpt-5.4 playbook rerun on luma ran slow (G1 2257s / G2 4998s / G3
+5111.7s at 85.2 min, cap imminent at note time) — processing next.
+Remaining #62/#68 lanes: cursor-agent composer (luma, blocked on user
+keychain unlock), with-macros axis, sonnet-5, droid/opencode+vision,
+computer-use axis, fable-5 last.

@@ -212,7 +212,7 @@ not vocabulary.
 | Axis | Values | When to run |
 |---|---|---|
 | A. Tooling provided | `toolkit` (default: TAS engine + adapter, NO macro library — agents designing their own macro libraries is a large part of what the eval measures, owner ruling) vs `toolkit+macros` (`--with-macros`: adds the lab route/battle macro library, for the with-vs-without comparison) vs `bare-adapter` (adapter only; quantifies the toolkit's value) | Pilot A/B on 1–2 models; then default toolkit |
-| B. Computer use | `unmentioned` (default) vs `enabled+recommended` | codex + claude only (only CLIs with computer use today), macOS host only. CUA drivers for other models: out of scope v1 |
+| B. Computer use | `unmentioned` (default) vs `enabled+recommended` | codex + claude only (only CLIs with computer use today), macOS host only. CUA drivers for other models: out of scope v1. NARROWED (owner 2026-07-03): top contender per CLI family only — gpt-5.5 (codex) and opus-4.8 (claude); no sonnet/gpt-5.4 cells. Fable's deferral extends to variants: if a variant shows no boost, no fable cell for it |
 
 Fixed (not axes): hi-res ON at 4x (feature-off runs only as explicit baseline
 comparisons); paused-stepped mode; image tools for text-only models (an equalizer,
@@ -226,8 +226,9 @@ Every run record states its axis values; results never mix axes silently.
 | 1 | codex | gpt-5.4, gpt-5.5 | `model_reasoning_effort=xhigh` | priority; biggest window |
 | 2 | cursor-agent | composer-2.5 | — | cursor-vs-grok comparison |
 | 3 | grok | grok-build, composer-2.5 | — | owner 2026-07-02: the grok sub has plentiful usage — run grok evals freely, both models. Expectation: grok-build low ("I'd love to be proven wrong"), composer-2.5 the interesting one; pairs with the cursor-agent composer-2.5 run as a cross-CLI comparison |
-| 4 | droid | glm-5.2 → kimi-k2.7-code → minimax-m3 | `-r high`+ | **monthly org credits** — schedule sparingly |
-| 5 | opencode | opencode-go/{glm-5.2, kimi-k2.7-code, minimax-m3} | `--variant` | Go providers ONLY (never the ambient Vercel/Fireworks/Cloudflare env keys) |
+| 4 | droid | glm-5.2 → kimi-k2.7-code → minimax-m3 | `-r high`+ | **monthly org credits** — schedule sparingly. OWNER 2026-07-03: droid is the delegation harness for these models until the opencode reset; first cell = glm-5.2 as a droid-vs-opencode harness comparison (glm-5.2 is the top open-weight contender); minimax-m3 clean rerun deferred to the next set |
+| 5 | opencode | opencode-go/{glm-5.2, kimi-k2.7-code, minimax-m3} | `--variant` | Go providers ONLY (never the ambient Vercel/Fireworks/Cloudflare env keys). PAUSED 2026-07-02 (subscription usage: 84% rolling / 74% weekly) — all planned cells for this round completed before the pause |
+| 7 | antigravity | gemini-3.5-flash | — | ADDED (owner 2026-07-03): small subscription — quota for exactly one run this round + one next round. Login + onboarding on luma; keep the smoke minimal to preserve quota |
 | 6 | claude | sonnet-5, opus-4.8 (may run once the harness is trusted — owner clarification 2026-07-02: "claude last" was really "FABLE last") → **fable-5 ABSOLUTELY last** | ultracode keyword / `--effort` | fable-5 is the dev/orchestration model — long eval runs on it are expensive; prove everything out first. sonnet/opus share usage with orchestration: watch limits |
 
 Canonical non-interactive recipes (verified against installed CLIs; always pass
@@ -501,3 +502,79 @@ The new work (sketch, not commitment):
 Path: prototype lab-side first (ADR-0017 — the lab is never a correctness
 authority); promote the stitcher into parallel-n64 tools once stable; evals
 then get an optional per-run recording flag.
+
+## 14. Decisions and findings — 2026-07-03 (owner rulings + wave-2 results)
+
+### Scorer v2 (n64-agent-evals 7a32d6c) — production since wave 2
+- **storyByte hardening**: G2/G3 (and all sub-gates) require `storyByte == -128`
+  (STORY_INTRO, held through the whole legitimate prologue route). Kills the
+  attract-demo false-gate class (minimax-m3 fired a false G3 at (4,20) with
+  storyByte 0 while idling at the title). Regression-verified backward-compatible:
+  every archived legitimate gate already carried -128, so no timing changes and no
+  re-run wave was needed.
+- **Castle sub-gates** (non-terminal, own ledger dict): S1-kkj01-hall (4,1),
+  S2-kkj02-stairs (4,2), S3-kkj03-upper (4,3), S4-kkj13-approach ((4,7), ctx 0).
+  Rationale: 12 of 14 G3-reachers died in the castle with zero further signal —
+  "G3 is really where the playing begins."
+- **Position polling**: gPlayerStatus pos (0x8010EFF0) + inputDisabled (0x8010EFDD)
+  in every poll; per-poll trace `polls.jsonl` (~150KB/run) preserved into the run
+  archive. Pre-spawn reads are (0,0,0) by design; battle context reads the
+  (0,-1000,0) void sentinel. Old runs get sub-gates/paths by deterministic replay
+  backfill (#63 mechanics).
+
+### Wave-2 toolkit results (all ledgered in n64-agent-evals)
+- **opus-4.8 (luma): FULL CLEAR, G4 4878.1s** — first non-gpt-5.5 clear (4th
+  fastest overall vs gpt-5.5's 4245.5/4453.7/4795.7), fastest legitimate G3
+  (1600.7s), first complete sub-gate vector (2466.7/3946.4/4292.7/4620.6 —
+  accelerating legs). CAVEAT: agent-initiated web research fetched prologue
+  walkthrough pages mid-run (`web-search-game-content` audit flag; ledger 64bb95f)
+  — legal under §8, but no other run incl. all gpt-5.5 clears used web guidance.
+- **cursor composer-2.5-fast (mander)**: G3 1648.2s then a 62-minute pure
+  spatial-navigation wall in kkj_00 (input-effective throughout; self-stopped
+  rc 0 with 31s left, correctly naming its own blocker).
+- **sonnet-5 (metapod)**: G3 3174.1s, zero sub-gates; ~47 min pre-G1 spent
+  debugging control-layer frictions (real, see harness fixes), then the fastest
+  G1→G3 leg on record (325.6s); died to the clock, not the castle.
+- Castle failure taxonomy for checkpoint design: control-layer (sonnet) /
+  navigation-wall (cursor) / cleared (opus). Axis A closed earlier: scaffold
+  (toolkit vs scripts vs bare vs macros) does not matter for gpt-5.5.
+
+### Web-access policy (owner ruling 2026-07-03) — CONFIRMED ALLOW + TAG
+Web reference stays in-bounds (§8 stance confirmed): "it's more than just a
+tool, it's bash" — blocking is impractical and dishonest about the environment.
+Standing convention: every ledger characterizes web use (verbatim queries,
+sources, classification: game-content vs tooling vs CLI-internal) and tags
+game-content use with the `web-search-game-content` audit flag — a tracked
+metric, not a penalty. **v3 item: PROVIDE a walkthrough as eval material** so
+guidance is equalized by provision rather than blocked; agents fetching their
+own on top stays legal and tagged. Form (full route vs objectives-only) and
+what provision does to the discovery-vs-execution signal: decide during v3
+gpt-5.5 sounding.
+
+### Harness/toolkit fix list for v3 (do NOT change mid-round)
+1. AGENT_GUIDE button table is wrong: N64 A = RetroPad mask 0x1 (core
+   standard_map routes RetroPad B→N64 A); name-entry reads analog bits, not
+   D-pad. Both sonnet (lost ~47 min) and opus (solved empirically ~t=660s)
+   hit it. Decide: fix (ergonomics) or keep (tool-mystery as signal) — document.
+2. Pause semantics lie: core free-runs at ~60fps while reporting PAUSED; raw
+   STEP_FRAME has a non-blocking PAUSED/PLAYING race (cost sonnet a session
+   restart; opus worked around with timed input holds). Harden or document.
+3. Packaging-order bug: workspace.tar.gz is rewritten ~2s after record.json →
+   `export_sha256` goes stale (cursor ledger `export-hash-stale` flag). Write
+   record.json last or recompute post-tar.
+4. Per-CLI instrumentation tiers: cursor `--output-format json` emits a single
+   terminal envelope (no per-tool events → image reads/tool histogram/cost
+   unattestable); claude/codex/opencode streams are itemizable. v3 must declare
+   the tier per CLI in the eval definition (or find richer output modes).
+5. Driver label contract drifted (model=claude-sonnet-5, permission-mode leaked
+   into a label) — normalize label fields across drivers.
+
+### Round v3 foundation (owner direction 2026-07-03)
+The next eval round builds on three work items, then gets sounded out with
+gpt-5.5 pilots until sound and defined (standing rule): #47 drivable
+battle-start durable states (in progress — codex delegation on haste), #64
+segment-anchored recordings + crash-sewing stitcher (§13), #65
+start-paused-at-frame-0 (agent-control patch 0008; deterministic frame-0
+anchors). Checkpoint design for v3 comes from replay backfill + the path
+visualizer showing where runs actually stall, not from story structure.
+Computer-use cells this round: gpt-5.5 + opus-4.8 only (§5 axis B narrowing).

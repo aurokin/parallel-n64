@@ -47,6 +47,11 @@ public:
 
 	void enqueue_command(unsigned num_words, const uint32_t *words);
 
+	// Joins the worker thread. Must run before the CommandProcessor members
+	// the worker calls into (renderer, timeline_worker) are destroyed; the
+	// idle ticker keeps enqueueing MetaIdle until the thread is joined.
+	void teardown_thread();
+
 private:
 	CommandProcessor *processor = nullptr;
 	std::thread thr;
@@ -59,7 +64,6 @@ private:
 	uint64_t completed_count = 0;
 
 	void thread_loop();
-	void teardown_thread();
 #ifdef PARALLEL_RDP_SHADER_DIR
 	Granite::Global::GlobalManagersHandle global_handles;
 #endif

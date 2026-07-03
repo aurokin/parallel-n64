@@ -289,6 +289,11 @@ CommandProcessor::~CommandProcessor()
 {
 	renderer.log_hires_summary();
 	idle();
+	// Members destruct in reverse declaration order: timeline_worker and
+	// renderer go before ring, but the ring worker thread would stay alive
+	// until ~CommandRing and its 500us idle ticker would call back into the
+	// already-destroyed renderer (SIGABRT: mutex lock on destroyed object).
+	ring.teardown_thread();
 }
 
 void CommandProcessor::begin_frame_context()

@@ -2976,3 +2976,42 @@ The two eval-shot corruptions resolved on different sides of the renderer bounda
   Identity attestation flagged the drift (bc399c6f -> c8bbfa4e), all scored gates pre-dated
   it, ledger carries environment-interference. Standing rule: check for a live scored run
   (scorer.py / launch flock) before rebuilding the live core or occupying the display.
+
+## 2026-07-03 — Probe C closed: the "combiner tint loss" verdict is overturned (task #71 renderer remainder resolved)
+
+- **The dive that closed it was a code read, not a code change.** The replaced-draw
+  path feeds pack texels into the combiner exactly like native texels
+  (parallel-rdp/shaders/texture.h:742-792 serves the replacement as TEXEL0;
+  shading.h:338-383 runs the combiner unconditionally with untouched PRIM/ENV).
+  The only replacement-specific epilogue branches are pixel-discards (cutout kill,
+  HLE-alpha-kill) — nothing on the replaced path can recolor a draw. So the
+  pre-dive framing ("replacement bypasses combiner colorization") was impossible,
+  which forced a re-audit of the evidence instead.
+- **Decomp ground truth (papermario, debug-only semantic reference):** the aura
+  stars are fx_star_outline mode 0 (StarRodPowerUpEffect.inc.c:66), STATIC
+  PRIM=(255,255,120) ENV=(255,120,0) (star_outline.c:48-53), 16-frame per-instance
+  alpha fade (97-105), three stacked src-alpha passes (221-257). Under
+  (PRIM−ENV)×T0+ENV, white texels render ≈PRIM (pale yellow-white) and gray glow
+  texels render toward ENV (warm gold): white-vs-gold is per-pixel texel intensity
+  plus per-instance fade phase — native behavior.
+- **The decisive control was already in the bundle:** the two FEATURE-OFF captures
+  differ from each other on the exact "lost tint" axis (settle+5 pale vs settle+49
+  warm gold, after an A-press) — no replacements involved. The A/B crop compared
+  hi-res-ON at settle+3 against feature-OFF at other lifetimes; the pairs were
+  never frame-locked. Real residual: pack authors bright/glow alpha ≈ lum/2
+  (idx 10710: bright bin alpha 108.8 vs lum 214.6; native I4 alpha = intensity),
+  thinning the warm halo under hi-res — verbatim-serve HLE contract (f5609e45),
+  GlideN64 renders the same; curation lane if the look is ever judged wrong.
+- **Methodology rule adopted:** A/B pairs over animated effects must be
+  frame-locked (same savestate, same settle count, no input between arms), and
+  per-instance effects compared instance-to-instance. Full closure narrative in
+  artifacts/triage-2026-07-02-eval-shots/README.md (on-disk evidence bundle).
+- **Fleet meanwhile:** live wave (sonnet-5 / opus-4.8 / cursor-composer) is the
+  hardened scorer's first production outing — all three fired legitimate
+  storyByte-gated G1s, position channel attested with real coordinates at G2+
+  (sonnet [41.7,0,-131.3], opus [-100,30,-370], cursor [-60,0,-320]), and all
+  three reached G3 (opus 1600.7s — fastest legitimate G3 on record; cursor
+  1648.2s; sonnet 3174.1s after a 47-minute title-screen stall). Sub-gates armed
+  for their first castle-segment telemetry. haste reclaimed as an agent runner
+  (qwen VLM container stopped, restart is one docker start; only future consumer
+  is the minimax droid rerun if droid can't deliver images natively).

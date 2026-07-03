@@ -2259,6 +2259,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 					repl_state.repl_w = static_cast<uint16_t>(compat_repl_meta.repl_w);
 					repl_state.repl_h = static_cast<uint16_t>(compat_repl_meta.repl_h);
 					repl_state.vk_image_index = compat_repl_meta.vk_image_index;
+					repl_state.keyed_rdram_addr = hires_rdram_load_addr[base_tile];
 					apply_hires_tile_binding(base_tile, repl_state);
 					hires_compat_draw_time_hits++;
 					if (is_ci_compat_texture)
@@ -2298,12 +2299,65 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	// rendering tile is known, for every bound texel tile.
 	if (replacement_provider)
 	{
+		// texel1_tile participates only when the draw can actually sample it
+		// (combiner TEXEL1 use, or tile-select LOD promoting base+1 into
+		// TEXEL0). An unsampled neighbor tile is often mid-transition — its
+		// binding was just propagated by a load while its render SetTile has
+		// not arrived — and running the destructive guards over it would
+		// wipe legitimate state the set_tile hygiene deliberately preserves.
+		const bool texel1_live = uses_texel1 ||
+		                         (raster_flags & RASTERIZATION_TEX_LOD_ENABLE_BIT) != 0;
 		const unsigned rebase_tiles[2] = { base_tile, texel1_tile };
 		for (unsigned t : rebase_tiles)
 		{
+			if (t == texel1_tile && t != base_tile && !texel1_live)
+				continue;
 			auto &repl_state = replacement_tiles[t];
 			if (!repl_state.hit)
 				continue;
+			// Format-consistency guard: GlideN64's rice key folds the DRAW
+			// tile's fmt/siz, so a binding keyed at a different formatsize
+			// than the tile now sampling it can never be served by the
+			// reference pipeline (its per-draw key would differ). Serving
+			// across the reinterpretation is how a CI4-keyed sprite binding
+			// leaked replacement pixels into PM64's RGBA16 sprite-shading
+			// palette write. Drop it; the next load re-keys at the tile's
+			// own identity.
+			if (repl_state.formatsize != formatsize_key(tiles[t].meta.fmt, tiles[t].meta.size))
+			{
+				if (hires_debug)
+				{
+					LOGI("Hi-res formatsize-mismatch binding dropped: tile=%u key=%016llx keyed_fs=%u tile_fs=%u offset=0x%03x.\n",
+					     t, static_cast<unsigned long long>(repl_state.checksum64),
+					     unsigned(repl_state.formatsize),
+					     unsigned(formatsize_key(tiles[t].meta.fmt, tiles[t].meta.size)),
+					     tiles[t].meta.offset);
+				}
+				replacement_tiles[t] = {};
+				clear_hires_tile_binding(t);
+				continue;
+			}
+			// Stale-binding guard: the key must describe the load currently
+			// resident in this tile's TMEM region; a differing last-load
+			// address means the texels were overwritten since keying.
+			// Expected-unreachable defense-in-depth: the load-path clears
+			// and the set_tile re-point invalidation should keep the
+			// keyed/load addresses in lockstep, so this firing indicates an
+			// invalidation hole (its log line is the diagnostic).
+			if (repl_state.keyed_rdram_addr != 0 && hires_rdram_load_addr[t] != 0 &&
+			    repl_state.keyed_rdram_addr != hires_rdram_load_addr[t])
+			{
+				if (hires_debug)
+				{
+					LOGI("Hi-res stale binding dropped: tile=%u key=%016llx keyed_addr=0x%06x load_addr=0x%06x.\n",
+					     t, static_cast<unsigned long long>(repl_state.checksum64),
+					     repl_state.keyed_rdram_addr & 0x00ffffffu,
+					     hires_rdram_load_addr[t] & 0x00ffffffu);
+				}
+				replacement_tiles[t] = {};
+				clear_hires_tile_binding(t);
+				continue;
+			}
 			uint32_t display_w = 0, display_h = 0;
 			if (!compute_hires_gliden64_display_dims(tiles[t].meta, tiles[t].size, display_w, display_h))
 				continue;
@@ -2779,6 +2833,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			sampled_state.repl_w = static_cast<uint16_t>(sampled_meta.repl_w);
 			sampled_state.repl_h = static_cast<uint16_t>(sampled_meta.repl_h);
 			sampled_state.vk_image_index = sampled_meta.vk_image_index;
+			sampled_state.keyed_rdram_addr = hires_rdram_load_addr[base_tile];
 			replacement_tiles[base_tile] = sampled_state;
 			apply_hires_tile_binding(base_tile, replacement_tiles[base_tile]);
 			if (hires_debug)
@@ -4325,6 +4380,40 @@ void Renderer::ensure_command_buffer()
 
 void Renderer::set_tile(uint32_t tile, const TileMeta &meta)
 {
+	// A tile re-pointed to a different TMEM offset must not keep serving a
+	// replacement keyed against its old window, nor let the draw-time
+	// compat lane CRC the old window's RDRAM address under the new
+	// descriptor. Only the offset is a re-point: the load path binds the
+	// render tile before its SetTile arrives (offset-equality propagation
+	// against the stale meta), so stride/fmt/palette deltas here are the
+	// NEW texture's own descriptor and the binding must survive them.
+	// Hi-res-only state.
+	if (replacement_provider && tiles[tile].meta.offset != meta.offset &&
+	    (replacement_tiles[tile].valid || hires_rdram_load_addr[tile] != 0))
+	{
+		if (hires_debug && replacement_tiles[tile].hit)
+		{
+			LOGI("Hi-res tile re-point invalidated binding: tile=%u key=%016llx old_offset=0x%03x new_offset=0x%03x.\n",
+			     tile, static_cast<unsigned long long>(replacement_tiles[tile].checksum64),
+			     tiles[tile].meta.offset, meta.offset);
+		}
+		replacement_tiles[tile] = {};
+		clear_hires_tile_binding(tile);
+		// The old load address describes the old window; adopt the address
+		// of a load already resident at the new offset if one is tracked
+		// (GlideN64's loadInfo is per-TMEM-address and survives re-points),
+		// else zero so the compat lane cannot CRC the wrong RDRAM region.
+		hires_rdram_load_addr[tile] = 0;
+		for (unsigned other = 0; other < Limits::MaxNumTiles; other++)
+		{
+			if (other != tile && tiles[other].meta.offset == meta.offset &&
+			    hires_rdram_load_addr[other] != 0)
+			{
+				hires_rdram_load_addr[tile] = hires_rdram_load_addr[other];
+				break;
+			}
+		}
+	}
 	tiles[tile].meta = meta;
 }
 
@@ -5259,6 +5348,72 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			}
 		}
 
+		// The pre-upload clear invalidates bindings only on exact TMEM-offset
+		// equality; a load whose write span covers a tile bound at a different
+		// offset leaves that binding describing overwritten texels (the other
+		// half of the kkj_13 stale-flame hole). Clear by byte-span overlap,
+		// conservatively over-approximating both spans with row-stride
+		// extents (over-clearing only costs a re-key on the next load).
+		// LoadTlut quadricates each 16-bit entry across a full 8-byte TMEM
+		// word, so its write span is 4x the source bytes. Spans are clamped
+		// to the 4KB TMEM window and a wrapping load is tested as its two
+		// segments.
+		if (replacement_provider)
+		{
+			const uint32_t tmem_bytes = 0x1000;
+			const uint32_t load_row_bytes = detail::compute_hires_texture_row_bytes(key_width_pixels, info.size);
+			const uint32_t load_begin = uint32_t(std::max<int32_t>(upload.tmem_offset, 0)) & (tmem_bytes - 1);
+			uint32_t load_bytes = key_height_pixels > 0 ?
+				(key_height_pixels - 1) * meta.stride + load_row_bytes : load_row_bytes;
+			if (is_tlut_mode)
+				load_bytes = std::max<uint32_t>(load_bytes, key_width_pixels * key_height_pixels * bpp_bytes * 4u);
+			load_bytes = std::min<uint32_t>(std::max<uint32_t>(load_bytes, 8u), tmem_bytes);
+			for (unsigned i = 0; i < Limits::MaxNumTiles; i++)
+			{
+				if (i == (tile & (Limits::MaxNumTiles - 1)))
+					continue;
+				if (!replacement_tiles[i].valid && !replacement_tiles[i].hit)
+					continue;
+				const auto &t_meta = tiles[i].meta;
+				if (t_meta.offset == meta.offset)
+					continue; // handled by the pre-upload equality clear
+				uint32_t t_rows = 1;
+				uint32_t t_w = 0, t_h = 0;
+				if (compute_hires_gliden64_display_dims(t_meta, tiles[i].size, t_w, t_h) && t_h > 0)
+					t_rows = t_h;
+				const uint32_t t_begin = t_meta.offset & (tmem_bytes - 1);
+				const uint32_t t_bytes = std::min<uint32_t>(
+						std::max<uint32_t>(t_rows * std::max<uint32_t>(t_meta.stride, 8u), 8u), tmem_bytes);
+				// Wrap-aware overlap: split each span at the 4KB boundary.
+				const auto spans_overlap = [tmem_bytes](uint32_t a0, uint32_t an, uint32_t b0, uint32_t bn) {
+					const uint32_t a1 = std::min<uint32_t>(a0 + an, tmem_bytes);
+					const uint32_t b1 = std::min<uint32_t>(b0 + bn, tmem_bytes);
+					const uint32_t a_wrap = a0 + an > tmem_bytes ? a0 + an - tmem_bytes : 0;
+					const uint32_t b_wrap = b0 + bn > tmem_bytes ? b0 + bn - tmem_bytes : 0;
+					return (a0 < b1 && b0 < a1) ||
+					       (a_wrap != 0 && b0 < a_wrap) || (b_wrap != 0 && a0 < b_wrap) ||
+					       (a_wrap != 0 && b_wrap != 0);
+				};
+				if (spans_overlap(load_begin, load_bytes, t_begin, t_bytes))
+				{
+					if (hires_debug && replacement_tiles[i].hit)
+					{
+						LOGI("Hi-res overlapped-load invalidated binding: tile=%u key=%016llx tile_span=0x%03x+%u load_span=0x%03x+%u.\n",
+						     i, static_cast<unsigned long long>(replacement_tiles[i].checksum64),
+						     t_begin, t_bytes, load_begin, load_bytes);
+					}
+					replacement_tiles[i] = {};
+					clear_hires_tile_binding(i);
+					// The tile's tracked load no longer describes its TMEM
+					// window either; leaving it would let the draw-time
+					// compat lane re-CRC the untouched RDRAM at the old
+					// address and re-mint the binding this clear just
+					// dropped (and set_tile adoption would spread it).
+					hires_rdram_load_addr[i] = 0;
+				}
+			}
+		}
+
 		if (detail::should_update_tlut_shadow(rdram_view_ok, is_tlut_mode))
 		{
 			const uint32_t bytes = key_width_pixels * key_height_pixels * bpp_bytes;
@@ -5657,6 +5812,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			repl_state.repl_w = static_cast<uint16_t>(repl_meta.repl_w);
 			repl_state.repl_h = static_cast<uint16_t>(repl_meta.repl_h);
 			repl_state.vk_image_index = repl_meta.vk_image_index;
+			repl_state.keyed_rdram_addr = info.tex_addr;
 			apply_hires_tile_binding(tile & (Limits::MaxNumTiles - 1), repl_state);
 			for (unsigned alias_tile = 0; alias_tile < Limits::MaxNumTiles; alias_tile++)
 			{

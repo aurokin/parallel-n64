@@ -331,6 +331,11 @@ private:
 		uint16_t repl_w = 0;
 		uint16_t repl_h = 0;
 		uint32_t vk_image_index = 0xffffffffu;
+		// RDRAM texture-image base the key was computed against. Serving is
+		// only legitimate while the tile's TMEM region still holds a load
+		// from this address; a differing hires_rdram_load_addr means the
+		// binding describes overwritten texels (stale-binding guard).
+		uint32_t keyed_rdram_addr = 0;
 		bool valid = false;
 		bool hit = false;
 	};

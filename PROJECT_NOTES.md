@@ -2883,3 +2883,50 @@ artifacts/blog-support-260702/exhibit-a/; IDENTITY.md records actual HEAD
 Fleet: composer-2.5 rerun (EndTurn consistency test) in flight on haste
 with persistent monitor; luma idle (keychain unlock still pending for
 cursor-agent/claude lanes); metapod free.
+
+## 2026-07-03 — CI4 re-key fix landed; Probe A falsifies pack-content ownership; #70 closed on macOS
+
+Task #71 (from the 5-agent workflow verdict on the two eval-shot corruptions):
+
+- **Corruption B keying fix LANDED (b323d14c)**: PM64 loads CI4 sprite sheets
+  through CI8-sized LoadTile descriptors; GlideN64 keys in draw-tile terms
+  (GLideN64 Textures.cpp `_loadHiresTexture`: width doubled per size delta,
+  CI4 bank palette + CI4 cimax). Our primary lane keyed as-loaded → CI8
+  palette extent over a 16-entry TLUT → keys never matched the pack. Fix =
+  CI4-reinterpretation probe after the as-loaded miss (upload lane,
+  hi-res-gated, feature-off inert). Pack ground truth also REFUTED the
+  workflow's "Fix 2" (TMEM-word bpl floor): pack key 695f1033e29caef8 proves
+  our row-byte texel CRC already matches GlideN64; the compat lane's floored
+  reconstruction is the wrong one for narrow tiles. Verification: battle-state
+  debug probe — star uploads primary-hit with exact pack keys
+  (reason=ci4-reinterpreted-upload), 48/48 pre-fix hits unchanged, 17
+  rescue-only keys flipped primary; emu-required 43/43.
+- **Corruption A (battle backdrop hole)**: Probe A rounds 1+2 = NO pack-content
+  owner. All four served darkness/backdrop suspects excluded with visible
+  footprints elsewhere (d97df485+5144af1f = candle flames, e8605475 = stage
+  wood/floor, 7cfdfb5d = teal prop) — hole unchanged. Scaling-only control
+  (hirestex OFF, 4x ON) renders the hole authored navy → hi-res-ON
+  composition-lane owner (ADR-0018 territory). Next: instrument the hole draw.
+- **Beat-2 balloon star: NOT FIXED by the keying change** (visual rubric,
+  fixed core, kkj_13 route replay) — smear class-identical pre/post while the
+  fix is provably active in-battle. Owner is further down the hi-res-ON lane;
+  kkj_13 balloon-beat state minting + debug telemetry probe in flight
+  (minted-states state2).
+- **#70 CLOSED**: command-ring teardown fix verified crash-gone on macOS —
+  metapod + luma rebuilt at 1f6922a7, 2 boot→quit cycles each, zero new .ips.
+  Follow-up hardening candidate (separate class): parallel-rdp dereferences a
+  failed Vulkan image allocation (VI scanout SIGSEGV under VRAM starvation,
+  haste glm52-001 coredumps) — should fail gracefully.
+
+Eval program: gpt-5.5 axis runs launched on rebuilt cores — metapod
+toolkit+macros (pilot-gpt55-macros-001), luma bare-adapter
+(pilot-gpt55-bare-001; G1 573s / G2 964s / G3 1046.8s — fastest G3 to date).
+glm52 vision-axis: -001 unscorable (VRAM starvation SIGSEGV; vLLM now capped
+0.82 + 32k max-model-len, coexistence verified), -002 unscorable (agent QUIT
+after boot-frame black-capture warnings; scorer session-lost terminal by
+design). OPEN OWNER DECISION before -003: scorer re-attach across session
+restarts vs guide QUIT rule vs boot-frame grace window for black-capture
+warnings. Auth notes: metapod claude now headless-OK (file credential); luma
+grok installed at ~/.grok/bin (PATH-only miss earlier); cursor-agent
+keychain-bound everywhere headless — CURSOR_API_KEY in dotfiles-private is
+the durable unblock.

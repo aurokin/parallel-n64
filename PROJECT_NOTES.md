@@ -2835,3 +2835,51 @@ Fleet: gpt-5.4 playbook rerun on luma ran slow (G1 2257s / G2 4998s / G3
 Remaining #62/#68 lanes: cursor-agent composer (luma, blocked on user
 keychain unlock), with-macros axis, sonnet-5, droid/opencode+vision,
 computer-use axis, fable-5 last.
+
+## 2026-07-03 — Fleet SIGABRT root-caused + fixed; GlideN64 verdict: both beats are paraLLEl-side (tasks #70, #67)
+
+**Teardown crash (new task #70, fix landed 3f912c90).** Owner flagged a
+crash on luma; the .ips (RetroArch-2026-07-02-182347) shows SIGABRT from
+`std::mutex::lock()` throwing inside
+`CommandProcessor::enqueue_command_direct` called from
+`CommandRing::thread_loop`. Metapod carries 10+ RetroArch .ips over Jul
+1–2 with the identical signature — fleet-wide, and almost certainly the
+real cause of the 0/33-byte final-frame captures in eval runs (screenshot
+racing an aborting RetroArch). Root cause: CommandProcessor members
+destruct in reverse declaration order — timeline_worker and renderer die
+before `ring`, but the ring worker thread stays alive until ~CommandRing
+and its 500µs MetaIdle ticker calls back into the destroyed renderer. Fix:
+expose `CommandRing::teardown_thread()` and join the worker at the end of
+`~CommandProcessor` after `idle()`. Verified on mander: rebuild + 3
+boot→QUIT hi-res 4x cycles rc=0, emu-required gate 43/43. macOS crash-gone
+confirmation queued for the next metapod/luma core rebuild (they run
+prebuilt dylibs from workspace exports).
+
+**GlideN64 side-by-side (task #67 step 3 — DONE).** Glide can't load
+parallel-n64 states, so the full intro was replayed in the glide vehicle
+(mupen64plus-next + legacy .hts, telemetry walker; ~35 min incl. adapter
+debugging). Key adapter gotcha: interactive adapter hardcodes
+system_directory to <bundle>/system — the .hts symlink must be pre-staged
+there BEFORE start (GLideN64 scans hi-res storage only at plugin init).
+VERDICT: glide+pack renders BOTH flagged elements correctly — the battle
+0x2301 smashed-window backdrop shows sky/stars/beams through an organic
+jagged hole, and the balloon-corner speaker star is crisp gold on the same
+scene's balloons. paraLLEl hi-res ON: flat-black hard-edged hole; smeared
+yellow-brown star. Both beats therefore route to paraLLEl composition /
+keying (ADR-0018/0013) or hts2phrb conversion for these entries — NOT
+ADR-0015 pack curation. Scene identity refined again: the night post-tremor
+balloons play in kkj_13 (4,7); (23,4)/(23,3) are the castle-rising
+cutaways; kkj_03 is the day window room. Evidence + a 5-slot glide scene
+ladder (party/kkj_01/kkj_02/kkj_03-prescene/battle) in
+artifacts/triage-2026-07-02-eval-shots/glide-2026-07-03/.
+
+**Blog delegations.** metapod icon order DONE (codex gpt-5.5): 16 PNGs +
+MANIFEST at metapod:/Users/auro/blog-icon-captures-260703/ (13 beat
+originals byte-identical, fortress-key fallback frame, star piece, non-fade
+title still). mander Exhibit A delegated (codex gpt-5.5, in flight) →
+artifacts/blog-support-260702/exhibit-a/; IDENTITY.md records actual HEAD
+3f912c90 (order text pinned 71eb38cd pre-fix).
+
+Fleet: composer-2.5 rerun (EndTurn consistency test) in flight on haste
+with persistent monitor; luma idle (keychain unlock still pending for
+cursor-agent/claude lanes); metapod free.

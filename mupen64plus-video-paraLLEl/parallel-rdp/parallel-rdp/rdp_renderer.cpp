@@ -5451,6 +5451,81 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					}
 				}
 			}
+			// GlideN64 keys a CI texture in rendering-tile terms even when the
+			// LoadTile descriptor is wider (Textures.cpp _loadHiresTexture:
+			// width <<= info.size - _pTexture->size, palette bank and cimax from
+			// the rendering tile's size). PM64 loads CI4 sprite sheets through
+			// CI8-sized load tiles, so the as-loaded key hashes the palette with
+			// CI8 extent over a 16-entry TLUT and can never match the pack.
+			// Re-key the same load extent as CI4 texels with the 16-entry bank
+			// palette and probe again; the texel CRC is byte-extent invariant.
+			uint32_t lookup_palette_crc = palette_crc;
+			uint64_t lookup_checksum64 = checksum64;
+			uint16_t lookup_formatsize = formatsize;
+			uint32_t lookup_key_w = key_width_pixels;
+			uint32_t lookup_key_h = key_height_pixels;
+			if (!hit && meta.fmt == TextureFormat::CI && meta.size == TextureSize::Bpp8 && tlut_shadow_valid)
+			{
+				const uint32_t ci4_width = key_width_pixels * 2;
+				const uint32_t ci4_entries = detail::compute_hires_ci_palette_entry_count(
+						TextureSize::Bpp4,
+						cpu_rdram,
+						rdram_size,
+						src_base_addr,
+						ci4_width,
+						key_height_pixels,
+						row_stride_bytes);
+				const uint32_t ci4_palette_crc = detail::compute_hires_ci_palette_crc_for_entries(
+						TextureSize::Bpp4,
+						meta.palette,
+						tlut_shadow,
+						sizeof(tlut_shadow),
+						tlut_shadow_valid,
+						ci4_entries);
+				const uint16_t ci4_formatsize = formatsize_key(TextureFormat::CI, TextureSize::Bpp4);
+				ReplacementResolution ci4_resolution = {};
+				if (ci4_palette_crc != 0 &&
+				    replacement_provider->resolve_upload_candidate(
+						ci4_formatsize,
+						uint32_t(TextureFormat::CI),
+						uint32_t(TextureSize::Bpp4),
+						meta.offset,
+						row_stride_bytes,
+						ci4_width,
+						key_height_pixels,
+						texture_crc,
+						ci4_palette_crc,
+						0,
+						&ci4_resolution))
+				{
+					ReplacementMeta ci4_meta = ci4_resolution.meta;
+					ci4_meta.orig_w = ci4_width;
+					ci4_meta.orig_h = key_height_pixels;
+					HiresProviderDescriptorPathKind ci4_path_kind = HiresProviderDescriptorPathKind::None;
+					uint64_t ci4_selector = ci4_resolution.resolved_selector_checksum64;
+					if (resolve_hires_provider_resolution_descriptor(
+							ci4_resolution,
+							ci4_formatsize,
+							ci4_width,
+							key_height_pixels,
+							ci4_meta,
+							&ci4_path_kind,
+							&ci4_selector,
+							&descriptor_path_class))
+					{
+						hit = true;
+						repl_meta = ci4_meta;
+						resolved_checksum64 = ci4_resolution.resolved_checksum64;
+						resolved_selector_checksum64 = ci4_selector;
+						native_lookup_resolution_reason = "ci4-reinterpreted-upload";
+						lookup_palette_crc = ci4_palette_crc;
+						lookup_checksum64 = detail::compose_hires_checksum64(texture_crc, ci4_palette_crc);
+						lookup_formatsize = ci4_formatsize;
+						lookup_key_w = ci4_width;
+						lookup_key_h = key_height_pixels;
+					}
+				}
+			}
 			const char *ci_lookup_resolution_reason = nullptr;
 			auto apply_ci_low32_resolution = [&](const ReplacementResolution &resolution, const char *reason) {
 				ReplacementMeta compat_meta = resolution.meta;
@@ -5574,11 +5649,11 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					repl_state,
 					hit,
 					resolved_checksum64,
-					checksum64,
+					lookup_checksum64,
 					resolved_selector_checksum64,
-					formatsize,
-					key_width_pixels,
-					key_height_pixels);
+					lookup_formatsize,
+					lookup_key_w,
+					lookup_key_h);
 			repl_state.repl_w = static_cast<uint16_t>(repl_meta.repl_w);
 			repl_state.repl_h = static_cast<uint16_t>(repl_meta.repl_h);
 			repl_state.vk_image_index = repl_meta.vk_image_index;
@@ -5620,11 +5695,11 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					     unsigned(meta.fmt),
 					     unsigned(meta.size),
 					     meta.palette,
-					     key_width_pixels,
-					     key_height_pixels,
+					     lookup_key_w,
+					     lookup_key_h,
 					     static_cast<unsigned long long>(resolved_checksum64),
-					     palette_crc,
-					     unsigned(formatsize),
+					     lookup_palette_crc,
+					     unsigned(lookup_formatsize),
 					     hit ? (descriptor_path_class ? descriptor_path_class : "unknown") : "none",
 					     native_lookup_resolution_reason ? native_lookup_resolution_reason :
 						 (ci_lookup_resolution_reason ? ci_lookup_resolution_reason :
@@ -5640,11 +5715,11 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					     unsigned(meta.fmt),
 					     unsigned(meta.size),
 					     meta.palette,
-					     key_width_pixels,
-					     key_height_pixels,
+					     lookup_key_w,
+					     lookup_key_h,
 					     static_cast<unsigned long long>(resolved_checksum64),
-					     palette_crc,
-					     unsigned(formatsize),
+					     lookup_palette_crc,
+					     unsigned(lookup_formatsize),
 					     load_mode_to_string(info.mode),
 					     get_hires_cycle_class(raster_flags),
 					     copy_cycle ? 1 : 0,

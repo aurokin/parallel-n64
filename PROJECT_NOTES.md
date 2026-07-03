@@ -2930,3 +2930,49 @@ warnings. Auth notes: metapod claude now headless-OK (file credential); luma
 grok installed at ~/.grok/bin (PATH-only miss earlier); cursor-agent
 keychain-bound everywhere headless — CURSOR_API_KEY in dotfiles-private is
 the durable unblock.
+
+## 2026-07-03 — Stale-binding hygiene lands (b3d9be57); battle hole reclassified to curation; first GLM gate vector
+
+The two eval-shot corruptions resolved on different sides of the renderer boundary:
+
+- **Battle backdrop hole = pack content, not a renderer defect.** The composition workflow
+  (4 analysts + synthesis) proved all 34 backdrop strips are exact primary hits on
+  authored-rdram loads (`gBackgroundImage` 0x200000, copy-cycle, framebuffer=0), the pack's
+  own strip art is 98.7% pure black where native art is dithered navy, and GlideN64 + the
+  same pack renders the identical hole. paraLLEl matches glide on the beat; the "glide is
+  correct here" premise from the eval-shot triage was wrong. Handed to the ADR-0015
+  curation lane. The base_tile=2/offset=2048 "strips" in the census turned out to be
+  sprite_shading.c palette WRITES (16x1 rects into SpriteShadingPalette), killing the
+  aux-framebuffer unification hypothesis.
+- **Balloon-star mud = stale replacement-binding serving, fixed.** The rewind-star draw
+  took its alpha from a texel1 binding still keyed to the candle flame (d97df485) while
+  TMEM held the star companion (4f06af63) — invalidation was offset-equality-only and
+  set_tile never invalidated. Offline pack decode settled the rest: a9029ff9 is the star's
+  correct color layer, 4f06af63 its alpha silhouette, so the DT-lane hit was legitimate
+  and the flame was the only wrong serving. Probe B1 (family exclusion, unfixed core)
+  confirmed causality before any code changed. Fix b3d9be57: set_tile re-point
+  invalidation with load-addr adopt-or-zero, wrap-aware byte-span overlap clearing (incl.
+  LoadTlut quadrication), a GlideN64-grounded formatsize-consistency serve guard (the
+  layer that empirically stops both the mud and the replaced sprite-shading palette-write),
+  and a dormant stale-address guard. Two adversarial review rounds were load-bearing:
+  round 1 killed a set_tile identity-clear (would have gutted native-pack serving) and a
+  blanket offset>=2048 guard (oracle-refuted); round 2 caught the DT-lane re-mint hole and
+  the unsampled-texel1 bystander wipe, and correctly proved the stale-addr guard dormant
+  (my "61 fires" was a grep field misread — they were formatsize drops). Gates green both
+  profiles; class telemetry on both minted states clean. Follow-up (baseline-equivalent):
+  same-offset palette-bank staleness, filed under the keying-conformance lane.
+- **Eval program:** luma bare-adapter run FULL-CLEARED (G4 4795.7s, second clear ever,
+  ~9% slower than toolkit — the agent replaced the toolkit with one 72-line telemetry
+  decoder); metapod macros run time-capped at G3 with the macro library inert (all
+  Chapter 1-2 content, wrong route) — axis needs route-relevant macros to be a real test.
+  glm52-003 delivered the first GLM gate vector (G1 1240.5/G2 1898.2/G3 1943.9, vision
+  axis genuinely exercised, 19 describe_image calls) and the first production scorer
+  re-attach (135.9s gap absorbed). Scorer frame_clock backwards-jump guard + codex --json
+  launch warning landed in the harness (metapod macros run's ~328k frame_clock was a
+  state-load fold artifact).
+- **Operational incident:** mander is both the dev box and an eval host; renderer rebuilds
+  during glm52-003 crashed session 1 (in-place make -B clobbered the mmapped core text on
+  a state load) and a runtime-gate run held the launch flock through the restart window.
+  Identity attestation flagged the drift (bc399c6f -> c8bbfa4e), all scored gates pre-dated
+  it, ledger carries environment-interference. Standing rule: check for a live scored run
+  (scorer.py / launch flock) before rebuilding the live core or occupying the display.

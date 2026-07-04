@@ -383,6 +383,19 @@ cmd_start() {
     exit 2
   fi
   RETROARCH_BIN="$(prefer_macos_hires_retroarch_bin "$MODE" "$RETROARCH_BIN" "$RETROARCH_BIN_EXPLICIT")"
+  if is_darwin; then
+    # On macOS the RetroArch app delegate is instantiated from the bundle's
+    # MainMenu nib. A bare binary (or a wrapper .app without Resources) parks
+    # in NSApplicationMain forever: no delegate, no frontend init, no log
+    # output — the session start then dies as an opaque 120s PING timeout
+    # (forensics 2026-07-03). Require a complete bundle and fail fast.
+    local BIN_BUNDLE="${RETROARCH_BIN%/Contents/MacOS/*}"
+    if [[ "$BIN_BUNDLE" == "$RETROARCH_BIN" ]] \
+       || ! compgen -G "$BIN_BUNDLE/Contents/Resources/*.lproj/MainMenu*.nib" >/dev/null; then
+      echo "RETROARCH_BIN on macOS must be the executable inside a complete RetroArch .app bundle (needs Contents/Resources/<lang>.lproj/MainMenu*.nib); got: $RETROARCH_BIN" >&2
+      exit 2
+    fi
+  fi
   for f in "$ROM_PATH" "$CORE_PATH" "$BASE_CONFIG"; do
     if [[ ! -f "$f" ]]; then
       echo "Not found: $f" >&2

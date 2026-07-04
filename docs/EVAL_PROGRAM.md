@@ -578,3 +578,50 @@ start-paused-at-frame-0 (agent-control patch 0008; deterministic frame-0
 anchors). Checkpoint design for v3 comes from replay backfill + the path
 visualizer showing where runs actually stall, not from story structure.
 Computer-use cells this round: gpt-5.5 + opus-4.8 only (§5 axis B narrowing).
+
+## 15. Decisions and findings — 2026-07-04 (CU bring-up + glm-5.2 lane)
+
+### Computer use (axis B) — verification matrix closed (#78)
+- **claude CU: VERIFIED on both Macs against the live eval target.** Required
+  recipe (identical on both): interactive claude running inside a tmux server
+  born from the console terminal (Ghostty) — headless `-p` has no CU; SSH-born
+  tmux attributes to sshd-keygen-wrapper and breaks grants. TCC: Screen
+  Recording + Accessibility for the terminal/tmux binaries; grants only take
+  effect after the tmux server is restarted from the console. Per-session app
+  allowlist dialog is answered in the TUI (drivable via tmux send-keys Enter).
+  Proof point: metapod claude read the live RetroArch window — exact title-bar
+  core version string and the animating Paper Mario intro dialogue text.
+- **codex CU (CLI path): broken by packaging — do not chase with TCC grants.**
+  Root cause (tccd log + codesign on metapod): the actual Apple Events sender
+  is SkyComputerUseService (`~/.codex/computer-use/Codex Computer Use.app`,
+  id com.openai.sky.CUAService), whose binary lacks the
+  `com.apple.security.automation.apple-events` entitlement. Hardened runtime +
+  missing entitlement ⇒ macOS hard-blocks its events, never prompts, and
+  ignores Automation grants (observed signatures: -1743 → -1712 → -600). Only
+  the Codex desktop app (com.openai.codex) carries the entitlement. Same
+  bundle ships on luma ⇒ same conclusion fleet-wide. Owner ruling: no local
+  entitlement re-signing.
+- **Owner decision: codex CU runs in v3 are manual kickoff via the Codex
+  desktop app.** We stage everything (workspace, guide, RetroArch session,
+  scorer armed); owner pastes the kickoff prompt into Codex.app. Harness needs
+  a manual-agent mode: clock starts at first agent command; ledger carries a
+  `manual-kickoff desktop-app-context` caveat.
+- Inert TCC rows were minted on metapod (CUAService → systemevents / finder /
+  RetroArch, proper Developer ID csreq): no effect while the entitlement is
+  missing; they activate if a future Codex build ships it; one-line DELETE to
+  remove.
+
+### Owner rulings 2026-07-04
+- **Macro cells (#48) are dropped from all rounds** until reopened.
+- **Standing host policy: one host is always reserved for queued/dev work**
+  (currently metapod). haste serves vision only — no gameplay (§7 reaffirmed
+  after the opencode co-residency deviation, which is flagged in that ledger).
+
+### glm-5.2 lane (two scored runs banked)
+- pilot-glm52-opencode-toolkit-001 (haste; deviation: co-resident with the
+  vision stack): G1 2600.3 / G2 3259.8 / G3 3518.8, time-cap, ledger 4661d21.
+- pilot-glm52-droid-toolkit-001 (mander, cross-host vision): G1 1281.7 /
+  G2 1654.5 / G3 2000.8 — roughly half the opencode leg's gate times — plus
+  the first glm-5.2 castle penetration (S1 2740.2 / S2 4622.9 / S3 5191.5),
+  time-cap, 1 session reattach. Same model, different CLI driver and host;
+  the per-leg ledgers carry the comparability caveats.

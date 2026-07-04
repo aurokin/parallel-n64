@@ -1,0 +1,194 @@
+From 6ed66434e25edbbbdd2722356ab9f0ec74642779 Mon Sep 17 00:00:00 2001
+From: Hunter Sadler <auro@hsadler.com>
+Date: Sat, 4 Jul 2026 09:10:18 +0000
+Subject: [PATCH] Add anchored replay stdin commands
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+RECORD_REPLAY_PATH <path>: start a BSV2 recording anchored at the
+CURRENT core state (the record task embeds a full checkpoint before any
+frame token), so recording from a paused known frame yields an
+exactly-anchored TAS segment. Agent input overrides are captured
+(override is applied upstream of the recording tap).
+
+PLAY_REPLAY_PATH <path>: mid-session anchored playback — restores the
+replay's embedded anchor state and re-zeroes the agent frame counter,
+mirroring LOAD_STATE_SLOT_PAUSED semantics. Launch-time -P playback is
+not usable with cores whose savestate machinery initializes lazily
+(mupen64plus deserialize fails before the first retro_run), which is
+why this is a command and not a CLI flow.
+
+STOP_REPLAY: stop recording or playback, reply carries the final frame
+count.
+
+Both start commands refuse to run before the first core frame when the
+agent frame counter is live: core_serialize_size() at true frame 0
+crashes the mupen64plus savestate path (lazy init), observed as a
+SIGSEGV in savestates_get_m64p_size.
+
+Validated: 240-frame segment recorded from a --start-paused boot
+(anchor frame 1, START press mid-stream) replayed in a fresh session to
+a byte-identical end-frame capture.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XwaJJnL1ij6V7B3Ytn8PVE
+---
+ command.c | 116 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ command.h |   6 +++
+ 2 files changed, 122 insertions(+)
+
+diff --git a/command.c b/command.c
+index e981c80257..5b616af11e 100644
+--- a/command.c
++++ b/command.c
+@@ -1096,6 +1096,122 @@ bool command_seek_replay(command_t *cmd, const char *arg)
+ #endif
+ }
+ 
++bool command_record_replay_path(command_t *cmd, const char *arg)
++{
++#ifdef HAVE_BSV_MOVIE
++   char reply[PATH_MAX_LENGTH + 32];
++   size_t _len;
++   bool ret                       = false;
++   input_driver_state_t *input_st = input_state_get_ptr();
++   runloop_state_t *runloop_st    = runloop_state_get_ptr();
++   /* Serializing before the core has run a single frame crashes at least
++    * the mupen64plus savestate path (lazy init on first retro_run), so
++    * when the agent frame counter is live (--start-paused /
++    * LOAD_STATE_SLOT_PAUSED flows) refuse to anchor at frame 0. */
++   bool core_frame_ran            = !runloop_st->agent_frame_count_active
++         || runloop_st->agent_frame_count > 0;
++
++   if (     arg && *arg
++         && core_frame_ran
++         && core_serialize_size() > 0
++         && !(input_st->bsv_movie_state.flags
++            & (BSV_FLAG_MOVIE_PLAYBACK | BSV_FLAG_MOVIE_RECORDING)))
++   {
++      /* The record task writes the BSV2 header plus a full checkpoint of
++       * the CURRENT core state before any frame token, so a recording
++       * started while paused is anchored at exactly that frame; the
++       * handle is installed on the next runloop iteration (paused
++       * iterations included). */
++      if ((ret = movie_start_record(input_st, (char *)arg)))
++         task_queue_wait(NULL, NULL);
++   }
++   if (ret)
++      _len = snprintf(reply, sizeof(reply),
++            "RECORD_REPLAY_PATH OK %s\n", arg);
++   else
++      _len = strlcpy(reply, "RECORD_REPLAY_PATH NO\n", sizeof(reply));
++   cmd->replier(cmd, reply, _len);
++   return ret;
++#else
++   cmd->replier(cmd, "RECORD_REPLAY_PATH NO\n",
++         STRLEN_CONST("RECORD_REPLAY_PATH NO\n"));
++   return false;
++#endif
++}
++
++bool command_play_replay_path(command_t *cmd, const char *arg)
++{
++#ifdef HAVE_BSV_MOVIE
++   char reply[PATH_MAX_LENGTH + 32];
++   size_t _len;
++   bool ret                       = false;
++   input_driver_state_t *input_st = input_state_get_ptr();
++   runloop_state_t *runloop_st    = runloop_state_get_ptr();
++   /* Same lazy-init constraint as RECORD_REPLAY_PATH, on the read side:
++    * the movie's anchor checkpoint is deserialized while the playback
++    * task runs, which fails (mupen64plus) before the core has run a
++    * frame. -P at launch hits exactly that, so anchored playback is a
++    * mid-session command instead. */
++   bool core_frame_ran            = !runloop_st->agent_frame_count_active
++         || runloop_st->agent_frame_count > 0;
++
++   if (     arg && *arg
++         && core_frame_ran
++         && core_serialize_size() > 0
++         && !(input_st->bsv_movie_state.flags
++            & (BSV_FLAG_MOVIE_PLAYBACK | BSV_FLAG_MOVIE_RECORDING)))
++   {
++      if ((ret = movie_start_playback(input_st, (char *)arg)))
++      {
++         task_queue_wait(NULL, NULL);
++         /* The anchor state is restored by the playback task; re-zero
++          * the agent frame counter so frame= counts playback frames
++          * from the anchor, mirroring LOAD_STATE_SLOT_PAUSED. */
++         command_post_state_loaded();
++         runloop_st->agent_frame_count        = 0;
++         runloop_st->agent_frame_count_active = true;
++      }
++   }
++   if (ret)
++      _len = snprintf(reply, sizeof(reply),
++            "PLAY_REPLAY_PATH OK %s\n", arg);
++   else
++      _len = strlcpy(reply, "PLAY_REPLAY_PATH NO\n", sizeof(reply));
++   cmd->replier(cmd, reply, _len);
++   return ret;
++#else
++   cmd->replier(cmd, "PLAY_REPLAY_PATH NO\n",
++         STRLEN_CONST("PLAY_REPLAY_PATH NO\n"));
++   return false;
++#endif
++}
++
++bool command_stop_replay(command_t *cmd, const char *arg)
++{
++#ifdef HAVE_BSV_MOVIE
++   char reply[64];
++   size_t _len;
++   bool ret                       = false;
++   long long frames               = -1;
++   input_driver_state_t *input_st = input_state_get_ptr();
++
++   if (input_st->bsv_movie_state_handle)
++      frames = (long long)input_st->bsv_movie_state_handle->frame_counter;
++   if (input_st->bsv_movie_state.flags
++         & (BSV_FLAG_MOVIE_PLAYBACK | BSV_FLAG_MOVIE_RECORDING))
++      ret = movie_stop(input_st);
++   if (ret)
++      _len = snprintf(reply, sizeof(reply), "STOP_REPLAY OK %lld\n", frames);
++   else
++      _len = strlcpy(reply, "STOP_REPLAY NO\n", sizeof(reply));
++   cmd->replier(cmd, reply, _len);
++   return ret;
++#else
++   cmd->replier(cmd, "STOP_REPLAY NO\n", STRLEN_CONST("STOP_REPLAY NO\n"));
++   return false;
++#endif
++}
++
+ bool command_save_savefiles(command_t *cmd, const char* arg)
+ {
+    char reply[4];
+diff --git a/command.h b/command.h
+index c5539c2b74..547e54f055 100644
+--- a/command.h
++++ b/command.h
+@@ -441,6 +441,9 @@ bool command_load_state_slot_paused(command_t *cmd, const char *arg);
+ bool command_wait_save_state(command_t *cmd, const char *arg);
+ bool command_play_replay_slot(command_t *cmd, const char* arg);
+ bool command_seek_replay(command_t *cmd, const char *arg);
++bool command_record_replay_path(command_t *cmd, const char *arg);
++bool command_play_replay_path(command_t *cmd, const char *arg);
++bool command_stop_replay(command_t *cmd, const char *arg);
+ bool command_save_savefiles(command_t *cmd, const char* arg);
+ bool command_load_savefiles(command_t *cmd, const char* arg);
+ #ifdef HAVE_CHEEVOS
+@@ -479,6 +482,9 @@ static const struct cmd_action_map action_map[] = {
+    { "WAIT_SAVE_STATE",command_wait_save_state, "No argument"},
+    { "PLAY_REPLAY_SLOT",command_play_replay_slot, "<slot number>"},
+    { "SEEK_REPLAY",command_seek_replay, "<frame number>"},
++   { "RECORD_REPLAY_PATH",command_record_replay_path, "<replay file path>"},
++   { "PLAY_REPLAY_PATH",command_play_replay_path, "<replay file path>"},
++   { "STOP_REPLAY",command_stop_replay, "No argument"},
+ 
+    { "SAVE_FILES", command_save_savefiles, "No argument"},
+    { "LOAD_FILES", command_load_savefiles, "No argument"},
+-- 
+2.54.0
+

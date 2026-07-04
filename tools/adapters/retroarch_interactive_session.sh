@@ -29,6 +29,9 @@ Usage:
   retroarch_interactive_session.sh input --bundle-dir D --mask HEX [--port N] [--hold-seconds SEC | --frames N] [--analog "lx ly rx ry"]
   retroarch_interactive_session.sh screenshot --bundle-dir D
   retroarch_interactive_session.sh status --bundle-dir D
+  retroarch_interactive_session.sh record-start --bundle-dir D [--path FILE]
+  retroarch_interactive_session.sh replay-start --bundle-dir D --path FILE
+  retroarch_interactive_session.sh record-stop --bundle-dir D   (stops recording OR playback)
   retroarch_interactive_session.sh save-slot --bundle-dir D --slot N   (N in 1..9)
   retroarch_interactive_session.sh load-slot --bundle-dir D --slot N [--paused]
   retroarch_interactive_session.sh stop --bundle-dir D
@@ -43,6 +46,19 @@ start options:
   --ttl-seconds SEC             Hard session lifetime; timeout kills RetroArch (default: 3600)
   --start-paused                Start paused before the first core frame (agent frame 0);
                                 step with input --frames / STEP_FRAME from a power-on start
+
+Replay notes: record-start anchors a BSV2 replay at the CURRENT core
+state (a full checkpoint is embedded before any frame token), so starting
+while paused at a known frame gives an exactly-anchored TAS segment.
+Agent inputs (input --frames / SET_INPUT_PORT) ARE captured.
+replay-start restores the replay's anchor state and resets the frame
+counter to 0; recorded inputs then drive the core (agent input overrides
+are ignored until playback ends). record-stop stops either direction and
+reports "STOP_REPLAY OK <frames>". Both record-start and replay-start
+require at least one core frame since power-on (step 1 frame after a
+--start-paused boot first): the core's savestate machinery initializes
+lazily and anchor serialize/deserialize at true frame 0 is rejected.
+Replays default to BUNDLE/replays/.
   --retroarch-bin PATH          RetroArch executable
   --base-config PATH            Base RetroArch config
 
@@ -882,6 +898,84 @@ cmd_status() {
   tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -o "GET_STATUS [^\r\n]*" | tail -n1
 }
 
+cmd_record_start() {
+  local REPLAY_PATH=""
+  while (($#)); do
+    case "$1" in
+      --bundle-dir) shift; BUNDLE_DIR="${1:-}" ;;
+      --path) shift; REPLAY_PATH="${1:-}" ;;
+      *) echo "Unknown record-start option: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+  [[ -z "${BUNDLE_DIR:-}" ]] && { echo "record-start requires --bundle-dir." >&2; exit 2; }
+  require_live_session
+  if [[ -z "$REPLAY_PATH" ]]; then
+    mkdir -p "$BUNDLE_DIR/replays"
+    REPLAY_PATH="$BUNDLE_DIR/replays/segment-$(date +%Y%m%d-%H%M%S).replay"
+  fi
+
+  local start_bytes
+  start_bytes="$(log_size_bytes)"
+  send_fifo "RECORD_REPLAY_PATH $REPLAY_PATH"
+  if ! wait_for_log_pattern_after "$start_bytes" "RECORD_REPLAY_PATH OK" 5; then
+    echo "RECORD_REPLAY_PATH not acknowledged (already recording/playing back, or path rejected)." >&2
+    exit 1
+  fi
+  echo "[interactive] recording replay to $REPLAY_PATH"
+}
+
+cmd_replay_start() {
+  local REPLAY_PATH=""
+  while (($#)); do
+    case "$1" in
+      --bundle-dir) shift; BUNDLE_DIR="${1:-}" ;;
+      --path) shift; REPLAY_PATH="${1:-}" ;;
+      *) echo "Unknown replay-start option: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+  if [[ -z "${BUNDLE_DIR:-}" || -z "$REPLAY_PATH" ]]; then
+    echo "replay-start requires --bundle-dir and --path." >&2
+    exit 2
+  fi
+  if [[ ! -f "$REPLAY_PATH" ]]; then
+    echo "replay-start: no such replay file: $REPLAY_PATH" >&2
+    exit 2
+  fi
+  require_live_session
+
+  local start_bytes
+  start_bytes="$(log_size_bytes)"
+  send_fifo "PLAY_REPLAY_PATH $REPLAY_PATH"
+  if ! wait_for_log_pattern_after "$start_bytes" "PLAY_REPLAY_PATH OK" 10; then
+    echo "PLAY_REPLAY_PATH not acknowledged (already recording/playing back, no core frame run yet, or anchor restore failed)." >&2
+    exit 1
+  fi
+  echo "[interactive] playing replay from $REPLAY_PATH (anchor restored, frame counter reset)"
+}
+
+cmd_record_stop() {
+  while (($#)); do
+    case "$1" in
+      --bundle-dir) shift; BUNDLE_DIR="${1:-}" ;;
+      *) echo "Unknown record-stop option: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+  [[ -z "${BUNDLE_DIR:-}" ]] && { echo "record-stop requires --bundle-dir." >&2; exit 2; }
+  require_live_session
+
+  local start_bytes
+  start_bytes="$(log_size_bytes)"
+  send_fifo "STOP_REPLAY"
+  if ! wait_for_log_pattern_after "$start_bytes" "STOP_REPLAY " 5; then
+    echo "STOP_REPLAY not acknowledged." >&2
+    exit 1
+  fi
+  tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -o "STOP_REPLAY [^\r\n]*" | tail -n1
+}
+
 cmd_save_slot() {
   local SLOT=""
   while (($#)); do
@@ -1104,6 +1198,9 @@ case "$SUBCOMMAND" in
   input) cmd_input "$@" ;;
   screenshot) cmd_screenshot "$@" ;;
   status) cmd_status "$@" ;;
+  record-start) cmd_record_start "$@" ;;
+  replay-start) cmd_replay_start "$@" ;;
+  record-stop) cmd_record_stop "$@" ;;
   save-slot) cmd_save_slot "$@" ;;
   load-slot) cmd_load_slot "$@" ;;
   stop) cmd_stop "$@" ;;

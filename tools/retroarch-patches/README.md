@@ -1,6 +1,6 @@
 # RetroArch Agent-Control Patches
 
-These 8 patches add the deterministic agent-control command set that the
+These 9 patches add the deterministic agent-control command set that the
 scenario/adapter stack in this repo depends on (`tools/adapters/retroarch_stdin_session.sh`,
 all `tools/scenarios/*` runners, the remint scripts, and the runtime conformance lanes).
 
@@ -17,6 +17,18 @@ zeroed (`GET_STATUS` reports `PAUSED ... frame=0`). Combined with `STEP_FRAME`
 this gives fully deterministic power-on starts (validated: two boots stepped to
 frame 180 produce byte-identical captures). The interactive adapter exposes it
 as `start --start-paused`.
+
+Patch 0009 adds anchored replay commands: `RECORD_REPLAY_PATH <path>` (start a
+BSV2 recording anchored at the current state — a full checkpoint is embedded
+before any frame token; agent inputs are captured), `PLAY_REPLAY_PATH <path>`
+(mid-session anchored playback: restores the embedded anchor and re-zeroes the
+frame counter), and `STOP_REPLAY` (reply carries the final frame count). Both
+start commands refuse to run before the first core frame — mupen64plus's
+savestate machinery initializes lazily and serialize/deserialize at true
+frame 0 crashes/fails (this is also why launch-time `-P` playback is not used).
+Adapter verbs: `record-start` / `replay-start` / `record-stop`. Validated: a
+240-frame segment with a mid-stream input replayed in a fresh session to a
+byte-identical end-frame capture.
 
 ## Canonical locations
 

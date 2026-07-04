@@ -45,9 +45,14 @@ byte-identical end-frame capture.
 cd /home/auro/code/RetroArch
 git checkout agent-control
 ./configure --disable-wayland --enable-x11 --enable-opengl --enable-vulkan \
-            --enable-sdl2 --enable-alsa --enable-udev --enable-freetype --enable-zlib
+            --enable-sdl2 --enable-alsa --enable-udev --enable-freetype --enable-zlib \
+            --enable-ffmpeg
 make -j"$(nproc)"
 ```
+
+`--enable-ffmpeg` (added 2026-07-04, needs the libav*-dev packages) compiles the
+h264 recording driver the recordings lane uses (`tools/recordings/`); without it
+`RECORDING_TOGGLE` falls back to WAV-only and segment rendering produces no video.
 
 If starting from a fresh clone without the branch:
 

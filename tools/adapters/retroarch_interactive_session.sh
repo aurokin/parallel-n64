@@ -18,7 +18,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="${PN64_ROOT:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
 LOCK_FILE="${TMPDIR:-/tmp}/parallel-n64-retroarch-runtime.lock"
 
 usage() {
@@ -703,6 +703,16 @@ cmd_send() {
 
   local ack start_bytes
   ack="$(ack_for_command "$COMMAND")"
+  # STEP_FRAME acks on ACCEPTANCE, not completion (agent-control patch 0001
+  # writes the reply before the frames run). A raw send therefore returns
+  # while the step burst is still draining — the PAUSED/PLAYING race that
+  # queued a step backlog and cost a session restart (EVAL_PROGRAM §14
+  # item 2). Block until the session re-reports PAUSED at the target frame,
+  # exactly like `input --frames` already does.
+  local step_frames="" step_base=""
+  if [[ "$COMMAND" =~ ^STEP_FRAME[[:space:]]+([0-9]+)[[:space:]]*$ ]]; then
+    step_frames="${BASH_REMATCH[1]}"
+  fi
   # Serialize the send+ack unit per bundle: the ack matcher takes the LAST
   # pattern match after start_bytes, so two concurrent same-verb sends (e.g.
   # a scorer polling READ_CORE_MEMORY while the agent probes RAM) can each
@@ -711,6 +721,12 @@ cmd_send() {
   if ! flock -w "$((ACK_TIMEOUT + 15))" 9; then
     echo "Timed out waiting for the bundle send lock." >&2
     exit 1
+  fi
+  if [[ -n "$step_frames" ]]; then
+    if ! step_base="$(current_status_frame)"; then
+      echo "Could not read the current frame before STEP_FRAME." >&2
+      exit 1
+    fi
   fi
   start_bytes="$(log_size_bytes)"
   send_fifo "$COMMAND"
@@ -721,6 +737,27 @@ cmd_send() {
     fi
     # Print the matched reply line for the agent.
     tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -o -e "${ack}[^\r\n]*" | tail -n1 || true
+  fi
+  if [[ -n "$step_frames" ]]; then
+    # 60fps plus generous slack; scales with the request instead of flat 60s.
+    if ! wait_for_paused_frame "$(( step_base + step_frames ))" \
+         "$(( step_frames / 60 + 30 ))"; then
+      echo "STEP_FRAME $step_frames did not complete (still draining, or the session is not paused)." >&2
+      exit 1
+    fi
+  fi
+  if [[ "$COMMAND" =~ ^SET_PAUSE[[:space:]]+ON$ ]]; then
+    local pf1 pf2
+    if pf1="$(current_status_frame)"; then
+      sleep 0.5
+      if pf2="$(current_status_frame)" && (( pf2 > pf1 )); then
+        echo "[interactive] WARNING: SET_PAUSE ON acked but frame= still advancing" \
+             "($pf1 -> $pf2 in 0.5s). Real time is passing despite PAUSED —" \
+             "either the core is not actually frozen or frame= is the video" \
+             "counter (session started without --start-paused and no savestate" \
+             "loaded yet). Do not trust PAUSED; use timed input holds." >&2
+      fi
+    fi
   fi
 }
 
@@ -801,7 +838,7 @@ cmd_input() {
       exit 1
     fi
     send_fifo "STEP_FRAME $FRAMES"
-    if ! wait_for_paused_frame "$(( base_frame + FRAMES ))" 60; then
+    if ! wait_for_paused_frame "$(( base_frame + FRAMES ))" "$(( FRAMES / 60 + 30 ))"; then
       echo "STEP_FRAME $FRAMES did not complete (is the session paused?)." >&2
       exit 1
     fi

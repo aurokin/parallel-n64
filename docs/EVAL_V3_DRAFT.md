@@ -12,7 +12,10 @@ gpt-5.5-xhigh utility play is workflow, not a scored cell.
 
 The 2026-07-04 **morning rulings** (button table, walkthrough form, the new
 ram-write policy, stack promotion) are recorded in §6 under "Rulings
-2026-07-04 (morning)" and reflected in the affected rows below.
+2026-07-04 (morning)"; the **afternoon rulings** (D4 reservation, partial
+backfill promotion, claude-cell condition purity, sounding greenlight, the
+replay-determinism finding) under "Rulings 2026-07-04 (afternoon)". Both are
+reflected in the affected rows below.
 
 ## 1. Purpose
 
@@ -52,8 +55,11 @@ explicitly ruled) before the first scored run, never mid-round.
 Scored cells only. All cells: `axisA=toolkit`, `rules=v2` scorer (7a32d6c),
 `guide=` per pre-round gate 4, hi-res ON at 4x, paused-stepped. Labels per
 LABEL_CONTRACT.md; instrumentation tier declared per INSTRUMENTATION_TIERS.md.
-Host assignments assume the default reservation (metapod stays reserved; see
-D4) — the grid shifts one column if the owner moves the reservation to mander.
+Host assignments were written against the old default reservation (metapod
+reserved). **D4 is now RULED** (2026-07-04 afternoon): the reservation moves
+to mander and metapod is freed as the second CU-capable Mac — the grid shifts
+as anticipated (mander-hosted rows re-home to metapod/haste/luma; the
+CU-family cells no longer serialize on luma alone).
 
 | Cell | CLI / model / effort | axisB | Mode | Host | Duration | Quota source | Instr |
 |---|---|---|---|---|---|---|---|
@@ -150,7 +156,11 @@ Ledger evidence (23 gate-scored runs, 5 clears):
 **v3 gate vector: unchanged G1–G4 + S1–S4** (scorer v2, 7a32d6c). No new
 scored gates until the replay backfill + path visualizer show where v3 runs
 actually stall (standing §14 direction: checkpoints from observed stalls, not
-story structure). Guards stay: `demoState==0`, `storyByte==-128` for G2/G3/S*,
+story structure). Replay-determinism status (2026-07-04): **arch is
+exonerated** — bare-001's same-host luma control replay diverged identically
+to the x86 replay with a byte-identical final position, and toolkit-003
+verified cross-arch replay — so archives/states carry a **STACK-FINGERPRINT
+requirement** (core hash + RetroArch commit + adapter rev), not an arch tag. Guards stay: `demoState==0`, `storyByte==-128` for G2/G3/S*,
 two-poll stability, arm-after-frame-clock-advance.
 
 **Marathon scoring (post-G4)**: `--marathon` is landed — G4 still ledgers but
@@ -177,16 +187,18 @@ ignoring those, as the scorer already does.
 | # | Item | Type | Status |
 |---|---|---|---|
 | 1 | **Button-table ruling** (§14 item 1) | ~~owner decision~~ **RULED** | **RULED 2026-07-04 (morning): Option A — fix APPLIED** to `AGENT_GUIDE.template.md` (n64-agent-evals `70ad2e7`; proposal doc marked RULED). V3-R-1 precondition 1 satisfied. Ledger note stands: v3 pre-G1 legs not comparable with wave-2 on this axis. |
-| 2 | **Pause-semantics adapter fix** (§14 item 2) | owner sign-off; **ready to apply** | Three hunks drafted (`docs/proposals/pause-semantics-fix.md`) against `tools/adapters/retroarch_interactive_session.sh` (this repo): blocking STEP_FRAME, frames-aware timeout, SET_PAUSE lie detector. Guide-side wording already applied. Rollout note: survey lab tooling for deliberate fire-and-forget STEP_FRAME first; between rounds = now. |
-| 3 | **`--start-paused` export change** (pause proposal companion) | ready to apply, **gated on #5** | One-line change in `n64-agent-evals/harness/export_workspace.sh`: `start-game.sh` gains `--start-paused` (patch 0008) so `frame=` counts core frames from power-on and PAUSED becomes trustworthy. Held back only because it changes run conditions and requires every eval host on a patch-0008 build. |
+| 2 | **Pause-semantics adapter fix** (§14 item 2) | ~~ready to apply~~ **LANDED** | **LANDED 2026-07-04 (this commit)**: all three hunks applied to `tools/adapters/retroarch_interactive_session.sh` — blocking STEP_FRAME, frames-aware ack timeout, SET_PAUSE lie detector. Rollout survey done: no lab tooling depends on fire-and-forget STEP_FRAME (every caller sends-then-polls; the `set -e` gp.sh family gains new loud pre/post-step failure modes under log flood — acceptable, and lab is never a correctness authority, ADR-0017). Guide-side wording already applied. |
+| 3 | **`--start-paused` export change** (pause proposal companion) | ~~gated on #5~~ **LANDED as OPT-IN** | **LANDED 2026-07-04** (n64-agent-evals `2f28e96`) — deliberately **OPT-IN, DEFAULT OFF**, diverging from this row's original "unconditional" sketch: `backfill_replay.py` re-exports workspaces fresh to replay v2 archives, and v2 replay fidelity requires v2 arm semantics; an unconditional flag would silently change replayed-run conditions mid-fleet. **v3 launches must pass `--start-paused` explicitly** (`export_workspace.sh --start-paused`; `run_eval.sh` passes it through). Passing the flag still requires the host on a patch-0008 build (#5). |
 | 4 | **Walkthrough provision decision** (§14 web ruling) | ~~owner decision~~ **RULED**, sounding-gated | **RULED 2026-07-04 (morning): OBJECTIVES-ONLY**, gated on gpt-5.5 sounding (P2). Drafted + wired: `harness/templates/OBJECTIVES.md` (goal ladder from the gate/subgate definitions only — no route detail, no input guidance) behind a new `export_workspace.sh --objectives` flag, default OFF (n64-agent-evals `1c0eeab`). New `guide=` label value when shipped (e.g. `playbook+objectives`). |
 | 5 | **Per-host stack promotion to 6ed66434 staging bundles** | **APPROVED, post-CU-cells** | **APPROVED 2026-07-04 (morning)**, to execute after today's CU cells complete (today's live/armed v2 runs stay pinned to `8fb6d58`). mander is already on `6ed66434e2` (+patches 0008/0009, validated by glm52-droid-001). Promote metapod/luma/haste via `tools/adapters/build_retroarch_agent_control_macos.sh`; reverify each host with the null + codex-smoke pair before scoring. |
-| 6 | Packaging-order fix (§14 item 3) | ready to apply | Write record.json last (or recompute post-tar) so `export_sha256` stops going stale (`export-hash-stale` flag on the cursor ledger). Mechanical. |
+| 6 | Packaging-order fix (§14 item 3) | ~~ready to apply~~ **LANDED** | **LANDED** (n64-agent-evals `d33aadf`): workspace.tar.gz finalized before record.json is written; the record gains `workspace_tar_sha256` (archive as delivered) — confirmed present in marathon-002's record. `export_sha256` keeps its pre-run content-digest meaning. |
 | 7 | Label + instrumentation normalization (§14 items 4–5) | landed as contracts | LABEL_CONTRACT.md + INSTRUMENTATION_TIERS.md govern from v3; drivers must emit conformant labels (`model=opus-4.8` not `claude-opus-4-8`, no `permission-mode=` leakage, `instr=` declared). Mechanical driver pass. |
-| 8 | **Manual-kickoff platform fix** (workspace binary resolution) | **LANDED** | n64-agent-evals `1e5dfcd`: exported workspaces bake arm-time-resolved absolute `RETROARCH_MVK141_BIN` + `PN64_ROOT`; `run_eval.sh` runs an arm-time session self-test in both modes (`--skip-self-test` to bypass). Root cause fixed: the workspace-copied adapter resolves REPO_ROOT to the workspace → default binary path misses → Vulkan loader failure (cost pilot-gpt55-cu-manual-001 its first session; gpt-5.5 recovered in 28.8 s via the env var). Companion upstream proposal (n64-agent-evals `docs/proposals/adapter-repo-root-fix.md`: adapter line ~21 honors `PN64_ROOT` before self-resolving) is WRITTEN but held with the pause fix (#2) until the backfill fleet drains, to keep replay conditions constant. |
+| 8 | **Manual-kickoff platform fix** (workspace binary resolution) | **LANDED** | n64-agent-evals `1e5dfcd`: exported workspaces bake arm-time-resolved absolute `RETROARCH_MVK141_BIN` + `PN64_ROOT`; `run_eval.sh` runs an arm-time session self-test in both modes (`--skip-self-test` to bypass). Root cause fixed: the workspace-copied adapter resolves REPO_ROOT to the workspace → default binary path misses → Vulkan loader failure (cost pilot-gpt55-cu-manual-001 its first session; gpt-5.5 recovered in 28.8 s via the env var). Companion upstream proposal (n64-agent-evals `docs/proposals/adapter-repo-root-fix.md`: adapter line ~21 honors `PN64_ROOT` before self-resolving) is **APPLIED with #2 (this commit)**; live backfill hosts stay on their checked-out revs until the orchestrator sequences pulls, so in-flight replay conditions are unchanged. |
 
 Order of operations: rule #1 → apply #1/#2/#6/#7 → promote #5 → apply #3 →
-sound (P1) → decide #4 during P2 → freeze the guide → score.
+sound (P1) → decide #4 during P2 → freeze the guide → score. (#3 landed
+opt-in ahead of #5 — safe because the flag is off by default; a launch that
+passes it still requires that host promoted to a patch-0008 build.)
 
 **Operational hazard**: `run_eval.sh preflight doctor --reap` kills ANY live
 session chain on the host — including backfill replays. Never arm on a host
@@ -219,7 +231,7 @@ pauses the round and falls back to gpt-5.5-only until fixed.
 | D1 | **Button table: fix (A) or honest trap (B)?** — **RULED 2026-07-04: (A), fix applied** (see rulings below) | ~~Option A.~~ Ruled as recommended. | — (ruled) |
 | D2 | **Walkthrough form: full route vs objectives-only?** — **RULED 2026-07-04: objectives-only, sounding-gated** (see rulings below) | ~~Objectives-only.~~ Ruled as recommended; P2 validates the form before scored use. | — (ruled) |
 | D3 | **Vision equalizer hosting** (haste becomes a gameplay host): (a) time-multiplex haste — equalizer-dependent cells never overlap haste gameplay; (b) re-host the describer elsewhere — no other GPU fits the 35B (mander's GPU carries the gameplay Vulkan stack); (c) drop the equalizer for v3 text-only cells with a `vision=none` caveat — confounds V3-R-1, whose -001 comparator used the equalizer. | **(a) time-multiplex.** Zero new deployment; the schedule already serializes per host, this just adds one cross-host constraint. | (a). |
-| D4 | **Which host stays reserved after tonight?** Keep metapod reserved (CU cells serialize on luma, which is intermittently online — keep docked) vs move the reservation to mander (the dev primary anyway), freeing metapod as the second CU-capable Mac. | **Move to mander.** Dev work lives there by ruling; gameplay on mander was only ever opportunistic; two CU-capable Macs de-risks luma's availability. | Keep metapod reserved; all CU cells on luma. |
+| D4 | **Which host stays reserved after tonight?** — **RULED 2026-07-04 (afternoon): move to mander** (see rulings below) | ~~Move to mander.~~ Ruled as recommended; metapod freed as the second CU-capable Mac. | — (ruled) |
 | D5 | **V3-M-3 (glm-5.2 marathon) quota source**: droid (fastest known glm harness, but ~6 h of scarce monthly credits) vs opencode post-reset (preserves credits; slower gate times; weekly budget) vs defer to v4. | **opencode post-reset**, with the established droid-vs-opencode comparability caveat. Marathon answers "how far", not "which harness". | Defer V3-M-3 to v4 if the opencode weekly hasn't comfortably recovered. |
 | D6 | **Marathon cap value.** | **360 min** (4x standard; fits an overnight; TTL already scales with `--cap-minutes`). | 360 min. |
 | D7 | **Fresh opus-4.8 v3 baseline (V3-B-1)?** The wave-2 clear carries the web-guidance flag and pre-dates the condition changes; a clean baseline sharpens the CU comparison but costs a shared-quota run. | **Yes, if claude quota allows** after V3-CU-2 and V3-M-2. | Skip; compare CU against wave-2 with an explicit cross-round caveat. |
@@ -253,6 +265,36 @@ runs are pinned to `8fb6d58` and unaffected):
   stack promotion to the `6ed66434` staging bundles) is approved, to
   execute after today's CU cells complete; reverification pairs still
   required per host before scoring.
+
+### Rulings 2026-07-04 (afternoon)
+
+- **D4 — RULED: the reservation moves to mander.** mander (the dev primary)
+  is the standing reserved host; metapod is freed as the second CU-capable
+  Mac. Grid note updated in §2: mander-hosted rows re-home to
+  metapod/haste/luma and the CU-family cells no longer serialize on luma
+  alone.
+- **Partial-backfill-promotion policy — APPROVED:
+  truncate-at-last-matched-gate.** For prefix-deterministic diverged
+  replays, the replayed telemetry is promotable up to the last gate whose
+  vector still matched; everything after the divergence point is discarded,
+  not reinterpreted. Execution comes after the backfill fleet completes plus
+  a `--re-verdict` sweep.
+- **claude-cell condition-purity fix — APPROVED.** v3 claude cells run with
+  an isolated configuration so the eval agent does not inherit the
+  orchestrator user's global ultracode/Workflow/skills setup — those are
+  orchestration tooling, not eval conditions. Must land before any v3
+  claude cell runs.
+- **SOUNDING — GREENLIT** (owner 2026-07-04): iterate run → analyze →
+  improve for a few runs before scored cells; minimum one macOS and one
+  Linux sounding; gpt-5.5 stays the default sounding player (standing
+  rule).
+- **Replay-determinism finding (backfill fleet, recorded here for the
+  round):** **arch is exonerated.** bare-001's same-host luma control
+  replay diverged identically to the x86 replay, with a byte-identical
+  final position; toolkit-003 verified clean cross-arch replay. Divergence
+  therefore keys on the software stack, not the CPU architecture:
+  archives/states get a **STACK-FINGERPRINT requirement** — core hash +
+  RetroArch commit + adapter rev — not an arch tag.
 
 ---
 *Cross-references: EVAL_PROGRAM.md §5 (axes), §6 (roster/quotas), §8

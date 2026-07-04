@@ -10,6 +10,10 @@ reserved for dev; haste becomes a gameplay host after tonight; marathons
 (`--marathon`, landed) run anytime without CU; fable-5 absolutely last;
 gpt-5.5-xhigh utility play is workflow, not a scored cell.
 
+The 2026-07-04 **morning rulings** (button table, walkthrough form, the new
+ram-write policy, stack promotion) are recorded in §6 under "Rulings
+2026-07-04 (morning)" and reflected in the affected rows below.
+
 ## 1. Purpose
 
 **What v2 answered** (§14/§15, 36-run ledger):
@@ -172,11 +176,11 @@ ignoring those, as the scorer already does.
 
 | # | Item | Type | Status |
 |---|---|---|---|
-| 1 | **Button-table ruling** (§14 item 1) | **owner decision** | Ruling packet ready (`n64-agent-evals/docs/proposals/button-table-ruling.md`); Option A (fix) and Option B (honest trap) diffs ready to apply verbatim. Blocks V3-R-1 (its precondition 1). Recommendation: **Option A** — three victims, and a false example command is misdocumentation, not a puzzle. |
+| 1 | **Button-table ruling** (§14 item 1) | ~~owner decision~~ **RULED** | **RULED 2026-07-04 (morning): Option A — fix APPLIED** to `AGENT_GUIDE.template.md` (n64-agent-evals `70ad2e7`; proposal doc marked RULED). V3-R-1 precondition 1 satisfied. Ledger note stands: v3 pre-G1 legs not comparable with wave-2 on this axis. |
 | 2 | **Pause-semantics adapter fix** (§14 item 2) | owner sign-off; **ready to apply** | Three hunks drafted (`docs/proposals/pause-semantics-fix.md`) against `tools/adapters/retroarch_interactive_session.sh` (this repo): blocking STEP_FRAME, frames-aware timeout, SET_PAUSE lie detector. Guide-side wording already applied. Rollout note: survey lab tooling for deliberate fire-and-forget STEP_FRAME first; between rounds = now. |
 | 3 | **`--start-paused` export change** (pause proposal companion) | ready to apply, **gated on #5** | One-line change in `n64-agent-evals/harness/export_workspace.sh`: `start-game.sh` gains `--start-paused` (patch 0008) so `frame=` counts core frames from power-on and PAUSED becomes trustworthy. Held back only because it changes run conditions and requires every eval host on a patch-0008 build. |
-| 4 | **Walkthrough provision decision** (§14 web ruling) | **owner decision**, sounding-informed | v3 provides a walkthrough as eval material so guidance is equalized by provision, not blocked. Open: form (full route vs objectives-only) and its effect on the discovery-vs-execution signal — explicitly deferred to gpt-5.5 sounding (P2 below). New `guide=` label value when it lands (e.g. `playbook+walkthrough`). |
-| 5 | **Per-host stack promotion to 6ed66434 staging bundles** | **ready to apply** | mander is already on `6ed66434e2` (+patches 0008/0009, validated by glm52-droid-001). Promote metapod/luma/haste via `tools/adapters/build_retroarch_agent_control_macos.sh`; reverify each host with the null + codex-smoke pair before scoring. |
+| 4 | **Walkthrough provision decision** (§14 web ruling) | ~~owner decision~~ **RULED**, sounding-gated | **RULED 2026-07-04 (morning): OBJECTIVES-ONLY**, gated on gpt-5.5 sounding (P2). Drafted + wired: `harness/templates/OBJECTIVES.md` (goal ladder from the gate/subgate definitions only — no route detail, no input guidance) behind a new `export_workspace.sh --objectives` flag, default OFF (n64-agent-evals `1c0eeab`). New `guide=` label value when shipped (e.g. `playbook+objectives`). |
+| 5 | **Per-host stack promotion to 6ed66434 staging bundles** | **APPROVED, post-CU-cells** | **APPROVED 2026-07-04 (morning)**, to execute after today's CU cells complete (today's live/armed v2 runs stay pinned to `8fb6d58`). mander is already on `6ed66434e2` (+patches 0008/0009, validated by glm52-droid-001). Promote metapod/luma/haste via `tools/adapters/build_retroarch_agent_control_macos.sh`; reverify each host with the null + codex-smoke pair before scoring. |
 | 6 | Packaging-order fix (§14 item 3) | ready to apply | Write record.json last (or recompute post-tar) so `export_sha256` stops going stale (`export-hash-stale` flag on the cursor ledger). Mechanical. |
 | 7 | Label + instrumentation normalization (§14 items 4–5) | landed as contracts | LABEL_CONTRACT.md + INSTRUMENTATION_TIERS.md govern from v3; drivers must emit conformant labels (`model=opus-4.8` not `claude-opus-4-8`, no `permission-mode=` leakage, `instr=` declared). Mechanical driver pass. |
 
@@ -207,14 +211,43 @@ pauses the round and falls back to gpt-5.5-only until fixed.
 
 | # | Decision | Recommendation | Default if no answer |
 |---|---|---|---|
-| D1 | **Button table: fix (A) or honest trap (B)?** | **Option A.** Three victims, one total loss; the false example line is indefensible; V3-R-1 is blocked on this. | Apply Option A. |
-| D2 | **Walkthrough form: full route vs objectives-only?** | **Objectives-only** — equalizes goal knowledge while preserving the discovery signal (route-finding is what the castle discriminates). | Run P2 objectives-only; if still unruled after P2, ship objectives-only for v3. |
+| D1 | **Button table: fix (A) or honest trap (B)?** — **RULED 2026-07-04: (A), fix applied** (see rulings below) | ~~Option A.~~ Ruled as recommended. | — (ruled) |
+| D2 | **Walkthrough form: full route vs objectives-only?** — **RULED 2026-07-04: objectives-only, sounding-gated** (see rulings below) | ~~Objectives-only.~~ Ruled as recommended; P2 validates the form before scored use. | — (ruled) |
 | D3 | **Vision equalizer hosting** (haste becomes a gameplay host): (a) time-multiplex haste — equalizer-dependent cells never overlap haste gameplay; (b) re-host the describer elsewhere — no other GPU fits the 35B (mander's GPU carries the gameplay Vulkan stack); (c) drop the equalizer for v3 text-only cells with a `vision=none` caveat — confounds V3-R-1, whose -001 comparator used the equalizer. | **(a) time-multiplex.** Zero new deployment; the schedule already serializes per host, this just adds one cross-host constraint. | (a). |
 | D4 | **Which host stays reserved after tonight?** Keep metapod reserved (CU cells serialize on luma, which is intermittently online — keep docked) vs move the reservation to mander (the dev primary anyway), freeing metapod as the second CU-capable Mac. | **Move to mander.** Dev work lives there by ruling; gameplay on mander was only ever opportunistic; two CU-capable Macs de-risks luma's availability. | Keep metapod reserved; all CU cells on luma. |
 | D5 | **V3-M-3 (glm-5.2 marathon) quota source**: droid (fastest known glm harness, but ~6 h of scarce monthly credits) vs opencode post-reset (preserves credits; slower gate times; weekly budget) vs defer to v4. | **opencode post-reset**, with the established droid-vs-opencode comparability caveat. Marathon answers "how far", not "which harness". | Defer V3-M-3 to v4 if the opencode weekly hasn't comfortably recovered. |
 | D6 | **Marathon cap value.** | **360 min** (4x standard; fits an overnight; TTL already scales with `--cap-minutes`). | 360 min. |
 | D7 | **Fresh opus-4.8 v3 baseline (V3-B-1)?** The wave-2 clear carries the web-guidance flag and pre-dates the condition changes; a clean baseline sharpens the CU comparison but costs a shared-quota run. | **Yes, if claude quota allows** after V3-CU-2 and V3-M-2. | Skip; compare CU against wave-2 with an explicit cross-round caveat. |
 | D8 | **agy fallback if the luma smoke shows no usable CU**: (a) IDE-desktop-app manual kickoff (codex-analog), or (b) reclassify to `axisB=unmentioned` and run the clean toolkit cell. | **(b).** The IDE surface is unproven and the round has exactly one quota shot; (a) risks spending it on surface debugging. | (b). |
+
+### Rulings 2026-07-04 (morning)
+
+Implemented same day in n64-agent-evals (v3-prep tip; today's live/armed v2
+runs are pinned to `8fb6d58` and unaffected):
+
+- **D1 — RULED: Option A (fix).** The forensics-validated corrected button
+  table applied to `harness/templates/AGENT_GUIDE.template.md`; the proposal
+  doc is marked RULED, not deleted (`70ad2e7`). Unblocks V3-R-1
+  (precondition 1); pre-G1 comparability note stands.
+- **D2 — RULED: objectives-only (sounding-gated).** `OBJECTIVES.md` goal
+  ladder drafted from the gate/subgate definitions only and wired behind
+  `export_workspace.sh --objectives`, default OFF (`1c0eeab`); ships for v3
+  pending P2 sounding validation.
+- **NEW, resolved — WRITE_CORE_MEMORY policy: writes VOID LATER GATES.**
+  Not previously in this draft's decision list. The verb stays available;
+  the scorer (now scorer v3, `1fa7d93`) tails the tamper-evident commands
+  log, the first observed write sets a `first_write_at` taint, and any
+  gate/subgate firing after it is recorded in a separate `voided_gates`
+  dict (same fields + taint reference), never in `gates`/`subgates`; a
+  voided G4 is not a scored terminal. Gates fired before the first write
+  count normally — matches the droid-002 adjudication (12 writes ~30 min
+  after its last gate; gates untainted). Zero-write runs emit a score
+  stream byte-identical to scorer v2. v3 scored cells run scorer v3 — this
+  supersedes the `7a32d6c` scorer pins in §2/§3 of this draft.
+- **Promotion — APPROVED, post-CU-cells.** Pre-round gate #5 (per-host
+  stack promotion to the `6ed66434` staging bundles) is approved, to
+  execute after today's CU cells complete; reverification pairs still
+  required per host before scoring.
 
 ---
 *Cross-references: EVAL_PROGRAM.md §5 (axes), §6 (roster/quotas), §8

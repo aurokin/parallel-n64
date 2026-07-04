@@ -21,10 +21,13 @@
 #     the HAVE_ACCESSIBILITY gates captured in d8a560738c)
 #   - homebrew paths must be pinned: the vulkan loader lives in
 #     /opt/homebrew/lib and configure's -lvulkan check fails without it
-#   - ffmpeg and freetype disabled so the feature set does not drift with
-#     whatever homebrew happens to have installed (the adapters use
-#     neither). Known accepted drift vs the June binary: OpenAL is gone
-#     (deprecated framework; adapters use CoreAudio).
+#   - freetype disabled so the feature set does not drift with whatever
+#     homebrew happens to have installed (the adapters do not use it).
+#     ffmpeg is ENABLED as of 2026-07-04: the recordings lane
+#     (tools/recordings/) needs the h264 record driver; requires homebrew
+#     ffmpeg (links /opt/homebrew/opt/ffmpeg dylibs — a brew major-version
+#     bump of ffmpeg requires a rebuild). Known accepted drift vs the June
+#     binary: OpenAL is gone (deprecated framework; adapters use CoreAudio).
 set -euo pipefail
 
 RETROARCH_SRC="${RETROARCH_SRC:-$HOME/code/RetroArch}"
@@ -78,7 +81,7 @@ echo "[build] $(git rev-parse --short HEAD) on $(git branch --show-current)"
   --disable-builtinzlib \
   --disable-accessibility \
   --disable-translate \
-  --disable-ffmpeg \
+  --enable-ffmpeg \
   --disable-freetype
 
 make -j"$JOBS"

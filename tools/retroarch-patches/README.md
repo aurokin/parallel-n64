@@ -1,6 +1,6 @@
 # RetroArch Agent-Control Patches
 
-These 7 patches add the deterministic agent-control command set that the
+These 8 patches add the deterministic agent-control command set that the
 scenario/adapter stack in this repo depends on (`tools/adapters/retroarch_stdin_session.sh`,
 all `tools/scenarios/*` runners, the remint scripts, and the runtime conformance lanes).
 
@@ -11,9 +11,16 @@ fallback to system RAM. They register in RetroArch's shared command table, so th
 same vocabulary works over the stdin transport (used here; zero ports, zero daemons)
 and the network command interface.
 
+Patch 0008 adds the `--start-paused` CLI flag: content loads normally, then the
+frontend pauses before the first core frame runs, with the agent frame counter
+zeroed (`GET_STATUS` reports `PAUSED ... frame=0`). Combined with `STEP_FRAME`
+this gives fully deterministic power-on starts (validated: two boots stepped to
+frame 180 produce byte-identical captures). The interactive adapter exposes it
+as `start --start-paused`.
+
 ## Canonical locations
 
-- Branch: `agent-control` on `github.com:aurokin/RetroArch` (tip `00dc81041d`)
+- Branch: `agent-control` on `github.com:aurokin/RetroArch` (tip `9bbfd647ad`)
 - Local checkout: `/home/auro/code/RetroArch` (same branch)
 - These patch files are the in-repo backup so the control stack survives any
   RetroArch re-clone or reset. **Never leave these commits unreferenced again** —

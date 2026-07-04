@@ -41,6 +41,8 @@ start options:
   --state-source DIR            Copy DIR's contents into the bundle states dir
   --savefile-source PATH        Copy a .srm file or savefile directory into the bundle savefiles dir
   --ttl-seconds SEC             Hard session lifetime; timeout kills RetroArch (default: 3600)
+  --start-paused                Start paused before the first core frame (agent frame 0);
+                                step with input --frames / STEP_FRAME from a power-on start
   --retroarch-bin PATH          RetroArch executable
   --base-config PATH            Base RetroArch config
 
@@ -190,21 +192,23 @@ apply_macos_runtime_defaults() {
 start_session_leader() {
   local pid_file="$1" lock_file="$2" ttl_seconds="$3" retroarch_bin="$4"
   local base_config="$5" append_config="$6" core_path="$7" rom_path="$8"
-  local fifo_path="$9" ra_log="${10}"
+  local fifo_path="$9" ra_log="${10}" start_paused="${11:-0}"
 
   if command -v setsid >/dev/null 2>&1; then
     setsid bash -c '
       echo "$$" > "$1"
+      EXTRA=()
+      [ "${11}" = "1" ] && EXTRA+=(--start-paused)
       exec flock -n "$2" timeout --signal=TERM "$3" "$4" \
-        --verbose --config "$5" --appendconfig "$6" -L "$7" "$8" \
+        --verbose --config "$5" --appendconfig "$6" "${EXTRA[@]}" -L "$7" "$8" \
         0<> "$9" >> "${10}" 2>&1
     ' _ "$pid_file" "$lock_file" "$ttl_seconds" "$retroarch_bin" \
         "$base_config" "$append_config" "$core_path" "$rom_path" \
-        "$fifo_path" "$ra_log" &
+        "$fifo_path" "$ra_log" "$start_paused" &
   else
     python3 - "$pid_file" "$lock_file" "$ttl_seconds" "$retroarch_bin" \
         "$base_config" "$append_config" "$core_path" "$rom_path" \
-        "$fifo_path" "$ra_log" <<'PY' &
+        "$fifo_path" "$ra_log" "$start_paused" <<'PY' &
 import os
 import sys
 from pathlib import Path
@@ -220,6 +224,7 @@ from pathlib import Path
     rom_path,
     fifo_path,
     ra_log,
+    start_paused,
 ) = sys.argv[1:]
 
 os.setsid()
@@ -234,26 +239,24 @@ for fd in (fifo_fd, log_fd):
     if fd > 2:
         os.close(fd)
 
-os.execvp(
+argv = [
     "flock",
-    [
-        "flock",
-        "-n",
-        lock_file,
-        "timeout",
-        "--signal=TERM",
-        ttl_seconds,
-        retroarch_bin,
-        "--verbose",
-        "--config",
-        base_config,
-        "--appendconfig",
-        append_config,
-        "-L",
-        core_path,
-        rom_path,
-    ],
-)
+    "-n",
+    lock_file,
+    "timeout",
+    "--signal=TERM",
+    ttl_seconds,
+    retroarch_bin,
+    "--verbose",
+    "--config",
+    base_config,
+    "--appendconfig",
+    append_config,
+]
+if start_paused == "1":
+    argv.append("--start-paused")
+argv += ["-L", core_path, rom_path]
+os.execvp("flock", argv)
 PY
   fi
 }
@@ -359,6 +362,7 @@ cmd_start() {
   local BASE_CONFIG="${BASE_CONFIG:-$DEFAULT_BASE_CONFIG}"
   local ROM_PATH="" CORE_PATH="" CORE_OPTIONS_TEMPLATE="" EXTRA_APPEND_CONFIG=""
   local STATE_SOURCE="" SAVEFILE_SOURCE="" TTL_SECONDS=3600 RETROARCH_BIN_EXPLICIT=0
+  local START_PAUSED=0
 
   while (($#)); do
     case "$1" in
@@ -371,6 +375,7 @@ cmd_start() {
       --state-source) shift; STATE_SOURCE="${1:-}" ;;
       --savefile-source) shift; SAVEFILE_SOURCE="${1:-}" ;;
       --ttl-seconds) shift; TTL_SECONDS="${1:-}" ;;
+      --start-paused) START_PAUSED=1 ;;
       --retroarch-bin) shift; RETROARCH_BIN="${1:-}"; RETROARCH_BIN_EXPLICIT=1 ;;
       --base-config) shift; BASE_CONFIG="${1:-}" ;;
       *) echo "Unknown start option: $1" >&2; exit 2 ;;
@@ -596,7 +601,7 @@ EOF
   LAUNCH_EPOCH="$(date +%s)"
   start_session_leader "$PID_FILE" "$LOCK_FILE" "$TTL_SECONDS" "$RETROARCH_BIN" \
       "$BASE_CONFIG" "$APPEND_CONFIG" "$CORE_PATH" "$ROM_PATH" \
-      "$FIFO_PATH" "$RA_LOG"
+      "$FIFO_PATH" "$RA_LOG" "$START_PAUSED"
 
   local deadline=$(( $(date +%s) + 10 ))
   while [[ ! -s "$PID_FILE" ]] && (( $(date +%s) < deadline )); do

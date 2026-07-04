@@ -236,7 +236,7 @@ flags explicitly — several hosts have aggressive defaults in user config, so u
 `codex --ignore-user-config` / `claude --bare`-style isolation where supported):
 
 ```
-codex  exec -C <ws> -m gpt-5.5 -c model_reasoning_effort=xhigh -s workspace-write \
+codex  exec -C <ws> -m gpt-5.5 -c model_reasoning_effort=xhigh -s danger-full-access \
        -c approval_policy=never --json -o last.txt "<prompt>"        # wrap in GNU timeout
 cursor-agent -p --output-format json --force --workspace <ws> --model composer-2.5 "<prompt>"
 grok   -p "<prompt>" --cwd <ws> -m grok-build --permission-mode bypassPermissions \
@@ -248,6 +248,13 @@ claude -p --output-format stream-json --verbose --model claude-sonnet-5 --permis
        # stream-json (needs --verbose in -p mode) replaces end-only json after the
        # opus-4.8 pilot: the cap kill (rc 124) lost the entire transcript
 ```
+
+codex sandbox warning: never use `-s workspace-write` on Linux — codex runs each
+exec in its own PID/mount namespace (no display/DRI/network), which kills adapter
+sessions, and the scorer's liveness check goes blind because `session.pid` holds a
+namespaced pgid. This destroyed pilot-gpt55-marathon-001 (forensics: n64-agent-evals
+`docs/forensics/gpt55-marathon-001-triage.md`); every archived scored gpt-5.5 run
+uses `-s danger-full-access`.
 
 droid note: `--auto medium` refuses MCP tool calls ("insufficient permission to
 proceed... Re-run with --auto high"), so droid runs that use the image tools (§7)

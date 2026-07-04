@@ -183,9 +183,14 @@ ignoring those, as the scorer already does.
 | 5 | **Per-host stack promotion to 6ed66434 staging bundles** | **APPROVED, post-CU-cells** | **APPROVED 2026-07-04 (morning)**, to execute after today's CU cells complete (today's live/armed v2 runs stay pinned to `8fb6d58`). mander is already on `6ed66434e2` (+patches 0008/0009, validated by glm52-droid-001). Promote metapod/luma/haste via `tools/adapters/build_retroarch_agent_control_macos.sh`; reverify each host with the null + codex-smoke pair before scoring. |
 | 6 | Packaging-order fix (§14 item 3) | ready to apply | Write record.json last (or recompute post-tar) so `export_sha256` stops going stale (`export-hash-stale` flag on the cursor ledger). Mechanical. |
 | 7 | Label + instrumentation normalization (§14 items 4–5) | landed as contracts | LABEL_CONTRACT.md + INSTRUMENTATION_TIERS.md govern from v3; drivers must emit conformant labels (`model=opus-4.8` not `claude-opus-4-8`, no `permission-mode=` leakage, `instr=` declared). Mechanical driver pass. |
+| 8 | **Manual-kickoff platform fix** (workspace binary resolution) | **LANDED** | n64-agent-evals `1e5dfcd`: exported workspaces bake arm-time-resolved absolute `RETROARCH_MVK141_BIN` + `PN64_ROOT`; `run_eval.sh` runs an arm-time session self-test in both modes (`--skip-self-test` to bypass). Root cause fixed: the workspace-copied adapter resolves REPO_ROOT to the workspace → default binary path misses → Vulkan loader failure (cost pilot-gpt55-cu-manual-001 its first session; gpt-5.5 recovered in 28.8 s via the env var). Companion upstream proposal (n64-agent-evals `docs/proposals/adapter-repo-root-fix.md`: adapter line ~21 honors `PN64_ROOT` before self-resolving) is WRITTEN but held with the pause fix (#2) until the backfill fleet drains, to keep replay conditions constant. |
 
 Order of operations: rule #1 → apply #1/#2/#6/#7 → promote #5 → apply #3 →
 sound (P1) → decide #4 during P2 → freeze the guide → score.
+
+**Operational hazard**: `run_eval.sh preflight doctor --reap` kills ANY live
+session chain on the host — including backfill replays. Never arm on a host
+with a fleet pass running.
 
 ## 5. Sounding plan (gpt-5.5 until sound — standing rule)
 

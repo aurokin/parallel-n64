@@ -803,7 +803,7 @@ cmd_input() {
       --mask) shift; MASK="${1:-}" ;;
       --hold-seconds) shift; HOLD_SECONDS="${1:-}" ;;
       --frames) shift; FRAMES="${1:-}" ;;
-      --analog) shift; ANALOG="${1:-}" ;;
+      --analog) shift; ANALOG="${1//,/ }" ;;
       *) echo "Unknown input option: $1" >&2; exit 2 ;;
     esac
     shift

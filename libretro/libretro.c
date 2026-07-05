@@ -2129,6 +2129,9 @@ size_t retro_get_memory_size(unsigned type)
 
 size_t retro_serialize_size (void)
 {
+    if (initializing)
+       return 0;
+
     return savestates_get_m64p_size();
 }
 

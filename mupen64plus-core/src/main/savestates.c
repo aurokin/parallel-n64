@@ -116,6 +116,7 @@ static int savestate_writer_put_array(savestate_writer *writer,
 int savestates_load_m64p(const unsigned char *data, size_t size)
 {
    char queue[1024];
+   size_t remaining;
    int version;
    int i;
    uint32_t FCR31;
@@ -325,7 +326,13 @@ int savestates_load_m64p(const unsigned char *data, size_t size)
    g_dev.vi.next_vi  = GETDATA(curr, unsigned int);
    g_dev.vi.field    = GETDATA(curr, unsigned int);
 
-   memcpy(queue, curr, sizeof(queue));
+   /* The event queue is the final, variable-length section of the
+    * serialized state (terminator included); a fixed 1024-byte copy
+    * reads past the end of the caller's buffer. Clamp to the bytes
+    * actually remaining. */
+   remaining = size - (size_t)(curr - data);
+   memset(queue, 0xFF, sizeof(queue));      /* 0xFFFFFFFF = terminator */
+   memcpy(queue, curr, remaining < sizeof(queue) ? remaining : sizeof(queue));
    to_little_endian_buffer(queue, 4, 256);
    load_eventqueue_infos(queue);
 

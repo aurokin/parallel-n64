@@ -1041,6 +1041,10 @@ cmd_save_slot() {
     send_fifo "$verb"
     sleep 0.1
   done
+  # The slot cursor has moved regardless of whether the save below succeeds;
+  # recording it only on success left the tracker stale after a refused save
+  # and desynced every later save-slot one slot high (IL-10).
+  echo "$SLOT" > "$SLOT_FILE"
 
   local start_bytes
   start_bytes="$(log_size_bytes)"
@@ -1058,7 +1062,6 @@ cmd_save_slot() {
     echo "Save landed in an unexpected slot; check $RA_LOG (slot tracking desynced?)." >&2
     exit 1
   fi
-  echo "$SLOT" > "$SLOT_FILE"
   echo "[interactive] saved checkpoint slot $SLOT"
 }
 

@@ -1,0 +1,269 @@
+# Issue Log
+
+Working register of known/suspected issues. Opened 2026-07-05.
+
+**Policy in effect (2026-07-05):** emulator/core and renderer *dev and analysis* are
+ON HOLD — pre-Fable emulator fixes have been hit-or-miss, so new core work waits for a
+careful Fable-era pass. Log issues here instead of fixing them. **Eval-harness and lab
+fixes remain actionable.** Each entry is tagged `HELD-CORE`, `HELD-RENDERER`,
+`ACTIONABLE-EVAL`, or `ACTIONABLE-LAB`.
+
+## Owner rulings — 2026-07-05
+- **R1 · baseline** — RATIFY P1F-002 as the v3 gpt-5.5 baseline; record G4 as
+  ">5402.3 (cap-censored; S4 5283.3)"; no rerun. **Effective when its replay verification
+  returns clean** (it is last in the replay-fleet queue). Baseline is playbook-only;
+  objectives cells carry the guide-variant delta.
+- **R2 · guardrails** — ADD BOTH: the pre-tar manifest check (IL-8) and the
+  no-rsync-into-eval-runs rule (IL-9). In progress (eval-harness work).
+- **R3 · guide freeze** — APPROVED, but the guide was intentionally re-opened for the v3
+  route-guidance redesign (objectives out, walkthrough in). New sequence: freeze happens
+  **after the walkthrough branch lands + owner reviews the assembled guide** (R5), not at
+  fleet-green. **DONE 2026-07-05** — R5 approved; frozen + merged to master (`0f4a48b`,
+  pushed to origin).
+- **R4 · P3 G4 divergence (decided 2026-07-05): ACCEPT, log for later.** Fleet-green
+  **soundness gate = MET.** The 90-min scored surface (G1–G3 + S1–S4) replays
+  deterministically across all 7 archives; the marathon's G4 battle is the only divergence
+  and no 90-min cell reaches it. G4-determinism-across-a-marathon logged as a deferred
+  investigation (IL-14), to revisit when marathons resume.
+- **R5 · guide review — COMPLETED 2026-07-05.** Owner approved the assembled v3 guide.
+  Both branches merged to master and pushed: `f25c2aa` (guardrails: IL-8 manifest check +
+  IL-9 no-rsync) then `0f4a48b` (v3 finalization freeze). Merged master renders
+  byte-identical to the reviewed R5 artifact. Verification doubled: the finalization
+  workflow's own 4-agent self-verify (verbatim / refs / exports) all PASS, and an
+  independent re-check agreed — walkthrough split byte-identical 3 ways (sha256
+  321bc3f2…), retirement/freeze grep-clean, 25/25 export-matrix assertions. Two
+  non-defect notes: the source guide's own Appendix E/F numbering quirk (preserved
+  verbatim, mapped correctly in index.md) and a harmless pre-existing dead
+  `{{VISION_TOOLS_RULE}}` no-op replace in the render.
+- **R6 · lock loop; soundness resets on any bench change (decided 2026-07-05):** v3 is NOT
+  "locked" by a single baseline re-cut. Step 5 is a **loop**: freeze the bench → cut one
+  baseline (gpt-5.5, current default guide, mander) → **deep-analyze that run's log** →
+  triage findings to {bugfix, doc update, none}. If any change lands, the bench changed and
+  the **soundness gate RESETS** — re-freeze and re-cut. Iterate until a baseline run needs no
+  changes; only then is v3 **LOCKED** and scored waves open. The baseline re-cut's own archive
+  doubles as the fresh soundness probe (replay-verify it on the frozen driver each iteration).
+  Corollary: the R4 fleet-green declaration verified the **pre-change** archive set (old
+  playbook/objectives guide, pre-fix driver) — it does **not** carry to the changed stack.
+  Standing principle beyond this loop: any later bench change (bugfix OR doc update) re-opens
+  the soundness gate.
+
+## v3 finalization pass — checklist ✅ COMPLETE (merged to master `0f4a48b`, pushed 2026-07-05)
+All items landed, R5-approved, merged. Next: the lock loop (R6) — baseline re-cut on mander.
+1. Retire `--scripts-provided` (flag, `field_probe.py` copy, usage/comment; run_eval passthrough).
+2. Freeze `--with-macros` — KEEP machinery; add a FROZEN usage comment + a runtime WARNING when
+   invoked (immature macro set, not for scored evals, revisit later). Do NOT remove.
+3. `--bare-adapter` — keep as-is; **VERIFY it still renders the base screenshot guidance**
+   (adapter `screenshot` command + "screenshots are your eyes" — both are base/unconditional,
+   confirmed 2026-07-05; ensure the restructure doesn't break it).
+3b. TAS-block CORE IDEA — observability + state snapshotting (correction + expansion 2026-07-05):
+   the TAS block already surfaces `tas.shot` and "savestate branching" (an earlier "zero
+   screenshot content" note was a bad-grep false negative), but the *core philosophy* is diffuse,
+   never stated as the point. FOLLOW-UP EDIT (post-workflow, same branch): make the pairing
+   explicit as the central pattern — at each segment, pair a `tas.shot(label)` capture with a
+   `tas.save`/`tas.saveSlot` snapshot, so the script is both **observable** (see every step, not
+   running blind) and **recoverable** (`tas.load` back to any captured point to retry a stretch
+   without replaying from the top). Common/recommended, not mandatory. Depth already lives in the
+   docs (AGENT_GAMEPLAY.md crawl/capture/save-rings; TAS_SCRIPT_MODEL.md sweep/branch/stateRing);
+   the BLOCK is what must state the idea prominently. Bring the revised block in the R5 review.
+4. Marathon cap: `--marathon` defaults `--cap-minutes` to **360** unless explicitly set.
+5. Walkthrough → progressive disclosure: split into `walkthrough/` per-chapter files (author's
+   own chapter boundaries, verbatim) + index carrying the provenance header; guide points at the
+   index. (PENDING owner thumbs-up on structure.)
+6. Housekeeping: return the main checkout to `master` after merges (currently parked on the branch).
+
+## v3 SOUNDNESS: gate RESET on bench change (updated 2026-07-05, per R6)
+The 2026-07-05 fleet-green declaration (defects fixed+validated ✓ · replay green 6/7 + P3-G4
+accepted per R4 ✓ · label/instr conformance ✓ · pre-round gates ✓) verified the **pre-change**
+stack — old playbook/objectives guide, pre-fix driver. The v3 finalization batch (walkthrough
+default-on, objectives retired, scripts-provided retired, macros frozen, marathon cap wiring,
+TAS-block edit) changes the bench, so the gate is now **PROVISIONAL** and is re-earned inside
+the lock loop (R6), not carried over.
+Sequence to **scoring opens**: finalization workflow + TAS-block edit land ✅ → owner guide
+review (R5) ✅ → freeze + merge (master `0f4a48b`, pushed) ✅ → lock loop ✅ (iter-1 recut,
+iter-2 clean + replay-verified, below) → **▶ NOW AT: scoring waves** (frontier pair gpt-5.5 +
+opus-4.8 first). **v3 LOCKED 2026-07-06**: iter-2 needed no bench change and its archive
+replay-verified deterministically on the frozen driver — both halves of the soundness
+condition met on the same recut.
+
+## Lock-loop iterations (R6)
+- **Iter 1 — baseline-gpt55-v3-001 (2026-07-06): recut-required.** Clean full 90-min time-cap on
+  the frozen stack; integrity clean and archive-CLEANER than P1F-002 (IL-8 verdict `ok`, all 8
+  slots present, identities byte-identical, audit empty, 0 WRITE_CORE_MEMORY). Gate vector
+  G1–G3+S1 ~40–50% faster than P1F-002 (walkthrough helped early nav), then a ~54-min S1→S2
+  stall (kkj_01 staircase confusion + NPC-collider door trap) cost S3/S4 — classed
+  **agent-behavior/execution-variance** (walkthrough neither cause nor cure; P1F-002 crossed the
+  same room 5.2× faster). Deep-analysis workflow (4 analyzers + triage) → recut-required NOT for
+  bad evidence but for bench-surface fixes. Committed **c238a26** (n64-agent-evals master, pushed):
+  README+guard `-s workspace-write`→`danger-full-access` pair, de-false the analog comma warning,
+  generic PLAYBOOK door-failure rule (trigger contact / NPC-steal / non-exit doors → timebox +
+  move-on), walkthrough index orientation note, WALKTHROUGH_BLOCK human-guide framing, diagnostic
+  S1u-kkj01-upper subgate (verified fires t=2077.7s), forensics note. Full forensics:
+  n64-agent-evals `docs/forensics/baseline-gpt55-v3-001-triage.md`.
+- **Iter 2 — baseline-gpt55-v3-002 (2026-07-06): CLEAN → v3 LOCKED.** Recut on
+  c238a26. **First baseline to complete the full ladder** — reached terminal G4 (Bowser intro battle
+  `0x2301`, decomp+final-frame-confirmed true positive) at 3363.4s (56 min), `agent_rc=0`, clean
+  integrity (archive `ok`, identity byte-identical, audit empty, 1 session, 0 comma-analog, monotonic
+  frame_clock). The kkj_01 S1→S2 crossing that stalled v3-001 (3266s) collapsed to 729s; the PLAYBOOK
+  door-rule resolved the exact iter-1 NPC-on-door trap **in one press** (rollout msg 102→103), and the
+  new `S1u` subgate fired correctly (1915.6s). Iteration-2 analysis (2 verifiers + decider): both
+  clean, **zero new bench defects → lock-eligible**. Honest caveat: at n=1 the full speedup is not
+  attributable to the fixes (P1F-002 crossed the same room fast without them); best read is the fixes
+  handle the NPC-door failure mode deterministically and rollout variance supplied the rest — does not
+  affect lock-eligibility (which turns on absence of new defects). **R6 replay probe (2026-07-06,
+  mander): `verified`.** `backfill_replay.py` fed the archived 2075-command trace to a fresh session
+  (dry-run est. 32.7 min); `backfill_status=verified`, `determinism.verdict=verified`,
+  `failed_sends=[]`. All 9 gates re-fired within fc-tolerance 900 — max drift 220 fc (S4), and
+  **terminal G4 re-fired at Δ−28 fc**: the pre-negotiated R4/IL-14 G4-divergence exemption was not
+  needed (P3's battle-region nondeterminism does not manifest at this run's 21.8k stepped frames;
+  IL-14 stays scoped to marathons). Evidence: `~/eval-runs/baseline-gpt55-v3-002/backfill/`
+  (backfill-record.json, polls.jsonl, ledger-annotation.proposed.json — ledger untouched).
+  **Clean iteration + deterministic replay = LOCK. Scoring opens.**
+
+## v3 scope decisions — 2026-07-05
+- **Marathons deferred** until v3 is tuned and all v3 scored evals have run; revisit after.
+- **Marathon cap = 6h (decided 2026-07-05).** No baked default exists today (base eval cap
+  90 min; marathons override via `--cap-minutes` at launch — P3 used 360, marathon-002 180).
+  TO IMPLEMENT in the finalization pass: wire `--marathon` to default `--cap-minutes` to
+  **360** (overridable); base eval cap stays 90 for standard runs.
+- **Marathon roster** likely **gpt-5.5 + opus-4.8 only** (they are far ahead; other models
+  are a token-waste beyond the standard eval).
+- **Non-frontier models** (glm, kimi, minimax, grok, cursor, gemini, sonnet) get the
+  **typical eval only** — no marathons for now.
+- **Fable runs** remain scheduled for the **very end of v3**.
+- **Objectives — RETIRED for v3 (decided 2026-07-05).** The base AGENT_GUIDE already states
+  the four top-level goals in order, so OBJECTIVES.md only added the castle subgate names +
+  formal gate labels — redundant, and doubly so once the walkthrough lands. Remove the
+  `--objectives` flag, the `OBJECTIVES_BLOCK`, and `templates/OBJECTIVES.md`; fold into the
+  walkthrough-provision change. Preserve P2/D2 history (real past sounding run) — retire the
+  provision, don't rewrite the record.
+- **WALKTHROUGH provision (NEW, decided 2026-07-05)** — add the *most popular* Paper Mario
+  (N64) walkthrough to the repo as clean markdown, kept **as close as possible to the
+  original source** (realistic to what an agent would grab online — agents have succeeded by
+  searching for + reading it). **Default-on = core part of v3** (confirmed): baseline must be
+  re-cut as playbook+walkthrough (P1F-002 is playbook-only), and v3 shifts toward measuring
+  *execution of a known route* vs *discovery*. Source = **GameFAQs** (top FAQ; plain text →
+  minimal markdown drift; provenance header w/ author + URL). OPEN: (a) scope — full-game
+  document vs verbatim opening section; (b) objectives-redundancy now RESOLVED (retired).
+- **CU — post-base-eval investigation (decided)**: keep tuning CU; run CU cells *after* the v3
+  base evals as a standalone help-vs-hurt study. Observation to preserve: CU adds **no
+  capability** the toolkit lacks (agents already capture+read screenshots deliberately) — it is
+  only an *ambient perception loop*; v2 evidence is that ambient < deliberate, so CU may be a
+  distraction rather than an aid. Interesting either way; prove it post-base.
+- **Toolkit-composition flags (axis A) — decided 2026-07-05:**
+  - `--bare-adapter` → **KEEP** as an optional variant (not default, not first wave). Stretch
+    goal: run bare-adapter × CU as a 2×2 (with and without computer use) — isolates
+    tool-sophistication from perception.
+  - `--scripts-provided` → **RETIRE** (legacy, vestigial, lab-coupled, no demonstrated value).
+  - `--with-macros` → **FROZEN** (not retired): keep the machinery, but mark it clearly
+    not-for-eval-use (runtime WARNING + comment) and run no scored cells with it. Rationale:
+    the macro run is superhuman (~5 min, well past any human) and genuinely interesting, but
+    the macro set is immature and it introduces a variable; revisit down the road.
+
+---
+
+## CLEARED-CORE — Fable-era re-review COMPLETE (2026-07-06): IL-1 + IL-2 both cleared
+Method: two-round adversarial workflow — 6 lens-reviewers (3 per commit) → dedup → 3-vote
+adversarial panel per finding (code-trace / reachability / regression-vs-baseline refuters) →
+synthesis → completeness critic → 5-gap closure round. ~40 agents; **zero `defect_in_fix`
+votes on any finding at any confidence**. Both verdicts APPROVE_WITH_NOTES; no core change;
+v3 bench freeze at `f07f8493` undisturbed.
+
+- **IL-1 · savestate frame-0 NULL deref guard — CLEARED.** `25f39b5b` re-derived from scratch.
+  Root cause confirmed: `savestates_get_m64p_size` dry-runs the writer and
+  `WRITEDATA(writer, uint32_t, *r4300_pc())` (savestates.c:563) evaluates the deref before the
+  writer's NULL-buffer check, so the size path derefs unconditionally; `PC` is BSS-NULL until
+  `r4300_init`. Re-review question ("can the guard mask a legitimately-sized frame-0 serialize
+  on any core path?") answered **NO**: at frame 0 `initializing==true` on every path, no valid
+  size exists to produce (interpreter/cached would crash; NEW_DYNAREC dynarec would emit a
+  bogus non-savepoint size), and the core advertises `RETRO_SERIALIZATION_QUIRK_MUST_INITIALIZE`
+  (libretro.c:1083) — the contract that licenses 0-until-initialized. Safety invariant proven,
+  not assumed: `initializing=false` (libretro.c:865) → `main_pre_run()` → `r4300_init` sets PC
+  in one uninterrupted game-thread slice with zero `co_switch` (the core contains none), while
+  the main thread is parked at libretro.c:2075; mid-session gfx context resets cannot regress
+  it (flag set true only in retro_init; `reinit_gfx_plugin` skips its co_switch after the first
+  reset). Deployment check strengthens the fix: on x86_64 NEW_DYNAREC is uncompiled
+  (Makefile.common:151-158), so `r4300_pc()` returns `&PC->addr` for EVERY cpu_core — default
+  `dynamic_recompiler` included — and the frame-0 crash was architecture-universal on the Linux
+  eval build, not an interpreter niche. Residual notes (non-blocking): `initializing` re-armed
+  only by retro_init, never retro_unload_game (latent unload→reload gap, unreachable via stock
+  RetroArch); Run-Ahead could latch the early 0 for a session (config-gated, disabled in this
+  deployment; pre-fix that path crashed, so no working feature regressed); fixed-0 is the
+  correct sentinel since the real size is runtime-variable (event-queue length).
+- **IL-2 · savestate OOB event-queue read clamp — CLEARED.** `f07f8493` re-derived. Strictly
+  non-regressive: copies `min(remaining,1024)` ≤ the removed unconditional 1024 on every input.
+  Re-review question ("can the clamp/terminator truncate a queue that legitimately fills the
+  buffer?") answered **NO — a legitimate queue cannot fill the buffer**: the queue is the final
+  serialized section (WRITEARRAY last, savestates.c:570), length `8N+4` with unconditional
+  0xFFFFFFFF terminator (interrupt.c:317-327), hard-capped by `POOL_CAPACITY=16`
+  (interrupt.c:69) at **132 bytes << 1024**; size/save symmetry (both paths run the same
+  writer) plus the sole caller forwarding RetroArch's true length (libretro.c:2160) make
+  `remaining == queuelength` exactly for every well-formed state, so the clamp bites only on
+  corrupt/foreign buffers — its exact intent. Underflow checked: on a header-valid-but-truncated
+  blob `remaining` wraps and the ternary saturates to 1024 — byte-identical to pre-fix on that
+  input, never worse. Cross-fix composition checked: IL-1's size-0 cannot reach the load path
+  (retro_unserialize's own init guard libretro.c:2157; magic check savestates.c:127 rejects
+  empty buffers first). Endianness safe (`to_little_endian_buffer` swaps exactly 1024 bytes;
+  0xFFFFFFFF is swap-palindromic). No pj64 loader in this tree. Residual gap promoted to
+  **IL-15** below.
+
+## HELD-CORE — open, not yet root-caused
+- **IL-3 · load-settle input pathology** (v4 seed) — after `LOAD_STATE` + the 3-frame
+  settle, input injected during the settle window can misbehave. Boundary between core
+  and adapter; needs a minimal repro before any fix.
+- **IL-14 · marathon battle-region replay determinism** (deferred per R4) — the P3 marathon
+  replays G1–G3 deterministically but its `G4-bowser-battle` never re-fires despite the
+  replay stepping past the original's G4 frame_clock; matches a precedent divergence class
+  in the tool docstring. Scope update 2026-07-06: the v3-002 R6 probe replayed **G4
+  deterministically** (Δ−28 fc at 21.8k stepped frames), so the divergence is specific to
+  marathon scale (P3: 40.7k frames), not to the battle region per se — the 90-min scored
+  surface is unaffected even when G4 fires. Investigate WHEN marathons resume
+  (post-v3-base); likely RNG/timing in the forced-loss battle. Replay/emulator analysis —
+  on hold now.
+- **IL-15 · savestate load-path bounds hardening** (from the IL-1/IL-2 re-review,
+  2026-07-06) — `savestates_load_m64p` has zero bounds checking on all reads preceding the
+  event queue: GETDATA/COPYARRAY ignore `size` (incl. the 8 MB RDRAM COPYARRAY,
+  savestates.c:263) and `retro_unserialize` forwards `size` unchecked (libretro.c:2160),
+  unlike the save path's `size < required_size` guard (libretro.c:2146). Malformed/truncated
+  input only; pre-existing, neither introduced nor closed by IL-2 (whose clamp covers the
+  queue section only). Candidate fix: running-bounds check or minimum-size gate at load
+  entry. Core change → post-v3 or the next bench window.
+
+## HELD-RENDERER — standing lanes (already tracked in REBOOT_PLAN; listed for completeness)
+- **IL-4** GlideN64-compat keying conformance, draw-time lane (ADR-0013/0014).
+- **IL-5** glide-vs-parallel beat-comparison methodology (standing validation).
+- **IL-6** pack-curation triage for content reclassified out of renderer scope (ADR-0015).
+- **IL-7** breadth re-checks (SM64/OoT/MK64/MM) after any renderer change.
+
+## ACTIONABLE-EVAL — eval/harness (fixes on the table)
+- **IL-8 · pre-tar manifest check** in `run_eval.sh` finalize — enumerate expected
+  artifacts (acked savestates, captures, logs) and warn/fail if `workspace.tar.gz` is
+  missing any. Would have caught both Linux archive warts while evidence still existed.
+  **DONE on branch `eval/archive-integrity-guardrails` (pending merge after fleet).**
+  Derives ACKed slots from the tamper-evident `retroarch.log.copy`; WARN-non-fatal +
+  `record.json.archive_manifest {expected,missing,extra,verdict}`; also flags
+  opposite-polarity foreign writes (unacked slots / pre-run-mtime files) as `extra`.
+  Demonstrated: flags P1F-002's absent slot-3 on the real archive; 3 controls pass.
+- **IL-9 · no-rsync-into-eval-runs guardrail** — operational rule + optional check to
+  prevent foreign writes into a live run dir (root cause of the P1F-001 contamination).
+  **DONE on the same branch:** README "Archive integrity" no-rsync rule + the IL-8
+  `extra` detection as the cheap enforceable guard.
+- **IL-10 · adapter slot-tracker desync on refused frame-0 save** — a refused save still
+  advances the adapter's slot tracker; documented wart. Adapter-side, low blast radius.
+- **IL-11 · record.json external/CU subgate embed gap** — external-mode runs (cu-001,
+  cu-002, cu-manual-002) show `record.json` omitting subgates despite `1517afa`; scored
+  data was recovered from score.jsonl each time. Verify whether `1517afa` covers the
+  external path or only spawned mode.
+- **IL-12 · grokcomposer-003 prefix-0 replay divergence** — backfill replay diverged at
+  prefix 0; needs a targeted diagnosis (why zero commands matched).
+
+## ACTIONABLE-LAB — lab (fixes on the table)
+- **IL-13 · lab durable-state / macro follow-through** — confirm the round-4 battle-start
+  mint (`44d80fa`) actually unblocks `battle.jrTroopaChapter1RefreshBombHammer` promotion,
+  and reconcile the five route-notes macro candidates against what `48` marked complete.
+
+---
+
+### Archived resolved (for provenance)
+- Analog comma bug — FIXED (guide `79d6acf`, adapter `690f69b1`). Adapter, not core.
+- Toolkit double-wait — FIXED (lab `56e55f6`).
+- Marathon quit-after-goal — FIXED (`d7e983f`), validated by P3.

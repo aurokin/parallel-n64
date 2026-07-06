@@ -72,8 +72,15 @@ source of truth for local path assumptions; status detail defers to
     keep docked for runs; the driver wraps `run_eval.sh` in `caffeinate -is`.
   - cursor-agent stores auth in the login keychain, which is locked in ssh
     sessions — `security unlock-keychain` needed before cursor runs.
-- Eval driver: `/tmp/luma-eval-run.sh` (volatile — recreate from this doc or
-  the metapod driver pattern after reboot).
+- Eval driver: superseded 2026-07-06 — launch via `n64-agent-evals`
+  `harness/cut_run.sh` like every fleet host (it derives PN64_ROOT from
+  $HOME and sets EVAL_CORE to the .dylib on Darwin). The old volatile
+  `/tmp/luma-eval-run.sh` pattern is retired.
+- Reachability: bare `luma` does not resolve from mander; use
+  `luma.home.arpa` (mander's ~/.ssh/config now pins `Host luma` →
+  `luma.home.arpa`). Keep docked on AC with "prevent automatic sleeping
+  when display is off" enabled, else it sleeps and drops ssh (1-min sleep
+  on battery).
 
 ### saur / tortle headless Linux VMs (Intel Arc Pro B50 SR-IOV; onboarded 2026-07-06)
 

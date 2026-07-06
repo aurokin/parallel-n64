@@ -295,9 +295,25 @@ v3 bench freeze at `f07f8493` undisturbed.
   every pre-fix archive with hidden free-run exposure, statically.
 
 ## ACTIONABLE-LAB — lab (fixes on the table)
-- **IL-13 · lab durable-state / macro follow-through** — confirm the round-4 battle-start
-  mint (`44d80fa`) actually unblocks `battle.jrTroopaChapter1RefreshBombHammer` promotion,
-  and reconcile the five route-notes macro candidates against what `48` marked complete.
+- **IL-13 · lab durable-state / macro follow-through — RECONCILED 2026-07-06 (paper side
+  closed; live steps owner-gated).** The round-4 mint DOES clear the start-state blocker on
+  paper: `paper-mario-jr-troopa2-battle-first-command-menu-20260704` is the exact
+  battle-context command-ring state the packfix census lacked (battleID 515, Jump-selected
+  ring, Mario HP 5/15 FP 1/10 + Bombette; state/capture sha256 re-verified on disk against
+  the index). Caveats carried: savefile sha unknown; mint identity is feature-off Linux
+  (core `2ee52f3e…`) vs the metapod hi-res identity the trust model requires for replay
+  proof; the ring opens on Jump while the route leads with Refresh (ring-nav required). Lab
+  MACROS.md updated (lab `5f9daf5`): stale "blocked" note replaced, candidate repointed at
+  the mint. Reconciliation corrections: the register's "five candidates" was stale —
+  MACROS.md HEAD lists NINE non-battle route-notes candidates, all genuinely unimplemented
+  (zero `.ts`); and "what `48` marked complete" was a mischaracterization — eval work-item
+  #48 (macro cells) was DROPPED from all rounds by owner ruling 2026-07-04, so the nine are
+  parked, not on the eval critical path. Remaining to promote (owner-gated, metapod
+  display): author the battle `.ts` + the missing `bomb()`/`refresh()`/ring-nav helpers in
+  `src/games/paper-mario/battle.ts`; cross-OS load-validate the state under metapod MVK141
+  hi-res; then ≥2 deterministic replays (battle action commands are timing-sensitive).
+  New lab runtime bug logged from the sweep tooling: `pm64-hammer-sweep.ts` errors even in
+  dry-run (`TAS_ACTION_COMMAND_FIELDS[0].type` unsupported) — fix before sweeps are usable.
 
 ---
 

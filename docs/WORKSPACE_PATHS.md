@@ -1,6 +1,6 @@
 # Workspace Paths
 
-Machine-specific workspace layout (last refreshed 2026-06-12). This file is the
+Machine-specific workspace layout (last refreshed 2026-07-06). This file is the
 source of truth for local path assumptions; status detail defers to
 [assets/TEXTURE_PACKS.md](/home/auro/code/parallel-n64/assets/TEXTURE_PACKS.md) and
 [PROJECT_NOTES.md](/home/auro/code/parallel-n64/PROJECT_NOTES.md).
@@ -74,6 +74,37 @@ source of truth for local path assumptions; status detail defers to
     sessions — `security unlock-keychain` needed before cursor runs.
 - Eval driver: `/tmp/luma-eval-run.sh` (volatile — recreate from this doc or
   the metapod driver pattern after reboot).
+
+### saur / tortle headless Linux VMs (Intel Arc Pro B50 SR-IOV; onboarded 2026-07-06)
+
+- Two Ubuntu VMs on the Proxmox host `Bront` (same host as mander), each holding
+  half of an Intel Arc Pro B50 as an SR-IOV VF. The VF is render-capable with NO
+  display connector: `/dev/dri/card0` is virtio (desktop), `card1`/`renderD129`
+  is the B50 VF. Vulkan enumerates "Intel(R) Arc(tm) Pro B50 Graphics (BMG G21)"
+  plus llvmpipe.
+- Same fleet layout as mander: `~/code/{parallel-n64@parallelish-reboot,
+  RetroArch@agent-control, n64-agent-evals, papermario, parallel-n64-lab,
+  n64_docs}`; ROM + authoritative states staged in `assets/`.
+- Headless operation: export `RETROARCH_VIDEO_CONTEXT_DRIVER=headless_vk`
+  (both adapters honor it; writes `video_context_driver` + null input drivers
+  into the per-bundle append config and records `VIDEO_CONTEXT_DRIVER` in
+  session provenance). The `headless_vk` context is explicit-selection-only
+  (ordered after `gfx_ctx_null`) and skips present (Mesa/Intel crashes in
+  `vkQueuePresentKHR` on the VF); evidence comes from readback/screenshot.
+  See `docs/history/headless-vulkan-eval-backend-spike.md` and RetroArch
+  `docs/headless-vulkan-context.md`.
+- Feature-off screenshot digests differ from the headed mander baseline but are
+  byte-identical across the two hosts; the headless baseline is minted as
+  `EXPECTED_SCREENSHOT_SHA256_OFF_HEADLESS` (title-screen scenario; B50-VF scope).
+- Onboarding gotchas, all host-state: dev packages missing relative to the
+  configured RetroArch feature set (`libfreetype-dev`, `libx11-xcb-dev`,
+  `liblzma-dev` installed 2026-07-06); linuxbrew is on PATH and its binutils
+  `ld` does the linking — system `-dev` packages must be present for it to
+  resolve system libs. 2 vCPUs each: builds are slow (`make -j2`).
+- Verified 2026-07-06 on both hosts: title-screen scenario headless end-to-end
+  (B50 VF selected, semantic verification passed, strict digest gate green on
+  saur) and the interactive adapter's eval command surface (paused start, step,
+  save/load, screenshot) headless on saur.
 
 ## GlideN64 Reference Vehicle
 

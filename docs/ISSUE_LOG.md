@@ -80,10 +80,14 @@ TAS-block edit) changes the bench, so the gate is now **PROVISIONAL** and is re-
 the lock loop (R6), not carried over.
 Sequence to **scoring opens**: finalization workflow + TAS-block edit land ✅ → owner guide
 review (R5) ✅ → freeze + merge (master `0f4a48b`, pushed) ✅ → lock loop ✅ (iter-1 recut,
-iter-2 clean + replay-verified, below) → **▶ NOW AT: scoring waves** (frontier pair gpt-5.5 +
-opus-4.8 first). **v3 LOCKED 2026-07-06**: iter-2 needed no bench change and its archive
-replay-verified deterministically on the frozen driver — both halves of the soundness
-condition met on the same recut.
+iter-2 clean + replay-verified, below) → v3 LOCKED 2026-07-06 (iter-2 needed no bench change
+and its archive replay-verified deterministically on the frozen driver — both halves of the
+soundness condition met on the same recut) → **bench window re-opened 2026-07-06 (owner):**
+"get all pending changes landed (or declined) before v3 starts" — per the R6 standing
+principle the gate reset; the window's changes are batched below and ONE recut
+(baseline-gpt55-v3-003) + its replay probe re-locks → **▶ NOW AT: pre-scoring bench window
+closing — recut v3-003 on mander** (then scoring waves, frontier pair gpt-5.5 + opus-4.8
+first).
 
 ## Lock-loop iterations (R6)
 - **Iter 1 — baseline-gpt55-v3-001 (2026-07-06): recut-required.** Clean full 90-min time-cap on
@@ -118,6 +122,42 @@ condition met on the same recut.
   IL-14 stays scoped to marathons). Evidence: `~/eval-runs/baseline-gpt55-v3-002/backfill/`
   (backfill-record.json, polls.jsonl, ledger-annotation.proposed.json — ledger untouched).
   **Clean iteration + deterministic replay = LOCK. Scoring opens.**
+
+## Pre-scoring bench window — opened 2026-07-06 (owner), closes via recut v3-003
+Owner directive: land or decline every pending change before scoring starts, and bring the
+new headless hosts (saur/tortle) into the fleet properly. Everything below landed in this
+window; per the R6 standing principle the soundness gate re-arms with ONE recut + replay probe.
+- **Harness (n64-agent-evals `18abe48`, `4b7b239`):** `--start-paused` is now default-on in
+  run_eval.sh (v3 pause regime by default; `--no-start-paused` warns loudly, control arms
+  only); backfill dry-run gained the pre-honest-pause adapter scan (IL-12 guard — flags
+  pre-4339d77f workspaces via the "STEP_FRAME acks on ACCEPTANCE" marker; controls: grok-003
+  flags, v3-002 clean); `cut_run.sh` canonical launcher auto-applies the v3 defaults
+  (eval file, 90-min cap, pause regime, label contract, codex `danger-full-access`; presets
+  codex-gpt55 / claude-opus48).
+- **Adapter (parallel-n64 `6a771a34`):** IL-10 slot-cursor fix — entry below now FIXED,
+  live-proved on mander and headless on saur.
+- **Core (parallel-n64 `e64ae95a`):** IL-15 load-path entry gate — entry below now CLOSED.
+- **Headless fleet expansion (parallel-n64 `144580fb`+`fb441c64`+`da612380`; RetroArch
+  agent-control `50090d52ee`):** headless-vulkan spike merged after adversarial review
+  (verdict merge-with-fixes). Fixes applied at merge: null input drivers made conditional on
+  `RETROARCH_VIDEO_CONTEXT_DRIVER` (display hosts' append config stays byte-identical);
+  `headless_vk` ordered after `gfx_ctx_null` so auto-fallback can never silently select it
+  (explicit ident match only); env value validated; and the interactive-session adapter
+  wired too — the spike had wired only the stdin/scenario adapter, which would have left
+  the eval harness unable to run headless. saur+tortle brought up for real: missing dev
+  deps installed (freetype, x11-xcb, lzma — the koopa log's `_spikes` checkouts no longer
+  existed; rebuilt from the proper fleet checkouts), RetroArch agent-control + core rebuilt
+  on both, end-to-end verification on BOTH hosts: B50 VF selected (not llvmpipe), headless
+  surface created, full command proofs, semantic verification passed, captures
+  byte-identical across the two hosts AND matching the spike's validated hash (third
+  independent reproduction) → headless feature-off baseline minted
+  (`EXPECTED_SCREENSHOT_SHA256_OFF_HEADLESS`, `da612380`) and the strict digest gate
+  re-verified green on saur. Eval-harness command surface (paused start / step / save-load
+  / screenshot) proven headless via the interactive adapter on saur.
+- **Player-path validation (pre-window stack):** smoke-opus48-v3-001 (opus-4.8, --smoke):
+  G1 at 763s, cap-kill rc-124 with stream-json intact (654 lines, 77 tool_use), archive ok.
+- Window close checklist: SCORING_PROTOCOL.md owner decisions resolved → freeze → recut
+  baseline-gpt55-v3-003 via cut_run.sh on mander → deep triage → replay probe → re-lock.
 
 ## v3 scope decisions — 2026-07-05
 - **Marathons deferred** until v3 is tuned and all v3 scored evals have run; revisit after.
@@ -219,14 +259,24 @@ v3 bench freeze at `f07f8493` undisturbed.
   surface is unaffected even when G4 fires. Investigate WHEN marathons resume
   (post-v3-base); likely RNG/timing in the forced-loss battle. Replay/emulator analysis —
   on hold now.
-- **IL-15 · savestate load-path bounds hardening** (from the IL-1/IL-2 re-review,
-  2026-07-06) — `savestates_load_m64p` has zero bounds checking on all reads preceding the
-  event queue: GETDATA/COPYARRAY ignore `size` (incl. the 8 MB RDRAM COPYARRAY,
-  savestates.c:263) and `retro_unserialize` forwards `size` unchecked (libretro.c:2160),
-  unlike the save path's `size < required_size` guard (libretro.c:2146). Malformed/truncated
-  input only; pre-existing, neither introduced nor closed by IL-2 (whose clamp covers the
-  queue section only). Candidate fix: running-bounds check or minimum-size gate at load
-  entry. Core change → post-v3 or the next bench window.
+- **IL-15 · savestate load-path bounds hardening — CLOSED 2026-07-06 (bench window,
+  `e64ae95a`).** Original finding (from the IL-1/IL-2 re-review): `savestates_load_m64p`
+  had zero bounds checking on all reads preceding the event queue — GETDATA/COPYARRAY
+  ignored `size` (incl. the 8 MB RDRAM COPYARRAY, savestates.c:263) and `retro_unserialize`
+  forwards `size` unchecked (libretro.c:2160), unlike the save path's `size < required_size`
+  guard (libretro.c:2146). Malformed/truncated input only; pre-existing. Fix: minimum-size
+  entry gate — refuse any buffer smaller than the fixed prefix plus the 4-byte queue
+  terminator, derived from the live writer (`savestates_get_m64p_size()` minus
+  `save_eventqueue_infos()`) so it tracks the format; composes with IL-2's queue-tail clamp
+  to bound every read. Provenance note: the implementation was found uncommitted in the
+  working tree, author unknown; adopted only after a 3-refuter adversarial panel returned
+  unanimous "sound" (threshold ≡ fixed_prefix+4 and machine-state-invariant; loader accepts
+  only version 0x00010000; RDRAM span constant both sides; no init-order hazard).
+  Validation caveat discovered en route: the emu-required gate does NOT compile
+  savestates.c (renderer/policy tests only — necessary but not sufficient for core
+  changes), so verification was a live core rebuild + on-display smoke on mander
+  (frame-0 refusal, save, load through the gate, step) plus the same sequence headless
+  on saur.
 
 ## HELD-RENDERER — standing lanes (already tracked in REBOOT_PLAN; listed for completeness)
 - **IL-4** GlideN64-compat keying conformance, draw-time lane (ADR-0013/0014).
@@ -247,8 +297,13 @@ v3 bench freeze at `f07f8493` undisturbed.
   prevent foreign writes into a live run dir (root cause of the P1F-001 contamination).
   **DONE on the same branch:** README "Archive integrity" no-rsync rule + the IL-8
   `extra` detection as the cheap enforceable guard.
-- **IL-10 · slot-tracker desync on refused frame-0 save — INVESTIGATED 2026-07-06; documented
-  wart stands (no bench change before scoring).** Mechanism correction: the refusal does NOT
+- **IL-10 · slot-tracker desync on refused frame-0 save — FIXED 2026-07-06 (bench window,
+  `6a771a34`).** The tracker now records the slot cursor right after the
+  STATE_SLOT_PLUS/MINUS navigation loop — the cursor has moved regardless of whether the
+  save succeeds — and the filename check stays as the desync detector. Live-proved on
+  mander (frame-0 save refused → tracker=1 → save at frame 1 lands `.state1`, not the
+  old-bug `.state2`; load+step clean) and the same save/load sequence proven headless on
+  saur. Mechanism analysis from the investigation, kept for the record: the refusal does NOT
   advance the adapter's tracker — it advances RETROARCH's internal counter (the
   STATE_SLOT_PLUS/MINUS keybinds fire before the save ack,
   retroarch_interactive_session.sh:1035-1043) while `session.state-slot` stays stale (:1061 is
@@ -263,10 +318,10 @@ v3 bench freeze at `f07f8493` undisturbed.
   tracking desynced?"; phantom-slot load → error, not wrong state). Reachability: requires a
   save strictly before the first stepped frame; the guide steers away; ZERO post-fix
   occurrences across all archives (one pre-fix occurrence, P1F-001, via TAS-replay-after-restart
-  — a still-live pattern with TAS default-on). Disposition: the fix is confined to the adapter
-  but is a bench change under R6 → queued for the next bench window; until then scored-run
-  triage greps for `Core does not support save states` / `slot tracking desynced`
-  (scoring-protocol checklist item). `retroarch_stdin_session.sh` unaffected (no slot tracking).
+  — a still-live pattern with TAS default-on). Disposition: fixed in the 2026-07-06 bench
+  window (see header); the scored-run triage greps for `Core does not support save states` /
+  `slot tracking desynced` stay in the scoring-protocol checklist as regression tripwires.
+  `retroarch_stdin_session.sh` unaffected (no slot tracking).
 - **IL-11 · record.json external/CU subgate embed gap — CLOSED 2026-07-06 (pin artifact + one
   misfiled exhibit; no code gap).** `1517afa` covers BOTH modes by construction — spawned and
   external share the single finalize path (run_eval.sh:552-623; the commit message's "no second

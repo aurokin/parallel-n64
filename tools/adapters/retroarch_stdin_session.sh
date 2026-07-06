@@ -207,6 +207,15 @@ notification_show_save_state = "false"
 notification_show_screenshot = "false"
 notification_show_screenshot_flash = "0"
 video_driver = "vulkan"
+EOF
+
+if [[ -n "${RETROARCH_VIDEO_CONTEXT_DRIVER:-}" ]]; then
+  cat >> "$APPEND_CONFIG" <<EOF
+video_context_driver = "$RETROARCH_VIDEO_CONTEXT_DRIVER"
+EOF
+fi
+
+cat >> "$APPEND_CONFIG" <<EOF
 video_fullscreen = "true"
 video_windowed_fullscreen = "true"
 video_fullscreen_x = "0"
@@ -468,6 +477,7 @@ CORE_OPTIONS_FILE=$CORE_OPTIONS_FILE
 BASE_CONFIG_SHA256=$BASE_CONFIG_SHA256
 APPEND_CONFIG_SHA256=$APPEND_CONFIG_SHA256
 CORE_OPTIONS_FILE_SHA256=$CORE_OPTIONS_FILE_SHA256
+VIDEO_CONTEXT_DRIVER=${RETROARCH_VIDEO_CONTEXT_DRIVER:-}
 STDIN_FIFO=$FIFO_PATH
 ROM_PATH=$ROM_PATH
 CORE_PATH=$CORE_PATH

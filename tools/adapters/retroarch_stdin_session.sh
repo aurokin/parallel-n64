@@ -347,6 +347,24 @@ notification_show_save_state = "false"
 notification_show_screenshot = "false"
 notification_show_screenshot_flash = "0"
 video_driver = "$VIDEO_DRIVER_VALUE"
+EOF
+
+# Headless hosts (no display connector on the GPU) opt in via env. The null
+# input drivers ride the same condition: with the env unset the append config
+# stays byte-identical to the display-host baseline (APPEND_CONFIG_SHA256).
+if [[ -n "${RETROARCH_VIDEO_CONTEXT_DRIVER:-}" ]]; then
+  if [[ ! "$RETROARCH_VIDEO_CONTEXT_DRIVER" =~ ^[a-z0-9_]+$ ]]; then
+    echo "Invalid RETROARCH_VIDEO_CONTEXT_DRIVER (want ^[a-z0-9_]+$): $RETROARCH_VIDEO_CONTEXT_DRIVER" >&2
+    exit 1
+  fi
+  cat >> "$APPEND_CONFIG" <<EOF
+video_context_driver = "$RETROARCH_VIDEO_CONTEXT_DRIVER"
+input_driver = "null"
+input_joypad_driver = "null"
+EOF
+fi
+
+cat >> "$APPEND_CONFIG" <<EOF
 video_fullscreen = "$VIDEO_FULLSCREEN_VALUE"
 video_windowed_fullscreen = "$VIDEO_WINDOWED_FULLSCREEN_VALUE"
 video_fullscreen_x = "0"
@@ -685,6 +703,7 @@ CORE_OPTIONS_LAUNCH_FILE=$CORE_OPTIONS_LAUNCH_FILE
 BASE_CONFIG_SHA256=$BASE_CONFIG_SHA256
 APPEND_CONFIG_SHA256=$APPEND_CONFIG_SHA256
 CORE_OPTIONS_FILE_SHA256=$CORE_OPTIONS_FILE_SHA256
+VIDEO_CONTEXT_DRIVER=${RETROARCH_VIDEO_CONTEXT_DRIVER:-}
 STDIN_FIFO=$FIFO_PATH
 ROM_PATH=$ROM_PATH
 CORE_PATH=$CORE_PATH

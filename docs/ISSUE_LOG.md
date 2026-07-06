@@ -84,10 +84,12 @@ iter-2 clean + replay-verified, below) → v3 LOCKED 2026-07-06 (iter-2 needed n
 and its archive replay-verified deterministically on the frozen driver — both halves of the
 soundness condition met on the same recut) → **bench window re-opened 2026-07-06 (owner):**
 "get all pending changes landed (or declined) before v3 starts" — per the R6 standing
-principle the gate reset; the window's changes are batched below and ONE recut
-(baseline-gpt55-v3-003) + its replay probe re-locks → **▶ NOW AT: pre-scoring bench window
-closing — recut v3-003 on mander** (then scoring waves, frontier pair gpt-5.5 + opus-4.8
-first).
+principle the gate reset; the window's changes were batched (window section below) and ONE
+recut re-locked → **v3 RE-LOCKED 2026-07-06 (iter-3)**: baseline-gpt55-v3-003 came back
+clean (deep triage: lock-eligible, zero required changes) and its archive replay-verified
+deterministically on the frozen driver (all 9 gates, max |Δ| 150 fc, G3/S1 exact) — both
+halves of the soundness condition met on the same recut, again → **▶ NOW AT: scoring waves**
+(frontier pair gpt-5.5 + opus-4.8 first; SCORING_PROTOCOL owner-decision cells pending).
 
 ## Lock-loop iterations (R6)
 - **Iter 1 — baseline-gpt55-v3-001 (2026-07-06): recut-required.** Clean full 90-min time-cap on
@@ -121,7 +123,24 @@ first).
   needed (P3's battle-region nondeterminism does not manifest at this run's 21.8k stepped frames;
   IL-14 stays scoped to marathons). Evidence: `~/eval-runs/baseline-gpt55-v3-002/backfill/`
   (backfill-record.json, polls.jsonl, ledger-annotation.proposed.json — ledger untouched).
-  **Clean iteration + deterministic replay = LOCK. Scoring opens.**
+  **Clean iteration + deterministic replay = LOCK. Scoring opens.** (Superseded same day by
+  the owner-declared bench window; see iter-3.)
+- **Iter 3 — baseline-gpt55-v3-003 (2026-07-06): CLEAN → v3 RE-LOCKED.** Recut on the
+  post-window stack (harness `18abe48`, core `a35c1251…` @ parallel-n64 `f7d79af6`,
+  RetroArch `50090d52ee`), launched via cut_run.sh (defaults auto-applied, label
+  contract-exact). Second consecutive full-ladder run: terminal G4 at 3847.7s (64.1 min),
+  `agent_rc=0`, 1 session, 0 reattaches, archive `ok` (missing/extra empty), audit empty,
+  identity drift no, lab_snoop clean, 358/358 stream lines parse, zero IL-10 regression
+  greps. The run live-exercised the window's core change (one slot-7 load through the IL-15
+  gate, succeeded, designed frame re-sync observed). Deep-triage workflow (4 lanes +
+  adversarial verify + decider, 7 agents): **lock-eligible, zero required changes** — one
+  confirmed non-blocking harness defect (IL-16 below: run_summary.py SCORER_READS telemetry
+  misclassification, pre-existing byte-for-byte in locked v3-002 → queued, not a reset).
+  **R6 replay probe: `verified`** — `backfill_status=verified`, `failed_sends=[]`,
+  `prefix_deterministic=true`, all 9 gates re-fired within tolerance: G1 −150, G2 −12,
+  **G3 0**, **S1 0**, S1u +1, S2 +1, S3 +1, S4 −37, G4 −60 fc. Both soundness halves met on
+  the same recut. Evidence: `~/eval-runs/baseline-gpt55-v3-003/` (+ `backfill/`);
+  forensics: n64-agent-evals `docs/forensics/baseline-gpt55-v3-003-triage.md`.
 
 ## Pre-scoring bench window — opened 2026-07-06 (owner), closes via recut v3-003
 Owner directive: land or decline every pending change before scoring starts, and bring the
@@ -156,8 +175,10 @@ window; per the R6 standing principle the soundness gate re-arms with ONE recut 
   / screenshot) proven headless via the interactive adapter on saur.
 - **Player-path validation (pre-window stack):** smoke-opus48-v3-001 (opus-4.8, --smoke):
   G1 at 763s, cap-kill rc-124 with stream-json intact (654 lines, 77 tool_use), archive ok.
-- Window close checklist: SCORING_PROTOCOL.md owner decisions resolved → freeze → recut
-  baseline-gpt55-v3-003 via cut_run.sh on mander → deep triage → replay probe → re-lock.
+- **Window CLOSED 2026-07-06** via the iter-3 recut (below). Frozen identities: harness
+  `18abe48`+cut_run `4b7b239`, parallel-n64 `f7d79af6`, core sha256 `a35c1251…`, RetroArch
+  agent-control `50090d52ee`. SCORING_PROTOCOL owner-decision cells remain the only
+  pre-scoring open item (recommendations committed at evals `75f8a6e`).
 
 ## v3 scope decisions — 2026-07-05
 - **Marathons deferred** until v3 is tuned and all v3 scored evals have run; revisit after.
@@ -348,6 +369,21 @@ v3 bench freeze at `f07f8493` undisturbed.
   class-level guard queued for the next driver window: a dry-run scan of retroarch.log.copy for
   PLAYING acks (or frame deltas exceeding cumulative STEP_FRAME between PAUSED acks) — flags
   every pre-fix archive with hidden free-run exposure, statically.
+- **IL-16 · run_summary.py SCORER_READS stale — QUEUED bugfix, next patch window
+  (non-blocking; found by iter-3 deep triage, verified pre-existing byte-for-byte in locked
+  v3-002).** `run_summary.py:23-24` predates the scorer's pos/inputDis polls (`7a32d6c`), so
+  the scorer's `0x8010EFF0` (A_PLAYER_POS) and `0x8010EFDC` (A_INPUT_DISABLED after
+  MemoryReader `addr&~3` alignment) reads land in the `command_mix` "other addrs" bucket
+  (~1054–1091 of v3-003's 1117; identical skew in v3-002), and `0x800740AC` is a dead entry
+  (0 hits). Telemetry-only — verified zero consumers in gate scoring, lab_snoop_audit,
+  results_table, replay_verify, or launchers; audit verdicts unaffected. Fix in the next
+  window (never hot-patch the locked pin): update the address set, regenerate `command_mix`
+  for v3-002/003 post-hoc from the preserved commands.log copies (no rerun), and annotate
+  `gpt55-marathon-001-triage.md:46` which cited the skewed split. Riders queued with it:
+  `LOAD_STATE_SLOT_PAUSED` reply lacks trailing newline + success token (glued log line;
+  currently fully compensated by the adapter's log-watch — IL-15 refusals still fail loudly)
+  and the shipped `tas/docs/AGENT_GAMEPLAY.md` carries stale metapod/macOS paths (agent not
+  misled; uses AGENT_GUIDE's host-correct path).
 
 ## ACTIONABLE-LAB — lab (fixes on the table)
 - **IL-13 · lab durable-state / macro follow-through — RECONCILED 2026-07-06 (paper side

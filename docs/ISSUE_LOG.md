@@ -100,7 +100,21 @@ newline/success token — the success line is OSD-only in RetroArch, the glue si
 agent-control, and a five-host rebuild mid-wave is not worth an already-compensated
 cosmetic; stays queued. Pair 3 (gpt@luma + opus@metapod) cuts on the playbook2 stack;
 pair-1/2 runs stand as pre-lock probes and their ledgering falls to the post-wave lock
-ruling (guide-confound documented in LABEL_CONTRACT).
+ruling (guide-confound documented in LABEL_CONTRACT) → **pair-2 gate CLEAN (2026-07-06,
+evals `docs/forensics/w1p2-pair-triage.md`):** 5-lane triage + adversarial verification (53
+findings, 0 refuted) + decider. Probes: saur VERIFIED 4/4; tortle dispositioned
+PREFIX-DETERMINISTIC — the replay forked at the run's FIRST savestate load (44-load run;
+replayed saves mint at drifted fc, a load straddling the kkj_00/kkj_01 door re-anchored the
+replay behind it), G4 internally attested (battleID 0x2301 raw reads, 2-poll stable); a
+replay-driver re-anchoring enhancement is queued to the lock window. Two evidence riders
+landed inside the open window (execution-neutral): run_summary.py read-tier classifier fix
+(exact poll-battery wire-string match + honest labels; re-stamp sweep) and cut_run.sh CLI
+identity echo (codex JSONL carries no model string — labels were launcher-only claims).
+Substantive corrections: the pair-1 "0.96x stepping band" RETRACTED (mander primary peaks
+16.7 fc/s, 25.3 not derivable); opus S1u stamp quarantined (scorer fired on a map-transition
+pos transient under inputDis=2 — v2.1 semantics + wave-1 S1u re-derivation queued to the
+lock). Headless host axis filed: metapod-grade latency, no directional fc-at-gate bias,
+pair-1 cap/fc recommendation survives.
 
 ## Lock-loop iterations (R6)
 - **Iter 1 — baseline-gpt55-v3-001 (2026-07-06): recut-required.** Clean full 90-min time-cap on

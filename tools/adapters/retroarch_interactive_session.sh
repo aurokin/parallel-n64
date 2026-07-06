@@ -828,8 +828,12 @@ cmd_input() {
     esac
     shift
   done
-  if [[ -z "${BUNDLE_DIR:-}" || -z "$MASK" ]]; then
-    echo "input requires --bundle-dir and --mask." >&2
+  if [[ -z "${BUNDLE_DIR:-}" ]]; then
+    echo "input requires --bundle-dir." >&2
+    exit 2
+  fi
+  if [[ -z "$MASK" ]]; then
+    echo "input requires --mask (use --mask 0 for analog-only movement)." >&2
     exit 2
   fi
   if [[ -n "$HOLD_SECONDS" && -n "$FRAMES" ]]; then

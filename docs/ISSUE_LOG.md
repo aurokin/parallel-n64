@@ -247,14 +247,52 @@ v3 bench freeze at `f07f8493` undisturbed.
   prevent foreign writes into a live run dir (root cause of the P1F-001 contamination).
   **DONE on the same branch:** README "Archive integrity" no-rsync rule + the IL-8
   `extra` detection as the cheap enforceable guard.
-- **IL-10 · adapter slot-tracker desync on refused frame-0 save** — a refused save still
-  advances the adapter's slot tracker; documented wart. Adapter-side, low blast radius.
-- **IL-11 · record.json external/CU subgate embed gap** — external-mode runs (cu-001,
-  cu-002, cu-manual-002) show `record.json` omitting subgates despite `1517afa`; scored
-  data was recovered from score.jsonl each time. Verify whether `1517afa` covers the
-  external path or only spawned mode.
-- **IL-12 · grokcomposer-003 prefix-0 replay divergence** — backfill replay diverged at
-  prefix 0; needs a targeted diagnosis (why zero commands matched).
+- **IL-10 · slot-tracker desync on refused frame-0 save — INVESTIGATED 2026-07-06; documented
+  wart stands (no bench change before scoring).** Mechanism correction: the refusal does NOT
+  advance the adapter's tracker — it advances RETROARCH's internal counter (the
+  STATE_SLOT_PLUS/MINUS keybinds fire before the save ack,
+  retroarch_interactive_session.sh:1035-1043) while `session.state-slot` stays stale (:1061 is
+  success-only). Compounding: after one refused frame-0 save, EVERY later `save-slot` lands one
+  slot high (the save succeeds, the filename check :1057-1059 fails loudly, the tracker never
+  heals); recovery = manual SLOT_FILE write (undocumented) or emulator restart — the latter
+  intersects the `session_starts>1` invalidation rule, so the worst case is one invalidated
+  (re-runnable) run, never silent bad data. NOT integrity-flagging: IL-8 derives acked slots
+  exclusively from retroarch.log.copy `Saving state .stateN` lines + on-disk state files
+  (run_eval.sh:469-508); the tracker is not an input — no false missing/extra path exists. Loud
+  at every failure point (refusal → `SAVE_STATE not acknowledged.`; desync → explicit "slot
+  tracking desynced?"; phantom-slot load → error, not wrong state). Reachability: requires a
+  save strictly before the first stepped frame; the guide steers away; ZERO post-fix
+  occurrences across all archives (one pre-fix occurrence, P1F-001, via TAS-replay-after-restart
+  — a still-live pattern with TAS default-on). Disposition: the fix is confined to the adapter
+  but is a bench change under R6 → queued for the next bench window; until then scored-run
+  triage greps for `Core does not support save states` / `slot tracking desynced`
+  (scoring-protocol checklist item). `retroarch_stdin_session.sh` unaffected (no slot tracking).
+- **IL-11 · record.json external/CU subgate embed gap — CLOSED 2026-07-06 (pin artifact + one
+  misfiled exhibit; no code gap).** `1517afa` covers BOTH modes by construction — spawned and
+  external share the single finalize path (run_eval.sh:552-623; the commit message's "no second
+  writer"). The three exhibits: cu-001/cu-002/cu-manual-001 ran on a harness DELIBERATELY
+  pinned pre-fix (8fb6d58, for comparability with their toolkit comparator — their own
+  scoring_caveats say so); cu-manual-002 was misfiled — it actually ran post-fix (94bb796) and
+  is the external-mode POSITIVE CONTROL: its `subgates: {}` is genuinely empty (run died in
+  kkj_00, no subgate reached), verified byte-equal against score.jsonl. Spawned control:
+  baseline-gpt55-v3-002 embeds all 4 gates + 5 subgates. Residual rule for the scoring
+  protocol: never pin a scored round's harness below `1517afa` (moot on the frozen bench
+  `c238a26`, which is well past it).
+- **IL-12 · grokcomposer-003 prefix-0 replay divergence — ROOT-CAUSED + CLOSED 2026-07-06 (era
+  artifact; v3 immune; not grok-class).** The IL wording was a mischaracterization: all 1,068
+  commands replayed cleanly (`failed_sends=[]`); `matched_prefix=0` is the GATE-vector prefix
+  (backfill_replay.py:494) — the replay simply fired no gates. Root cause: the ORIGINAL run
+  rode the pre-`4339d77f` dishonest-pause adapter — its retroarch.log.copy shows ~1,400 frames
+  of adapter-masked unpaused free-run (frame 138→1596 with no pause-off in the trace; 1,105
+  PLAYING acks overall) that carried boot→title-screen on wall-clock; the honest-adapter replay
+  stayed paused, so the trace's tightly frame-counted file-select TAS burst fired into the logo
+  screen instead — no save file, no G1, nothing downstream. Not archive corruption (intact,
+  fully replayable); not a grok/opencode trace bug (siblings -001/-002 verified with
+  matched_prefix 3; commands.log is CLI-agnostic). v3 scored runs are immune at the source
+  (honest blocking STEP_FRAME + `--start-paused` arm, `4339d77f`/`2f28e96`). Optional
+  class-level guard queued for the next driver window: a dry-run scan of retroarch.log.copy for
+  PLAYING acks (or frame deltas exceeding cumulative STEP_FRAME between PAUSED acks) — flags
+  every pre-fix archive with hidden free-run exposure, statically.
 
 ## ACTIONABLE-LAB — lab (fixes on the table)
 - **IL-13 · lab durable-state / macro follow-through** — confirm the round-4 battle-start

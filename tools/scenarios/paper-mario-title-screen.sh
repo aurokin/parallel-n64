@@ -203,6 +203,18 @@ else
   VERIFY_SCREENSHOT_SHA256=""
   if [[ "$MODE" == "off" ]]; then
     VERIFY_SCREENSHOT_SHA256="${EXPECTED_SCREENSHOT_SHA256_OFF:-${EXPECTED_SCREENSHOT_SHA256:-}}"
+    # Headless contexts render on a different GPU class than the headed
+    # baseline, so the headed digest can never match. Verify against the
+    # headless-minted digest when one exists; otherwise skip with an explicit
+    # reported reason rather than fail against the wrong baseline.
+    if [[ -n "${RETROARCH_VIDEO_CONTEXT_DRIVER:-}" ]]; then
+      if [[ -n "${EXPECTED_SCREENSHOT_SHA256_OFF_HEADLESS:-}" ]]; then
+        VERIFY_SCREENSHOT_SHA256="$EXPECTED_SCREENSHOT_SHA256_OFF_HEADLESS"
+      else
+        echo "[scenario] headless context (${RETROARCH_VIDEO_CONTEXT_DRIVER}) with no EXPECTED_SCREENSHOT_SHA256_OFF_HEADLESS minted — skipping screenshot digest verify." >&2
+        VERIFY_SCREENSHOT_SHA256=""
+      fi
+    fi
   fi
   if [[ "${DISABLE_SCREENSHOT_VERIFY:-0}" == "1" ]]; then
     VERIFY_SCREENSHOT_SHA256=""

@@ -207,6 +207,8 @@ notification_show_save_state = "false"
 notification_show_screenshot = "false"
 notification_show_screenshot_flash = "0"
 video_driver = "vulkan"
+input_driver = "null"
+input_joypad_driver = "null"
 EOF
 
 if [[ -n "${RETROARCH_VIDEO_CONTEXT_DRIVER:-}" ]]; then

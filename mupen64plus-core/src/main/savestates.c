@@ -123,6 +123,22 @@ int savestates_load_m64p(const unsigned char *data, size_t size)
    uint32_t* cp0_regs = r4300_cp0_regs();
    unsigned char *curr = (unsigned char*)data; // < HACK
 
+   /* Every section before the event queue is fixed-length; the queue
+    * (terminator included) is the final, variable tail. No well-formed
+    * state is therefore smaller than the fixed prefix plus the 4-byte
+    * terminator. One entry gate bounds every read below — the magic
+    * strncmp, the MD5 memcmp and the fixed-section GETDATA/COPYARRAY
+    * reads never consult `size` — and the queue copy clamps its own
+    * tail. Derive the minimum from the live writer rather than a
+    * hardcoded constant so it tracks the format. */
+   {
+      char scratch[1024];
+      size_t full = savestates_get_m64p_size();
+      size_t qlen = (size_t)save_eventqueue_infos(scratch);
+      if (!data || full == 0 || qlen > full || size < full - qlen + 4)
+         return 0;
+   }
+
    /* Read and check Mupen64Plus magic number. */
    if(strncmp((char *)curr, savestate_magic, 8)!=0)
       return 0;

@@ -88,8 +88,19 @@ principle the gate reset; the window's changes were batched (window section belo
 recut re-locked → **v3 RE-LOCKED 2026-07-06 (iter-3)**: baseline-gpt55-v3-003 came back
 clean (deep triage: lock-eligible, zero required changes) and its archive replay-verified
 deterministically on the frozen driver (all 9 gates, max |Δ| 150 fc, G3/S1 exact) — both
-halves of the soundness condition met on the same recut, again → **▶ NOW AT: scoring waves**
-(frontier pair gpt-5.5 + opus-4.8 first; SCORING_PROTOCOL owner-decision cells pending).
+halves of the soundness condition met on the same recut, again → wave 1 ran PROVISIONAL
+(pre-lock) per the ratified SCORING_PROTOCOL: pair 1 (opus terminal G4 79.4m + gpt cap;
+gate CLEAN, analyzer-layer fixes only) and pair 2 (DOUBLE TERMINAL on the headless class:
+gpt@saur 70.2m, opus@tortle 81.3m) → **bench window re-opened 2026-07-06 at the pair-2
+boundary (owner): playbook2.** Owner-directed batch: the verified gaming-tips landing
+(evals `23aac0d`, T1–T9 + corrected T10, `guide=playbook2+walkthrough`), toolkit I1
+shot-telemetry stamping + shot index (lab `95209e5`), AGENT_GUIDE analog `--mask` line,
+adapter `cmd_input` honest errors (`6bb1ea91`). NOT landed (deliberate): LOAD_STATE reply
+newline/success token — the success line is OSD-only in RetroArch, the glue sits in
+agent-control, and a five-host rebuild mid-wave is not worth an already-compensated
+cosmetic; stays queued. Pair 3 (gpt@luma + opus@metapod) cuts on the playbook2 stack;
+pair-1/2 runs stand as pre-lock probes and their ledgering falls to the post-wave lock
+ruling (guide-confound documented in LABEL_CONTRACT).
 
 ## Lock-loop iterations (R6)
 - **Iter 1 — baseline-gpt55-v3-001 (2026-07-06): recut-required.** Clean full 90-min time-cap on

@@ -426,6 +426,33 @@ v3 bench freeze at `f07f8493` undisturbed.
   currently fully compensated by the adapter's log-watch — IL-15 refusals still fail loudly)
   and the shipped `tas/docs/AGENT_GAMEPLAY.md` carries stale metapod/macOS paths (agent not
   misled; uses AGENT_GUIDE's host-correct path).
+- **IL-17 · RetroArch load-completion ack (`WAIT_LOAD_STATE`) — LANDED 2026-07-07 (five-host
+  rebuild).** `LOAD_STATE_SLOT[_PAUSED]` only queues an async blocking load and replies before
+  it is pumped, so its reply was never a completion ack (the load-path gap behind the IL-16
+  rider). Added `WAIT_LOAD_STATE`, the load-path mirror of `WAIT_SAVE_STATE`: it drains the load
+  task queue via the pre-existing, previously callerless `content_wait_for_load_state_task()`
+  then replies `WAIT_LOAD_STATE DONE` (agent-control `9d00508114`; mirrored as
+  `tools/retroarch-patches/0010-*`). Both adapters wired (`retroarch_stdin_session.sh`
+  `6a02afc8`, `retroarch_interactive_session.sh` ack-map `f456a767`) — **availability only**:
+  `cmd_load_slot`'s default flow is unchanged, so there is no old-binary/new-adapter coupling
+  break, and the load-slot completion-barrier upgrade is a deliberate follow-up now that all
+  five hosts run the new binary. Rebuilt on all five hosts (mander/saur/tortle/metapod/luma →
+  `9d00508114`, `WAIT_LOAD_STATE` present in every binary, doctor clean); a live
+  save→async-load→`WAIT_LOAD_STATE DONE` round-trip verified on mander.
+- **IL-18 · `cut_run.sh` launch-shell PATH gap (luma) — FIXED 2026-07-07.** Post-rebuild
+  readiness smokes caught luma's non-interactive ssh launch shell missing `~/.local/bin` (the
+  fleet-convention CLI install dir), so both players (`codex`, `claude`) hit `command not found`
+  (rc=127) — but only after a session dir was staged, because the cli-identity capture tolerates
+  a `--version` miss and proceeds. Luma-only host-config drift (the other four hosts carry
+  `~/.local/bin` on their launch PATH; RetroArch/MoltenVK self-test passed on luma, so the
+  emulator side was healthy). Fixed in `harness/cut_run.sh` (`a8d8d10`, n64-agent-evals):
+  prepend `~/.local/bin` for launch-shell PATH-robustness on any host + a loud hard-fail
+  (`exit 3`) when the player CLI is unresolvable, before staging a run dir (no more silent
+  rc=127 archives with `session_starts=0`). Luma's re-smoke then went green on both presets.
+  Readiness smokes overall: **10/10** (5 hosts × 2 presets `codex-gpt55`/`claude-opus48`), each
+  `session_starts=1`, `agent_rc=124` (15-min cap), archive `ok`/0-miss/0-extra, `identity_drift=no`,
+  `audit_flags=[]`, scorer ran; headless hosts on `headless_vk`. Readiness only — no lock, next
+  wave not launched (full record: n64-agent-evals `docs/SCORING_PROTOCOL.md`, 2026-07-07 entry).
 
 ## ACTIONABLE-LAB — lab (fixes on the table)
 - **IL-13 · lab durable-state / macro follow-through — RECONCILED 2026-07-06 (paper side

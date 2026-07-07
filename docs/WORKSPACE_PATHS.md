@@ -39,9 +39,11 @@ source of truth for local path assumptions; status detail defers to
   The stock `/Applications/RetroArch.app` bundle carries MoltenVK 1.2.8 and is
   not a valid hi-res Metal argument-buffer path.
 - `--mode on` sessions must also export a staged `.phrb` path, for example:
-  `PARALLEL_RDP_HIRES_CACHE_PATH=/Users/auro/code/parallel-n64/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb`.
-  Without that package env, the core can enable the hi-res option but render
-  native textures only.
+  `PARALLEL_RDP_HIRES_CACHE_PATH=/Users/auro/code/parallel-n64/artifacts/hts2phrb-review/local-pm64-exact-variant-set-curated-r2/package.phrb`.
+  (The `pm64-intro-bowser` eval pins this `-curated-r2` variant — it is the
+  `EVAL_PACK` default in `run_eval.sh` and the `pack_sha256` the launch verifies;
+  the older `-exact-variant-set` path is not the eval-enforced pack.) Without that
+  package env, the core can enable the hi-res option but render native textures only.
 
 ### luma macOS RetroArch (M3 Max laptop; onboarded 2026-07-02)
 

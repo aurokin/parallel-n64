@@ -453,6 +453,23 @@ v3 bench freeze at `f07f8493` undisturbed.
   `session_starts=1`, `agent_rc=124` (15-min cap), archive `ok`/0-miss/0-extra, `identity_drift=no`,
   `audit_flags=[]`, scorer ran; headless hosts on `headless_vk`. Readiness only — no lock, next
   wave not launched (full record: n64-agent-evals `docs/SCORING_PROTOCOL.md`, 2026-07-07 entry).
+- **IL-19 · load-slot completion barrier — wire `cmd_load_slot` to `WAIT_LOAD_STATE` — REQUIRED,
+  QUEUED for the next driver window (do NOT hot-patch onto the readied stack).** IL-17 shipped
+  `WAIT_LOAD_STATE` but left it availability-only: `retroarch_interactive_session.sh`
+  `cmd_load_slot` still detects completion via the racy `[State] Loading state` START signal (the
+  async load is only QUEUED at that point) plus a fixed `sleep 0.5` before the "Failed to load
+  state" check. Robust fix: after the load ack, send `WAIT_LOAD_STATE` and block on
+  `WAIT_LOAD_STATE DONE` before returning — mirroring `cmd_save_slot`'s `WAIT_SAVE_STATE` barrier
+  — which drops the 0.5s race and makes the failed-load check definitive. **Held out of the
+  2026-07-07 readiness window on purpose:** it mutates an existing LOAD path *after* the full
+  10/10 smoke, and it hard-depends on every host running the new binary (a `WAIT_LOAD_STATE` sent
+  to an old binary hangs ~30s then errors). That precondition is now MET (all five hosts on
+  `9d00508114`), so it is safe to land next window — **with its own smoke**, never grafted onto
+  the readied stack. Scope: `tools/adapters/retroarch_interactive_session.sh` `cmd_load_slot`
+  (remove the `sleep 0.5`, add the barrier); evaluate the same for the stdin adapter's load path
+  if any scenario depends on load-completion timing. Coupling guard to add alongside: teach
+  `fleet_sync.sh` to verify each host's RetroArch binary carries `WAIT_LOAD_STATE` (strings-grep)
+  before the barrier-using adapter is considered propagated, so a half-synced host can't hang.
 
 ## ACTIONABLE-LAB — lab (fixes on the table)
 - **IL-13 · lab durable-state / macro follow-through — RECONCILED 2026-07-06 (paper side

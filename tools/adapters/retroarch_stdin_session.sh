@@ -981,6 +981,12 @@ for cmd in "${COMMANDS[@]}"; do
         exit 1
       fi
       ;;
+    WAIT_LOAD_STATE)
+      if ! wait_for_log_pattern_after "$start_bytes" "WAIT_LOAD_STATE DONE" 30; then
+        echo "[adapter] WAIT_LOAD_STATE acknowledgement missing." >&2
+        exit 1
+      fi
+      ;;
     LOAD_STATE_SLOT*|LOAD_STATE_SLOT_PAUSED*)
       if ! wait_for_log_pattern_after "$start_bytes" "[State] Loading state" 15; then
         echo "[adapter] LOAD_STATE_SLOT acknowledgement missing." >&2

@@ -1,12 +1,12 @@
 # RetroArch Agent-Control Patches
 
-These 9 patches add the deterministic agent-control command set that the
+These 10 patches add the deterministic agent-control command set that the
 scenario/adapter stack in this repo depends on (`tools/adapters/retroarch_stdin_session.sh`,
 all `tools/scenarios/*` runners, the remint scripts, and the runtime conformance lanes).
 
 Commands added: `PING`, `SET_PAUSE`, `STEP_FRAME <n>`, `SET_INPUT_PORT` /
 `CLEAR_INPUT_PORT` / `GET_INPUT_PORT`, `LOAD_STATE_SLOT_PAUSED`, `WAIT_SAVE_STATE`,
-a fixture-relative `frame=` counter in `GET_STATUS`, and a `READ_CORE_MEMORY`
+`WAIT_LOAD_STATE`, a fixture-relative `frame=` counter in `GET_STATUS`, and a `READ_CORE_MEMORY`
 fallback to system RAM. They register in RetroArch's shared command table, so the
 same vocabulary works over the stdin transport (used here; zero ports, zero daemons)
 and the network command interface.
@@ -30,9 +30,18 @@ Adapter verbs: `record-start` / `replay-start` / `record-stop`. Validated: a
 240-frame segment with a mid-stream input replayed in a fresh session to a
 byte-identical end-frame capture.
 
+Patch 0010 adds `WAIT_LOAD_STATE`, the load-path mirror of `WAIT_SAVE_STATE`.
+`LOAD_STATE_SLOT[_PAUSED]` only queues an async blocking load and replies before
+it is pumped, so its reply is not a completion ack; `WAIT_LOAD_STATE` drains the
+load task queue (via the already-present `content_wait_for_load_state_task()`,
+previously callerless) then replies `WAIT_LOAD_STATE DONE`. A client that needs
+the state actually resident sends `LOAD_STATE_SLOT_PAUSED` then `WAIT_LOAD_STATE`,
+exactly as SAVE pairs with `WAIT_SAVE_STATE` (used by the eval replay driver's
+re-anchoring, `n64-agent-evals/harness/backfill_replay.py`).
+
 ## Canonical locations
 
-- Branch: `agent-control` on `github.com:aurokin/RetroArch` (tip `9bbfd647ad`)
+- Branch: `agent-control` on `github.com:aurokin/RetroArch` (tip `9d00508114`)
 - Local checkout: `/home/auro/code/RetroArch` (same branch)
 - These patch files are the in-repo backup so the control stack survives any
   RetroArch re-clone or reset. **Never leave these commits unreferenced again** —
@@ -64,7 +73,7 @@ git am /home/auro/code/parallel-n64/tools/retroarch-patches/*.patch
 ## Verify
 
 ```sh
-strings /home/auro/code/RetroArch/retroarch | grep -E '^(PING|STEP_FRAME|SET_INPUT_PORT)$'
+strings /home/auro/code/RetroArch/retroarch | grep -E '^(PING|STEP_FRAME|SET_INPUT_PORT|WAIT_LOAD_STATE)$'
 ```
 
 then a live check: any scenario run's adapter prologue gates on `PING OK`

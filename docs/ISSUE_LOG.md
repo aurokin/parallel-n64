@@ -470,6 +470,15 @@ v3 bench freeze at `f07f8493` undisturbed.
   if any scenario depends on load-completion timing. Coupling guard to add alongside: teach
   `fleet_sync.sh` to verify each host's RetroArch binary carries `WAIT_LOAD_STATE` (strings-grep)
   before the barrier-using adapter is considered propagated, so a half-synced host can't hang.
+- **IL-20 · repo releasability / PII separation — FUTURE (owner-noted 2026-07-07; explicitly NOT
+  now, nothing concerning today).** Owner intent: make `n64-agent-evals` publicly releasable, which
+  means machine/personal-specific facts (absolute `/home/auro` & `/Users/auro` paths, host names,
+  ssh aliases, box identifiers) should not sit in the released surface. Nothing sensitive is exposed
+  today — this is a future cleanup, not a current blocker. Likely shape: a dedicated private repo (or
+  private overlay) holds the machine-specific fleet/workspace-path facts while `n64-agent-evals` keeps
+  only host-agnostic harness/scorer/docs. Revisit alongside the 2026-07-07 boundary reconciliation
+  ("cross-project orchestration lives in n64-agent-evals and parallel-n64") when a public release is
+  actually on the table. No action now.
 
 ## ACTIONABLE-LAB — lab (fixes on the table)
 - **IL-13 · lab durable-state / macro follow-through — RECONCILED 2026-07-06 (paper side

@@ -5,6 +5,22 @@ source of truth for local path assumptions; status detail defers to
 [assets/TEXTURE_PACKS.md](/home/auro/code/parallel-n64/assets/TEXTURE_PACKS.md) and
 [PROJECT_NOTES.md](/home/auro/code/parallel-n64/PROJECT_NOTES.md).
 
+## Fleet
+
+Fleet (5 hosts): mander (this box — Linux, headed, orchestrator, runs locally
+without ssh), saur + tortle (headless Linux B50, `headless_vk`), metapod + luma
+(macOS/MoltenVK); unlabeled `/home/auro/code` paths below are mander's.
+
+## Eval Harness
+
+- `n64-agent-evals`: `/home/auro/code/n64-agent-evals` (macOS
+  `/Users/auro/code/n64-agent-evals`), branch `master`. Role: fleet-wide eval
+  launch (`harness/cut_run.sh`) + fleet reconciler/readiness
+  (`harness/tools/fleet_sync.sh`).
+- `parallel-n64-lab`: `/home/auro/code/parallel-n64-lab` (macOS
+  `/Users/auro/code/parallel-n64-lab`) — private session-lab (ADR-0017); never a
+  correctness authority, nothing may depend on it.
+
 ## Primary Repo
 
 - `parallel-n64`: `/home/auro/code/parallel-n64`
@@ -14,13 +30,16 @@ source of truth for local path assumptions; status detail defers to
 
 - Checkout: `/home/auro/code/RetroArch`, branch `agent-control`, binary at
   `/home/auro/code/RetroArch/retroarch`.
-- The branch carries 7 custom stdin commands (`PING`, `SET_PAUSE`, `STEP_FRAME`,
+- The branch carries custom stdin commands (`PING`, `SET_PAUSE`, `STEP_FRAME`,
   `SET_INPUT_PORT`/`CLEAR_INPUT_PORT`/`GET_INPUT_PORT`, `LOAD_STATE_SLOT_PAUSED`,
-  `WAIT_SAVE_STATE`, `READ_CORE_MEMORY` with system-RAM fallback).
-- Canonical backup of those patches:
-  [tools/retroarch-patches/](/home/auro/code/parallel-n64/tools/retroarch-patches)
-  (committed here, also pushed to `aurokin/RetroArch`). See its README for rebuild
-  and verification steps.
+  `WAIT_SAVE_STATE`, `WAIT_LOAD_STATE` — the load-completion ack mirroring
+  `WAIT_SAVE_STATE` for async `LOAD_STATE_SLOT[_PAUSED]` — the anchored-replay
+  `RECORD_REPLAY_PATH`/`PLAY_REPLAY_PATH`/`STOP_REPLAY`, and `READ_CORE_MEMORY`
+  with system-RAM fallback); `--start-paused` is a CLI flag, not a stdin command.
+- Canonical backup of those patches (10 patches, tip `9d00508114`):
+  [tools/retroarch-patches/README.md](/home/auro/code/parallel-n64/tools/retroarch-patches/README.md)
+  (committed here, also pushed to `aurokin/RetroArch`) is canonical. See it for
+  rebuild and verification steps.
 
 ### metapod macOS RetroArch
 

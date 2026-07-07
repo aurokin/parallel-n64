@@ -40,12 +40,13 @@ Current RetroArch adapter notes:
 - the agent-control RetroArch binary itself is rebuilt with `tools/adapters/build_retroarch_agent_control_macos.sh` (the recovered June recipe: metal+vulkan+coreaudio3 with homebrew paths pinned; `deploy` stages `/Applications/RetroArch.app` and refreshes the MVK141 copy); note the bare `retroarch` binary parks in the Cocoa event loop when launched outside an app bundle — always run/verify it from a bundle
 - for current Paper Mario hi-res gameplay evidence, export `PARALLEL_RDP_HIRES_CACHE_PATH=/Users/auro/code/parallel-n64/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb` before launch; the metapod host config currently does not set that package path
 - on macOS `--mode off` keeps `PARALLEL_RDP_DISABLE_HIRES_SHADER=1`; `--mode on` defaults `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=1` only when the selected RetroArch binary is the prepared MVK141 app copy
-- the current RetroArch stdin agent command surface includes explicit pause, frame-step, savestate-load-paused, save-task wait, and input-port control commands
+- the current RetroArch stdin agent command surface includes explicit pause, frame-step, savestate-load-paused, save-task wait, load-task wait, and input-port control commands
 - pause via `SET_PAUSE ON|OFF|TOGGLE`; use `ON` before frame-stepped agent play
 - the current RetroArch stdin command surface also includes `PING`, which is used only as a readiness probe for the adapter
 - tracked Paper Mario flows now use a log-gated startup handoff plus `WAIT_COMMAND_READY` instead of blind startup sleeps
 - when a core does not publish a libretro memory map, the local RetroArch build now falls back to `RETRO_MEMORY_SYSTEM_RAM` for `READ_CORE_MEMORY`
 - `SAVE_STATE` is asynchronous in RetroArch; tracked flows now use `WAIT_SAVE_STATE`, and save tasks should be sequenced before screenshot tasks when minting authoritative states
+- `LOAD_STATE_SLOT[_PAUSED]` only queues an async load; `WAIT_LOAD_STATE` drains the load task queue and replies `WAIT_LOAD_STATE DONE`, the load-completion barrier mirroring `WAIT_SAVE_STATE` — though the interactive adapter's `cmd_load_slot` is not yet wired to this barrier (still the racy start-signal; IL-19)
 
 Capture and end-of-session evidence hardening (both runtime adapters):
 

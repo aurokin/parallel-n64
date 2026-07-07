@@ -182,8 +182,10 @@ it survives the multi-game roadmap, and it stays clear of the contamination
 line, which protects concrete solution artifacts, not techniques. Guide
 revisions are provenance-tracked by each record's export_sha256.
 
-**The general playbook** (owner approval 2026-07-02, guide iteration 3,
-label `guide=playbook`): every workspace ships `PLAYBOOK.md`, a
+**The general playbook** (owner approval 2026-07-02; the shipped playbook has
+since iterated playbook → playbook2 → playbook3 plus the +walkthrough
+provision; current label `guide=playbook3+walkthrough` — `LABEL_CONTRACT.md`
+is authoritative): every workspace ships `PLAYBOOK.md`, a
 game-agnostic method doc pointed to by a four-line guide section
 (progressive disclosure: the guide stays lean, the playbook carries depth).
 Standing constraint from the owner: all such guidance stays **high-level
@@ -372,6 +374,8 @@ run-scoped lab-dir hiding) instead.
 |---|---|---|
 | haste | CachyOS, RTX 5090 | **image-tool service host** (qwen3.6-35B + LocateAnything sidecar via self-host-llm, co-resident profile) — vision containers **stopped while unused** (2026-07-02, `docker start qwen-multi-35b-nvfp4` restores); gameplay-capable, pending a scored-eval smoke (redteam-null + codex-smoke) before real runs. Vision-serving and gameplay-running are exclusive roles unless VRAM co-residency is proven |
 | mander | Linux | **development primary** (owner ruling 2026-07-02: orchestration + renderer/harness fixes live here; agents play on the other hosts) — gameplay runner only opportunistically |
+| saur | Linux (headless VM) | headless-B50 gameplay/scored runner (Intel Arc Pro B50 SR-IOV VF on Proxmox host Bront; `RETROARCH_VIDEO_CONTEXT_DRIVER=headless_vk`; onboarded 2026-07-06; see WORKSPACE_PATHS saur/tortle) |
+| tortle | Linux (headless VM) | headless-B50 gameplay/scored runner (Intel Arc Pro B50 SR-IOV VF on Proxmox host Bront; `RETROARCH_VIDEO_CONTEXT_DRIVER=headless_vk`; onboarded 2026-07-06; see WORKSPACE_PATHS saur/tortle) |
 | metapod | macOS | gameplay runner; the computer-use axis (codex/claude); MVK141 app path |
 | luma | macOS (M3 Max laptop) | **onboarded + validated 2026-07-02** (null + codex smokes clean, MoltenVK 1.4.1 argument buffers confirmed): gameplay runner; second computer-use-capable host (owner: codex has latest computer use here). Intermittently online; keep docked for runs (battery profile sleeps in 1 min; driver wraps caffeinate). Onboarding gotchas in WORKSPACE_PATHS §luma. cursor-agent needs the login keychain unlocked in ssh sessions |
 | koopa | macOS | **OFF-LIMITS** (primary work machine) |

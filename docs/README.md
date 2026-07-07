@@ -18,6 +18,8 @@
 - [HIRES_REFERENCE_NOTES.md](/home/auro/code/parallel-n64/docs/HIRES_REFERENCE_NOTES.md) — how other emulators do hi-res replacement (cross-emulator survey)
 - [Project Notebook](/home/auro/code/parallel-n64/PROJECT_NOTES.md) — running record, including the 2026-06-10 reboot entry
 - [assets/TEXTURE_PACKS.md](/home/auro/code/parallel-n64/assets/TEXTURE_PACKS.md) — texture pack acquisition and conversion tracking
+- [EVAL_PROGRAM.md](/home/auro/code/parallel-n64/docs/EVAL_PROGRAM.md) — agent-play eval program design of record
+- [ISSUE_LOG.md](/home/auro/code/parallel-n64/docs/ISSUE_LOG.md) — active issue register + current operational hold policy
 
 ## Workflow Directories
 

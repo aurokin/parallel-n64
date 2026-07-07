@@ -132,6 +132,11 @@ refinement on the compat lane plus curation triage:
   detection) and the metapod RetroArch rebuild (#44: recovered build recipe
   `tools/adapters/build_retroarch_agent_control_macos.sh`, log double-write
   fixed, deployed and replay-neutral per the lab's MACROS.md).
+- Agent-Play Eval Program: net-new work on the landed renderer/adapter stack
+  (not part of the reboot work order). Plan of record:
+  [docs/EVAL_PROGRAM.md](/home/auro/code/parallel-n64/docs/EVAL_PROGRAM.md);
+  runnable program in the `n64-agent-evals` repo; the reboot work order hands
+  off to it for on-real-gameplay hi-res validation.
 
 ## Success Criteria Style
 

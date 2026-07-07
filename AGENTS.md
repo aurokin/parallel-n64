@@ -27,9 +27,9 @@ The Reboot Plan work order is substantially complete (per-step status in the
 1. GlideN64-compat keying conformance on the draw-time lane (see ADR-0013/0014 for the landed fixes)
 2. glide-vs-parallel beat comparison as the standing validation methodology
 3. pack-curation triage for content reclassified out of renderer scope (ADR-0015)
-4. open items: none — the strip-junction seam and the I-format tlut=1 semantics check closed 2026-06-12; the d7f736aa "slate collision" was overturned 2026-06-13 (nothing to curate); the fbebebeb pack-curation pass closed 2026-07-01; the jungle mist band + Sushie dark blob closed 2026-07-01 (curation pass 2: the 816a81b8/23ff3d81 overlay pair, tools/hires_pack_curation_pm64_jungle_exclusions.json); the debug-flood wedge closed 2026-07-01 (not reproducible); adapter evidence hardening + the metapod RetroArch rebuild closed 2026-07-02 (#43/#44 — TTL end reasons, black-capture detection, log dedupe deployed, recipe in tools/adapters/build_retroarch_agent_control_macos.sh)
+4. open items: tracked in `docs/ISSUE_LOG.md` (working register since 2026-07-05); the only open REQUIRED repo-adapter follow-up is IL-19 — wire `cmd_load_slot` to the `WAIT_LOAD_STATE` completion barrier (QUEUED for the next driver window) — the strip-junction seam and the I-format tlut=1 semantics check closed 2026-06-12; the d7f736aa "slate collision" was overturned 2026-06-13 (nothing to curate); the fbebebeb pack-curation pass closed 2026-07-01; the jungle mist band + Sushie dark blob closed 2026-07-01 (curation pass 2: the 816a81b8/23ff3d81 overlay pair, tools/hires_pack_curation_pm64_jungle_exclusions.json); the debug-flood wedge closed 2026-07-01 (not reproducible); adapter evidence hardening + the metapod RetroArch rebuild closed 2026-07-02 (#43/#44 — TTL end reasons, black-capture detection, log dedupe deployed, recipe in tools/adapters/build_retroarch_agent_control_macos.sh)
 5. lab-side (parallel-n64-lab): the jrTroopa battle-start durable state is minted (lab `44d80fa`) — promotion now needs the battle `.ts` + metapod live replays (owner-gated); nine route-notes macro candidates remain unimplemented and parked (eval work-item #48 dropped; see the lab's MACROS.md)
-6. agent-play eval program: design of record in [docs/EVAL_PROGRAM.md](/home/auro/code/parallel-n64/docs/EVAL_PROGRAM.md) (2026-07-02); runnable program will live in a new evals repo per that doc
+6. agent-play eval program: design of record in [docs/EVAL_PROGRAM.md](/home/auro/code/parallel-n64/docs/EVAL_PROGRAM.md) (2026-07-02); implemented in the n64-agent-evals repo — fleet launch entry point `harness/cut_run.sh` (presets `codex-gpt55`/`claude-opus48`); `scorer.py`, `run_eval.sh`, and `harness/tools/fleet_sync.sh` live there.
 
 Paper Mario is the strict validation title until the first major milestone is stable; SM64/OoT/MK64/MM are compat-path breadth checks only.
 
@@ -48,8 +48,9 @@ Paper Mario is the strict validation title until the first major milestone is st
 - RetroArch (`agent-control` branch): frontend/tooling patch target for deterministic control, capture, reporting
 - papermario (upstream decomp): optional debug-only semantic reference, not a correctness authority
 - parallel-n64-lab (private, `/home/auro/code/parallel-n64-lab`): session-lab experiment scripts and forensics notes; never a correctness authority, nothing here may depend on it (ADR-0017)
+- n64-agent-evals: eval harness + fleet orchestration; `cut_run.sh` → `run_eval.sh` scored/smoke launcher (presets, v3 regime, `--start-paused`, label contract); `harness/tools/fleet_sync.sh` fleet readiness reconciler; never a renderer correctness authority (ADR-0017)
 - Do not put emulator-specific renderer meaning into RetroArch
-- Keep cross-project orchestration in parallel-n64
+- Keep cross-project orchestration in n64-agent-evals and parallel-n64 (fleet reconciliation/readiness + scored-run launch live in n64-agent-evals; renderer/adapter validation + planning-of-record in parallel-n64).
 
 ## Fixture And Evidence Contract
 - Each fixture is defined by: manifest, ROM identity, savestate identity, config snapshot, expected capture points

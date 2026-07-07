@@ -125,7 +125,13 @@ two presses 90–160 units off-center — zero memory reads all run). Playbook2 
 content tips helped where internalized (opus §9 y-telemetry), procedural clauses did not bind;
 the §4 door-clause adjudication (owner-requested workflow) + the sweep-macro tip feed the lock
 window. No bench change. Wave probe record 5 VERIFIED + 1 PREFIX-DETERMINISTIC. Next: the
-post-wave lock ruling.
+post-wave lock ruling. → **lock window OPENED 2026-07-07 with the owner-ratified door-clause
+reword (playbook3):** adjudication verdict REWORD (14 agents) + a two-judge hardening pass that
+caught a diagonal-slide defect in the proposed hardening (a compliant sweep would have been
+all-null presses per §4's own physics); landed text uses the sequential stop→hold→press idiom,
+per-press outcome checks with mid-sweep abort, a door-width granularity floor, and the
+dead-end-room escape. Guide label → `playbook3+walkthrough` (evals `LABEL_CONTRACT` updated);
+playbook3 smoke owed before the next scored cut; remaining lock agenda unchanged.
 
 ## Lock-loop iterations (R6)
 - **Iter 1 — baseline-gpt55-v3-001 (2026-07-06): recut-required.** Clean full 90-min time-cap on

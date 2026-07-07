@@ -364,6 +364,7 @@ ack_for_command() {
     READ_CORE_MEMORY*) echo "READ_CORE_MEMORY " ;;
     LOAD_STATE_SLOT*) echo "[State] Loading state" ;;
     WAIT_SAVE_STATE*) echo "WAIT_SAVE_STATE DONE" ;;
+    WAIT_LOAD_STATE*) echo "WAIT_LOAD_STATE DONE" ;;
     SAVE_STATE*) echo "[State] Saving state" ;;
     *) echo "" ;;
   esac

@@ -114,7 +114,18 @@ Substantive corrections: the pair-1 "0.96x stepping band" RETRACTED (mander prim
 16.7 fc/s, 25.3 not derivable); opus S1u stamp quarantined (scorer fired on a map-transition
 pos transient under inputDis=2 — v2.1 semantics + wave-1 S1u re-derivation queued to the
 lock). Headless host axis filed: metapod-grade latency, no directional fc-at-gate bias,
-pair-1 cap/fc recommendation survives.
+pair-1 cap/fc recommendation survives. → **pair-3 gate CLEAN (2026-07-07, evals
+`docs/forensics/w1p3-pair-triage.md`): double time-cap, WAVE 1 COMPLETE.** First playbook2
+pair (gpt@luma + opus@metapod, both macOS); both probes VERIFIED (luma exact-zero fc deltas —
+strongest determinism evidence of the wave; the "missing slot1" manifest wart dispositioned
+environmental after the replay reproduced the stream with the file intact). Losses
+within-variance: both died in the kkj castle-room hazard family (opus 49 min in kkj_01, ~8–11
+min short of terminal at the cap; gpt declared the correct kkj_00 upper door "non-route" after
+two presses 90–160 units off-center — zero memory reads all run). Playbook2 attribution:
+content tips helped where internalized (opus §9 y-telemetry), procedural clauses did not bind;
+the §4 door-clause adjudication (owner-requested workflow) + the sweep-macro tip feed the lock
+window. No bench change. Wave probe record 5 VERIFIED + 1 PREFIX-DETERMINISTIC. Next: the
+post-wave lock ruling.
 
 ## Lock-loop iterations (R6)
 - **Iter 1 — baseline-gpt55-v3-001 (2026-07-06): recut-required.** Clean full 90-min time-cap on

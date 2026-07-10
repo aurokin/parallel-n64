@@ -55,3 +55,6 @@ artifacts/*
 # Local Python cache artifacts
 __pycache__/
 *.pyc
+
+# Local browser automation artifacts
+.playwright-mcp/

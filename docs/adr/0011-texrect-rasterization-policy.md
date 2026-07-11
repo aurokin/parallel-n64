@@ -41,8 +41,7 @@ falsification-backed exemptions for replaced content:
   was fixed 2026-06-12: COPY coverage natively includes the whole pixel
   containing `xl`, but at upscale the inclusive `end_x` covered only that
   pixel's first sub-column; `span_setup.comp` now completes the native pixel
-  for unsnapped copy rects (scissor-capped). Probe trail in the PROJECT_NOTES
-  2026-06-12 seam entry.
+  for unsnapped copy rects, capped by the scissor.
 
 ## Evidence
 

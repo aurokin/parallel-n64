@@ -46,5 +46,5 @@ lane (ADR-0006, ADR-0013, ADR-0014). It is distinct from the banned image-matchi
 
 ## Evidence
 
-- Reboot Plan "GlideN64 Guardrails"; commit 1eac0dbd;
-  tests/emulator_behavior gate `emu.support.gliden64_reference_guardrails`.
+- commit `1eac0dbd`;
+- `emu.support.gliden64_reference_guardrails`.

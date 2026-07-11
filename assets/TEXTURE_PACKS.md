@@ -1,75 +1,71 @@
-# Texture Pack Tracking
+# Texture Pack Sources And Conversion
 
-Status of hi-res texture packs for validation titles. The converter
-(`tools/hts2phrb.py`) ingests **`.hts` / `.htc` only** — prefer releases that
-ship one of those. PNG-only (Rice-format folder) distributions need a
-GlideN64-side cache-generation pass first, which requires a working GlideN64
-reference emulator (see task: GlideN64 reference vehicle). Both `.hts`
-layouts are supported: old-version (config word at offset 0, e.g. Paper
-Mario's `0x40a20000`) and new-version GLideNHQ (`TXCACHE_FORMAT_VERSION`
-`0x08000000` at offset 0, config at offset 4 — all GhostlyDark Reloaded
-packs).
+Texture packs and generated packages are local, untracked inputs. This file
+records portable source provenance and the conversion contract; it does not
+record which private host currently stores an artifact.
 
-## Rules
+## Format Contract
 
-- Record **source URL + sha256** for every archive here at acquisition time.
-- Archive the original download (and extracted `.hts`) to
-  `/pluto/game/texture_packs/n64/` as cold storage before using it.
-  (`/pluto` is currently mounted read-only on this box; originals remain on
-  `koopa:/Users/auro/Downloads/` as interim cold storage until a writable
-  path is available.)
-- Working copies live in `assets/packs/` for runtime use. Never point runtime
-  scenarios at the NFS mount.
-- ROMs are NOT tracked here — full No-Intro set at `/pluto/game/rom/n64`;
-  local runtime copies of SM64/OoT/MK64/MM (USA) staged in `assets/`.
+- Runtime input is `.phrb` only.
+- `tools/hts2phrb.py` converts GlideN64/GLideNHQ `.hts` or
+  `.htc` caches offline.
+- Rice-format PNG directories require a separate GlideN64 cache-generation
+  step before conversion.
+- ROMs, pack archives, extracted caches, and generated packages are never
+  committed.
+- Record the source URL and archive SHA-256 before promoting a new source.
 
-## Packs
+## Source Catalog
 
-| Game | Pack | Format | Status | Source URL | sha256 |
-|------|------|--------|--------|------------|--------|
-| Paper Mario (USA) | Paper Mario Redone HD v4.0.1 (MasterKillua) | `.hts` (443MB) | **ON DISK** — `assets/PAPER MARIO_HIRESTEXTURES.hts`; original archive `assets/PMRHD-401-NWO.rar` (contains only the same `.hts` + README, no PNG sources) | (unrecorded — predates this file) | `PMRHD-401-NWO.rar`: record on next touch |
-| Super Mario 64 | SM64 Reloaded v2.6.0 (GhostlyDark) HD | `.hts` (154MB 7z → 699MB) | **ON DISK** — `assets/packs/sm64-reloaded-hts/SUPER MARIO 64_HIRESTEXTURES.hts`; 2,530 entries (matches previously-proven count) | https://evilgames.eu/files/texture-packs/sm64-reloaded-v2.6.0-gliden64-hts-hd.7z | `c641cdd7ff590ac3e5fd5936ad7cbc8af139bbd392276e14871a81cf075873e6` |
-| Zelda: Ocarina of Time | OoT Reloaded v11.0.0 (GhostlyDark) HD | `.hts` (1.3GB 7z → 9.4GB) | **ON DISK** — `assets/packs/oot-reloaded-hts/THE LEGEND OF ZELDA_HIRESTEXTURES.hts`; 43,324 entries parsed (matches the previously-proven 43K-entry pack) | https://evilgames.eu/texture-packs/oot-reloaded.htm (fetched on koopa) | `7a68eaf94e62d2059cca011d7a03fefb98f1fbc923809ff8b96dbb45bfa267d2` |
-| Zelda: Majora's Mask | MM Reloaded v11.0.2 (GhostlyDark) HD | `.hts` (690MB 7z → 3.9GB) | **ON DISK** — `assets/packs/mm-reloaded-hts/ZELDA MAJORA'S MASK_HIRESTEXTURES.hts`; this replaces the missing "MM GlideN64 edition" the plan was waiting on | https://evilgames.eu/files/texture-packs/mm-reloaded-v11.0.2-gliden64-hts-hd.7z | `23e96dce91a41c13861685b43b51f2a588458262c756be55eec78d43d0e5854d` |
-| Mario Kart 64 | MK64 Reloaded v2026.04.03 (GhostlyDark) HD | `.hts` (397MB 7z → 3.6GB) | **ON DISK** — `assets/packs/mk64-reloaded-hts/MARIOKART64_HIRESTEXTURES.hts`; 20,212 entries parsed | https://evilgames.eu/texture-packs/mk64-reloaded.htm (fetched on koopa) | `de63c1d640aad8dbad7701b47b5ba38ba522262d92668d028766e5c388f10bd0` |
+| Game | Source | Cache format | Source URL | Archive SHA-256 |
+|------|--------|--------------|------------|----------------|
+| Paper Mario | Paper Mario Redone HD 4.0.1 | old-version `.hts` | Unknown; acquisition predates this ledger | Unknown; recover before redistribution |
+| Super Mario 64 | SM64 Reloaded 2.6.0 HD | GLideNHQ `.hts` | [download](https://evilgames.eu/files/texture-packs/sm64-reloaded-v2.6.0-gliden64-hts-hd.7z) | `c641cdd7ff590ac3e5fd5936ad7cbc8af139bbd392276e14871a81cf075873e6` |
+| Ocarina of Time | OoT Reloaded 11.0.0 HD | GLideNHQ `.hts` | [release page](https://evilgames.eu/texture-packs/oot-reloaded.htm) | `7a68eaf94e62d2059cca011d7a03fefb98f1fbc923809ff8b96dbb45bfa267d2` |
+| Mario Kart 64 | MK64 Reloaded 2026.04.03 HD | GLideNHQ `.hts` | [release page](https://evilgames.eu/texture-packs/mk64-reloaded.htm) | `de63c1d640aad8dbad7701b47b5ba38ba522262d92668d028766e5c388f10bd0` |
+| Majora's Mask | MM Reloaded 11.0.2 HD | GLideNHQ `.hts` | [download](https://evilgames.eu/files/texture-packs/mm-reloaded-v11.0.2-gliden64-hts-hd.7z) | `23e96dce91a41c13861685b43b51f2a588458262c756be55eec78d43d0e5854d` |
 
-## Rejected / inapplicable acquisitions
+Formats keyed for a PC port, Ship of Harkinian, Citra, or another console are
+not interchangeable with GlideN64/Rice identities.
 
-| Artifact | Verdict |
-|----------|---------|
-| `assets/packs/sm64redrawn-master.pak` (203MB, sha256 `4955ceaeb346c95136de1f4132ecbd543dff7d849aa783323020501ff420dfa3`) | **NOT INGESTIBLE** — sm64nx (Switch port) pack from the TechieAndroid/sm64redrawn project; textures keyed by sm64ex asset paths, not N64 checksums. The repo's PNGs target `res/gfx` of the PC port, so neither hts2phrb nor the GlideN64 mint-an-hts vehicle can use them. SM64 Reloaded (above) covers SM64 instead. |
-| `koopa:/Users/auro/Downloads/MM 3D 4K 3.0b-1 (1080p)[.zip]` (1.7GB) | **NOT APPLICABLE** — Citra texture pack for Majora's Mask **3D** (3DS): `user/load/textures/<3DS title id>/` layout, `tex1_<WxH>_<hash>_<fmt>` naming, ReShade payload. Not an N64 pack. MM Reloaded (above) covers MM instead. |
-| `koopa:/Users/auro/Downloads/oot-reloaded-v11.0.0-soh-o2r-hd.7z` (626MB) | **NOT NEEDED** — Ship of Harkinian `.o2r` resource archive (asset-path keyed); superseded by the completed GlideN64 `.hts` download of the same pack version. Left on koopa. |
+## Observed Package Selection
 
-## Converted runtime packages (PHRB)
+The checked-in behavior currently differs by consumer:
 
-| Source pack | Package | Status |
-|-------------|---------|--------|
-| Paper Mario Redone HD | `artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb` (446MB, exact-variant-set, minted 2026-06-11, **curated 2026-07-01, two passes**) | **ACTIVE** — first in scenario resolution order (`tools/scenarios/lib/common.sh`) and the runtime-conformance gate default. Curated (8,978 records / 15,056 assets): pass 1 excluded the `fbebebeb` transparency-grid placeholder (`tools/hires_pack_curation_pm64_exclusions.json`, evidence `artifacts/experiments/nok03-abilities-on-260701/notes.md`); pass 2 excluded the jungle overlay pair `816a81b8` (mist, breaks color-match-invisibility compositing — artifacts in GLideN64 too) and `23ff3d81` (water sheet, authored alpha field flattened to a constant) (`tools/hires_pack_curation_pm64_jungle_exclusions.json`, evidence `artifacts/experiments/jungle-tail-260701/notes.md`). sha256: pre-curation `544f94d91f149df7f6e9cdc120dd82626b5462114fdb96fadb5cc43546529ef2`, pass 1 `43e14cf000e82f7334e0317346f621d02ba320428a36182c6637a1ded814c7ee`, pass 2 (serving) `388bce41777a45eecd7581fc03bf67c7c36512cc7d1dd786ddfb38a90964d71f`. Provenance dirs: `…-curated/` (pass 1), `…-curated-r2/` (pass 2). |
-| Paper Mario Redone HD | `artifacts/hts2phrb-review/local-pm64-zero-config/package.phrb` (405MB, zero-config compat, built 2026-06-10) | **FALLBACK** — second in scenario resolution order; still named by the fixture YAMLs; not curated |
-| MK64 Reloaded HD | `artifacts/hts2phrb-review/local-mk64-zero-config/package.phrb` (3.6GB, 10,906 records, promotable, zero-config compat) | **BOOT-VALIDATED** — 20,212 entries loaded, 7,488 upload + 20,632 compat draw hits, clean attract-mode capture |
-| OoT Reloaded HD | `artifacts/hts2phrb-review/local-oot-zero-config/package.phrb` (9.5GB, 43,267 records, 1 deferred, zero-config compat) | **BOOT-VALIDATED** — 43,322 entries loaded, 17,498 upload + 105,190 compat draw hits, clean title capture |
-| SM64 Reloaded HD | `artifacts/hts2phrb-review/local-sm64-zero-config/package.phrb` (700MB, 2,530 records, promotable, zero-config compat) | **BOOT-VALIDATED** — 2,530 entries loaded, 65,145 compat draw hits (upload-path hits 0: SM64 resolves entirely via the draw-time CRC lane), clean title capture |
-| MM Reloaded HD | `artifacts/hts2phrb-review/local-mm-zero-config/package.phrb` (3.9GB, 13,689 records, 1 deferred, zero-config compat) | **BOOT-VALIDATED** — 13,751 entries loaded, 36,416 upload + 116,553 compat draw hits, clean intro-cutscene capture (hi-res Clock Town bricks) |
+- `tools/scenarios/lib/common.sh` checks the path-stable
+  `local-pm64-exact-variant-set` package first, then zero-config. The current
+  staged package at that stable path is byte-identical to curated-r2
+  (`sha256: 388bce41777a45eecd7581fc03bf67c7c36512cc7d1dd786ddfb38a90964d71f`),
+  despite the path not carrying the curation suffix.
+- The Paper Mario runtime-conformance wrapper defaults to that same stable
+  exact-variant-set path.
+- Fixture YAML files still declare the zero-config package.
+- External callers may provide another package explicitly.
 
-PHRB packages are regenerable from their `.hts` via
-`tools/hts2phrb.py` (zero-config); the `.hts` originals are the assets to protect.
+This describes the code and current staged identity as they exist; it is not
+authorization to change a runtime default. Because curation is not encoded in
+the stable path, every evidence bundle must record the package hash actually
+used.
 
-To regenerate the curated Paper Mario package: run `tools/hts2phrb.py` against
-`assets/PAPER MARIO_HIRESTEXTURES.hts` (exact-variant-set mode), then from the
-repo root apply the checked-in curation review:
+## Paper Mario Curation
+
+Two tracked exclusion reviews describe known pack-content removals:
+
+- `tools/hires_pack_curation_pm64_exclusions.json` excludes the
+  `fbebebeb` transparency-grid placeholder.
+- `tools/hires_pack_curation_pm64_jungle_exclusions.json` excludes
+  the `816a81b8` and `23ff3d81` overlay pair.
+
+Apply both reviews to a fresh exact-variant-set conversion:
 
 ```sh
 python3 tools/hires_pack_apply_exclusion_review.py \
   --loader-manifest artifacts/hts2phrb-review/local-pm64-exact-variant-set/loader-manifest.json \
   --exclusion-review tools/hires_pack_curation_pm64_exclusions.json \
   --exclusion-review tools/hires_pack_curation_pm64_jungle_exclusions.json \
-  --output-dir artifacts/hts2phrb-review/local-pm64-exact-variant-set-curated
+  --output-dir artifacts/hts2phrb-review/local-pm64-curated
 ```
 
-(Both reviews apply in one pass against a fresh hts2phrb mint; the serving
-package was built incrementally — pass 2 applied the jungle review on top of
-the pass-1 manifest — which yields the same record set.)
-
-(Run from the repo root: legacy blob streaming resolves the `.hts` source path
-relative to the CWD.)
+Run conversion commands from the repository root so relative source paths
+resolve consistently. Use `python3 tools/hts2phrb.py --help` for the
+current converter interface.

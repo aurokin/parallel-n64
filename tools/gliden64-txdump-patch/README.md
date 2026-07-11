@@ -1,26 +1,29 @@
-# GlideN64 txDump patch (hash-coverage oracle)
+# GlideN64 txDump Patch
 
-One-line, env-gated patch for the mupen64plus-next clone at
-`/home/auro/code/mupen64plus-libretro-nx` (base commit `98c1b0d`): setting
-`GLN64_TXDUMP=1` in the core's environment turns on GLideNHQ texture dumping.
+`0001-env-gated-txdump.patch` adds an opt-in
+`GLN64_TXDUMP=1` switch to a mupen64plus-next checkout. It is a
+hash-coverage oracle for the Rice-compatible identity lane, never a
+pixel-accuracy target.
 
-Rebuild:
+Set `MUPEN64PLUS_NEXT_ROOT` to a checkout based on commit
+`98c1b0d`:
 
 ```sh
-cd /home/auro/code/mupen64plus-libretro-nx
-git apply /home/auro/code/parallel-n64/tools/gliden64-txdump-patch/0001-env-gated-txdump.patch
-make -j"$(nproc)"
-# core: mupen64plus_next_libretro.so
+PATCH="$PWD/tools/gliden64-txdump-patch/0001-env-gated-txdump.patch"
+git -C "$MUPEN64PLUS_NEXT_ROOT" apply --check "$PATCH"
+git -C "$MUPEN64PLUS_NEXT_ROOT" apply "$PATCH"
+make -C "$MUPEN64PLUS_NEXT_ROOT" -j"$(nproc)"
 ```
 
-Why: dumped filenames are GlideN64's own Rice CRC identities per drawn
-texture — `<ROM NAME>#<texture_crc>#<fmt>#<size>[#<palette_crc>]_*.png` —
-which makes the dump directory a coverage oracle for our GlideN64-compat
-CRC lane: every checksum GlideN64 dumps for a scene is a checksum our
-compat lane should be able to hit. Use it to diagnose upload/draw misses;
-never as a pixel-accuracy target.
+If forward `--check` fails, use `git apply --reverse --check`
+to distinguish an already-applied patch from an incompatible checkout.
 
-Verified live (2026-06-10): `GLN64_TXDUMP=1` with
-`tools/scenarios/gliden64-reference-capture.sh --core <patched core>` dumps
-to `<bundle>/system/Mupen64plus/texture_dump/<ROM NAME>/GLideNHQ/`.
-Without the env var, behavior is unchanged.
+Run [`gliden64-reference-capture.sh`](../scenarios/gliden64-reference-capture.sh)
+with the patched core and `GLN64_TXDUMP=1`. Dumps appear under the
+bundle's RetroArch system directory.
+
+Interpretation is deliberately narrow:
+
+- with a pack, txDump output is GlideN64's miss set;
+- without a pack, it records computed Rice identities;
+- a dump match does not prove what GlideN64 served.

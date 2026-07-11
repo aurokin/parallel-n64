@@ -1,80 +1,49 @@
-# RetroArch Agent-Control Patches
+# RetroArch Agent-Control Patch Set
 
-These 10 patches add the deterministic agent-control command set that the
-scenario/adapter stack in this repo depends on (`tools/adapters/retroarch_stdin_session.sh`,
-all `tools/scenarios/*` runners, the remint scripts, and the runtime conformance lanes).
+These patches add deterministic, generic frontend control used by the adapters
+and scenarios in this repository. They contain no game- or renderer-specific
+semantics.
 
-Commands added: `PING`, `SET_PAUSE`, `STEP_FRAME <n>`, `SET_INPUT_PORT` /
-`CLEAR_INPUT_PORT` / `GET_INPUT_PORT`, `LOAD_STATE_SLOT_PAUSED`, `WAIT_SAVE_STATE`,
-`WAIT_LOAD_STATE`, a fixture-relative `frame=` counter in `GET_STATUS`, and a `READ_CORE_MEMORY`
-fallback to system RAM. They register in RetroArch's shared command table, so the
-same vocabulary works over the stdin transport (used here; zero ports, zero daemons)
-and the network command interface.
+## Command Surface
 
-Patch 0008 adds the `--start-paused` CLI flag: content loads normally, then the
-frontend pauses before the first core frame runs, with the agent frame counter
-zeroed (`GET_STATUS` reports `PAUSED ... frame=0`). Combined with `STEP_FRAME`
-this gives fully deterministic power-on starts (validated: two boots stepped to
-frame 180 produce byte-identical captures). The interactive adapter exposes it
-as `start --start-paused`.
+- readiness and status: `PING`, `GET_STATUS`;
+- pause and stepping: `SET_PAUSE`, `STEP_FRAME`,
+  `--start-paused`;
+- input: `SET_INPUT_PORT`, `CLEAR_INPUT_PORT`,
+  `GET_INPUT_PORT`;
+- states: `LOAD_STATE_SLOT_PAUSED`, `WAIT_SAVE_STATE`,
+  `WAIT_LOAD_STATE`;
+- replay: `RECORD_REPLAY_PATH`, `PLAY_REPLAY_PATH`,
+  `STOP_REPLAY`;
+- memory: `READ_CORE_MEMORY` with system-RAM fallback.
 
-Patch 0009 adds anchored replay commands: `RECORD_REPLAY_PATH <path>` (start a
-BSV2 recording anchored at the current state — a full checkpoint is embedded
-before any frame token; agent inputs are captured), `PLAY_REPLAY_PATH <path>`
-(mid-session anchored playback: restores the embedded anchor and re-zeroes the
-frame counter), and `STOP_REPLAY` (reply carries the final frame count). Both
-start commands refuse to run before the first core frame — mupen64plus's
-savestate machinery initializes lazily and serialize/deserialize at true
-frame 0 crashes/fails (this is also why launch-time `-P` playback is not used).
-Adapter verbs: `record-start` / `replay-start` / `record-stop`. Validated: a
-240-frame segment with a mid-stream input replayed in a fresh session to a
-byte-identical end-frame capture.
+`WAIT_LOAD_STATE` drains the asynchronous frontend load task. A
+client must issue it after `LOAD_STATE_SLOT_PAUSED` when completion
+matters.
 
-Patch 0010 adds `WAIT_LOAD_STATE`, the load-path mirror of `WAIT_SAVE_STATE`.
-`LOAD_STATE_SLOT[_PAUSED]` only queues an async blocking load and replies before
-it is pumped, so its reply is not a completion ack; `WAIT_LOAD_STATE` drains the
-load task queue (via the already-present `content_wait_for_load_state_task()`,
-previously callerless) then replies `WAIT_LOAD_STATE DONE`. A client that needs
-the state actually resident sends `LOAD_STATE_SLOT_PAUSED` then `WAIT_LOAD_STATE`,
-exactly as SAVE pairs with `WAIT_SAVE_STATE` (used by the eval replay driver's
-re-anchoring, `n64-agent-evals/harness/backfill_replay.py`).
+## Apply
 
-## Canonical locations
-
-- Branch: `agent-control` on `github.com:aurokin/RetroArch` (tip `9d00508114`)
-- Local checkout: `/home/auro/code/RetroArch` (same branch)
-- These patch files are the in-repo backup so the control stack survives any
-  RetroArch re-clone or reset. **Never leave these commits unreferenced again** —
-  on 2026-06-09 the checkout was reset to upstream and the patches survived only
-  in the reflog.
-
-## Rebuild
+Set `RETROARCH_ROOT` to a RetroArch checkout and apply the series in
+order:
 
 ```sh
-cd /home/auro/code/RetroArch
-git checkout agent-control
-./configure --disable-wayland --enable-x11 --enable-opengl --enable-vulkan \
-            --enable-sdl2 --enable-alsa --enable-udev --enable-freetype --enable-zlib \
-            --enable-ffmpeg
-make -j"$(nproc)"
+git -C "$RETROARCH_ROOT" checkout -b agent-control upstream/master
+git -C "$RETROARCH_ROOT" am \
+  "$PWD"/tools/retroarch-patches/*.patch
 ```
 
-`--enable-ffmpeg` (added 2026-07-04, needs the libav*-dev packages) compiles the
-h264 recording driver the recordings lane uses (`tools/recordings/`); without it
-`RECORDING_TOGGLE` falls back to WAV-only and segment rendering produces no video.
+The maintained public branch is `aurokin/RetroArch:agent-control`.
+Patch files remain the portable reconstruction path; a commit hash is evidence,
+not a permanent installation path.
 
-If starting from a fresh clone without the branch:
+## Build And Verify
+
+Configure RetroArch for the target platform, then verify the resulting binary:
 
 ```sh
-git checkout -b agent-control upstream/master   # or a pinned upstream commit
-git am /home/auro/code/parallel-n64/tools/retroarch-patches/*.patch
+strings "$RETROARCH_ROOT/retroarch" |
+  grep -E '^(PING|STEP_FRAME|SET_INPUT_PORT|WAIT_LOAD_STATE)$'
 ```
 
-## Verify
-
-```sh
-strings /home/auro/code/RetroArch/retroarch | grep -E '^(PING|STEP_FRAME|SET_INPUT_PORT|WAIT_LOAD_STATE)$'
-```
-
-then a live check: any scenario run's adapter prologue gates on `PING OK`
-(`WAIT_COMMAND_READY` in `tools/adapters/retroarch_stdin_session.sh`).
+A live adapter session must additionally receive `PING OK` and prove
+pause, step, save/load completion, screenshot, and clean teardown.

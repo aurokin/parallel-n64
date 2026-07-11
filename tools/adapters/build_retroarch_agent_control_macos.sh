@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Build the agent-control RetroArch binary on macOS (metapod) and stage it
+# Build the agent-control RetroArch binary on macOS and stage it
 # into the two app bundles the runtime adapters use.
 #
 # This is the recovered June 2026 build recipe (task #44). The original
 # binary (Git 00dc81041d) was built from a dirty tree whose Makefile and
-# header fixes were only partially captured by the "capture metapod macOS
-# runtime setup" commit; the missing pieces are now committed on the
+# header fixes were only partially captured by the earlier runtime-setup
+# commit; the missing pieces are now committed on the
 # agent-control branch, and this script pins the configure environment
 # that non-interactive SSH shells do not provide on their own.
 #

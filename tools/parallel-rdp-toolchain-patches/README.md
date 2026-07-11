@@ -1,24 +1,23 @@
-# parallel-rdp 2020 Toolchain Patches
+# Pinned paraLLEl-RDP Shader Toolchain
 
-Local patches for the Granite submodule of the upstream parallel-rdp checkout
-(`~/code/mupen/parallel-rdp-upstream`, pinned to the fork's vendored commit
-`7a3e561e`, Granite `fc326088`) so its 2020 sources build with a modern GCC.
-Needed only to build the `slangmosh` shader packer that regenerates
-`mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/shaders/slangmosh.hpp`
-(see `tools/regen-parallel-rdp-shaders.sh` for the full recipe).
+The vendored renderer requires a 2020-era `slangmosh` interface to
+regenerate
+`mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/shaders/slangmosh.hpp`.
+Modern `slangmosh` emits an incompatible interface.
 
-- `0001-granite-2020-modern-gcc.patch`: missing `<stdexcept>` include in
-  `network/tcp_listener.cpp`, plus the `third_party/astc-encoder/Source/CMakeLists.txt`
-  stub (the 2020 astc-encoder submodule pin no longer exists upstream; nothing
-  links it with `-DGRANITE_ASTC_ENCODER_COMPRESSION=OFF`).
+Use a standalone paraLLEl-RDP checkout at commit `7a3e561e` with
+Granite at `fc326088`. Set `PARALLEL_RDP_ROOT` to that
+checkout. The local patch supplies the modern-GCC include fix and an
+astc-encoder stub for a submodule pin that is no longer available.
 
-Apply with: `git -C ~/code/mupen/parallel-rdp-upstream/Granite apply <patch>`
-(the astc stub hunk requires the submodule dir to exist; create the empty file
-first if the submodule was never initialized).
+```sh
+PATCH="$PWD/tools/parallel-rdp-toolchain-patches/0001-granite-2020-modern-gcc.patch"
+git -C "$PARALLEL_RDP_ROOT/Granite" apply \
+  "$PATCH"
+SLANGMOSH="$PARALLEL_RDP_ROOT/Granite/tools/slangmosh/slangmosh" \
+  tools/regen-parallel-rdp-shaders.sh --force
+```
 
-Known vintage note: the committed `slangmosh.hpp` predates this recipe and was
-generated against a 2021-era `debug_channel.h` whose debug-SSBO decorations
-(set 3 / binding 31) mismatch the fork's vendored runtime limits; regenerating
-with this recipe yields set 7 / binding 15, which matches the runtime
-(`vulkan/limits.hpp`, `command_buffer.cpp` debug-channel bind point). The delta
-affects DEBUG_ENABLE shader variants only.
+Check the patch first with `git apply --check` and use
+`--reverse --check` to detect an already-patched checkout. Shader
+changes require the required gate plus the relevant runtime validation.

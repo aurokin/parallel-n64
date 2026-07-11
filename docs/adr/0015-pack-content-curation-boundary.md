@@ -1,50 +1,42 @@
-# ADR-0015: Pack-content defects are curation; three-class miss taxonomy
+# ADR-0015: Miss Taxonomy And Pack-Curation Boundary
 
-- Status: Accepted
-- Date: 2026-06-11 (taxonomy); 2026-06-12 (equivalent-to-glide verdict)
+- Status: Accepted, amended
+- Date: 2026-06-11; amended 2026-06-13
 
 ## Context
 
-Hi-res-ON divergences kept arriving mixed: some were renderer bugs, some were the
-pack's own art or its internal key collisions, and some were noise from the
-non-authoritative lookup lane. Undifferentiated miss counts misled (the cross-scene census over
-title/file-select/kmr_03 logs: 15 family-variant keys + 59 absent Nx1 strips +
-1 zero-key fill), and
-dims-based "wrong art" guards were found impossible — legitimate pack sprites have
-arbitrary non-integer scales.
+Replacement divergence may come from identity, missing pack content,
+non-authoritative upload lookup, renderer composition, or the art itself.
+Treating every miss as a renderer defect creates heuristic serving.
 
 ## Decision
 
-1. **Replacement misses are classified three ways:**
-   - *family-variant miss* — the pack has the family, not the variant: keying or
-     converter work;
-   - *true pack gap* — e.g. pcrc=0 Nx1 block-strip loads: explicit fallback is
-     correct behavior, pack-side work if ever;
-   - *upload-lane noise* — split views (CI8-upload/CI4-draw) where the draw-time
-     compat lane is the authoritative resolver and upload-lane miss lines are
-     expected. Draw-time compat misses log attempted keys so censuses run on the
-     authoritative lane.
-2. **When GlideN64 serves the same wrong/divergent art from the same pack entries,
-   the defect is pack-content (curation), out of renderer scope** — and
-   "equivalent-to-glide" is a valid closing verdict. Established on: the sewer
-   white-quad (a 65x65 slate entry Rice-colliding with the sewer beam inside the
-   pack's own old-version keying) and the vignette sky-backdrop clouds (pack
-   strips structurally diverge from native art; GlideN64 shows identical clouds).
-3. **Remedies for pack-content defects** are the
-   `PARALLEL_RDP_HIRES_FILTER_SIGNATURES` opt-out (proven on the sewer scene) and
-   pack-side curation — never renderer special-casing (per-scene override ban,
-   ADR-0005).
+Classify misses as:
+
+- **family-variant miss** — the pack has the family but not the exact variant;
+- **true pack gap** — no matching authored content, so explicit native fallback
+  is correct;
+- **upload-lane noise** — upload lookup misses but authoritative draw-time
+  lookup resolves.
+
+When the same pack entry is demonstrably wrong on its authoring renderer, the
+remedy is pack curation or explicit fallback, never a scene-specific renderer
+override.
+
+The original “sewer slate collision” example was overturned. Those artifacts
+were renderer composition and view-keying defects fixed by
+[ADR-0018](0018-hires-composition-pack-contract.md), not content to curate.
+The I-format/tlut semantics question is also closed: serve authored replacement
+RGBA verbatim and apply the class-level composition rules.
 
 ## Consequences
 
-- "Absent key with explicit fallback" is a pass, not a bug; upload-lane noise is
-  not chased.
-- Open follow-up (tracked, not decided): I-format `tlut=1` draws natively recolor
-  through the TLUT, which baked-RGBA serving bypasses — a sampler-semantics check
-  is queued before any tlut-gated serve rule.
+Draw-time attempted keys and explicit fallback reasons are the useful census.
+Checksums alone cannot decide whether the renderer, identity, or content is at
+fault.
 
 ## Evidence
 
-- PROJECT_NOTES.md 2026-06-11 missing-texture forensics; 2026-06-12 bank-0 entry
-  (sewer resolution) and star-family entry (backdrop reclassification);
-  commit 7688c8d1 (attempted-key miss logging).
+- attempted-key logging;
+- tracked Paper Mario exclusion reviews;
+- the ADR-0018 composition evidence chain.

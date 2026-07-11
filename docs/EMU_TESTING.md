@@ -1,104 +1,100 @@
-# Emulator Test Tiers
+# Emulator Test Profiles
 
-The test surface was trimmed at the 2026-06-10 reboot to a behavior-backed core.
-This file describes the mechanism. Do not pin exact runtime counts or artifact
-inventories here; gates are class-level by design (see
-[REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md)).
+Use `./run-tests.sh --profile <name>`. The script configures and
+incrementally builds `build/ctest` unless another build directory is
+provided.
 
 ## Profiles
 
-Run profiles through `./run-tests.sh --profile <name>`:
+- `emu-required`: display-free unit, support, and static conformance checks.
+  This is the required change gate.
+- `emu-runtime-conformance`: lavapipe smoke plus the Paper Mario
+  authority lane. It enables runtime opt-in and rebuilds the live core.
+- `emu-conformance`: every conformance test, including opt-in lanes.
+- `emu-tsan`: ThreadSanitizer coverage for the command ring and worker
+  thread, with a capability preflight.
+- `all`: the full registry; runtime tests skip unless explicitly
+  enabled.
 
-- `all`: full CTest registry (default).
-- `emu-required`: the PR-safe gate. Fast (a few seconds warm) and display-free:
-  - `emu.unit.*` — C++ unit tests of renderer policy seams (RDP command ingest,
-    frame mapping/fallback, scanout, tile/rect/triangle setup policy, VI scaling,
-    hi-res compat-CRC override, texture replacement provider, CI palette policy,
-    command ring, worker thread, and similar).
-  - `emu.support.*` — functional shell contracts: fixture verification, the hi-res
-    capability runtime contract, the GlideN64 reference-rig no-metric guardrails
-    (`emu.support.gliden64_reference_guardrails`), and the `hts2phrb` converter
-    contracts (smoke, round trip, directory input, all-families, gates, full-cache).
-  - the static `emu.conformance.*` C++ checks: VI register contract, VI scanout
-    range, VI scaling crop, RDP command fields, RDP command lengths, RDP texture
-    load sequence.
-- `emu-conformance`: every `emu.conformance.*` test, including the runtime lanes.
-- `emu-runtime-conformance`: the display-occupying runtime gate. Runs
-  `emu.conformance.runtime_smoke_lavapipe` plus the single Paper Mario lane
-  `emu.conformance.paper_mario_full_cache_phrb_authorities`, and sets the
-  `EMU_ENABLE_RUNTIME_CONFORMANCE=1` opt-in automatically. It also rebuilds the
-  live libretro core before running.
-- `emu-tsan`: ThreadSanitizer build of the command-ring and worker-thread unit
-  tests, with a preflight that skips cleanly when TSAN is unsupported
-  (`EMU_TSAN_FORCE=1` bypasses the preflight).
-
-`run-tests.sh` uses incremental builds; pass `--clean` to wipe the build dir and
-force a full rebuild (including a forced libretro core rebuild for the runtime
-profile). Use `-R <regex>` for ad hoc selection (not combinable with `--profile`).
-
-## What The Runtime Lane Verifies
-
-`paper_mario_full_cache_phrb_authorities` runs the three Paper Mario authority
-fixtures (title screen, file select, `kmr_03 ENTRY_5`) against the local
-zero-config PHRB package and asserts class-level semantics only:
-
-- hi-res entries loaded (`entry_count > 0`)
-- draw-time replacement traffic (`draw_hits > 0`)
-- `source_mode=phrb-only` and `.phrb`-only runtime inputs
-- explicit fallback reasons for anything not replaced
-
-It does not compare captures and does not assert exact entry/descriptor counts.
-Capture digests remain valid only for feature-off baseline parity and remint
-authority verification.
-
-For manual tester/gameplay sessions, prefer hi-res mode whenever the host has a
-valid pack and graphics path. Feature-off sessions remain important for the
-protected baseline property and explicit off-vs-on comparisons, but day-to-day
-Paper Mario validation should exercise the hi-res path when possible.
-
-Override the package under test with `EMU_RUNTIME_PM64_FULL_CACHE_PHRB`; keep the
-evidence bundles with `EMU_RUNTIME_PM64_FULL_CACHE_BUNDLE_ROOT`.
-
-## Skip Vs. Loud Fail
-
-- The only clean skips are deliberate opt-outs: runtime lanes without
-  `EMU_ENABLE_RUNTIME_CONFORMANCE=1`, the lavapipe smoke without a lavapipe ICD,
-  converter full-cache contracts without the local Paper Mario `.hts`, and the
-  TSAN preflight.
-- Once opted in, missing runtime prerequisites (PHRB package, ROM, savestate,
-  RetroArch binary, scenario runtime env) FAIL LOUDLY with a staging message that
-  says what is missing and how to stage it. This loud-fail guarantee covers the
-  gating lanes (the Paper Mario authority lane and the lavapipe smoke); the
-  on-demand SM64/OoT breadth lanes instead exit-77 skip with a printed reason when
-  their pack/ROM/core/RetroArch is unstaged, even with the opt-in set.
-
-## On-Demand Cross-Game Lanes
-
-The SM64/OoT lanes are registered in ctest but excluded from the gating profiles
-(`emu-required`, `emu-runtime-conformance`); the `all` and `emu-conformance`
-regexes do match them, where they skip cleanly without the runtime opt-in. Run
-them explicitly when their packs/states are staged:
+Useful forms:
 
 ```sh
-EMU_ENABLE_RUNTIME_CONFORMANCE=1 ctest --test-dir build/ctest \
-  -R 'emu.conformance.(sm64|oot)_hires_(boot|title_fixture)' --output-on-failure
+./run-tests.sh -R 'emu.unit.<name>'
+./run-tests.sh --clean --profile emu-required
+./run-tests.sh --list --profile emu-required
 ```
 
-They are compat-path breadth checks, not authority gates.
+## Required Gate
 
-## Runtime Emulator Test Rules
+The required profile covers:
 
-- run emulator-facing tests at `4x` internal scale, one at a time
-- they occupy the display; never parallelize them
-- standardize runs as fullscreen windows for consistent capture framing
-- do not start a tracked runtime scenario while another `retroarch` process runs
-  (the adapter enforces a runtime lock)
-- tracked scenarios must not depend on global `~/.config/retroarch/saves`
+- renderer-policy and data-structure unit tests;
+- fixture, converter, and capability shell contracts;
+- GlideN64 oracle guardrails;
+- static VI and RDP conformance checks.
+
+It does not launch an emulator or prove runtime rendering.
+
+## Runtime Lane
+
+`emu.conformance.paper_mario_full_cache_phrb_authorities` runs the
+title-screen, file-select, and `kmr_03 ENTRY_5` authorities. It asserts:
+
+- at least one hi-res entry loaded;
+- draw-time replacement traffic exists;
+- the source mode is `phrb-only`;
+- fallbacks carry explicit reasons;
+- the bundle records ROM, state, pack, and configuration identity.
+
+The wrapper's observed default is
+`artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb`.
+Override it with `EMU_RUNTIME_PM64_FULL_CACHE_PHRB`. Fixture manifests
+still name the zero-config package as their declared input; scenario runners
+record the package actually selected at runtime.
+
+The lane never uses an on-path capture digest or exact metadata count as a
+correctness gate. Digests are limited to feature-off parity and authority
+remint verification.
+
+## Skip And Failure Policy
+
+Clean skips are limited to deliberate opt-outs or unavailable optional
+capabilities:
+
+- runtime tests without `EMU_ENABLE_RUNTIME_CONFORMANCE=1`;
+- lavapipe smoke without a lavapipe ICD;
+- full-cache converter coverage without the local Paper Mario source cache;
+- TSAN when the preflight proves it unsupported;
+- on-demand breadth lanes with unstaged inputs.
+
+Once a gating runtime lane is opted in, missing ROMs, packs, states, core, or
+frontend are failures with staging guidance.
+
+## Compatibility Breadth
+
+SM64 and OoT boot/title lanes are registered but excluded from gating profiles.
+Run them explicitly when their inputs are staged:
+
+```sh
+EMU_ENABLE_RUNTIME_CONFORMANCE=1 ./run-tests.sh \
+  -R 'emu.conformance.(sm64|oot)_hires_(boot|title_fixture)'
+```
+
+MK64 and MM remain manual breadth checks unless a behavior-backed test is
+added.
+
+## Runtime Constraints
+
+- Run at 4x internal scale.
+- Run one emulator-facing test at a time.
+- Do not launch while another RetroArch process owns the runtime path.
+- Keep save data and evidence bundle-local.
+- Prefer hi-res-on for normal renderer validation; use feature-off for the
+  protected baseline and explicit controls.
 
 ## Triage
 
-1. Re-run the failing tier: `./run-tests.sh --profile <profile> -- --output-on-failure`
-2. For runtime lane failures, read the evidence bundle (validation summary,
-   RetroArch log, hi-res evidence) before re-running.
-3. Fuzzed unit tests log their seed; reproduce with `EMU_FUZZ_SEED=<value>`.
-4. Remote CI is intentionally disabled; run tiers locally.
+1. Re-run the narrow failing test with `./run-tests.sh -R '<name>'`.
+2. For runtime failures, inspect the validation summary, RetroArch log, and
+   hi-res evidence before re-running.
+3. Reproduce fuzz failures with the logged `EMU_FUZZ_SEED`.

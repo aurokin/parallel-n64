@@ -44,5 +44,5 @@ Attempt A's pixel-diff failure mode or invasively forking the reference core.
 
 ## Evidence
 
-- Commits 1eac0dbd, 5f7ea3cc; PROJECT_NOTES.md 2026-06-12 CORRECTION entry;
-  gameplay-campaign-011041/gliden64-montage-txdump and glide-vignette-txdump.
+- commits `1eac0dbd` and `5f7ea3cc`;
+- with-pack and pack-less txDump comparison bundles.

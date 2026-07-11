@@ -2098,6 +2098,16 @@ import hashlib
 import sys
 from pathlib import Path
 
+# Paper Mario US semantic-address provenance:
+# - gMainGameMode (0x80151700; called CurGameMode in older local notes),
+#   filemenu_currentMenu (0x8024C098), filemenu_menus (0x80249B84), and
+#   gSaveSlotHasData (0x80077A24) were verified against `ver/us/symbol_addrs.txt`
+#   in github.com/pmret/papermario at commit 8a0ea06aa996ecb1 and runtime traces.
+# - filemenu button fields (0x8024C084/0x8024C08C) are sample-sensitive.
+# - gWindows entries rooted at 0x80159D50 are advisory branch discriminators.
+# The decomp supplies names and structure; captured runtime evidence remains
+# the authority for what the emulated ROM did.
+
 bundle_dir = Path(sys.argv[1])
 output_path = Path(sys.argv[2])
 

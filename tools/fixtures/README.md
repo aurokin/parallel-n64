@@ -1,27 +1,29 @@
 # Fixture Manifests
 
-This directory holds versioned metadata for deterministic test fixtures.
+Fixture manifests define deterministic emulator inputs and expected evidence.
+Large assets remain untracked.
 
-The manifests here describe:
+Each active fixture identifies:
 
-- which game or content is under test
-- how to reach the target scene
-- what external assets or states are required
-- what outputs should be captured
-- what checks define success or failure
+- game and scene;
+- ROM, state, pack, and configuration inputs;
+- authority node and remint path;
+- settle and capture points;
+- required semantic and renderer evidence.
 
-Large binary assets stay outside git.
-Reference them by stable local paths or environment variables instead of committing them here.
+Start new definitions from
+[`fixture-template.yaml`](fixture-template.yaml). Authority lineage
+lives in
+[`paper-mario-authority-graph.yaml`](paper-mario-authority-graph.yaml).
+The runtime and evidence rules are in the
+[scenario documentation](../scenarios/).
 
-Use [`fixture-template.yaml`](/home/auro/code/parallel-n64/tools/fixtures/fixture-template.yaml) as the starting point for new fixture definitions.
-Follow the shared scenario runtime model in [tools/scenarios/MODEL.md](/home/auro/code/parallel-n64/tools/scenarios/MODEL.md) when deciding whether a fixture is steady-state authoritative or bootstrap-driven.
+Use `status: planned` when a scene belongs in the authority graph but
+does not yet have a runnable bootstrap or verified savestate.
 
-Current tracked fixture seeds:
+Tracked Paper Mario fixtures:
 
-- [`paper-mario-title-screen.yaml`](/home/auro/code/parallel-n64/tools/fixtures/paper-mario-title-screen.yaml)
-- [`paper-mario-file-select.yaml`](/home/auro/code/parallel-n64/tools/fixtures/paper-mario-file-select.yaml)
-- [`paper-mario-kmr-03-entry-5.yaml`](/home/auro/code/parallel-n64/tools/fixtures/paper-mario-kmr-03-entry-5.yaml)
-- [`paper-mario-hos-05-entry-3.yaml`](/home/auro/code/parallel-n64/tools/fixtures/paper-mario-hos-05-entry-3.yaml)
-- [`paper-mario-authority-graph.yaml`](/home/auro/code/parallel-n64/tools/fixtures/paper-mario-authority-graph.yaml)
-
-Use `status: planned` for ladder entries that are intentionally modeled but do not yet have a runnable bootstrap path or authoritative steady-state savestate.
+- [title screen](paper-mario-title-screen.yaml)
+- [file select](paper-mario-file-select.yaml)
+- [`kmr_03 ENTRY_5`](paper-mario-kmr-03-entry-5.yaml)
+- [`hos_05 ENTRY_3`](paper-mario-hos-05-entry-3.yaml), planned

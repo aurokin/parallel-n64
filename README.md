@@ -1,77 +1,94 @@
-# parallel-n64 Agent Workspace
+# parallel-n64
 
-## Mission
+This fork extends the ParaLLEl video core in the libretro Parallel N64 emulator
+with GlideN64-compatible high-resolution texture replacement, replacement-aware
+scaling, deterministic fixture tooling, and renderer-focused conformance tests.
 
-This repo is the planning and implementation home for a stable hi-res texture
-replacement and scaling program for the ParaLLEl video core.
+The renderer is the correctness authority. External orchestration may supply
+paths and launch parameters, but this repository remains buildable and testable
+without a fleet controller or private workspace.
 
-The project is run as an agent-first workflow:
+## Current Capabilities
 
-- the docs should let a new agent understand the mission quickly
-- the plans should make phase, scope, and exit criteria explicit
-- the tooling should make debugging reproducible without UI guesswork
+- GlideN64/Rice-compatible draw-time texture identity.
+- Offline `.hts`/`.htc` to `.phrb` conversion; runtime loading is `.phrb` only.
+- Replacement-aware texrect, sampling, mip, alpha, and view-key behavior.
+- Deterministic RetroArch control through
+  [`tools/retroarch-patches/`](tools/retroarch-patches/).
+- Paper Mario fixture authorities plus opt-in compatibility lanes for SM64,
+  OoT, MK64, and MM.
+- Class-level runtime evidence and explicit fallback reporting.
 
-## Current Status
+Paper Mario is the strict renderer-validation title. The other games exercise
+compatibility breadth and do not define renderer policy.
 
-The project rebooted on 2026-06-10 under
-[REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md); the prior Attempt
-B plan stack is archived under
-[docs/history/](/home/auro/code/parallel-n64/docs/history). As of 2026-06-12 the
-reboot work order is substantially complete (per-step status in the plan): the
-savestate ladder, sampler/mip/filter stack, texrect exemptions, GlideN64 reference
-rig, and interactive agent-play adapter are all landed; active work is compat-keying
-conformance, beat-comparison validation, and pack-curation triage.
+## Build And Test
 
-The standing facts:
+No package manager is used.
 
-- Paper Mario is the strict validation title; SM64/OoT/MK64/MM are compat-path
-  breadth checks. All five have converted, boot-validated packs.
-- The GlideN64-compat Rice-CRC lane is the primary identity path; the
-  native-sampled-identity program is frozen.
-- Runtime hi-res loading is `.phrb` only; legacy `.hts`/`.htc` packs are offline
-  `hts2phrb` conversion inputs.
-- With hi-res + scaling OFF, the core must stay upstream-grade stable (the
-  protected property).
+```sh
+./run-build.sh
+./run-tests.sh --profile emu-required
+```
 
-## Reading Path
+The required profile is display-free. The runtime profile launches RetroArch,
+occupies a display or headless Vulkan device, and requires locally staged
+copyrighted inputs:
 
-Progressively deeper, in order:
+```sh
+./run-tests.sh --profile emu-runtime-conformance
+```
 
-1. This README — mission, status, map.
-2. [AGENTS.md](/home/auro/code/parallel-n64/AGENTS.md) — working rules, commands,
-   active scope, boundaries.
-3. [docs/REBOOT_PLAN.md](/home/auro/code/parallel-n64/docs/REBOOT_PLAN.md) — the
-   controlling plan with per-step status and the current frontier.
-4. [docs/adr/](/home/auro/code/parallel-n64/docs/adr/README.md) — decision records:
-   why the architecture, validation methodology, identity lane, and tooling are the
-   way they are.
-5. [docs/README.md](/home/auro/code/parallel-n64/docs/README.md) — index of the
-   reference docs (testing, paths, signal tables, surveys).
-6. [PROJECT_NOTES.md](/home/auro/code/parallel-n64/PROJECT_NOTES.md) — the running
-   narrative record, newest entries last.
+Run runtime tests serially. See [Emulator Testing](docs/EMU_TESTING.md) for
+profiles, prerequisites, and skip policy.
 
-## Key Repo Areas
+## Runtime Inputs
 
-- [mupen64plus-video-paraLLEl](/home/auro/code/parallel-n64/mupen64plus-video-paraLLEl): active video-core implementation target
-- [libretro/libretro.c](/home/auro/code/parallel-n64/libretro/libretro.c): frontend/core option seam in this repo
-- [tests/emulator_behavior](/home/auro/code/parallel-n64/tests/emulator_behavior): current emulator behavior test surface
-- [tools/fixtures](/home/auro/code/parallel-n64/tools/fixtures): versioned fixture metadata
-- [tools/scenarios](/home/auro/code/parallel-n64/tools/scenarios): deterministic scenario runners
-- [tools/adapters](/home/auro/code/parallel-n64/tools/adapters): cross-repo wrapper glue
-- [artifacts](/home/auro/code/parallel-n64/artifacts): generated workflow output (gitignored)
+ROMs, texture packs, savestates, binaries, and generated evidence are not
+tracked. Scenario runners accept repository-relative inputs and existing
+environment overrides; the primary pack override is
+`PARALLEL_RDP_HIRES_CACHE_PATH`. Do not add machine names or personal
+checkout roots as product defaults.
 
-Related repos: [RetroArch](/home/auro/code/RetroArch) (`agent-control` branch),
-[papermario](/home/auro/code/papermario) (debug-only reference), and the private
-session-lab repo `parallel-n64-lab` (ADR-0017). Canonical local layout:
-[docs/WORKSPACE_PATHS.md](/home/auro/code/parallel-n64/docs/WORKSPACE_PATHS.md).
+Some legacy runners still contain overridable local fallbacks. Their portable
+consumer seams are tracked separately; new code must not copy those values.
 
-## Local Commands
+Pack source and conversion provenance lives in
+[Texture Pack Tracking](assets/TEXTURE_PACKS.md). Generated output belongs under
+`artifacts/`.
 
-- `./run-build.sh`
-- `./run-tests.sh --profile emu-required` — the required gate
-- `./run-tests.sh --profile emu-runtime-conformance` — lavapipe smoke + the Paper
-  Mario runtime authority lane (sets the runtime opt-in automatically; heavy,
-  occupies the display)
+## Repository Map
 
-See [EMU_TESTING.md](/home/auro/code/parallel-n64/docs/EMU_TESTING.md) for the test
-tiers, skip-vs-fail policy, and the on-demand SM64/OoT breadth lanes.
+- [ParaLLEl video implementation](mupen64plus-video-paraLLEl/)
+- [Libretro integration](libretro/libretro.c)
+- [Renderer behavior tests](tests/emulator_behavior/)
+- [Fixture manifests](tools/fixtures/)
+- [Scenario runners](tools/scenarios/)
+- [RetroArch adapters](tools/adapters/)
+- [Architecture decisions](docs/adr/README.md)
+- [Open technical issues](docs/ISSUE_LOG.md)
+
+The [documentation index](docs/README.md) is the shortest route to deeper
+material. Agent-specific commands and invariants are in [AGENTS.md](AGENTS.md).
+
+## Project Boundaries
+
+- This repository owns renderer/core behavior, fixture contracts, portable
+  adapters, and renderer evidence.
+- RetroArch owns generic frontend control, capture, state, and replay transport.
+- Eval scoring, private fleet scheduling, and gameplay/TAS research belong to
+  their respective external systems.
+- Nothing here may require a private orchestration repository to build or run.
+
+## Upstream And Licensing
+
+This repository descends from
+[libretro/parallel-n64](https://github.com/libretro/parallel-n64) through the
+[Parallel Launcher edition](https://gitlab.com/parallel-launcher/parallel-n64).
+That edition credits Matt Pharoah, Wiseguy, Aglab2, and devwizard64 for its
+fork-specific work. Additional component authors and licenses remain recorded
+beside their source.
+
+The tree contains components under multiple existing licenses. No new
+tree-wide license is asserted here; see [LICENSES.md](LICENSES.md) for the
+factual component map.

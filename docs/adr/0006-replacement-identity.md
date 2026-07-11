@@ -7,10 +7,9 @@
 
 N64 replacement identity is hard: TMEM is 4KB and layout-sensitive, TLUT/palette
 state changes the meaning of sampled data, and hash-only schemes from other
-consoles do not transfer. Attempt B tried to build a "native-sampled" identity
-that keyed replacements to the sampled N64 object, then drowned enriching it
-(see [docs/N64_EXACT_KEY_DELTA_SHEET.md](/home/auro/code/parallel-n64/docs/N64_EXACT_KEY_DELTA_SHEET.md)
-for the field-gap analysis from that era). The failed branch also drifted into
+consoles do not transfer. The discarded native-sampled design tried to include
+upload descriptors, TMEM windows, tile state, TLUT state, and sampled subrects
+in one identity, then stalled on runtime enrichment. The failed branch also drifted into
 permissive reinterpretation — mask/stride guesses, birth-family heuristics,
 alternate CRC candidates — "increasingly clever ways to justify a match".
 
@@ -45,5 +44,5 @@ convention (texture CRC + palette CRC over the render-tile view).
 
 ## Evidence
 
-- Reboot Plan "Identity Decision"; commits 7688c8d1, 979cdc98, 76892a69;
-  fallback-probe falsification in gameplay-campaign-011041/user-beats-low32.
+- commits `7688c8d1`, `979cdc98`, and `76892a69`;
+- the bounded low-32 fallback falsification experiment.

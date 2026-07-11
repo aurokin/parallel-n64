@@ -1,5 +1,9 @@
 # paraLLEl-RDP
 
+> This is a trimmed vendored source snapshot. The build, submodule, and tool
+> instructions below describe the standalone upstream repository and are kept
+> with the imported source; they are not the build entrypoint for parallel-n64.
+
 This project is a revival and complete rewrite of the old, defunct paraLLEl-RDP project.
 
 The goal is to implement the Nintendo 64 RDP graphics chip as accurately as possible using Vulkan compute.

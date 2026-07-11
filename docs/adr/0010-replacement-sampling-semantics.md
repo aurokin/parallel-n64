@@ -1,6 +1,6 @@
 # ADR-0010: Replacement sampling: sub-texel fp5, direct sampling, CPU mips, trilinear
 
-- Status: Accepted
+- Status: Accepted, amended
 - Date: 2026-06-10 (sequence of commits, each falsification-backed)
 
 ## Context
@@ -72,9 +72,8 @@ possible without modernizing the Vulkan backend.
 - Minification quality now depends on the CPU mip chain.
 - Later sampling work builds on replacement-texel space; the combine reduction is
   the template for future "replaced draws diverge deliberately" decisions.
-- The regen gate closed 2026-06-12 (Reboot Plan step 2): forced regens are
-  byte-identical to the committed header and a mutation canary proved the
-  pipeline live end-to-end, so shader probes (the strip-seam work) are unblocked.
+- Forced shader regenerations are byte-identical to the committed header, and
+  a mutation canary proved the pinned pipeline end-to-end.
 
 ## Evidence
 

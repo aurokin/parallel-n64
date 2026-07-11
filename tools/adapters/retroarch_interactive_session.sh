@@ -727,8 +727,8 @@ cmd_send() {
   # STEP_FRAME acks on ACCEPTANCE, not completion (agent-control patch 0001
   # writes the reply before the frames run). A raw send therefore returns
   # while the step burst is still draining — the PAUSED/PLAYING race that
-  # queued a step backlog and cost a session restart (EVAL_PROGRAM §14
-  # item 2). Block until the session re-reports PAUSED at the target frame,
+  # queued a step backlog and cost a session restart in a recorded run. Block
+  # until the session re-reports PAUSED at the target frame,
   # exactly like `input --frames` already does.
   local step_frames="" step_base=""
   if [[ "$COMMAND" =~ ^STEP_FRAME[[:space:]]+([0-9]+)[[:space:]]*$ ]]; then

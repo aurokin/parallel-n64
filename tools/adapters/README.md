@@ -1,95 +1,74 @@
-# Adapters
+# RetroArch Adapters
 
-This directory is for wrapper glue that connects this repo to external projects and local tooling.
+These adapters translate portable scenario operations into RetroArch's generic
+agent-control command surface. Renderer meaning and scene semantics stay in the
+core, fixture manifests, and scenario verification.
 
-Expected adapter targets include:
+## Entrypoints
 
-- RetroArch command/control helpers
-- local environment discovery
-- artifact collection and normalization
+- `retroarch_stdin_session.sh` — one batch session driven from a
+  command file.
+- `retroarch_interactive_session.sh` — a bounded live session
+  controlled through a FIFO.
+- `prepare_retroarch_mvk141_app.sh` — prepare an explicit macOS app
+  bundle for a compatible MoltenVK runtime.
+- `build_retroarch_agent_control_macos.sh` — build/deploy helper for
+  the agent-control frontend.
+- `promote_interactive_state.py` — legacy/manual state promotion.
+- `png_uniform_black.py` — exact black-capture detection.
 
-Current tracked adapter seeds:
+`vision_tools_mcp.py` is a legacy eval-specific shim pending migration to its
+owning system. It is not a renderer adapter and must not gain new consumers
+here.
 
-- [`retroarch_stdin_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_stdin_session.sh)
-- [`retroarch_interactive_session.sh`](/home/auro/code/parallel-n64/tools/adapters/retroarch_interactive_session.sh)
-- [`prepare_retroarch_mvk141_app.sh`](/home/auro/code/parallel-n64/tools/adapters/prepare_retroarch_mvk141_app.sh)
-- [`build_retroarch_agent_control_macos.sh`](/home/auro/code/parallel-n64/tools/adapters/build_retroarch_agent_control_macos.sh)
-- [`promote_interactive_state.py`](/home/auro/code/parallel-n64/tools/adapters/promote_interactive_state.py)
-- [`png_uniform_black.py`](/home/auro/code/parallel-n64/tools/adapters/png_uniform_black.py)
+Use each entrypoint's `--help` output for its current options.
 
-Higher-level TAS step/capture loops, Paper Mario probes, gameplay macros, and
-durable gameplay state indexes live in `parallel-n64-lab`.
+## Session Contract
 
-Current RetroArch adapter notes:
+- Refuse concurrent RetroArch processes and hold a host-local runtime lock.
+- Keep control serial over RetroArch stdin; do not create a daemon or listener.
+- Gate startup on `PING OK`.
+- Keep saves, options, logs, captures, and process metadata bundle-local.
+- Record an explicit session-end reason.
+- Bound interactive sessions with a TTL and terminate the process group on
+  teardown.
 
-- the adapter refuses to start if any other `retroarch` process is already running
-- the adapter now also holds a runtime lock so concurrent tracked launches cannot race past the singleton check
-- runtime launches are standardized for tracked capture; macOS launches are windowed by default with a 1920x1080 target so Computer Use can observe and operate RetroArch without fullscreen Spaces
-- commands are sent serially over the stdin command interface
-- `WAIT <seconds>` is a local adapter pseudo-command and is not forwarded to RetroArch
-- `WAIT_COMMAND_READY <timeout_seconds>` is a local adapter pseudo-command that waits for a `PING OK` reply from RetroArch before tracked command sequences proceed
-- `WAIT_STATUS_FRAME <state> <min_frame> <timeout_seconds>` is a local adapter pseudo-command for frame-aware waits based on `GET_STATUS`
-- `WAIT_CORE_MEMORY_HEX <address> <number_of_bytes> <expected_hex> <timeout_seconds>` is a local adapter pseudo-command for exact RAM-signature waits
-- `SNAPSHOT_CORE_MEMORY <label> <address> <number_of_bytes>` is a local adapter pseudo-command that captures a `READ_CORE_MEMORY` reply into a bundle trace file
-- the adapter disables RetroArch quit confirmation in its per-run appendconfig so a single tracked `QUIT` command exits deterministically
-- the adapter disables savestate thumbnails in its per-run appendconfig because that frontend path currently destabilizes ParaLLEl-RDP save-state runs
-- the adapter disables RetroArch widgets and screenshot/save-state notifications in tracked runs so capture bytes remain stable
-- the adapter writes bundle-local core options and points RetroArch at them so tracked runs can force a deterministic local core configuration
-- tracked Paper Mario runs currently force `video_driver = "vulkan"` and `PARALLEL_N64_GFX_PLUGIN_OVERRIDE=parallel` to keep the baseline on the intended ParaLLEl path
-- on macOS, prepare `artifacts/external/RetroArch-MVK141.app` with `tools/adapters/prepare_retroarch_mvk141_app.sh`; for `--mode on`, the runtime adapters prefer that app copy when it exists unless `--retroarch-bin` is passed explicitly, because the stock 1.2.8 MoltenVK bundle cannot run the hi-res Metal argument-buffer path
-- the agent-control RetroArch binary itself is rebuilt with `tools/adapters/build_retroarch_agent_control_macos.sh` (the recovered June recipe: metal+vulkan+coreaudio3 with homebrew paths pinned; `deploy` stages `/Applications/RetroArch.app` and refreshes the MVK141 copy); note the bare `retroarch` binary parks in the Cocoa event loop when launched outside an app bundle — always run/verify it from a bundle
-- for current Paper Mario hi-res gameplay evidence, export `PARALLEL_RDP_HIRES_CACHE_PATH=/Users/auro/code/parallel-n64/artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb` before launch; the metapod host config currently does not set that package path
-- on macOS `--mode off` keeps `PARALLEL_RDP_DISABLE_HIRES_SHADER=1`; `--mode on` defaults `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=1` only when the selected RetroArch binary is the prepared MVK141 app copy
-- the current RetroArch stdin agent command surface includes explicit pause, frame-step, savestate-load-paused, save-task wait, load-task wait, and input-port control commands
-- pause via `SET_PAUSE ON|OFF|TOGGLE`; use `ON` before frame-stepped agent play
-- the current RetroArch stdin command surface also includes `PING`, which is used only as a readiness probe for the adapter
-- tracked Paper Mario flows now use a log-gated startup handoff plus `WAIT_COMMAND_READY` instead of blind startup sleeps
-- when a core does not publish a libretro memory map, the local RetroArch build now falls back to `RETRO_MEMORY_SYSTEM_RAM` for `READ_CORE_MEMORY`
-- `SAVE_STATE` is asynchronous in RetroArch; tracked flows now use `WAIT_SAVE_STATE`, and save tasks should be sequenced before screenshot tasks when minting authoritative states
-- `LOAD_STATE_SLOT[_PAUSED]` only queues an async load; `WAIT_LOAD_STATE` drains the load task queue and replies `WAIT_LOAD_STATE DONE`, the load-completion barrier mirroring `WAIT_SAVE_STATE` — though the interactive adapter's `cmd_load_slot` is not yet wired to this barrier (still the racy start-signal; IL-19)
+Local pseudo-commands such as `WAIT_COMMAND_READY`,
+`WAIT_STATUS_FRAME`, memory waits, and memory snapshots are adapter
+operations; they are not frontend commands.
 
-Capture and end-of-session evidence hardening (both runtime adapters):
+## Deterministic Control
 
-- every completed capture is pixel-decoded (`png_uniform_black.py`, stdlib-only, exact — not a checksum heuristic); a uniformly black capture emits a warning and a `logs/capture.warnings.log` record but never fails the command, because black is legitimate mid-fade
-- the usual causes of black captures are a screenshot before the first presented frame after `LOAD_STATE_SLOT_PAUSED` (step at least one frame first) and GPU-backbuffer screenshots while presentation is suspended (`video_gpu_screenshot = "false"` reads the core framebuffer instead)
-- session end reasons are recorded in `logs/session.end-reason` so bundles explain their own truncation (explicit-fallback evidence contract)
+- Pause before deterministic play and step frames explicitly.
+- Use frame-counted input for replayable paths; wall-clock holds are
+  exploratory.
+- Pair `SAVE_STATE` with `WAIT_SAVE_STATE`.
+- Pair asynchronous state loading with `WAIT_LOAD_STATE` before
+  treating the state as resident.
+- Do not capture until at least one presented frame exists after a paused load.
 
-Interactive agent-play adapter notes (`retroarch_interactive_session.sh`):
+The interactive `load-slot` helper has not yet adopted the
+`WAIT_LOAD_STATE` barrier; [IL-19](../../docs/ISSUE_LOG.md#il-19-complete-load-slot-with-wait_load_state)
+tracks that bounded follow-up.
 
-- `start` keeps one session alive across agent turns: RetroArch runs in its own setsid process group, holds the same runtime flock as the batch adapter, and self-terminates after `--ttl-seconds` (default 3600) so a forgotten session can never become a daemon
-- a TTL grace watchdog sends `QUIT` ~30s (`RETROARCH_TTL_GRACE_SECONDS`) before the hard kill and records `ttl-grace-quit` in `logs/session.end-reason`, so the core's end-of-run summaries (e.g. the hi-res keying summary) flush instead of dying with the process; the hard `timeout` kill remains as the backstop
-- `start --savefile-source PATH` stages an explicit `.srm` or savefile directory into the bundle-local savefile directory before launch; use this for real gameplay file-select/loading tests
-- `send`/`input`/`screenshot`/`status`/`save-slot`/`load-slot` talk to the live session over the bundle FIFO; `stop` QUITs and falls back to killing the process group
-- `send` serializes its send+ack unit per bundle (`logs/send.lock`), so two processes (e.g. an eval scorer polling `READ_CORE_MEMORY` while the agent probes RAM) can share one session without misattributing replies; verified with a 2×30 parallel same-verb hammer test
-- the game runs in REAL TIME between agent commands; for deterministic play keep the session paused and use `input --frames N` (TAS-style: input held for exactly N stepped frames, proven bit-identical on replay), reserving `--hold-seconds` for menus/title screens
-- RetroPad mask bits include `A=0x100`, `B=0x1`, `START=0x8`, d-pad `UP=0x10 DOWN=0x20 LEFT=0x40 RIGHT=0x80`, `L=0x400`, `R=0x800`, `Z/L2=0x1000`, `R2=0x2000`, `L3=0x4000`, `R3=0x8000`; analog values are raw signed 16-bit values
-- `save-slot` tracks the active slot locally (STATE_SLOT_PLUS/MINUS are silent) and verifies the save log names the expected `.state<N>` file
-- screenshots are written asynchronously by RetroArch; the adapter waits for a non-empty, size-stable capture file before reporting its path
-- state loads can transiently fail while another frontend task is in flight; `load-slot` retries once before failing loudly
-- use `promote_interactive_state.py` only for legacy/manual promotion flows; new
-  gameplay durable states should be indexed and documented from
-  `parallel-n64-lab`.
+## Portable Inputs
 
-## Vision tools for text-only agents (eval program)
+Supply the RetroArch binary, core, ROM, state source, pack, output directory,
+and optional video-context driver through existing arguments or environment
+variables. Do not add hostnames or personal checkout roots as defaults.
 
-`vision_tools_mcp.py` is a stdio MCP shim exposing `describe_image(path)` and
-`locate_on_image(path, query)` to coding agents without image input (droid /
-opencode Go-tier models). It reads the LOCAL screenshot and uploads it to the
-vision-tools HTTP service on haste (`VISION_TOOLS_URL`, default
-`http://haste.home.arpa:8022`), which fronts qwen3.6-35b-a3b (grounded scene
-description, thinking disabled) and NVIDIA LocateAnything-3B (open-vocab boxes,
-returned in original-image pixel coords). Run with `uv run` (PEP 723 inline
-deps); wire-up snippets for droid `.factory/mcp.json` and opencode
-`opencode.json` are in the script docstring. The haste side lives in the
-`self-host-llm` repo (`scripts/vision-tools start`; `/describe` needs the
-qwen-multi profile up). While the vision models are serving, haste is a tools
-host, not a gameplay runner (see `docs/EVAL_PROGRAM.md`).
+For headless Vulkan, set
+`RETROARCH_VIDEO_CONTEXT_DRIVER=headless_vk` explicitly. That backend
+skips presentation and relies on readback evidence; it must never become an
+automatic fallback, and its feature-off baseline is distinct from a headed
+baseline.
 
-Adapters should translate between systems.
-They should not become the main source of truth for renderer correctness or scene semantics.
+## Evidence
 
-If an adapter starts carrying major project logic, move that logic into:
-
-- the relevant implementation repo
-- a fixture manifest
-- or a planning document under [`docs/`](/home/auro/code/parallel-n64/docs)
+- Screenshot completion waits for a non-empty, size-stable PNG.
+- Uniform-black detection records a warning but does not fail by itself because
+  a fade can legitimately be black.
+- State and capture operations fail loudly when acknowledgements or expected
+  files are absent.
+- Adapters record resolved input identities; they do not decide renderer
+  correctness.

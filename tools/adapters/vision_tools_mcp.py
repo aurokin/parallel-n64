@@ -27,7 +27,7 @@ opencode `opencode.json`:
 
 Env: VISION_TOOLS_URL overrides the service base URL.
 """
-import base64, json, os, urllib.request
+import base64, errno, json, os, time, urllib.error, urllib.request
 
 from mcp.server.fastmcp import FastMCP
 
@@ -35,15 +35,49 @@ BASE_URL = os.environ.get("VISION_TOOLS_URL", "http://haste.home.arpa:8022")
 
 mcp = FastMCP("vision-tools")
 
+_HEALTH_RETRY_DELAYS_SECONDS = (0.5, 1.0, 2.0)
+_RETRYABLE_HEALTH_ERRNOS = {
+    errno.ECONNREFUSED,
+    errno.ECONNRESET,
+    errno.EHOSTUNREACH,
+    errno.ENETUNREACH,
+}
+
+
+def _is_retryable_health_error(error: urllib.error.URLError) -> bool:
+    # HTTPError is also a URLError, but an HTTP response proves the route is
+    # working. Leave service failures visible to the caller.
+    if isinstance(error, urllib.error.HTTPError):
+        return False
+    reason = error.reason
+    return isinstance(reason, OSError) and reason.errno in _RETRYABLE_HEALTH_ERRNOS
+
+
+def _wait_for_route() -> None:
+    """Retry only the idempotent health request; never replay an image POST."""
+    req = urllib.request.Request(f"{BASE_URL}/health")
+    for attempt in range(len(_HEALTH_RETRY_DELAYS_SECONDS) + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=8) as response:
+                response.read()
+            return
+        except urllib.error.URLError as error:
+            if (attempt == len(_HEALTH_RETRY_DELAYS_SECONDS)
+                    or not _is_retryable_health_error(error)):
+                raise
+            time.sleep(_HEALTH_RETRY_DELAYS_SECONDS[attempt])
+    raise AssertionError("unreachable")
+
 
 def _post(endpoint: str, payload: dict, timeout: int) -> dict:
+    _wait_for_route()
     req = urllib.request.Request(
         f"{BASE_URL}{endpoint}",
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.load(r)
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return json.load(response)
 
 
 def _image_b64(image_path: str) -> str:

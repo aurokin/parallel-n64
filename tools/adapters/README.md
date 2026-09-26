@@ -17,9 +17,10 @@ core, fixture manifests, and scenario verification.
 - `promote_interactive_state.py` — legacy/manual state promotion.
 - `png_uniform_black.py` — exact black-capture detection.
 
-`vision_tools_mcp.py` is a legacy eval-specific shim pending migration to its
-owning system. It is not a renderer adapter and must not gain new consumers
-here.
+The eval-specific vision shim now belongs to `n64-agent-evals` at
+`harness/tools/vision_tools_mcp.py`. Eval exports copy it from that repository.
+Pinned historical exporters may retain a local compatibility copy; it is not
+part of this product tree.
 
 Use each entrypoint's `--help` output for its current options.
 

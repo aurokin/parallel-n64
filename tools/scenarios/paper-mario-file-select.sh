@@ -73,24 +73,24 @@ if [[ -z "$BUNDLE_DIR" ]]; then
   BUNDLE_DIR="$(scenario_default_bundle_dir "$REPO_ROOT" "$FIXTURE_ID" "$MODE")"
 fi
 
-ROM_PATH="$REPO_ROOT/assets/Paper Mario (USA).zip"
+ROM_PATH="${ROM_PATH:-$REPO_ROOT/assets/Paper Mario (USA).zip}"
 PACK_PATH="$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")"
-RETROARCH_PATH="/home/auro/code/RetroArch"
+RETROARCH_PATH="${RETROARCH_PATH:-}"
 AUTHORITY_GRAPH_PATH="$REPO_ROOT/tools/fixtures/paper-mario-authority-graph.yaml"
 AUTHORITY_NODE_ID="file_select_idle"
 BOOTSTRAP_PARENT_FIXTURE_ID="paper-mario-title-screen"
 REMINT_SCRIPT="tools/scenarios/remint-paper-mario-file-select-authority.sh"
-AUTHORITATIVE_STATE_PATH=""
+AUTHORITATIVE_STATE_PATH="${AUTHORITATIVE_STATE_PATH:-}"
 AUTHORITATIVE_STATE_PRESENT=0
 AUTHORITATIVE_STATE_SHA256="missing"
-BOOTSTRAP_STATE_PATH=""
+BOOTSTRAP_STATE_PATH="${BOOTSTRAP_STATE_PATH:-}"
 BOOTSTRAP_STATE_PRESENT=0
 BOOTSTRAP_STATE_SHA256="missing"
 AUTHORITY_MODE_USED="none"
 ACTIVE_STATE_PATH=""
 ACTIVE_STATE_SHA256="missing"
 PAPER_MARIO_SEMANTIC_JSON_REL="traces/paper-mario-game-status.json"
-SAVEFILE_PATH=""
+SAVEFILE_PATH="${SAVEFILE_PATH:-}"
 SAVEFILE_PRESENT=0
 SAVEFILE_SHA256="missing"
 EXPECTED_SCREENSHOT_SHA256=""

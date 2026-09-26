@@ -77,7 +77,7 @@ if [[ -z "$BUNDLE_DIR" ]]; then
   BUNDLE_DIR="$(scenario_default_bundle_dir "$REPO_ROOT" "$FIXTURE_ID" "$MODE")"
 fi
 
-ROM_PATH="$REPO_ROOT/assets/Paper Mario (USA).zip"
+ROM_PATH="${ROM_PATH:-$REPO_ROOT/assets/Paper Mario (USA).zip}"
 PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-}"
 if [[ "$MODE" == "on" && -z "$PACK_PATH" ]]; then
   PACK_PATH="$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")"
@@ -88,7 +88,7 @@ if [[ "$MODE" == "on" && -f "${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}" ]]; t
   BUNDLE_HIRES_PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
   BUNDLE_HIRES_PACK_SHA256="$(scenario_sha256_file "$BUNDLE_HIRES_PACK_PATH")"
 fi
-RETROARCH_PATH="/home/auro/code/RetroArch"
+RETROARCH_PATH="${RETROARCH_PATH:-}"
 MANIFEST="$REPO_ROOT/tools/fixtures/paper-mario-title-screen.yaml"
 PAPER_MARIO_SEMANTIC_JSON_REL="traces/paper-mario-game-status.json"
 

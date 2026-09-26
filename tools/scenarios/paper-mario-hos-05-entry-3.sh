@@ -74,7 +74,7 @@ fi
 
 ROM_PATH="$REPO_ROOT/assets/Paper Mario (USA).zip"
 PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")}"
-RETROARCH_PATH="/home/auro/code/RetroArch"
+RETROARCH_PATH="${RETROARCH_PATH:-}"
 AUTHORITY_GRAPH_PATH="$REPO_ROOT/tools/fixtures/paper-mario-authority-graph.yaml"
 AUTHORITY_NODE_ID="hos_05_entry_3_idle"
 BOOTSTRAP_PARENT_FIXTURE_ID="paper-mario-file-select"

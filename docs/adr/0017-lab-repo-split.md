@@ -22,8 +22,10 @@ the product repository confuses experiments with renderer authority.
 Promote an experimental tool here only when it becomes a portable product
 entrypoint with a focused gate.
 
-The existing `tools/adapters/vision_tools_mcp.py` is a migration exception,
-not precedent: it remains untouched until its eval consumer seam moves with it.
+The eval vision shim and its export consumer moved together to
+`n64-agent-evals/harness/tools/vision_tools_mcp.py` on 2026-09-26. The Paper Mario
+Tier 2 static scanner belongs to `parallel-n64-lab/tools/`. Neither is a
+renderer dependency.
 
 ## Consequences
 

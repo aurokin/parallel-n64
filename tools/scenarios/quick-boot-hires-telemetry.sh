@@ -12,7 +12,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CORE_PATH="$REPO_ROOT/parallel_n64_libretro.so"
-RETROARCH_BIN="/home/auro/code/RetroArch/retroarch"
+RETROARCH_BIN="${RETROARCH_BIN:-$(command -v retroarch || true)}"
 RETROARCH_OPT_FILE="$HOME/.config/retroarch/config/ParaLLEl N64/ParaLLEl N64.opt"
 
 ROM_PATH=""

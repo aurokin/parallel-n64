@@ -28,7 +28,7 @@ Options:
   --scene NAME        Scene recipe: title (default: title)
   --rom PATH          ROM (default: assets/Paper Mario (USA).zip)
   --core PATH         mupen64plus-next core
-                      (default: /home/auro/code/cores/mupen64plus_next_libretro.so)
+                      (required: --core PATH or GLIDEN64_CORE_PATH)
   --pack PATH         Legacy .hts pack
                       (default: assets/PAPER MARIO_HIRESTEXTURES.hts)
   --hires on|off      Enable hi-res textures (default: on)
@@ -39,7 +39,7 @@ EOF
 BUNDLE_DIR=""
 SCENE="title"
 ROM_PATH="$REPO_ROOT/assets/Paper Mario (USA).zip"
-CORE_PATH="/home/auro/code/cores/mupen64plus_next_libretro.so"
+CORE_PATH="${GLIDEN64_CORE_PATH:-}"
 PACK_PATH="$REPO_ROOT/assets/PAPER MARIO_HIRESTEXTURES.hts"
 HIRES="on"
 

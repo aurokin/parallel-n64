@@ -35,8 +35,8 @@ if [[ ! -f "$CORE_PATH" ]]; then
   exit 77
 fi
 
-RETROARCH_BIN="${RETROARCH_BIN:-/home/auro/code/RetroArch/retroarch}"
-RETROARCH_BASE_CONFIG="${RETROARCH_BASE_CONFIG:-/home/auro/code/RetroArch/retroarch.cfg}"
+RETROARCH_BIN="${RETROARCH_BIN:-$(command -v retroarch || true)}"
+RETROARCH_BASE_CONFIG="${RETROARCH_BASE_CONFIG:-}"
 if [[ ! -x "$RETROARCH_BIN" ]]; then
   echo "SKIP: RetroArch binary not found at $RETROARCH_BIN."
   exit 77

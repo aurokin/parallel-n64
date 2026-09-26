@@ -27,8 +27,26 @@ environment overrides. Supply the RetroArch binary, core, ROM, states, pack,
 and output root explicitly when repository-relative staging is unavailable.
 Do not introduce host-specific defaults.
 
-Use `RUNTIME_ENV_OVERRIDE=/absolute/path/to/runtime.env` only for a
-temporary experiment. Evidence must record the resolved values.
+The tracked `.runtime.env` files hold portable fixture defaults and assertions.
+They locate staged assets relative to their own checkout and do not identify a
+private host. Supply `RETROARCH_BIN` (otherwise discovered on `PATH`) and
+`RETROARCH_BASE_CONFIG` explicitly; no desktop configuration is selected for you.
+
+For machine configuration, keep a file outside the repository and select it
+with `RUNTIME_ENV_OVERRIDE=/absolute/path/to/runtime.env`. Source the appropriate
+tracked fixture first, then override local paths, for example:
+
+```sh
+source "$PARALLEL_N64_ROOT/tools/scenarios/paper-mario-title-screen.runtime.env"
+RETROARCH_BIN="/absolute/path/to/retroarch"
+RETROARCH_BASE_CONFIG="/absolute/path/to/deterministic-retroarch.cfg"
+ROM_PATH="/absolute/path/to/Paper Mario (USA).zip"
+```
+
+Keep fixture assertions unchanged unless intentionally defining a new condition.
+Evidence must record the resolved values. Runtime conformance uses the tracked
+fixture files and accepts exported path overrides; it does not consume an
+individual scenario's `RUNTIME_ENV_OVERRIDE` file.
 
 ## Active Entry Points
 

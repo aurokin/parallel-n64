@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 
-SOURCE_PATH="/home/auro/.config/retroarch/saves/ParaLLEl N64/Paper Mario (USA).srm"
+SOURCE_PATH="${SOURCE_PATH:-}"
 OUTPUT_PATH="$REPO_ROOT/assets/savefiles/paper-mario-local/ParaLLEl N64/Paper Mario (USA).srm"
 
 usage() {

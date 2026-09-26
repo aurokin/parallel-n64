@@ -50,8 +50,9 @@ environment overrides; the primary pack override is
 `PARALLEL_RDP_HIRES_CACHE_PATH`. Do not add machine names or personal
 checkout roots as product defaults.
 
-Some legacy runners still contain overridable local fallbacks. Their portable
-consumer seams are tracked separately; new code must not copy those values.
+RetroArch is discovered on `PATH` unless explicitly selected. Deterministic
+scenarios require `RETROARCH_BASE_CONFIG`; they do not use a personal desktop
+configuration. See [scenario configuration](tools/scenarios/README.md#portable-inputs).
 
 Pack source and conversion provenance lives in
 [Texture Pack Tracking](assets/TEXTURE_PACKS.md). Generated output belongs under

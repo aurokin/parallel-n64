@@ -46,21 +46,10 @@ require_runtime_env_prereqs() {
 
   local bin_path base_cfg core_path rom_path authoritative_state_path
   bin_path="$(
-    ENV_PATH="$env_path" python3 - <<'PY'
-import os
-from pathlib import Path
-
-env_path = Path(os.environ["ENV_PATH"])
-values = {}
-for raw in env_path.read_text().splitlines():
-    line = raw.strip()
-    if not line or line.startswith("#") or "=" not in line:
-        continue
-    key, value = line.split("=", 1)
-    values[key] = value.strip().strip('"')
-for key in ("RETROARCH_BIN", "RETROARCH_BASE_CONFIG", "CORE_PATH", "ROM_PATH", "AUTHORITATIVE_STATE_PATH"):
-    print(values.get(key, ""))
-PY
+    # Resolve the same shell defaults as the scenario instead of parsing literals.
+    source "$env_path"
+    printf '%s\n' "${RETROARCH_BIN:-}" "${RETROARCH_BASE_CONFIG:-}" \
+      "${CORE_PATH:-}" "${ROM_PATH:-}" "${AUTHORITATIVE_STATE_PATH:-}"
   )"
 
   mapfile -t prereq_paths <<<"$bin_path"

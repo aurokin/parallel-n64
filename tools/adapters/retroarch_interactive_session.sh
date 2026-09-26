@@ -150,7 +150,7 @@ default_retroarch_bin() {
       return
     fi
   fi
-  echo "/home/auro/code/RetroArch/retroarch"
+  command -v retroarch || true
 }
 
 prefer_macos_hires_retroarch_bin() {
@@ -171,12 +171,8 @@ prefer_macos_hires_retroarch_bin() {
 }
 
 default_base_config() {
-  local mac_config="${HOME:-}/code/RetroArch/retroarch.cfg"
-  if is_darwin && [[ -f "$mac_config" ]]; then
-    echo "$mac_config"
-  else
-    echo "/home/auro/code/RetroArch/retroarch.cfg"
-  fi
+  # Deterministic runs require a caller-selected config, not a desktop config.
+  printf '%s\n' "${RETROARCH_BASE_CONFIG:-}"
 }
 
 apply_macos_runtime_defaults() {

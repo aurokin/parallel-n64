@@ -3,9 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-DEFAULT_RETROARCH="/home/auro/code/RetroArch/retroarch"
+DEFAULT_RETROARCH="$(command -v retroarch || true)"
 DEFAULT_CORE="$REPO_ROOT/parallel_n64_libretro.so"
-DEFAULT_ROM="/home/auro/code/n64_roms/Paper Mario (USA).zip"
+DEFAULT_ROM="$REPO_ROOT/assets/Paper Mario (USA).zip"
 
 retroarch_bin="${RETROARCH_BIN:-$DEFAULT_RETROARCH}"
 core_path="${CORE_PATH:-$DEFAULT_CORE}"
@@ -22,7 +22,7 @@ Usage:
 
 Options:
   --output PATH        Output .rdp path (required)
-  --rom PATH           ROM path (default: Paper Mario in ~/code/n64_roms)
+  --rom PATH           ROM path (default: Paper Mario under assets/)
   --core PATH          Libretro core path (default: ./parallel_n64_libretro.so)
   --retroarch PATH     RetroArch binary path
   --frames N           Max frames to run before exit (default: 180)

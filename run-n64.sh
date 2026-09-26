@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_RETROARCH="/home/auro/code/RetroArch/retroarch"
-DEFAULT_ROM_DIR="/home/auro/code/n64_roms"
+DEFAULT_RETROARCH="$(command -v retroarch || true)"
+DEFAULT_ROM_DIR="$SCRIPT_DIR/assets"
 DEFAULT_ROM_NAME="Paper Mario (USA).zip"
 REFERENCE_CORE="$SCRIPT_DIR/builds/parallel_n64_libretro.reference.so"
 
@@ -24,7 +24,7 @@ Options:
   --reference         Use reference core build (builds/parallel_n64_libretro.reference.so)
   --core PATH         Use an explicit core path
   --retroarch PATH    Use an explicit RetroArch binary path
-  --rom-dir PATH      ROM base directory for relative ROM paths (default: /home/auro/code/n64_roms)
+  --rom-dir PATH      ROM base directory for relative ROM paths (default: assets/ under this checkout)
   --menu              Launch RetroArch menu without content
   --list-cores        Print discovered non-reference core builds
   -h, --help          Show this help

@@ -14,8 +14,8 @@ VERIFY_SETTLE_FRAMES=3
 STARTUP_WAIT=8
 EXPECTED_VERIFY_CAPTURE_SHA256=""
 ALLOW_UNVERIFIED=0
-RETROARCH_BIN="${RETROARCH_BIN:-/home/auro/code/RetroArch/retroarch}"
-RETROARCH_BASE_CONFIG="${RETROARCH_BASE_CONFIG:-/home/auro/code/RetroArch/retroarch.cfg}"
+RETROARCH_BIN="${RETROARCH_BIN:-$(command -v retroarch || true)}"
+RETROARCH_BASE_CONFIG="${RETROARCH_BASE_CONFIG:-}"
 CORE_PATH="${CORE_PATH:-$REPO_ROOT/parallel_n64_libretro.so}"
 RUNTIME_ADAPTER="${RUNTIME_ADAPTER:-$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh}"
 

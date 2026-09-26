@@ -18,8 +18,8 @@ MIN_CI_HITS=0
 CI_COMPAT=0
 EXPECTED_SOURCE_MODE="phrb-only"
 EXPECTED_ENTRY_CLASS=""
-RETROARCH_BIN="${RETROARCH_BIN:-/home/auro/code/RetroArch/retroarch}"
-RETROARCH_BASE_CONFIG="${RETROARCH_BASE_CONFIG:-/home/auro/code/RetroArch/retroarch.cfg}"
+RETROARCH_BIN="${RETROARCH_BIN:-$(command -v retroarch || true)}"
+RETROARCH_BASE_CONFIG="${RETROARCH_BASE_CONFIG:-}"
 CORE_PATH="${CORE_PATH:-$REPO_ROOT/parallel_n64_libretro.so}"
 REUSE=0
 

@@ -23,3 +23,20 @@ This table is a navigation aid, not a complete software-bill-of-materials.
 Files may carry narrower or different headers than their containing directory.
 Resolve per-file provenance before making a tree-wide licensing claim or
 redistributing a binary.
+
+## Retained build payloads
+
+`libretro/msvc/msvc-2013/nasm.exe` is an inherited Windows assembler executable.
+Its exact upstream release and redistribution notice have not been established
+by the September 28 source audit; do not infer that its license follows the
+surrounding emulator code. Resolve its provenance before distributing a new
+binary bundle containing it.
+
+`mupen64plus-core/tools/m64p_helper_scripts.tar.gz` contains six shell helpers
+for fetching, building, installing, testing, updating and uninstalling the
+upstream core. It is source tooling, not a game-asset archive. Its scripts still
+require their own provenance review before a complete redistribution claim.
+
+Generated shader source is tracked in `slangmosh.hpp`; its size alone does not
+make it a game asset. ROMs, texture packs, save states and runtime captures are
+operator-supplied inputs and are not part of the source-only build.

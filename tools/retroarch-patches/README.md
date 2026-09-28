@@ -21,20 +21,34 @@ semantics.
 client must issue it after `LOAD_STATE_SLOT_PAUSED` when completion
 matters.
 
-## Apply
+## Maintained frontend versus historical patch series
 
-Set `RETROARCH_ROOT` to a RetroArch checkout and apply the series in
-order:
+Use `aurokin/RetroArch:agent-control` for the maintained frontend, including
+headless Vulkan and platform fixes. These ten patches reconstruct the older
+stdin-control feature series only. They do not reconstruct the complete
+maintained branch, and applying them does not qualify a headless or macOS runner.
+
+On September 28, 2026, all ten patches applied in order to base
+`4d9e2ebf280c22fbf1ed85c8a030ca8af03ffd63`. Compared with maintained revision
+`159dac03a8`, the reconstructed tree lacks the headless Vulkan context and
+subsequent frontend/build/platform fixes. These hashes identify the comparison,
+not a promise that a moving upstream branch accepts the same patches.
+
+## Reconstruct the historical series
+
+For research into the historical stdin feature series, set `RETROARCH_ROOT`
+to an isolated RetroArch checkout containing the recorded base, then apply
+in order:
 
 ```sh
-git -C "$RETROARCH_ROOT" checkout -b agent-control upstream/master
+git -C "$RETROARCH_ROOT" checkout -b historical-stdin-series 4d9e2ebf280c22fbf1ed85c8a030ca8af03ffd63
 git -C "$RETROARCH_ROOT" am \
   "$PWD"/tools/retroarch-patches/*.patch
 ```
 
-The maintained public branch is `aurokin/RetroArch:agent-control`.
-Patch files remain the portable reconstruction path; a commit hash is evidence,
-not a permanent installation path.
+Keep this reconstruction separate from the maintained frontend and existing
+runtime artifacts. A successfully applied patch series is source evidence;
+it is not runtime-equivalence evidence.
 
 ## Build And Verify
 

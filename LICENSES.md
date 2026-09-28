@@ -26,16 +26,22 @@ redistributing a binary.
 
 ## Retained build payloads
 
-`libretro/msvc/msvc-2013/nasm.exe` is an inherited Windows assembler executable.
-Its exact upstream release and redistribution notice have not been established
-by the September 28 source audit; do not infer that its license follows the
-surrounding emulator code. Resolve its provenance before distributing a new
-binary bundle containing it.
+`libretro/msvc/msvc-2013/nasm.exe` is NASM 2.12.01 for Windows x64. Its
+SHA-256 is `699fd438f0bacf284d47eadc87a2370e86159089283ed8f86b03041457dea61f`,
+identical to `nasm-2.12.01/nasm.exe` in the
+[official release archive](https://www.nasm.us/pub/nasm/releasebuilds/2.12.01/win64/nasm-2.12.01-win64.zip).
+The archive SHA-256 is
+`1c8f4d5aeb48f68f89f5f7dc7673862f78868787e89cf7688ec7ac0e1941dd42`.
+Its upstream BSD-2-Clause notice is retained in
+[`LICENSE.nasm`](libretro/msvc/msvc-2013/LICENSE.nasm), with only line endings
+and trailing whitespace normalized. Provenance was checked September 28, 2026.
 
 `mupen64plus-core/tools/m64p_helper_scripts.tar.gz` contains six shell helpers
 for fetching, building, installing, testing, updating and uninstalling the
-upstream core. It is source tooling, not a game-asset archive. Its scripts still
-require their own provenance review before a complete redistribution claim.
+upstream core. Each declares Copyright 2009 Richard Goedeken and
+GPL-2.0-or-later in its header. It is source tooling, not a game-asset archive;
+the existing component license is at
+[`mupen64plus-core/LICENSES`](mupen64plus-core/LICENSES).
 
 Generated shader source is tracked in `slangmosh.hpp`; its size alone does not
 make it a game asset. ROMs, texture packs, save states and runtime captures are

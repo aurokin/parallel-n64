@@ -24,6 +24,7 @@ LOCK_FILE="${TMPDIR:-/tmp}/parallel-n64-retroarch-runtime.lock"
 usage() {
   cat <<'EOF'
 Usage:
+  retroarch_interactive_session.sh check-frontend --retroarch-bin PATH
   retroarch_interactive_session.sh start --bundle-dir D --rom R --core C [options]
   retroarch_interactive_session.sh send --bundle-dir D --command "CMD" [--ack-timeout SEC]
   retroarch_interactive_session.sh input --bundle-dir D --mask HEX [--port N] [--hold-seconds SEC | --frames N] [--analog "lx ly rx ry"]
@@ -366,6 +367,69 @@ ack_for_command() {
   esac
 }
 
+# An invalid --command prints the compiled command table before any network
+# send or content initialization. Do not probe by sending a real load/barrier.
+check_frontend_load_barrier() {
+  python3 - "$1" <<'PYTHON'
+import os
+import re
+import subprocess
+import sys
+
+binary = sys.argv[1]
+status = "missing"
+if binary and os.path.isfile(binary) and os.access(binary, os.X_OK):
+    try:
+        result = subprocess.run(
+            [binary, "--verbose", "--command", "__N64_ADAPTER_LIST_COMMANDS__"],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+        lines = (result.stdout + result.stderr).splitlines()
+        # Require the actual NetCMD table, not incidental mentions in errors.
+        table = []
+        in_table = False
+        for line in lines:
+            match = re.fullmatch(r"(?:\[ERROR\]\s+)?\[NetCMD\]\s+(.+?)\s*", line)
+            if not match:
+                continue
+            entry = match.group(1)
+            if entry == "Valid commands:":
+                in_table = True
+            elif in_table:
+                table.append(entry)
+        required = {
+            "LOAD_STATE_SLOT <slot number>",
+            "LOAD_STATE_SLOT_PAUSED <slot number>",
+            "WAIT_LOAD_STATE No argument",
+        }
+        if result.returncode == 1:
+            status = "ready" if required.issubset(table) else "unsupported"
+        else:
+            status = "probe-error"
+    except subprocess.TimeoutExpired:
+        status = "timeout"
+    except (OSError, UnicodeError):
+        status = "probe-error"
+print(f"FRONTEND_LOAD_BARRIER={status}")
+if status != "ready":
+    print("Frontend load barrier unavailable; use a build advertising LOAD_STATE_SLOT, "
+          "LOAD_STATE_SLOT_PAUSED, and WAIT_LOAD_STATE.", file=sys.stderr)
+    sys.exit(1)
+PYTHON
+}
+
+cmd_check_frontend() {
+  local binary=""
+  while (($#)); do
+    case "$1" in
+      --retroarch-bin) shift; binary="${1:-}" ;;
+      *) echo "Unknown check-frontend option." >&2; return 2 ;;
+    esac
+    shift
+  done
+  check_frontend_load_barrier "$binary"
+}
+
 cmd_start() {
   local DEFAULT_RETROARCH_BIN DEFAULT_BASE_CONFIG
   DEFAULT_RETROARCH_BIN="$(default_retroarch_bin)"
@@ -428,6 +492,7 @@ cmd_start() {
     echo "Extra append config not found: $EXTRA_APPEND_CONFIG" >&2
     exit 1
   fi
+  check_frontend_load_barrier "$RETROARCH_BIN" >/dev/null
   apply_macos_runtime_defaults "$MODE" "$RETROARCH_BIN"
 
   # Same singleton rule as the batch adapter.
@@ -1103,27 +1168,47 @@ cmd_load_slot() {
   fi
   require_live_session
 
+  # Read the recorded path as data: paths containing spaces must not be sourced
+  # as shell code. Refuse an unidentifiable/old session before changing its state.
+  local binary=""
+  if [[ -f "$SESSION_ENV" ]]; then
+    binary="$(sed -n 's/^RETROARCH_BIN=//p' "$SESSION_ENV")"
+  fi
+  check_frontend_load_barrier "$binary" >/dev/null
+
   local verb="LOAD_STATE_SLOT"
   (( PAUSED )) && verb="LOAD_STATE_SLOT_PAUSED"
-  # State loads can transiently fail while another frontend task (e.g. a
-  # screenshot) is still in flight; retry once before failing loudly.
-  local attempt start_bytes
+  local attempt start_bytes barrier_bytes load_log
   for attempt in 1 2; do
     start_bytes="$(log_size_bytes)"
     send_fifo "$verb $SLOT"
-    if wait_for_log_pattern_after "$start_bytes" "[State] Loading state" 15; then
-      sleep 0.5
-      if tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -q "\\[State\\] Failed to load state"; then
-        (( attempt == 1 )) && sleep 1
-        continue
-      fi
-      echo "[interactive] loaded slot $SLOT"
-      return 0
+    if ! wait_for_log_pattern_after "$start_bytes" "$verb $SLOT" 15; then
+      echo "$verb acknowledgement timed out; load outcome unknown, not retried." >&2
+      return 1
     fi
-    (( attempt == 1 )) && sleep 1
+    barrier_bytes="$(log_size_bytes)"
+    send_fifo "WAIT_LOAD_STATE"
+    if ! wait_for_log_pattern_after "$barrier_bytes" "WAIT_LOAD_STATE DONE" 15; then
+      echo "WAIT_LOAD_STATE DONE timed out; load outcome unknown, not retried." >&2
+      return 1
+    fi
+    # DONE means the task drained, not that deserialization succeeded. Inspect
+    # only this attempt after the barrier; an old DONE/failure cannot satisfy it.
+    load_log="$(tail -c +"$((start_bytes + 1))" "$RA_LOG")"
+    if [[ "$load_log" == *"[State] Failed to load state"* ]]; then
+      # Other frontend tasks (for example screenshots) may still be busy.
+      (( attempt == 1 )) && sleep 1
+      continue
+    fi
+    if [[ "$load_log" != *"[State] Loading state"* ]]; then
+      echo "$verb completed without a state-load record; refusing to report success." >&2
+      return 1
+    fi
+    echo "[interactive] loaded slot $SLOT"
+    return 0
   done
-  echo "$verb not acknowledged after retry." >&2
-  exit 1
+  echo "$verb failed to load state after retry." >&2
+  return 1
 }
 
 cmd_stop() {
@@ -1254,6 +1339,7 @@ cmd_doctor() {
 SUBCOMMAND="${1:-}"
 shift || true
 case "$SUBCOMMAND" in
+  check-frontend) cmd_check_frontend "$@" ;;
   start) cmd_start "$@" ;;
   send) cmd_send "$@" ;;
   input) cmd_input "$@" ;;

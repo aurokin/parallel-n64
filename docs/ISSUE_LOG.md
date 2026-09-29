@@ -21,17 +21,36 @@ Acceptance:
 
 ## IL-19: Complete `load-slot` with `WAIT_LOAD_STATE`
 
-Status: queued implementation follow-up.
+Status: implemented; frontend rollout must pass capability preflight.
 
-RetroArch provides `WAIT_LOAD_STATE DONE` after draining the
-asynchronous load task. The interactive adapter's `cmd_load_slot` still
-treats the load-start log as completion and waits a fixed interval before
-checking failure.
+`load-slot` now waits for the load command acknowledgement, then sends
+`WAIT_LOAD_STATE` and requires a fresh `WAIT_LOAD_STATE DONE` before returning.
+It checks this attempt's load record and failure log after the barrier because
+DONE only reports task completion, not successful deserialization. The fixed
+completion delay is removed. An explicit failed load may retry once after the
+barrier and a one-second contention backoff. Acknowledgement or barrier timeout
+leaves the outcome unknown and fails without another load.
 
-Required change:
+`check-frontend --retroarch-bin PATH` probes the compiled command table with
+`--verbose` and an invalid `--command` operand (no content launch or command
+transmission), with a five-second timeout. It prints `FRONTEND_LOAD_BARRIER=ready` and exits zero only when
+both load verbs and `WAIT_LOAD_STATE` are advertised. Failures report `missing`,
+`unsupported`, `timeout`, or `probe-error` and exit nonzero, without exposing
+binary diagnostics or private paths. `start` runs this check before creating a
+session; `load-slot` repeats it against the recorded session binary before
+sending a load or barrier. An absent recorded binary fails closed.
 
-- send `WAIT_LOAD_STATE` after the load acknowledgement;
-- wait for `WAIT_LOAD_STATE DONE` before returning;
-- remove the fixed completion delay;
-- fail clearly when the frontend lacks the command;
-- cover success, failed load, and missing-command behavior with focused tests.
+The display-free `emu.support.interactive_load_contract` test exercises the
+actual adapter FIFO/log path with a fake frontend: delayed completion and
+failure, explicit retry, missing load record, stale logs, acknowledgement and
+barrier timeout, unsupported frontend, and start preflight. It does not qualify
+a deployed frontend or resolve IL-3's separate post-load input pathology.
+
+A bounded Linux headless Vulkan check on September 29, 2026 passed real slot-4
+restoration, input/frame stepping and capture, explicit missing-slot failure,
+successful recovery, and clean shutdown. The separately recorded runtime receipt
+pins the frontend and adapter bytes. The capability probe also exposed a
+command-only teardown crash fixed in the frontend owner before qualification.
+Rollback keeps the preceding adapter and its matching frontend together; do not
+substitute this adapter into an unqualified frozen runtime. No renderer/core
+behavior or benchmark scoring changed.

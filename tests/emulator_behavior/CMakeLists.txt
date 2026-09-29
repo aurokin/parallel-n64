@@ -1,4 +1,9 @@
 add_test(
+  NAME emu.support.interactive_load_contract
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_interactive_load_contract.py"
+)
+
+add_test(
   NAME emu.support.runtime_paths_contract
   COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_runtime_paths_contract.py"
 )

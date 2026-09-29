@@ -13,6 +13,9 @@ assert a new license for the repository as a whole.
 | ParaLLEl RSP | [`mupen64plus-rsp-paraLLEl/LICENSE`](mupen64plus-rsp-paraLLEl/LICENSE): dual MIT or LGPLv3 |
 | GNU Lightning bundled with ParaLLEl RSP | [`lightning/COPYING`](mupen64plus-rsp-paraLLEl/lightning/COPYING) and [`lightning/COPYING.LESSER`](mupen64plus-rsp-paraLLEl/lightning/COPYING.LESSER): GPLv3 or LGPLv3 as described by the component |
 | Vendored paraLLEl-RDP project-owned code | [`mupen64plus-video-paraLLEl/parallel-rdp/LICENSE`](mupen64plus-video-paraLLEl/parallel-rdp/LICENSE): MIT; imported headers and third-party code retain their own notices, including Apache-2.0 SPIRV-Cross/Vulkan material and MIT-licensed volk |
+| Rice inherited code | Headed source such as [`Video.cpp`](gles2rice/src/Video.cpp) declares GPL-2-or-later; metadata, unheaded imports and contribution rights have separately recorded limits |
+| Glide64/Glitch64 inherited renderer code | Headed sources declare GPL-2-or-later; the imported Glide API header has separate [3dfx terms](glide2gl/LICENSE.glide), not a blanket GNU GPL declaration |
+| Angrylion imported rasterizer/Plus ancestry | Recovered [MAME terms](<mupen64plus-video-angrylion/MAME License.txt>) and [credits](mupen64plus-video-angrylion/CREDITS.txt), including noncommercial, complete-source and notice conditions; aggregate/build compatibility remains unresolved |
 
 The fork lineage is
 [libretro/parallel-n64](https://github.com/libretro/parallel-n64) followed by
@@ -23,6 +26,11 @@ This table is a navigation aid, not a complete software-bill-of-materials.
 Files may carry narrower or different headers than their containing directory.
 Resolve per-file provenance before making a tree-wide licensing claim or
 redistributing a binary.
+
+The [September 29 component provenance record](docs/COMPONENT_PROVENANCE.md)
+identifies imports, removed notices, byte matches and unresolved exceptions.
+Notice restoration preserves existing upstream declarations; it does not
+relicense the fork or clear all source/binary distribution requirements.
 
 ## Retained build payloads
 

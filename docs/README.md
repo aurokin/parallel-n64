@@ -6,6 +6,8 @@
   policy. Read the decision spine first.
 - [Texture pack tracking](../assets/TEXTURE_PACKS.md) — source, format, and
   conversion provenance.
+- [Component provenance](COMPONENT_PROVENANCE.md) — recovered import notices
+  and unresolved source/distribution questions; see also [LICENSES.md](../LICENSES.md).
 
 ## Verification
 

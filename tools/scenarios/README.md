@@ -48,6 +48,26 @@ Evidence must record the resolved values. Runtime conformance uses the tracked
 fixture files and accepts exported path overrides; it does not consume an
 individual scenario's `RUNTIME_ENV_OVERRIDE` file.
 
+The title-screen scenario resolves `RUNTIME_ENV_OVERRIDE` before selecting a
+fallback pack or staging its bundle. `PARALLEL_RDP_HIRES_CACHE_PATH` takes
+precedence over repository-staged pack discovery; feature-off needs no pack.
+`RETROARCH_BIN` is the explicit frontend input for this scenario. The existing
+tracked fixture and exported overrides remain the standalone path when private
+workspace mappings are removed.
+
+```sh
+RETROARCH_BIN="/absolute/path/to/retroarch" \
+RUNTIME_ENV_OVERRIDE="/absolute/path/to/runtime.env" \
+  tools/scenarios/paper-mario-title-screen.sh --mode on --check-inputs
+```
+
+`--check-inputs` checks required files and frontend executability, prints resolved
+paths and SHA-256 identities as JSON, then exits without creating a bundle or
+calling an adapter. It cannot be combined with `--run`. This is input validation,
+not frontend capability, pack-content, or renderer correctness validation. Runtime
+env files are trusted operator shell configuration and are sourced even during
+this check; do not use an untrusted file. Keep fixture assertions unchanged.
+
 ## Active Entry Points
 
 | Purpose | Entrypoint |

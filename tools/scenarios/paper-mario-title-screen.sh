@@ -9,6 +9,7 @@ FIXTURE_ID="paper-mario-title-screen"
 MODE="off"
 AUTHORITY_MODE="auto"
 DRY_RUN=1
+CHECK_INPUTS=0
 BUNDLE_DIR=""
 RUNTIME_ENV="${RUNTIME_ENV_OVERRIDE:-$SCRIPT_DIR/paper-mario-title-screen.runtime.env}"
 
@@ -23,6 +24,7 @@ Options:
                       State selection mode (default: auto)
   --bundle-dir PATH   Output bundle directory
   --run               Reserve bundle and continue toward runtime execution
+  --check-inputs      Validate and report resolved inputs without staging or runtime
   -h, --help          Show this help
 
 Notes:
@@ -61,6 +63,9 @@ while (($#)); do
     --run)
       DRY_RUN=0
       ;;
+    --check-inputs)
+      CHECK_INPUTS=1
+      ;;
     -h|--help)
       usage
       exit 0
@@ -74,12 +79,17 @@ while (($#)); do
   shift
 done
 
+if (( CHECK_INPUTS && ! DRY_RUN )); then
+  echo "--check-inputs cannot be combined with --run." >&2
+  exit 2
+fi
+
 if [[ -z "$BUNDLE_DIR" ]]; then
   BUNDLE_DIR="$(scenario_default_bundle_dir "$REPO_ROOT" "$FIXTURE_ID" "$MODE")"
 fi
 
 ROM_PATH="${ROM_PATH:-$REPO_ROOT/assets/Paper Mario (USA).zip}"
-PACK_PATH="$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")"
+PACK_PATH=""
 RETROARCH_PATH="${RETROARCH_PATH:-}"
 AUTHORITY_GRAPH_PATH="$REPO_ROOT/tools/fixtures/paper-mario-authority-graph.yaml"
 AUTHORITY_NODE_ID="title_screen_idle"
@@ -96,6 +106,63 @@ SAVEFILE_SHA256="missing"
 EXPECTED_SCREENSHOT_SHA256=""
 EXPECTED_INIT_SYMBOL=""
 EXPECTED_STEP_SYMBOL=""
+
+# Resolve the caller's configuration before selecting a fallback pack or writing
+# evidence. A relocated checkout may have no repository-staged runtime assets.
+if [[ ! -f "$RUNTIME_ENV" || ! -r "$RUNTIME_ENV" ]]; then
+  echo "Title runtime configuration is not a readable file: $RUNTIME_ENV" >&2
+  exit 2
+fi
+scenario_source_runtime_env "$RUNTIME_ENV"
+if [[ "$MODE" == "on" ]]; then
+  PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-${PACK_PATH:-$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")}}"
+fi
+
+if (( CHECK_INPUTS || ! DRY_RUN )); then
+  if [[ "$MODE" == "on" ]]; then
+    scenario_require_phrb_runtime_cache "$PACK_PATH"
+  fi
+  for input in RETROARCH_BIN RETROARCH_BASE_CONFIG CORE_PATH ROM_PATH; do
+    if [[ -z "${!input:-}" || ! -f "${!input}" || ! -r "${!input}" ]]; then
+      echo "Title input $input must name a readable file." >&2
+      exit 2
+    fi
+  done
+  if [[ ! -x "$RETROARCH_BIN" ]]; then
+    echo "Title input RETROARCH_BIN must be executable." >&2
+    exit 2
+  fi
+  if [[ "$MODE" == "on" && ( ! -f "$PACK_PATH" || ! -r "$PACK_PATH" ) ]]; then
+    echo "Title input PARALLEL_RDP_HIRES_CACHE_PATH must name a readable .phrb file." >&2
+    exit 2
+  fi
+  if [[ "$AUTHORITY_MODE" == "authoritative" && ! -f "${AUTHORITATIVE_STATE_PATH:-}" ]]; then
+    echo "[scenario] authoritative title-screen state is required." >&2
+    exit 1
+  fi
+fi
+
+if (( CHECK_INPUTS )); then
+  python3 - "$MODE" "$RETROARCH_BIN" "$RETROARCH_BASE_CONFIG" "$CORE_PATH" "$ROM_PATH" "$PACK_PATH" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+inputs = {}
+for name, value in zip(("frontend", "base_config", "core", "rom", "pack"), sys.argv[2:]):
+    if not value:
+        inputs[name] = None
+        continue
+    digest = hashlib.sha256()
+    with Path(value).open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    inputs[name] = {"path": str(Path(value).resolve()), "sha256": digest.hexdigest()}
+print(json.dumps({"fixture": "paper-mario-title-screen", "mode": sys.argv[1], "inputs": inputs}, sort_keys=True))
+PY
+  exit 0
+fi
 
 scenario_prepare_bundle_dirs "$BUNDLE_DIR"
 
@@ -188,11 +255,7 @@ scenario_print_header "$FIXTURE_ID" "$MODE" "$BUNDLE_DIR" "$MANIFEST"
 if (( DRY_RUN )); then
   echo "[scenario] dry-run complete; runtime launch is intentionally deferred."
 else
-  scenario_source_runtime_env "$RUNTIME_ENV"
-
   if [[ "$MODE" == "on" ]]; then
-    PACK_PATH="${PARALLEL_RDP_HIRES_CACHE_PATH:-$PACK_PATH}"
-    scenario_require_phrb_runtime_cache "$PACK_PATH"
     scenario_configure_hires_runtime_env_for_cache "$PACK_PATH"
     PACK_SHA256="$(scenario_sha256_file "$PACK_PATH")"
   else

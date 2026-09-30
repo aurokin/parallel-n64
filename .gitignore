@@ -43,7 +43,8 @@ new_dynarec_disasm.txt
 *.hts
 
 # Local testing and research assets
-assets/
+assets/*
+!assets/TEXTURE_PACKS.md
 
 # Local generated workflow artifacts
 artifacts/*
@@ -60,3 +61,8 @@ __pycache__/
 *.suo
 .vs/
 UpgradeLog.htm
+
+# Local agent and build output
+.codex/
+.claude/
+builds/

@@ -22,10 +22,9 @@ the product repository confuses experiments with renderer authority.
 Promote an experimental tool here only when it becomes a portable product
 entrypoint with a focused gate.
 
-The eval vision shim and its export consumer moved together to
-`n64-agent-evals/harness/tools/vision_tools_mcp.py` on 2026-09-26. The Paper Mario
-Tier 2 static scanner belongs to `parallel-n64-lab/tools/`. Neither is a
-renderer dependency.
+The eval vision shim and its export consumer moved together to the external
+eval harness on 2026-09-26. The Paper Mario Tier 2 static scanner belongs to
+external TAS tooling. Neither is a renderer dependency.
 
 ## Consequences
 

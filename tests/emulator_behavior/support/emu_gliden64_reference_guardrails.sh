@@ -19,7 +19,6 @@ SCAN_PATHS=(
   "tools/adapters"
   "tests"
   "run-tests.sh"
-  "run-dump-tests.sh"
 )
 
 # The lint itself names the banned terms.

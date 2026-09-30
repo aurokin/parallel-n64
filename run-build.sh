@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 JOBS="${JOBS:-$(nproc)}"
 BUILD_TYPE="${BUILD_TYPE:-release}"
 HAVE_PARALLEL="${HAVE_PARALLEL:-1}"
-HAVE_PARALLEL_RSP="${HAVE_PARALLEL_RSP:-1}"
+HAVE_PARALLEL_RSP="${HAVE_PARALLEL_RSP:-0}"
 AUTO_CLEAN="${RUN_BUILD_AUTO_CLEAN:-1}"
 STATE_DIR="$SCRIPT_DIR/.build"
 STATE_FILE="$STATE_DIR/run-build.last-fingerprint"
@@ -22,13 +22,13 @@ Options:
   --jobs N                Parallel jobs (default: nproc)
   --debug                 Build with DEBUG=1
   --release               Build with DEBUG=0 (default)
-  --no-parallel-rsp       Build with HAVE_PARALLEL_RSP=0
-  --parallel-rsp          Build with HAVE_PARALLEL_RSP=1
+  --no-parallel-rsp       Build with HAVE_PARALLEL_RSP=0 (default)
+  --parallel-rsp          Build with HAVE_PARALLEL_RSP=1 (opt-in)
   -h, --help              Show this help
 
 Notes:
-  - Defaults are tuned for this fork:
-    HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=1
+  - Defaults match the Makefile and the runtime test profile:
+    HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=0
   - Automatically runs `make clean` when effective build flags change.
     Set `RUN_BUILD_AUTO_CLEAN=0` to disable this behavior.
   - Additional make args can be passed after `--`.

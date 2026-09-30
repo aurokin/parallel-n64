@@ -4,6 +4,16 @@ Use `./run-tests.sh --profile <name>`. The script configures and
 incrementally builds `build/ctest` unless another build directory is
 provided.
 
+## Prerequisites
+
+- CMake 3.16 or newer and `make`.
+- A C and C++ compiler.
+- OpenGL and zlib development libraries; the core links `-lGL` and `-lz`,
+  and the texture-replacement provider test links `z`.
+- `python3` on `PATH` with Pillow. `tools/hires_pack_materialize_package.py`
+  imports `PIL`, and the `hts2phrb` support tests in `emu-required` fail
+  without it.
+
 ## Profiles
 
 - `emu-required`: display-free unit, support, and static conformance checks.

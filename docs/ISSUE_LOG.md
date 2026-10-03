@@ -54,3 +54,21 @@ command-only teardown crash fixed in the frontend owner before qualification.
 Rollback keeps the preceding adapter and its matching frontend together; do not
 substitute this adapter into an unqualified frozen runtime. No renderer/core
 behavior or benchmark scoring changed.
+
+## Batch adapter macOS metadata and early-exit cleanup
+
+Status: fixed October 3, 2026.
+
+The batch adapter used GNU-only `sed -i` to update bundle metadata after
+launching RetroArch. BSD sed rejected it on macOS, and the adapter's exit trap
+removed the FIFO without stopping its child. Metadata now updates the nested
+JSON status through Python before launch and on completion. Early exits reap
+only the adapter's owned child, with bounded TERM/KILL cleanup, before releasing
+the runtime lock. Signal handlers use the same exit path.
+
+The display-free batch lifecycle contract checks portable status updates,
+preservation of unrelated metadata, rejection of invalid metadata before
+launch, and command-failure child cleanup through the real FIFO. It passed on
+Linux and macOS. The macOS title scenario subsequently completed command
+execution and clean teardown; its strict native sampled-entry fixture remains
+dependent on selecting a pack with the required entry class.

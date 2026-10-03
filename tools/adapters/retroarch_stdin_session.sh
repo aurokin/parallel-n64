@@ -429,12 +429,51 @@ CORE_OPTIONS_FILE_SHA256="$(sha256_file "$CORE_OPTIONS_LAUNCH_FILE")"
 rm -f "$FIFO_PATH"
 mkfifo "$FIFO_PATH"
 exec 3<> "$FIFO_PATH"
+RA_PID=""
 
 cleanup() {
-  exec 3>&-
+  local status=$?
+  # An error after launch must not release the runtime lock while our child
+  # still occupies the display. Only terminate the child we have not reaped.
+  if [[ -n "${RA_PID:-}" ]]; then
+    if kill -0 "$RA_PID" 2>/dev/null; then
+      echo "[adapter] Cleanup after adapter exit: stopping owned RetroArch pid $RA_PID." >&2
+      kill -TERM "$RA_PID" 2>/dev/null || true
+      for _ in {1..20}; do
+        kill -0 "$RA_PID" 2>/dev/null || break
+        sleep 0.1
+      done
+      kill -KILL "$RA_PID" 2>/dev/null || true
+    fi
+    wait "$RA_PID" 2>/dev/null || true
+    if (( status != 0 )); then
+      update_bundle_runtime runtime_failed false || true
+    fi
+  fi
+  exec 3>&- || true
   rm -f "$FIFO_PATH"
+  return "$status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+update_bundle_runtime() {
+  [[ -f "$BUNDLE_DIR/bundle.json" ]] || return 0
+  python3 - "$BUNDLE_DIR/bundle.json" "$1" "${2:-}" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+bundle = json.loads(path.read_text())
+status = bundle['status']
+status['scenario_state'] = sys.argv[2]
+if sys.argv[3]:
+    status['runtime_executed'] = sys.argv[3] == 'true'
+path.write_text(json.dumps(bundle, indent=2) + '\n')
+PY
+}
 
 log_size_bytes() {
   if [[ -f "$RA_LOG" ]]; then
@@ -680,6 +719,8 @@ handle_wait_core_memory_hex() {
   return 1
 }
 
+update_bundle_runtime runtime_attempted
+
 "$RETROARCH_BIN" \
   --verbose \
   --config "$BASE_CONFIG" \
@@ -739,11 +780,6 @@ record_verified_command() {
   printf '%s\n' "$cmd" >> "$EXECUTED_COMMAND_LOG"
   printf '%s\tproof=%s\n' "$cmd" "$proof" >> "$COMMAND_PROOF_LOG"
 }
-
-if [[ -f "$BUNDLE_DIR/bundle.json" ]]; then
-  sed -i 's/"scenario_state": "bundle_initialized"/"scenario_state": "runtime_attempted"/' "$BUNDLE_DIR/bundle.json"
-  sed -i 's/"scenario_state": "runtime_prepared"/"scenario_state": "runtime_attempted"/' "$BUNDLE_DIR/bundle.json"
-fi
 
 pending_step_frame_command=""
 pending_screenshot_command=""
@@ -1038,6 +1074,7 @@ if wait "$RA_PID"; then
 else
   exit_status=$?
 fi
+RA_PID=""
 
 cat > "$BUNDLE_DIR/retroarch.run.env" <<EOF
 RUNTIME_EXECUTED=0
@@ -1049,17 +1086,14 @@ if (( forced_termination == 0 && exit_status == 0 )); then
   if [[ -n "$pending_quit_command" ]]; then
     record_verified_command "$pending_quit_command" "clean-process-exit"
   fi
-  if [[ -f "$BUNDLE_DIR/bundle.json" ]]; then
-    sed -i 's/"scenario_state": "runtime_attempted"/"scenario_state": "runtime_completed"/' "$BUNDLE_DIR/bundle.json"
-    sed -i 's/"runtime_executed": false/"runtime_executed": true/' "$BUNDLE_DIR/bundle.json"
-  fi
+  update_bundle_runtime runtime_completed true
   cat > "$BUNDLE_DIR/retroarch.run.env" <<EOF
 RUNTIME_EXECUTED=1
 RETROARCH_EXIT_STATUS=$exit_status
 FORCED_TERMINATION=$forced_termination
 EOF
-elif [[ -f "$BUNDLE_DIR/bundle.json" ]]; then
-  sed -i 's/"scenario_state": "runtime_attempted"/"scenario_state": "runtime_failed"/' "$BUNDLE_DIR/bundle.json"
+else
+  update_bundle_runtime runtime_failed false
 fi
 
 if (( forced_termination != 0 )); then

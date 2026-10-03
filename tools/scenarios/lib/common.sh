@@ -1704,7 +1704,7 @@ def parse_expected_list(name: str):
 expected_hires_provider = get_mode_expected("EXPECTED_HIRES_SUMMARY_PROVIDER")
 expected_hires_source_mode = get_mode_expected("EXPECTED_HIRES_SUMMARY_SOURCE_MODE")
 expected_min_summary_entry_count = parse_expected_int("EXPECTED_HIRES_MIN_SUMMARY_ENTRY_COUNT")
-expected_min_summary_native_sampled_entry_count = parse_expected_int("EXPECTED_HIRES_MIN_SUMMARY_NATIVE_SAMPLED_ENTRY_COUNT")
+expected_compat_draw_hits_present = parse_expected_bool("EXPECTED_HIRES_COMPAT_DRAW_HITS_PRESENT")
 expected_min_summary_source_phrb_count = parse_expected_int("EXPECTED_HIRES_MIN_SUMMARY_SOURCE_PHRB_COUNT")
 expected_provenance_available = parse_expected_bool("EXPECTED_HIRES_PROVENANCE_AVAILABLE")
 expected_draw_usage_available = parse_expected_bool("EXPECTED_HIRES_DRAW_USAGE_AVAILABLE")
@@ -1721,7 +1721,7 @@ requires_hires_assertions = any([
     expected_hires_provider is not None,
     expected_hires_source_mode is not None,
     expected_min_summary_entry_count is not None,
-    expected_min_summary_native_sampled_entry_count is not None,
+    expected_compat_draw_hits_present is not None,
     expected_min_summary_source_phrb_count is not None,
     expected_provenance_available is not None,
     expected_draw_usage_available is not None,
@@ -1749,7 +1749,7 @@ result = {
         "hires_summary_provider_match": None,
         "hires_summary_source_mode_match": None,
         "hires_min_summary_entry_count_match": None,
-        "hires_min_summary_native_sampled_entry_count_match": None,
+        "hires_compat_draw_hits_present_match": None,
         "hires_min_summary_source_phrb_count_match": None,
         "hires_provenance_available_match": None,
         "hires_draw_usage_available_match": None,
@@ -1769,7 +1769,7 @@ result = {
         "hires_summary_provider": expected_hires_provider,
         "hires_summary_source_mode": expected_hires_source_mode,
         "hires_min_summary_entry_count": expected_min_summary_entry_count,
-        "hires_min_summary_native_sampled_entry_count": expected_min_summary_native_sampled_entry_count,
+        "hires_compat_draw_hits_present": expected_compat_draw_hits_present,
         "hires_min_summary_source_phrb_count": expected_min_summary_source_phrb_count,
         "hires_provenance_available": expected_provenance_available,
         "hires_draw_usage_available": expected_draw_usage_available,
@@ -1790,6 +1790,7 @@ result = {
         "hires_summary_source_mode": None,
         "hires_summary_entry_count": None,
         "hires_summary_native_sampled_entry_count": None,
+        "hires_summary_compat_draw_hits": None,
         "hires_summary_source_phrb_count": None,
         "hires_provenance_available": None,
         "hires_draw_usage_available": None,
@@ -1871,6 +1872,7 @@ if hires_path.is_file():
         result["actual"]["hires_summary_source_mode"] = summary.get("source_mode")
         result["actual"]["hires_summary_entry_count"] = summary.get("entry_count")
         result["actual"]["hires_summary_native_sampled_entry_count"] = summary.get("native_sampled_entry_count")
+        result["actual"]["hires_summary_compat_draw_hits"] = summary.get("compat_draw_hits")
         result["actual"]["hires_summary_compat_entry_count"] = summary.get("compat_entry_count")
         result["actual"]["hires_summary_entry_class"] = summary.get("entry_class")
         result["actual"]["hires_summary_descriptor_path_class"] = summary.get("descriptor_path_class")
@@ -1914,14 +1916,16 @@ if hires_path.is_file():
                     f"Hi-res summary entry_count below minimum: expected >= {expected_min_summary_entry_count}, got {actual_value}."
                 )
 
-        if expected_min_summary_native_sampled_entry_count is not None:
-            actual_value = summary.get("native_sampled_entry_count")
-            matched = actual_value is not None and actual_value >= expected_min_summary_native_sampled_entry_count
-            result["checks"]["hires_min_summary_native_sampled_entry_count_match"] = matched
+        if expected_compat_draw_hits_present is not None:
+            actual_value = summary.get("compat_draw_hits")
+            valid_count = type(actual_value) is int and actual_value >= 0
+            present = valid_count and actual_value > 0
+            matched = valid_count and present == expected_compat_draw_hits_present
+            result["checks"]["hires_compat_draw_hits_present_match"] = matched
             if not matched:
                 result["passed"] = False
                 result["failures"].append(
-                    f"Hi-res summary native_sampled_entry_count below minimum: expected >= {expected_min_summary_native_sampled_entry_count}, got {actual_value}."
+                    f"Hi-res compat draw-hit presence mismatch: expected {expected_compat_draw_hits_present}, got {actual_value}."
                 )
 
         if expected_min_summary_source_phrb_count is not None:

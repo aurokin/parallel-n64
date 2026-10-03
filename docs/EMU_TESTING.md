@@ -66,6 +66,12 @@ The lane never uses an on-path capture digest or exact metadata count as a
 correctness gate. Digests are limited to feature-off parity and authority
 remint verification.
 
+Paper Mario hi-res fixtures require positive Rice-compatible draw-hit evidence;
+loaded entries or upload hits alone do not qualify. Compatibility-only packs
+are valid. Native sampled-entry counts are diagnostic, since ADR-0006 freezes
+that enrichment path. Automated semantic checks must accompany explicit visual
+review for missing/wrong textures, wrong regions and corruption.
+
 ## Skip And Failure Policy
 
 Clean skips are limited to deliberate opt-outs or unavailable optional

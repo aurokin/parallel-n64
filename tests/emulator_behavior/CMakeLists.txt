@@ -21,6 +21,11 @@ add_test(
 )
 
 add_test(
+  NAME emu.support.paper_mario_authority_evidence_contract
+  COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_authority_evidence_contract.py"
+)
+
+add_test(
   NAME emu.support.hires_capability_runtime_contract
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_capability_runtime_contract.sh"
 )

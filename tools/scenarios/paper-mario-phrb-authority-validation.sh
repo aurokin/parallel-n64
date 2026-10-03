@@ -10,8 +10,6 @@ BUNDLE_ROOT=""
 RUN_PROBES=1
 SUMMARY_TITLE="Paper Mario PHRB Authority Validation"
 EXPECTED_SOURCE_MODE="phrb-only"
-MIN_NATIVE_SAMPLED_COUNT=0
-ALLOW_COMPAT_DESCRIPTOR_TRAFFIC=0
 EXPECTED_ROM_PATH="${PAPER_MARIO_EXPECTED_ROM_PATH:-$REPO_ROOT/assets/Paper Mario (USA).zip}"
 
 usage() {
@@ -25,10 +23,6 @@ Options:
   --reuse                        Reuse existing bundles instead of rerunning probes
   --summary-title TEXT           Markdown title for the validation summary
   --expected-source-mode MODE    Expected hi-res summary source_mode (default: phrb-only)
-  --min-native-sampled-count N   Minimum native sampled entry count required per fixture (default: 0)
-  --allow-compat-descriptor-traffic
-                                 Allow compat descriptor traffic in provider-owned evidence.
-                                 Use only for enriched full-cache validation, not selected packages.
   --expected-rom-path PATH       Expected Paper Mario ROM artifact for reused bundle provenance
                                  (default: assets/Paper Mario (USA).zip)
   -h, --help                     Show this help
@@ -55,13 +49,6 @@ while (($#)); do
     --expected-source-mode)
       shift
       EXPECTED_SOURCE_MODE="${1:-}"
-      ;;
-    --min-native-sampled-count)
-      shift
-      MIN_NATIVE_SAMPLED_COUNT="${1:-}"
-      ;;
-    --allow-compat-descriptor-traffic)
-      ALLOW_COMPAT_DESCRIPTOR_TRAFFIC=1
       ;;
     --expected-rom-path)
       shift
@@ -93,11 +80,6 @@ if [[ ! -f "$EXPECTED_ROM_PATH" ]]; then
   exit 2
 fi
 if ! scenario_require_phrb_runtime_cache "$CACHE_PATH"; then
-  exit 2
-fi
-
-if ! [[ "$MIN_NATIVE_SAMPLED_COUNT" =~ ^[0-9]+$ ]]; then
-  echo "--min-native-sampled-count must be a non-negative integer." >&2
   exit 2
 fi
 
@@ -151,7 +133,7 @@ for fixture in "${FIXTURES[@]}"; do
 source "$runtime_env_source"
 EXPECTED_HIRES_SUMMARY_SOURCE_MODE_ON="$EXPECTED_SOURCE_MODE"
 EXPECTED_HIRES_MIN_SUMMARY_ENTRY_COUNT_ON="1"
-EXPECTED_HIRES_MIN_SUMMARY_NATIVE_SAMPLED_ENTRY_COUNT_ON="$MIN_NATIVE_SAMPLED_COUNT"
+EXPECTED_HIRES_COMPAT_DRAW_HITS_PRESENT_ON="1"
 EXPECTED_HIRES_MIN_SUMMARY_SOURCE_PHRB_COUNT_ON="1"
 EOF
 
@@ -172,7 +154,7 @@ EOF
   fi
 done
 
-python3 - "$CACHE_PATH" "$BUNDLE_ROOT" "$SUMMARY_TITLE" "$EXPECTED_SOURCE_MODE" "$MIN_NATIVE_SAMPLED_COUNT" "$ALLOW_COMPAT_DESCRIPTOR_TRAFFIC" "$EXPECTED_ROM_PATH" <<'PY'
+python3 - "$CACHE_PATH" "$BUNDLE_ROOT" "$SUMMARY_TITLE" "$EXPECTED_SOURCE_MODE" "$EXPECTED_ROM_PATH" <<'PY'
 import hashlib
 import json
 import sys
@@ -182,9 +164,7 @@ cache_path = Path(sys.argv[1])
 bundle_root = Path(sys.argv[2])
 summary_title = sys.argv[3]
 expected_source_mode = sys.argv[4]
-min_native_sampled_count = int(sys.argv[5])
-allow_compat_descriptor_traffic = sys.argv[6] == "1"
-expected_rom_path = Path(sys.argv[7])
+expected_rom_path = Path(sys.argv[5])
 
 def sha256_file(path: Path):
     h = hashlib.sha256()
@@ -207,7 +187,6 @@ summary = {
     "cache_sha256": expected_cache_sha256,
     "summary_title": summary_title,
     "expected_source_mode": expected_source_mode,
-    "min_native_sampled_count": min_native_sampled_count,
     "all_passed": True,
     "fixtures": [],
 }
@@ -460,15 +439,6 @@ def require_provider_owned_evidence(hires_evidence, hires_evidence_path):
             f"Expected hi-res evidence source_mode={expected_source_mode!r}, "
             f"got {evidence_summary.get('source_mode')!r}."
         )
-    if not allow_compat_descriptor_traffic and to_int(evidence_summary.get("compat_entry_count"), 0) != 0:
-        failures.append(
-            f"Expected hi-res evidence compat_entry_count=0, got {evidence_summary.get('compat_entry_count')!r}."
-        )
-    if to_int(evidence_summary.get("native_sampled_entry_count")) < min_native_sampled_count:
-        failures.append(
-            f"Expected hi-res evidence native sampled count >= {min_native_sampled_count}, "
-            f"got {evidence_summary.get('native_sampled_entry_count')!r}."
-        )
     if to_int((evidence_summary.get("source_counts") or {}).get("phrb")) < 1:
         failures.append(
             f"Expected hi-res evidence source_counts.phrb >= 1, "
@@ -480,11 +450,10 @@ def require_provider_owned_evidence(hires_evidence, hires_evidence_path):
     # Class-level draw evidence: the provider must actually hit at runtime.
     # No exact descriptor-path counts; descriptor-path distribution is
     # reported in the summary but never gated.
-    draw_hits = to_int(evidence_summary.get("hits"), 0) + to_int(evidence_summary.get("compat_draw_hits"), 0)
-    if draw_hits <= 0:
+    draw_hits = evidence_summary.get("compat_draw_hits")
+    if type(draw_hits) is not int or draw_hits <= 0:
         failures.append(
-            f"Expected hi-res draw hits > 0, got hits={evidence_summary.get('hits')!r} "
-            f"compat_draw_hits={evidence_summary.get('compat_draw_hits')!r}."
+            f"Expected compatible draw-time replacement, got compat_draw_hits={evidence_summary.get('compat_draw_hits')!r}."
         )
     # Fallbacks must be explicit: silent disable/load failures are corruption.
     if hires_evidence.get("cache_load_failed"):
@@ -508,15 +477,9 @@ for label, fixture_id in fixtures:
     source_mode = actual.get("hires_summary_source_mode")
     native_sampled_entry_count = actual.get("hires_summary_native_sampled_entry_count")
     source_phrb_count = actual.get("hires_summary_source_phrb_count")
-    native_sampled_entry_count_int = to_int(native_sampled_entry_count)
     source_phrb_count_int = to_int(source_phrb_count)
     if source_mode != expected_source_mode:
         failures.append(f"Expected source_mode={expected_source_mode!r}, got {source_mode!r}.")
-    if native_sampled_entry_count_int < min_native_sampled_count:
-        failures.append(
-            f"Expected at least {min_native_sampled_count} native sampled entries, "
-            f"got {native_sampled_entry_count!r}."
-        )
     if source_phrb_count_int < 1:
         failures.append(f"Expected at least one source PHRB entry, got {source_phrb_count!r}.")
     fixture_passed = bool(verification.get("passed")) and not failures
@@ -546,10 +509,7 @@ for label, fixture_id in fixtures:
             "provider": actual.get("hires_summary_provider"),
             "source_mode": source_mode,
             "entry_count": actual.get("hires_summary_entry_count"),
-            "draw_hits": (
-                to_int((hires_evidence.get("summary") or {}).get("hits"), 0)
-                + to_int((hires_evidence.get("summary") or {}).get("compat_draw_hits"), 0)
-            ),
+            "draw_hits": to_int((hires_evidence.get("summary") or {}).get("compat_draw_hits"), 0),
             "native_sampled_entry_count": native_sampled_entry_count,
             "compat_entry_count": actual.get("hires_summary_compat_entry_count"),
             "entry_class": actual.get("hires_summary_entry_class") or ((hires_evidence.get("summary") or {}).get("entry_class")),
@@ -580,7 +540,6 @@ md = [
     f"- Cache: `{cache_path}`",
     f"- Cache SHA-256: `{summary['cache_sha256']}`",
     f"- Expected source mode: `{expected_source_mode}`",
-    f"- Minimum native sampled count: `{min_native_sampled_count}`",
     f"- All passed: `{str(summary['all_passed']).lower()}`",
     "",
 ]

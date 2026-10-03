@@ -70,5 +70,25 @@ The display-free batch lifecycle contract checks portable status updates,
 preservation of unrelated metadata, rejection of invalid metadata before
 launch, and command-failure child cleanup through the real FIFO. It passed on
 Linux and macOS. The macOS title scenario subsequently completed command
-execution and clean teardown; its strict native sampled-entry fixture remains
-dependent on selecting a pack with the required entry class.
+execution and clean teardown. Its native sampled-entry failure exposed a stale
+fixture requirement, corrected under ADR-0006 as described below.
+
+## Paper Mario fixture identity gates
+
+Status: aligned with ADR-0006 October 3, 2026.
+
+The title, file-select and `kmr_03 ENTRY_5` runtime profiles still required native
+sampled entries after that enrichment program was frozen. The active path uses
+Rice-compatible draw-time replacement, so a compatibility-only package could
+render correctly and still fail the obsolete gate.
+
+These profiles now require compatible draw-hit presence. Loaded entries and
+upload hits alone do not satisfy it. The authority wrapper accepts compatible
+entries by default, requires actual draw-time activity, and removes its obsolete
+native minimum/compat opt-in options. Native counts remain diagnostic evidence.
+Provider/source, scene semantics, provenance, feature-off parity and explicit
+visual review remain required; no renderer logic or pack identity changed.
+
+Display-free contracts accept compatibility-only evidence and reject missing,
+zero or malformed draw activity, including independent wrapper reuse checks.
+Dormant converter enrichment input validation remains separate and unchanged.

@@ -45,6 +45,8 @@ Usage:
 Environment:
   RETROARCH_SRC   RetroArch checkout (agent-control branch), default ~/code/RetroArch
   JOBS            parallel make jobs, default 8
+  FFMPEG_PREFIX   Optional compatible FFmpeg prefix (for example, a versioned
+                  Homebrew keg); headers, libraries and pkg-config use it first
 EOF
 }
 
@@ -67,6 +69,21 @@ export LDFLAGS="-L/opt/homebrew/lib"
 export CPPFLAGS="-I/opt/homebrew/include"
 export CFLAGS="-I/opt/homebrew/include"
 export CXXFLAGS="-I/opt/homebrew/include"
+
+# Select one SDK for both configure and compilation when Command Line Tools
+# and Xcode installations differ. A caller-supplied SDK remains authoritative.
+export SDKROOT="${SDKROOT:-$(xcrun --sdk macosx --show-sdk-path)}"
+if [[ -n "${FFMPEG_PREFIX:-}" ]]; then
+  if [[ "$FFMPEG_PREFIX" != /* || ! -f "$FFMPEG_PREFIX/lib/pkgconfig/libavcodec.pc" ]]; then
+    echo "FFMPEG_PREFIX must name an absolute FFmpeg installation prefix." >&2
+    exit 2
+  fi
+  export PKG_CONFIG_PATH="$FFMPEG_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+  export LDFLAGS="-L$FFMPEG_PREFIX/lib $LDFLAGS"
+  export CPPFLAGS="-I$FFMPEG_PREFIX/include $CPPFLAGS"
+  export CFLAGS="-I$FFMPEG_PREFIX/include $CFLAGS"
+  export CXXFLAGS="-I$FFMPEG_PREFIX/include $CXXFLAGS"
+fi
 
 cd "$RETROARCH_SRC"
 echo "[build] $(git rev-parse --short HEAD) on $(git branch --show-current)"

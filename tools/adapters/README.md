@@ -24,6 +24,13 @@ part of this product tree.
 
 Use each entrypoint's `--help` output for its current options.
 
+The macOS build helper selects the Xcode macOS SDK unless `SDKROOT` is supplied.
+If the installed FFmpeg release is incompatible with the selected RetroArch
+source, set `FFMPEG_PREFIX` to a compatible installation. For example,
+`FFMPEG_PREFIX="$(brew --prefix ffmpeg@7)"` selects that versioned keg's headers,
+libraries and pkg-config metadata while preserving the system's active FFmpeg.
+Run the helper without `deploy` to keep the build separate from installed apps.
+
 ## Session Contract
 
 - Refuse concurrent RetroArch processes and hold a host-local runtime lock.

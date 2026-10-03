@@ -48,9 +48,10 @@ operations; they are not frontend commands.
   treating the state as resident.
 - Do not capture until at least one presented frame exists after a paused load.
 
-The interactive `load-slot` helper has not yet adopted the
-`WAIT_LOAD_STATE` barrier; [IL-19](../../docs/ISSUE_LOG.md#il-19-complete-load-slot-with-wait_load_state)
-tracks that bounded follow-up.
+The interactive `load-slot` helper checks frontend command support, waits for
+`WAIT_LOAD_STATE DONE`, and verifies the load log before reporting success.
+The barrier confirms task completion; the log establishes whether the state
+loaded. See [IL-19](../../docs/ISSUE_LOG.md#il-19-complete-load-slot-with-wait_load_state).
 
 ## Portable Inputs
 

@@ -66,6 +66,41 @@ Supply the RetroArch binary, core, ROM, state source, pack, output directory,
 and optional video-context driver through existing arguments or environment
 variables. Do not add hostnames or personal checkout roots as defaults.
 
+Both session adapters require a caller-selected base configuration through
+`--base-config PATH` or `RETROARCH_BASE_CONFIG`; the argument takes precedence.
+For the frontend-owned macOS MoltenVK profile, pass an explicit path to
+`profiles/agent-control-macos.cfg` in your RetroArch checkout, for example:
+
+```sh
+RETROARCH_BASE_CONFIG="$RETROARCH_SOURCE/profiles/agent-control-macos.cfg" \
+  tools/adapters/retroarch_stdin_session.sh \
+  --bundle-dir "$BUNDLE_DIR" --retroarch-bin "$RETROARCH_BIN" \
+  --core "$CORE_PATH" --rom "$ROM_PATH" --command QUIT
+```
+
+The profile stays in the frontend repository. Select it explicitly; the
+adapters do not infer MoltenVK argument-buffer settings from the executable
+name or hi-res mode. They preserve `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS`
+exactly as supplied by the caller, including an empty value; when absent it
+stays absent so frontend configuration can apply. On macOS, feature-off
+sessions retain the `PARALLEL_RDP_DISABLE_HIRES_SHADER=1` default unless the
+caller supplies an override. Existing Linux launch settings remain unchanged.
+
+`--extra-append-config PATH` copies the supplied file to
+`BUNDLE/retroarch.extra.append.cfg`, records its SHA-256 in
+`retroarch.session.env`, and loads that snapshot after the generated
+`retroarch.append.cfg`. RetroArch receives one quoted argument:
+`--appendconfig "generated.cfg|extra.cfg"`. Later files override earlier files,
+so the extra config can override generated settings and the generated config
+can override the base. Within a single file, RetroArch uses the first occurrence
+of a key; concatenating extra lines onto the generated file would not provide
+those overrides. Repeated `--appendconfig` flags replace the preceding argument,
+and colons are ordinary path characters. Bundle and extra-config paths containing
+`|` are rejected before staging because that character separates append files.
+The source configs remain caller-owned; the snapshot preserves the extra input
+for reproduction after the source changes. Copied/exported adapters need only
+their explicit runtime inputs, with no workspace dependency.
+
 For headless Vulkan, set
 `RETROARCH_VIDEO_CONTEXT_DRIVER=headless_vk` explicitly. That backend
 skips presentation and relies on readback evidence; it must never become an

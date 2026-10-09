@@ -41,7 +41,7 @@ Usage:
 start options:
   --mode off|on                 Hi-res mode label for generated core options (default: off)
   --core-options-template PATH  Use PATH as core options instead of parallel-n64 defaults
-  --extra-append-config PATH    Extra appendconfig lines (last value wins)
+  --extra-append-config PATH    Config loaded after generated settings (snapshot copied)
   --state-source DIR            Copy DIR's contents into the bundle states dir
   --savefile-source PATH        Copy a .srm file or savefile directory into the bundle savefiles dir
   --ttl-seconds SEC             Hard session lifetime; timeout kills RetroArch (default: 3600)
@@ -182,21 +182,6 @@ apply_macos_runtime_defaults() {
   fi
 
   local mode="${1:-off}"
-  local retroarch_bin="${2:-}"
-  local mvk141_bin="${RETROARCH_MVK141_BIN:-$REPO_ROOT/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch}"
-  local argument_buffers_default="0"
-  # Recognize the MVK141 bundle by the launched path too, not only by the
-  # REPO_ROOT-rooted default: when this script runs as a copy inside an
-  # exported eval workspace, REPO_ROOT is the workspace parent and the
-  # equality can never hold — hi-res then silently loses argument buffers
-  # and the compute pipeline fails ("bind texture 0-65535 above limit 128";
-  # found via the pilot-gpt55 replay, 2026-07-02).
-  if [[ "$mode" == "on" && ( "$retroarch_bin" == "$mvk141_bin" \
-        || "$retroarch_bin" == *"/RetroArch-MVK141.app/"* ) ]]; then
-    argument_buffers_default="1"
-  fi
-
-  export MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS="${MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-$argument_buffers_default}"
   if [[ "$mode" != "on" ]]; then
     export PARALLEL_RDP_DISABLE_HIRES_SHADER="${PARALLEL_RDP_DISABLE_HIRES_SHADER:-1}"
   fi
@@ -464,6 +449,13 @@ cmd_start() {
     echo "start requires --bundle-dir, --rom, and --core." >&2
     exit 2
   fi
+  # RetroArch splits its one appendconfig argument on pipes; reject paths
+  # that would silently turn a single config into multiple inputs.
+  if [[ "$BUNDLE_DIR" == *'|'* || "$EXTRA_APPEND_CONFIG" == *'|'* ]]; then
+    echo "Bundle and extra append config paths must not contain '|'." >&2
+    exit 2
+  fi
+
   RETROARCH_BIN="$(prefer_macos_hires_retroarch_bin "$MODE" "$RETROARCH_BIN" "$RETROARCH_BIN_EXPLICIT")"
   if is_darwin; then
     # On macOS the RetroArch app delegate is instantiated from the bundle's
@@ -493,7 +485,7 @@ cmd_start() {
     exit 1
   fi
   check_frontend_load_barrier "$RETROARCH_BIN" >/dev/null
-  apply_macos_runtime_defaults "$MODE" "$RETROARCH_BIN"
+  apply_macos_runtime_defaults "$MODE"
 
   # Same singleton rule as the batch adapter.
   local matches
@@ -635,8 +627,15 @@ video_window_auto_width_max = "$VIDEO_WINDOW_WIDTH_VALUE"
 video_window_auto_height_max = "$VIDEO_WINDOW_HEIGHT_VALUE"
 EOF
   fi
+  # Separate files are required: RetroArch keeps the first duplicate key
+  # within one file, while later append files override earlier files.
+  local APPEND_CONFIG_ARGUMENT="$APPEND_CONFIG"
+  local EXTRA_APPEND_CONFIG_SNAPSHOT="" EXTRA_APPEND_CONFIG_SHA256=""
   if [[ -n "$EXTRA_APPEND_CONFIG" ]]; then
-    cat "$EXTRA_APPEND_CONFIG" >> "$APPEND_CONFIG"
+    EXTRA_APPEND_CONFIG_SNAPSHOT="$BUNDLE_DIR/retroarch.extra.append.cfg"
+    cp "$EXTRA_APPEND_CONFIG" "$EXTRA_APPEND_CONFIG_SNAPSHOT"
+    EXTRA_APPEND_CONFIG_SHA256="$(sha256_file "$EXTRA_APPEND_CONFIG_SNAPSHOT")"
+    APPEND_CONFIG_ARGUMENT+="|$EXTRA_APPEND_CONFIG_SNAPSHOT"
   fi
 
   if [[ -n "$CORE_OPTIONS_TEMPLATE" ]]; then
@@ -697,7 +696,7 @@ EOF
   local LAUNCH_EPOCH
   LAUNCH_EPOCH="$(date +%s)"
   start_session_leader "$PID_FILE" "$LOCK_FILE" "$TTL_SECONDS" "$RETROARCH_BIN" \
-      "$BASE_CONFIG" "$APPEND_CONFIG" "$CORE_PATH" "$ROM_PATH" \
+      "$BASE_CONFIG" "$APPEND_CONFIG_ARGUMENT" "$CORE_PATH" "$ROM_PATH" \
       "$FIFO_PATH" "$RA_LOG" "$START_PAUSED"
 
   local deadline=$(( $(date +%s) + 10 ))
@@ -717,6 +716,10 @@ SESSION_PGID=$PGID
 RETROARCH_BIN=$RETROARCH_BIN
 BASE_CONFIG=$BASE_CONFIG
 APPEND_CONFIG=$APPEND_CONFIG
+APPEND_CONFIG_ARGUMENT=$APPEND_CONFIG_ARGUMENT
+EXTRA_APPEND_CONFIG_SNAPSHOT=$EXTRA_APPEND_CONFIG_SNAPSHOT
+EXTRA_APPEND_CONFIG_SHA256=$EXTRA_APPEND_CONFIG_SHA256
+EXTRA_APPEND_CONFIG=$EXTRA_APPEND_CONFIG
 CORE_OPTIONS_FILE=$CORE_OPTIONS_FILE
 CORE_OPTIONS_LAUNCH_FILE=$CORE_OPTIONS_LAUNCH_FILE
 BASE_CONFIG_SHA256=$BASE_CONFIG_SHA256

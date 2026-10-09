@@ -20,8 +20,8 @@ Options:
                         Copy PATH as the session core options file instead of
                         generating the parallel-n64 defaults
   --extra-append-config PATH
-                        Append PATH's contents to the generated appendconfig
-                        (last value wins per RetroArch config semantics)
+                        Snapshot PATH and load it after the generated appendconfig
+                        (later files override earlier files)
   --command CMD         Command to send over stdin interface (repeatable)
                         Local pseudo-commands:
                         WAIT <seconds>
@@ -113,14 +113,6 @@ apply_macos_runtime_defaults() {
   fi
 
   local mode="${1:-off}"
-  local retroarch_bin="${2:-}"
-  local mvk141_bin="${RETROARCH_MVK141_BIN:-$REPO_ROOT/artifacts/external/RetroArch-MVK141.app/Contents/MacOS/RetroArch}"
-  local argument_buffers_default="0"
-  if [[ "$mode" == "on" && "$retroarch_bin" == "$mvk141_bin" ]]; then
-    argument_buffers_default="1"
-  fi
-
-  export MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS="${MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-$argument_buffers_default}"
   if [[ "$mode" != "on" ]]; then
     export PARALLEL_RDP_DISABLE_HIRES_SHADER="${PARALLEL_RDP_DISABLE_HIRES_SHADER:-1}"
   fi
@@ -204,6 +196,13 @@ if [[ -z "$BUNDLE_DIR" || -z "$ROM_PATH" || -z "$CORE_PATH" ]]; then
   exit 2
 fi
 
+# RetroArch splits its one appendconfig argument on pipes; reject paths
+# that would silently turn a single config into multiple inputs.
+if [[ "$BUNDLE_DIR" == *'|'* || "$EXTRA_APPEND_CONFIG" == *'|'* ]]; then
+  echo "Bundle and extra append config paths must not contain '|'." >&2
+  exit 2
+fi
+
 RETROARCH_BIN="$(prefer_macos_hires_retroarch_bin "$MODE" "$RETROARCH_BIN" "$RETROARCH_BIN_EXPLICIT")"
 
 if [[ ! -x "$RETROARCH_BIN" ]]; then
@@ -236,7 +235,7 @@ if [[ -n "$EXTRA_APPEND_CONFIG" && ! -f "$EXTRA_APPEND_CONFIG" ]]; then
   exit 1
 fi
 
-apply_macos_runtime_defaults "$MODE" "$RETROARCH_BIN"
+apply_macos_runtime_defaults "$MODE"
 
 sha256_file() {
   local path="$1"
@@ -384,8 +383,15 @@ video_window_auto_height_max = "$VIDEO_WINDOW_HEIGHT_VALUE"
 EOF
 fi
 
+# Separate files are required: RetroArch keeps the first duplicate key
+# within one file, while later append files override earlier files.
+APPEND_CONFIG_ARGUMENT="$APPEND_CONFIG"
+EXTRA_APPEND_CONFIG_SNAPSHOT="" EXTRA_APPEND_CONFIG_SHA256=""
 if [[ -n "$EXTRA_APPEND_CONFIG" ]]; then
-  cat "$EXTRA_APPEND_CONFIG" >> "$APPEND_CONFIG"
+  EXTRA_APPEND_CONFIG_SNAPSHOT="$BUNDLE_DIR/retroarch.extra.append.cfg"
+  cp "$EXTRA_APPEND_CONFIG" "$EXTRA_APPEND_CONFIG_SNAPSHOT"
+  EXTRA_APPEND_CONFIG_SHA256="$(sha256_file "$EXTRA_APPEND_CONFIG_SNAPSHOT")"
+  APPEND_CONFIG_ARGUMENT+="|$EXTRA_APPEND_CONFIG_SNAPSHOT"
 fi
 
 if [[ -n "$CORE_OPTIONS_TEMPLATE" ]]; then
@@ -724,7 +730,7 @@ update_bundle_runtime runtime_attempted
 "$RETROARCH_BIN" \
   --verbose \
   --config "$BASE_CONFIG" \
-  --appendconfig "$APPEND_CONFIG" \
+  --appendconfig "$APPEND_CONFIG_ARGUMENT" \
   -L "$CORE_PATH" \
   "$ROM_PATH" \
   <"$FIFO_PATH" >"$RA_LOG" 2>&1 &
@@ -735,6 +741,9 @@ RETROARCH_PID=$RA_PID
 RETROARCH_BIN=$RETROARCH_BIN
 BASE_CONFIG=$BASE_CONFIG
 APPEND_CONFIG=$APPEND_CONFIG
+APPEND_CONFIG_ARGUMENT=$APPEND_CONFIG_ARGUMENT
+EXTRA_APPEND_CONFIG_SNAPSHOT=$EXTRA_APPEND_CONFIG_SNAPSHOT
+EXTRA_APPEND_CONFIG_SHA256=$EXTRA_APPEND_CONFIG_SHA256
 CORE_OPTIONS_FILE=$CORE_OPTIONS_FILE
 CORE_OPTIONS_LAUNCH_FILE=$CORE_OPTIONS_LAUNCH_FILE
 BASE_CONFIG_SHA256=$BASE_CONFIG_SHA256

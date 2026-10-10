@@ -617,8 +617,6 @@ private:
 		uint32_t descriptor_index = 0xffffffffu;
 		uint16_t repl_w = 0;
 		uint16_t repl_h = 0;
-		uint64_t last_used_tick = 0;
-		size_t resident_bytes = 0;
 	};
 
 	struct HiresResources
@@ -628,11 +626,10 @@ private:
 		std::unordered_map<HiresKey, HiresResidentImage, HiresKeyHasher> resident_images;
 		unsigned capacity = 0;
 		unsigned next_descriptor = 1;
-		std::vector<uint32_t> recycled_descriptors;
 		size_t gpu_resident_bytes = 0;
-		size_t gpu_budget_bytes = 0;
-		uint64_t frame_tick = 0;
 	} hires_resources;
+	// Configuration survives provider/cache resets; zero disables the admission limit.
+	size_t hires_gpu_budget_bytes = 0;
 
 	void resolve_coherency_host_to_gpu(Vulkan::CommandBuffer &cmd);
 	void resolve_coherency_gpu_to_host(CoherencyOperation &op, Vulkan::CommandBuffer &cmd);

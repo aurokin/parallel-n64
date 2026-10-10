@@ -6,12 +6,15 @@ tracked by their owning systems.
 
 ## IL-3: Load-settle input pathology
 
-Status: needs a minimal reproduction.
+Status: unconfirmed historical report; needs a minimal reproduction before fix work.
 
 Input injected during the three-frame settle after a state load has shown
 suspect behavior. The fault boundary may be core state restoration, frontend
 task completion, or adapter sequencing. Do not change renderer/core behavior
-until a minimal fixture identifies the layer.
+until a minimal fixture identifies the layer. The completed load barrier and
+bounded control checks do not reproduce this report or establish that it is
+fixed. Do not treat it as a prerequisite for ordinary emulator development;
+retain it as a reproduction lead if post-load input fails again.
 
 Acceptance:
 
@@ -92,3 +95,25 @@ visual review remain required; no renderer logic or pack identity changed.
 Display-free contracts accept compatibility-only evidence and reject missing,
 zero or malformed draw activity, including independent wrapper reuse checks.
 Dormant converter enrichment input validation remains separate and unchanged.
+
+## Hi-res replacement admission budget
+
+Status: stable-descriptor admission accounting fixed; runtime pressure unqualified.
+
+The opt-in `PARALLEL_RDP_HIRES_GPU_BUDGET_MB` configuration previously disappeared
+when replacement resources reset during pack initialization. The setting now
+survives provider/cache resets. Images that do not fit reject admission and use
+the existing native-texture fallback. Already admitted replacement bindings stay
+stable until the cache resets. Zero retains the default unlimited behavior.
+
+The old single-image LRU eviction could still exceed the byte budget and reused
+indices that buffered draws or tile bindings could still reference. It is removed;
+introducing eviction requires an explicit descriptor-retirement design.
+
+The display-free `emu.unit.hires_registry_budget` regression exercises distinct
+slots, exact fits, full/oversized rejection, unlimited mode, descriptor exhaustion,
+overflow-safe comparisons, and unchanged accounting on rejection. Renderer
+compilation checks the integration. This accounts reserved replacement mip-chain
+bytes; failed image creation can conservatively retain a reservation until cache
+reset. It is not a physical VRAM ceiling. GPU-pressure rendering and nonzero-budget
+runtime behavior still need bounded qualification before deployment.

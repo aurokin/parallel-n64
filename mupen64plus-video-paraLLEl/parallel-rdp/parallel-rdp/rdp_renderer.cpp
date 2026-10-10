@@ -1277,7 +1277,6 @@ void Renderer::begin_frame_context()
 {
 	hires_ordered_surface_sequence_cursor.clear();
 	hires_sampled_pool_stream_states.clear();
-	hires_resources.frame_tick++;
 }
 
 void Renderer::set_hires_ci_compatibility_mode(HiresCICompatibilityMode mode)
@@ -1356,7 +1355,7 @@ Vulkan::ImageHandle Renderer::create_hires_replacement_image_with_mips(const Rep
 
 void Renderer::set_hires_gpu_budget_bytes(size_t bytes)
 {
-	hires_resources.gpu_budget_bytes = bytes;
+	hires_gpu_budget_bytes = bytes;
 }
 
 void Renderer::log_hires_summary() const
@@ -4461,47 +4460,9 @@ bool Renderer::init_hires_resources(unsigned requested_capacity)
 
 uint32_t Renderer::allocate_hires_descriptor(size_t incoming_bytes)
 {
-	auto decision = detail::decide_hires_registry_budget(
-		hires_resources.gpu_resident_bytes, incoming_bytes,
-		hires_resources.gpu_budget_bytes,
-		true, !hires_resources.resident_images.empty());
-
-	if (decision == detail::HiresRegistryBudgetDecision::EvictOldestThenAdmit)
-	{
-		// Find the LRU resident image to evict.
-		auto best = hires_resources.resident_images.end();
-		for (auto it = hires_resources.resident_images.begin(); it != hires_resources.resident_images.end(); ++it)
-		{
-			if (best == hires_resources.resident_images.end() ||
-			    it->second.last_used_tick < best->second.last_used_tick)
-				best = it;
-		}
-		if (best != hires_resources.resident_images.end())
-		{
-			hires_resources.recycled_descriptors.push_back(best->second.descriptor_index);
-			hires_resources.gpu_resident_bytes -= best->second.resident_bytes;
-			hires_resources.resident_images.erase(best);
-		}
-	}
-	else if (decision == detail::HiresRegistryBudgetDecision::RejectOverBudget)
-		return 0xffffffffu;
-
-	// Reuse a recycled descriptor or allocate a new one.
-	uint32_t index;
-	if (!hires_resources.recycled_descriptors.empty())
-	{
-		index = hires_resources.recycled_descriptors.back();
-		hires_resources.recycled_descriptors.pop_back();
-	}
-	else
-	{
-		if (hires_resources.next_descriptor >= hires_resources.capacity)
-			return 0xffffffffu;
-		index = hires_resources.next_descriptor++;
-	}
-
-	hires_resources.gpu_resident_bytes += incoming_bytes;
-	return index;
+	return detail::allocate_hires_registry_descriptor(
+		hires_resources.gpu_resident_bytes, incoming_bytes, hires_gpu_budget_bytes,
+		hires_resources.next_descriptor, hires_resources.capacity);
 }
 
 bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta)
@@ -4543,7 +4504,6 @@ bool Renderer::resolve_hires_sampled_replacement_descriptor(uint32_t sampled_fmt
 	auto itr = hires_resources.resident_images.find(key);
 	if (itr != hires_resources.resident_images.end())
 	{
-		itr->second.last_used_tick = hires_resources.frame_tick;
 		hires_descriptor_sampled_resolutions++;
 		meta.vk_image_index = itr->second.descriptor_index;
 		meta.repl_w = itr->second.repl_w;
@@ -4589,8 +4549,6 @@ bool Renderer::resolve_hires_sampled_replacement_descriptor(uint32_t sampled_fmt
 	resident.descriptor_index = descriptor_index;
 	resident.repl_w = static_cast<uint16_t>(replacement.meta.repl_w);
 	resident.repl_h = static_cast<uint16_t>(replacement.meta.repl_h);
-	resident.last_used_tick = hires_resources.frame_tick;
-	resident.resident_bytes = texture_bytes;
 	hires_resources.resident_images.emplace(key, std::move(resident));
 
 	hires_descriptor_sampled_resolutions++;
@@ -4631,7 +4589,6 @@ bool Renderer::resolve_hires_native_checksum_replacement_descriptor(uint64_t che
 	auto itr = hires_resources.resident_images.find(key);
 	if (itr != hires_resources.resident_images.end())
 	{
-		itr->second.last_used_tick = hires_resources.frame_tick;
 		record_native_checksum_detail();
 		meta.vk_image_index = itr->second.descriptor_index;
 		meta.repl_w = itr->second.repl_w;
@@ -4666,8 +4623,6 @@ bool Renderer::resolve_hires_native_checksum_replacement_descriptor(uint64_t che
 	resident.descriptor_index = descriptor_index;
 	resident.repl_w = static_cast<uint16_t>(replacement.meta.repl_w);
 	resident.repl_h = static_cast<uint16_t>(replacement.meta.repl_h);
-	resident.last_used_tick = hires_resources.frame_tick;
-	resident.resident_bytes = texture_bytes;
 	hires_resources.resident_images.emplace(key, std::move(resident));
 
 	record_native_checksum_detail();
@@ -4807,7 +4762,6 @@ bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, 
 	auto itr = hires_resources.resident_images.find(key);
 	if (itr != hires_resources.resident_images.end())
 	{
-		itr->second.last_used_tick = hires_resources.frame_tick;
 		hires_descriptor_compat_resolutions++;
 		meta.vk_image_index = itr->second.descriptor_index;
 		meta.repl_w = itr->second.repl_w;
@@ -4842,8 +4796,6 @@ bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, 
 	resident.descriptor_index = descriptor_index;
 	resident.repl_w = static_cast<uint16_t>(replacement.meta.repl_w);
 	resident.repl_h = static_cast<uint16_t>(replacement.meta.repl_h);
-	resident.last_used_tick = hires_resources.frame_tick;
-	resident.resident_bytes = texture_bytes;
 	hires_resources.resident_images.emplace(key, std::move(resident));
 
 	hires_descriptor_compat_resolutions++;

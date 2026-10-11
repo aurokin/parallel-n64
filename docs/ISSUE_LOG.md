@@ -337,6 +337,22 @@ versus ambiguous origins and overlap/wraparound. They do not replace GPU replay
 validation. Same-bank TLUT-content changes, other backends, every intermediate
 frame and the historical Bowser cause remain unqualified.
 
+An additive fresh-new-file opening through the Bowser tutorial and house wake
+also retains coherent shaded actors in the inspected current-core castle poses,
+and connected Bowser pieces through the sampled Star Rod cast/recovery. Matched
+cold native/replacement confrontation controls show a single shaded Mario;
+the older pre-fix control again shows bright unmodulated Peach art at the same
+pre-window checkpoint. Its matched confrontation frame also shows dark,
+overlaid-looking Mario art and bright Bowser/Peach/Kammy colors resembling the
+reported symptom; the current fixed condition retains coherent shaded art.
+This does not establish two geometric actor instances. The world profile has lighting flag 1; the conditional
+alternate-viewport silhouette flag 2 is inactive, so that source branch does not
+explain the reported stationary website duplicate. A separate zero-HP spinning
+Mario trail occurs in both native and replacement controls and agrees with the
+game's explicit defeat-blur sequence. These bounded observations justify no
+additional renderer patch or fixture-authority promotion. The website's original
+runtime and exact-frame cause remain unqualified.
+
 ## Paper Mario native RDRAM semantic decoding
 
 Status: native word mapping corrected and bounded runtime decoding checked October 11, 2026.

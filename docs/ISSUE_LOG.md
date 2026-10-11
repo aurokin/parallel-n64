@@ -194,3 +194,54 @@ Focused contracts reject malformed/truncated captures and wrong or missing
 scene identities; existing title/file-select/kmr03 evidence remains admissible.
 These are evidence admission checks. Correct textures, regions, filtering and
 composition still require semantic evidence and explicit visual judgment.
+
+## Prologue shadow and Bowser sprite observations
+
+Status: historical observations identified; current replay and cause unqualified.
+
+Existing Paper Mario evidence contains a rectangular dark floor region during
+Peach/Bowser's castle confrontation, coarse native-looking jaw/chest regions in
+an otherwise replaced Bowser closeup, and a later Star Rod frame with separated
+torso/leg regions. These are distinct phase-specific observations, not one
+established renderer mechanism. The ordinary eval ends at intro-battle start;
+third-turn Star Rod use is later. The intro-attract closeup is another scene.
+
+The published confrontation has a strong approximate match to historical
+human-controlled emulator footage, whose effective configuration is incomplete.
+It is not hardware ground truth or a controlled current-core comparison.
+Retained October Linux pre-Peach and confrontation states, original actions,
+configs and captures supply nearer replay candidates; current compatibility
+has not been tested. Older first-menu states need separate loading/actionability
+qualification before a transformation continuation.
+
+A terminal capture's frontend-frame tag agrees with G4 RAM while the image
+still depicts the preceding dialogue. Capture freshness and transition
+presentation must be established separately before assigning a renderer fault.
+A stale reused-slot index entry was also found; immutable copied state bytes
+and their corroborated phase evidence take precedence over that slot receipt.
+
+The older balloon-star stale TEXEL1 binding fix (`b3d9be57`) is in current source.
+Prior black-hole and tint-loss accusations were overturned by authored content
+and unmatched effect phases; they do not close these new observations. Several
+historical Bowser filenames identify other scenes, so labels alone are unsafe.
+
+Next evidence: cold-load the selected start, confirm the phase, and collect a
+bounded native/replacement sequence plus draw/key/palette/view/alpha evidence.
+Follow ADR-0004/0005; do not match GlideN64 geometry or add scene-specific policy.
+No prologue scene defect was fixed or closed by this offline investigation.
+
+## Same-offset CI4 palette-bank binding lead
+
+Status: source-supported follow-up; reproduction and Bowser connection unconfirmed.
+
+The `b3d9be57` follow-up notes a CI tile palette-bank change without texture
+reload. Current `set_tile` preserves an existing replacement hit when its TMEM
+offset is unchanged, while the draw-time compatibility resolver runs on a miss.
+The binding carries no keyed palette-bank stamp. Separate TLUT-load overlap
+invalidation does not establish correctness for a descriptor-only bank switch.
+
+Confirm with a CI4 draw using palette A, a same-offset SetTile switch to a
+different palette B without texture/TLUT reload, and another draw through the
+production lookup/binding path. Distinct expected keys/content must establish
+stale serving before changing invalidation. Do not indiscriminately clear every
+descriptor change or infer this mechanism from a fragmented Bowser screenshot.

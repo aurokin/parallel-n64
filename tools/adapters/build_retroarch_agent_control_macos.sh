@@ -24,7 +24,7 @@
 #   - freetype disabled so the feature set does not drift with whatever
 #     homebrew happens to have installed (the adapters do not use it).
 #     ffmpeg is ENABLED as of 2026-07-04: the recordings lane
-#     (tools/recordings/) needs the h264 record driver; requires homebrew
+#     capture workflows use the h264 record driver; requires homebrew
 #     ffmpeg (links /opt/homebrew/opt/ffmpeg dylibs — a brew major-version
 #     bump of ffmpeg requires a rebuild). Known accepted drift vs the June
 #     binary: OpenAL is gone (deprecated framework; adapters use CoreAudio).
@@ -128,6 +128,7 @@ if [[ ! -f "$APP_BIN" ]]; then
 fi
 cp -f retroarch.stripped "$APP_BIN"
 codesign --force --deep --sign - /Applications/RetroArch.app
+codesign --verify --deep --strict /Applications/RetroArch.app
 echo "[deploy] staged $APP_BIN"
 
 # Refresh the MoltenVK 1.4.1 app copy from the updated /Applications app.
@@ -145,4 +146,4 @@ if [[ -n "$MVK_BAK" ]]; then
   cp -p "$MVK_BAK"/RetroArch.bak-* "$MVK_APP/Contents/MacOS/"
 fi
 echo "[deploy] refreshed $MVK_APP"
-"$MVK_APP/Contents/MacOS/RetroArch" --version 2>&1 | head -1
+echo "[deploy] bundles signed; qualify startup/control with the bounded session adapter before runtime use"

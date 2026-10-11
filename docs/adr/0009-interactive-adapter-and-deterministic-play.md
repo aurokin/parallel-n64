@@ -1,7 +1,7 @@
 # ADR-0009: Bounded Stdin Control And Paused Stepping
 
-- Status: Accepted
-- Date: 2026-06-10
+- Status: Accepted, amended
+- Date: 2026-06-10; load-barrier and frontend-ownership correction 2026-10-11
 
 ## Context
 
@@ -15,13 +15,16 @@ service, port, or renderer meaning to RetroArch.
 - Interactive sessions use a process group, runtime lock, and TTL; they are not
   daemons.
 - Deterministic paths remain paused and advance with explicit frame steps.
-- State saves and screenshots wait for completion acknowledgements. RetroArch
-  exposes a load-completion barrier, but the interactive `load-slot` helper has
-  not adopted it yet; [IL-19](../ISSUE_LOG.md) tracks that exception.
+- State saves and screenshots wait for completion acknowledgements. The
+  interactive `load-slot` helper checks frontend capability, waits for
+  `WAIT_LOAD_STATE DONE`, and checks the current attempt's load result before
+  returning success. The barrier sequences task completion; it does not establish
+  successful deserialization. [IL-19](../ISSUE_LOG.md#il-19-complete-load-slot-with-wait_load_state) records the implemented contract.
 - Free-running control is exploratory, not replay authority.
 
-RetroArch changes remain generic and reconstructable from
-[the patch set](../../tools/retroarch-patches/).
+RetroArch changes remain generic and are maintained in its `agent-control`
+branch. [The historical patch set](../../tools/retroarch-patches/) reconstructs
+the older stdin-control series, not the full maintained frontend.
 
 ## Consequences
 

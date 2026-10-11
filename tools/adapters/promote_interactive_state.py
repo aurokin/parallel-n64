@@ -13,6 +13,10 @@ import sys
 from pathlib import Path
 
 
+CONFIG_KEYS = ("BASE_CONFIG", "APPEND_CONFIG", "EXTRA_APPEND_CONFIG_SNAPSHOT",
+               "CORE_OPTIONS_FILE", "CORE_OPTIONS_LAUNCH_FILE")
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -48,11 +52,11 @@ def state_suffix(slot: int) -> str:
     return "" if slot == 0 else str(slot)
 
 
-def rom_stem(session: dict[str, str], fallback: str = "Paper Mario (USA)") -> str:
+def rom_stem(session: dict[str, str]) -> str:
     rom_path = session.get("ROM_PATH", "")
-    if rom_path:
-        return Path(rom_path).stem
-    return fallback
+    if not rom_path or not Path(rom_path).stem:
+        raise ValueError("Session has no ROM_PATH identity; select a session that records its content path.")
+    return Path(rom_path).stem
 
 
 def find_state(bundle_dir: Path, session: dict[str, str], slot: int) -> Path:
@@ -116,13 +120,35 @@ def main() -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", args.id):
-        raise SystemExit("--id may only contain letters, digits, '.', '_', and '-'")
+    if args.id in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9_.-]+", args.id):
+        raise SystemExit("--id must name a bundle using letters, digits, '.', '_', or '-'; dot components are invalid")
 
     bundle_dir = args.bundle_dir.resolve()
     session_env = bundle_dir / "retroarch.session.env"
     session = parse_env(session_env)
     state_src = find_state(bundle_dir, session, args.slot)
+    if not state_src.is_file():
+        raise ValueError("Selected savestate is not a regular file; restore it before promotion.")
+
+    extra_snapshot = session.get("EXTRA_APPEND_CONFIG_SNAPSHOT", "")
+    if not extra_snapshot and (session.get("EXTRA_APPEND_CONFIG", "")
+                               or session.get("EXTRA_APPEND_CONFIG_SHA256", "")):
+        raise ValueError("Session extra-config snapshot is missing from recorded metadata.")
+    if extra_snapshot:
+        # A moved bundle retains its local snapshot even when recorded paths are stale.
+        local_snapshot = bundle_dir / "retroarch.extra.append.cfg"
+        if local_snapshot.is_file():
+            extra_snapshot = str(local_snapshot)
+        if not Path(extra_snapshot).is_file():
+            raise FileNotFoundError("Session extra-config snapshot is missing; restore it before promotion.")
+        expected_extra_hash = session.get("EXTRA_APPEND_CONFIG_SHA256", "")
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", expected_extra_hash):
+            raise ValueError("Session extra-config snapshot requires its recorded SHA-256 identity.")
+        actual_extra_hash = sha256_file(Path(extra_snapshot))
+        if expected_extra_hash.lower() != actual_extra_hash:
+            raise ValueError("Session extra-config snapshot hash differs from its recorded identity.")
+        session["EXTRA_APPEND_CONFIG_SNAPSHOT"] = extra_snapshot
+        session["EXTRA_APPEND_CONFIG_SHA256"] = actual_extra_hash
 
     capture = args.capture
     if capture is None:
@@ -130,7 +156,18 @@ def main() -> int:
     if capture is None or not capture.is_file():
         raise SystemExit("No capture found. Take a screenshot first or pass --capture.")
 
-    output_dir = (args.output_root / args.id).resolve()
+    output_root = args.output_root.resolve()
+    destination = output_root / args.id
+    if destination.is_symlink():
+        raise SystemExit("Output bundle destination is a symlink; choose a direct child directory.")
+    output_dir = destination.resolve()
+    if output_dir.parent != output_root:
+        raise SystemExit("Output bundle destination escapes the selected output root.")
+    source_inputs = [bundle_dir, state_src, capture]
+    source_inputs.extend(Path(session[key]) for key in (*CONFIG_KEYS, "SAVEFILE_SOURCE")
+                         if session.get(key, ""))
+    if any(path.resolve().is_relative_to(output_dir) for path in source_inputs):
+        raise SystemExit("Output bundle destination contains source inputs; choose a separate output directory.")
     if output_dir.exists() and not args.force:
         raise SystemExit(f"Output already exists: {output_dir} (use --force to replace)")
     if output_dir.exists():
@@ -153,7 +190,7 @@ def main() -> int:
     shutil.copy2(capture, promoted_capture)
 
     copied_configs = []
-    for key in ("BASE_CONFIG", "APPEND_CONFIG", "CORE_OPTIONS_FILE", "CORE_OPTIONS_LAUNCH_FILE"):
+    for key in CONFIG_KEYS:
         copied = copy_if_file(session.get(key, ""), config_dir)
         if copied:
             copied["session_key"] = key
@@ -214,6 +251,8 @@ def main() -> int:
             "retroarch_bin": session.get("RETROARCH_BIN", ""),
             "base_config": session.get("BASE_CONFIG", ""),
             "append_config": session.get("APPEND_CONFIG", ""),
+            "extra_append_config_snapshot": session.get("EXTRA_APPEND_CONFIG_SNAPSHOT", ""),
+            "extra_append_config_source": session.get("EXTRA_APPEND_CONFIG", ""),
             "core_options_file": session.get("CORE_OPTIONS_LAUNCH_FILE", session.get("CORE_OPTIONS_FILE", "")),
             "rom_path": session.get("ROM_PATH", ""),
             "core_path": session.get("CORE_PATH", ""),
@@ -228,6 +267,7 @@ def main() -> int:
             "core_sha256": session.get("CORE_SHA256", optional_hash(session.get("CORE_PATH", ""))),
             "base_config_sha256": session.get("BASE_CONFIG_SHA256", optional_hash(session.get("BASE_CONFIG", ""))),
             "append_config_sha256": session.get("APPEND_CONFIG_SHA256", optional_hash(session.get("APPEND_CONFIG", ""))),
+            "extra_append_config_sha256": session.get("EXTRA_APPEND_CONFIG_SHA256", ""),
             "core_options_sha256": session.get("CORE_OPTIONS_FILE_SHA256", optional_hash(session.get("CORE_OPTIONS_LAUNCH_FILE", ""))),
             "hires_cache_sha256": session.get("HIRES_CACHE_SHA256", optional_hash(session.get("HIRES_CACHE_PATH", ""))),
             "savefile_source_sha256": session.get("SAVEFILE_SOURCE_SHA256", optional_hash(session.get("SAVEFILE_SOURCE", ""))),

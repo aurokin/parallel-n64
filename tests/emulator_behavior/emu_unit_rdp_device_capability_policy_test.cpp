@@ -52,21 +52,6 @@ static void test_small_types_driver_policy_matrix()
 	      "non-special-case drivers should keep small types allowed");
 }
 
-static void test_allow_small_types_after_driver_policy()
-{
-	using RDP::detail::allow_small_types_after_driver_policy;
-	constexpr uint32_t unknown_driver_id = 0u;
-
-	check(!allow_small_types_after_driver_policy(false, false, true, unknown_driver_id),
-	      "disabled small types should remain disabled");
-	check(!allow_small_types_after_driver_policy(true, false, true, VK_DRIVER_ID_AMD_PROPRIETARY_KHR),
-	      "driver policy should disable small types when not forced");
-	check(allow_small_types_after_driver_policy(true, true, true, VK_DRIVER_ID_AMD_PROPRIETARY_KHR),
-	      "forced small types should bypass driver policy");
-	check(allow_small_types_after_driver_policy(true, false, false, VK_DRIVER_ID_AMD_PROPRIETARY_KHR),
-	      "driver policy should be skipped when driver properties are unavailable");
-}
-
 static void test_enable_small_integer_arithmetic()
 {
 	using RDP::detail::enable_small_integer_arithmetic;
@@ -137,7 +122,6 @@ int main()
 {
 	test_validate_device_support_requirements();
 	test_small_types_driver_policy_matrix();
-	test_allow_small_types_after_driver_policy();
 	test_enable_small_integer_arithmetic();
 	test_enable_subgroup_tile_binning();
 	test_derive_renderer_env_overrides();

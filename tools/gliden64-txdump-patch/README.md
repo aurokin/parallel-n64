@@ -19,8 +19,12 @@ If forward `--check` fails, use `git apply --reverse --check`
 to distinguish an already-applied patch from an incompatible checkout.
 
 Run [`gliden64-reference-capture.sh`](../scenarios/gliden64-reference-capture.sh)
-with the patched core and `GLN64_TXDUMP=1`. Dumps appear under the
-bundle's RetroArch system directory.
+with an explicit patched core built from the preserved
+`reference/gliden64-txdump-env` branch or a checkout carrying the equivalent
+hook. The capture script exports `GLN64_TXDUMP=1`; an upstream `develop` build
+without the hook ignores that environment variable. Selecting a core path or
+setting the variable alone does not establish dump support. Dumps appear under
+the bundle's RetroArch system directory.
 
 Interpretation is deliberately narrow:
 

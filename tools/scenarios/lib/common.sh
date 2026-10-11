@@ -123,11 +123,6 @@ scenario_stage_optional_savefile() {
   cp "$savefile_path" "$bundle_dir/savefiles/ParaLLEl N64/${rom_basename}.srm"
 }
 
-scenario_find_single_capture() {
-  local bundle_dir="$1"
-  find "$bundle_dir/captures" -maxdepth 1 -type f | sort
-}
-
 scenario_extract_hires_log_evidence() {
   local bundle_dir="$1"
   local output_path="$2"

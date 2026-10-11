@@ -98,18 +98,6 @@ inline SmallTypesDriverPolicy small_types_driver_policy(uint32_t driver_id)
 	}
 }
 
-inline bool allow_small_types_after_driver_policy(bool allow_small_types,
-                                                   bool forces_small_types,
-                                                   bool supports_driver_properties,
-                                                   uint32_t driver_id)
-{
-	if (!allow_small_types)
-		return false;
-	if (!supports_driver_properties || forces_small_types)
-		return true;
-	return small_types_driver_policy(driver_id) == SmallTypesDriverPolicy::Allow;
-}
-
 inline bool enable_small_integer_arithmetic(bool allow_small_types,
                                             bool shader_int16,
                                             bool shader_int8)

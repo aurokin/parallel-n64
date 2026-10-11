@@ -14,7 +14,9 @@ core, fixture manifests, and scenario verification.
   bundle for a compatible MoltenVK runtime.
 - `build_retroarch_agent_control_macos.sh` — build/deploy helper for
   the agent-control frontend.
-- `promote_interactive_state.py` — legacy/manual state promotion.
+- `promote_interactive_state.py` — manual state bundling with recorded ROM
+  identity and configuration provenance; promotion does not qualify a renderer
+  authority.
 - `png_uniform_black.py` — exact black-capture detection.
 
 The eval-specific vision shim now belongs to the external eval harness.
@@ -30,6 +32,9 @@ source, set `FFMPEG_PREFIX` to a compatible installation. For example,
 `FFMPEG_PREFIX="$(brew --prefix ffmpeg@7)"` selects that versioned keg's headers,
 libraries and pkg-config metadata while preserving the system's active FFmpeg.
 Run the helper without `deploy` to keep the build separate from installed apps.
+Build and preparation helpers verify signing without launching the app: a bare
+macOS app binary can remain in the Cocoa event loop even for `--version`. Use
+the bounded session adapters to qualify startup and control before runtime use.
 
 ## Session Contract
 
@@ -116,3 +121,9 @@ baseline.
   files are absent.
 - Adapters record resolved input identities; they do not decide renderer
   correctness.
+
+Manual promotion requires the session's recorded `ROM_PATH`; missing content
+identity fails before creating or replacing output. An explicit extra-config
+snapshot requires its recorded SHA-256 identity and is retained with its verified
+hash, including when the session bundle
+has moved. Restore a missing or mismatched snapshot before promoting the state.

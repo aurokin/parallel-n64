@@ -23,7 +23,7 @@ Status values:
 | [0006](0006-replacement-identity.md) | Rice-compatible draw-time identity | Accepted |
 | [0007](0007-pack-pipeline-phrb-only.md) | PHRB-only runtime pack pipeline | Accepted |
 | [0008](0008-fixture-and-evidence-authority.md) | Fixture and evidence authority | Accepted |
-| [0009](0009-interactive-adapter-and-deterministic-play.md) | Bounded stdin control and paused stepping | Accepted |
+| [0009](0009-interactive-adapter-and-deterministic-play.md) | Bounded stdin control and paused stepping | Accepted, amended |
 | [0010](0010-replacement-sampling-semantics.md) | Replacement sampling semantics | Accepted, amended |
 | [0011](0011-texrect-rasterization-policy.md) | Replacement-aware texrect policy | Accepted |
 | [0012](0012-gliden64-reference-rig-and-txdump.md) | Reference rig and txDump interpretation | Accepted |

@@ -170,11 +170,6 @@ echo "[mvk141] ad-hoc signing app copy"
 codesign --force --deep --sign - "$OUTPUT_APP" >/dev/null
 codesign --verify --deep --strict "$OUTPUT_APP"
 
-if ! "$OUTPUT_BIN" --version >/dev/null 2>&1; then
-  echo "Prepared RetroArch binary did not launch with --version: $OUTPUT_BIN" >&2
-  exit 1
-fi
-
-echo "[mvk141] ready"
+echo "[mvk141] bundle prepared and signed; runtime startup/control still requires bounded adapter qualification"
 echo "RETROARCH_BIN=$OUTPUT_BIN"
 echo "MOLTENVK_FRAMEWORK_SHA256=$FRAMEWORK_SHA256"

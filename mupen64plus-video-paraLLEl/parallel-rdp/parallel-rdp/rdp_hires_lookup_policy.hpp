@@ -30,16 +30,5 @@ inline bool should_run_hires_lookup(bool rdram_view_ok,
 	       key_height_pixels > 0;
 }
 
-inline void record_hires_lookup_result(bool hit,
-                                       uint64_t &lookup_total,
-                                       uint64_t &lookup_hits,
-                                       uint64_t &lookup_misses)
-{
-	lookup_total++;
-	if (hit)
-		lookup_hits++;
-	else
-		lookup_misses++;
-}
 }
 }

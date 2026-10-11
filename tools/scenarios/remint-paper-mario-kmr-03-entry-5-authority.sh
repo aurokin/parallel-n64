@@ -22,8 +22,8 @@ Options:
 
 Notes:
   - This script intentionally remints the authoritative Paper Mario `kmr_03 ENTRY_5` state.
-  - It uses the verified bootstrap path: title-screen state -> settle 3 -> step 960 frames -> save.
-  - It then verifies the result with the canonical steady-state path: load -> settle 3 -> capture.
+  - The historical title -> settle 3 -> step 960 -> save bootstrap is scene-unqualified.
+  - It verifies the staged candidate's intended scene and pinned feature-off capture before publishing.
 EOF
 }
 
@@ -73,6 +73,7 @@ fi
 BOOTSTRAP_BUNDLE="$BUNDLE_ROOT/bootstrap"
 VERIFY_BUNDLE="$BUNDLE_ROOT/verify"
 BOOTSTRAP_STATE_COPY="$BOOTSTRAP_BUNDLE/states/ParaLLEl N64/Paper Mario (USA).state"
+CANDIDATE_STATE_PATH="$BOOTSTRAP_BUNDLE/authority-candidate.state"
 
 mkdir -p "$BOOTSTRAP_BUNDLE/states/ParaLLEl N64"
 cp "$BOOTSTRAP_STATE_PATH" "$BOOTSTRAP_STATE_COPY"
@@ -128,15 +129,40 @@ PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
 "$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh" \
   "${ADAPTER_ARGS[@]}"
 
-mkdir -p "$(dirname -- "$OUTPUT_PATH")"
-cp "$BOOTSTRAP_STATE_COPY" "$OUTPUT_PATH"
+# Keep the exact candidate independently of the mutable bootstrap save slot.
+# Exclusive creation prevents a reused bundle from rewriting prior evidence.
+python3 - "$BOOTSTRAP_STATE_COPY" "$CANDIDATE_STATE_PATH" <<'PY'
+from pathlib import Path
+import shutil
+import sys
 
+source, candidate = map(Path, sys.argv[1:])
+with source.open('rb') as incoming, candidate.open('xb') as outgoing:
+    shutil.copyfileobj(incoming, outgoing)
+candidate.chmod(0o444)
+PY
+CANDIDATE_SHA256="$(scenario_sha256_file "$CANDIDATE_STATE_PATH")"
+
+AUTHORITATIVE_STATE_PATH="$CANDIDATE_STATE_PATH" \
 RUNTIME_ENV_OVERRIDE="$RUNTIME_ENV" \
 "$SCRIPT_DIR/paper-mario-kmr-03-entry-5.sh" \
   --mode off \
   --authority-mode authoritative \
   --bundle-dir "$VERIFY_BUNDLE" \
   --run
+
+# A custom runtime profile can override the caller's state path. Verify the
+# canonical scenario selected these candidate bytes before admitting its result.
+python3 - "$VERIFY_BUNDLE/bundle.json" "$CANDIDATE_SHA256" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+authority = json.loads(Path(sys.argv[1]).read_text()).get('fixture_authority', {})
+if (authority.get('authority_mode_used') != 'authoritative'
+        or authority.get('active_state_sha256') != sys.argv[2]):
+    raise SystemExit('[remint] verification did not use the staged authoritative candidate.')
+PY
 
 VERIFY_CAPTURE="$(find "$VERIFY_BUNDLE/captures" -maxdepth 1 -type f | head -n1)"
 if [[ -z "$VERIFY_CAPTURE" ]]; then
@@ -145,9 +171,8 @@ if [[ -z "$VERIFY_CAPTURE" ]]; then
 fi
 
 VERIFY_SHA256="$(scenario_sha256_file "$VERIFY_CAPTURE")"
-OUTPUT_SHA256="$(scenario_sha256_file "$OUTPUT_PATH")"
 
-echo "[remint] authoritative state sha256: $OUTPUT_SHA256"
+echo "[remint] candidate state sha256: $CANDIDATE_SHA256"
 echo "[remint] verify capture sha256: $VERIFY_SHA256"
 
 if [[ "$VERIFY_SHA256" != "$EXPECTED_SCREENSHOT_SHA256" ]]; then
@@ -157,4 +182,34 @@ if [[ "$VERIFY_SHA256" != "$EXPECTED_SCREENSHOT_SHA256" ]]; then
   exit 1
 fi
 
+# Publish only the verified bytes. A temporary beside the destination permits
+# one atomic replacement and preserves the old authority on any earlier error.
+python3 - "$CANDIDATE_STATE_PATH" "$OUTPUT_PATH" "$CANDIDATE_SHA256" "$BOOTSTRAP_STATE_COPY" <<'PY'
+import hashlib
+import os
+from pathlib import Path
+import shutil
+import stat
+import sys
+import tempfile
+
+candidate, output = map(Path, sys.argv[1:3])
+expected_sha256 = sys.argv[3]
+bootstrap = Path(sys.argv[4])
+output.parent.mkdir(parents=True, exist_ok=True)
+descriptor, temporary_path = tempfile.mkstemp(prefix=f'.{output.name}.', dir=output.parent)
+temporary = Path(temporary_path)
+try:
+    with os.fdopen(descriptor, 'wb') as outgoing, candidate.open('rb') as incoming:
+        shutil.copyfileobj(incoming, outgoing)
+    if hashlib.sha256(temporary.read_bytes()).hexdigest() != expected_sha256:
+        raise SystemExit('[remint] candidate changed after staging; authority not published.')
+    permissions = stat.S_IMODE((output if output.exists() else bootstrap).stat().st_mode)
+    temporary.chmod(permissions)
+    os.replace(temporary, output)
+finally:
+    temporary.unlink(missing_ok=True)
+PY
+
+echo "[remint] authoritative state sha256: $CANDIDATE_SHA256"
 echo "[remint] kmr_03 entry 5 authority verified."

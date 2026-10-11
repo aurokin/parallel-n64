@@ -314,7 +314,7 @@ else
       --command "LOAD_STATE_SLOT_PAUSED 0"
       --command "STEP_FRAME ${POST_LOAD_SETTLE_FRAMES:-3}"
       --command "WAIT_STATUS_FRAME PAUSED ${POST_LOAD_SETTLE_FRAMES:-3} 10"
-      --command "SNAPSHOT_CORE_MEMORY paper-mario-gamestatus 800740aa 230"
+      --command "SNAPSHOT_CORE_MEMORY paper-mario-gamestatus 800740a8 232"
       --command "SNAPSHOT_CORE_MEMORY paper-mario-curgamemode 80151700 20"
       --command "SNAPSHOT_CORE_MEMORY paper-mario-transition 800a0944 8"
       --command "SCREENSHOT"

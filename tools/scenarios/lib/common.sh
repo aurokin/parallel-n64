@@ -1746,6 +1746,7 @@ result = {
         "semantic_trace_present": semantic_path.is_file(),
         "cur_game_mode_match": None,
         "scene_identity_match": None,
+        "scene_decoder_qualified": None,
         "hires_evidence_present": hires_path.is_file(),
         "hires_summary_provider_match": None,
         "hires_summary_source_mode_match": None,
@@ -1794,6 +1795,7 @@ result = {
         "scene_area_id": None,
         "scene_map_name": None,
         "scene_entry_id": None,
+        "scene_decoder_source": None,
         "hires_summary_provider": None,
         "hires_summary_source_mode": None,
         "hires_summary_entry_count": None,
@@ -1862,6 +1864,34 @@ if semantic_path.is_file():
         "entry_id": expected_scene_entry_id,
     }
     if any(value is not None for value in expected_scene.values()):
+        # Matching labels from the former native-offset decoder do not qualify
+        # a named scene. Require the corrected byte-order and capture contract.
+        source = semantic.get("sources", {}).get("gamestatus_window", {})
+        result["actual"]["scene_decoder_source"] = {
+            field: source.get(field) for field in (
+                "decoder_revision", "memory_format", "base_address",
+                "window_size_bytes", "logical_base_address", "logical_size_bytes",
+            )
+        }
+        raw_size = source.get("window_size_bytes")
+        qualified = (
+            source.get("decoder_revision") == "native-rdram-words-v1"
+            and source.get("memory_format") == "native-rdram-little-endian-32-bit-words"
+            and source.get("base_address") == "0x800740a8"
+            and type(raw_size) is int and raw_size >= 232 and raw_size % 4 == 0
+            and source.get("logical_base_address") == "0x800740aa"
+            and type(source.get("logical_size_bytes")) is int
+            and source.get("logical_size_bytes") == 230
+        )
+        result["checks"]["scene_decoder_qualified"] = qualified
+        if not qualified:
+            result["passed"] = False
+            result["failures"].append(
+                "Named scene requires qualified GameStatus decoding: "
+                "native-rdram-words-v1 from aligned 0x800740a8/232-byte native "
+                "words covering the logical 0x800740aa/230-byte slice. "
+                f"Got {result['actual']['scene_decoder_source']}."
+            )
         matched = all(
             expected is None
             or (type(actual_scene[field]) is type(expected) and actual_scene[field] == expected)
@@ -2352,8 +2382,10 @@ FILE_MENU_WINDOW_IDS = {
     "slot2_body": 57,
 }
 trace_path = bundle_dir / "traces" / "paper-mario-gamestatus.core-memory.txt"
-expected_base = 0x800740AA
-expected_size = 0xE6
+expected_base = 0x800740A8
+expected_size = 0xE8
+gamestatus_logical_base = 0x800740AA
+gamestatus_logical_size = 0xE6
 cur_game_mode_trace_path = bundle_dir / "traces" / "paper-mario-curgamemode.core-memory.txt"
 cur_game_mode_expected_base = 0x80151700
 cur_game_mode_expected_size = 0x14
@@ -2362,7 +2394,7 @@ transition_expected_base = 0x800A0944
 transition_expected_size = 0x08
 filemenu_current_menu_trace_path = bundle_dir / "traces" / "paper-mario-filemenu-current-menu.core-memory.txt"
 filemenu_current_menu_expected_base = 0x8024C098
-filemenu_current_menu_expected_size = 0x01
+filemenu_current_menu_expected_size = 0x04
 filemenu_menus_trace_path = bundle_dir / "traces" / "paper-mario-filemenu-menus.core-memory.txt"
 filemenu_menus_expected_base = 0x80249B84
 filemenu_menus_expected_size = 0x08
@@ -2398,9 +2430,29 @@ def load_trace(path: Path):
     fields = path.read_text().split()
     if not fields or fields[0] != "READ_CORE_MEMORY":
         raise SystemExit(f"Unexpected Paper Mario snapshot format: {path}")
-    base_address = int(fields[1], 16)
-    data = bytes(int(x, 16) for x in fields[2:])
-    return {"path": str(path), "base_address": base_address, "data": data}
+    try:
+        base_address = int(fields[1], 16)
+        data = bytes(int(x, 16) for x in fields[2:])
+    except (IndexError, ValueError):
+        raise SystemExit(f"Malformed native RDRAM snapshot: {path}") from None
+    if base_address == 0x800740AA:
+        raise SystemExit(
+            f"Unqualified legacy GameStatus snapshot: {path}; native "
+            "0x800740aa windows omit areaID bytes and cannot qualify a scene. "
+            "Capture aligned 0x800740a8/232 bytes."
+        )
+    # READ_CORE_MEMORY exposes native RDRAM: each aligned 32-bit word is
+    # little-endian. An unaligned/partial word can omit CPU-addressed bytes.
+    if base_address % 4 or len(data) % 4:
+        raise SystemExit(
+            f"Unqualified native RDRAM snapshot: {path}; require an aligned "
+            "base and complete 4-byte words."
+        )
+    cpu_data = b"".join(data[off:off + 4][::-1] for off in range(0, len(data), 4))
+    return {
+        "path": str(path), "base_address": base_address,
+        "data": cpu_data, "native_data": data,
+    }
 
 def u8(buf, off):
     return buf[off]
@@ -2409,20 +2461,15 @@ def s8(buf, off):
     value = buf[off]
     return value - 256 if value >= 128 else value
 
-def u16le(buf, off):
-    return buf[off] | (buf[off + 1] << 8)
+def u16be(buf, off):
+    return int.from_bytes(buf[off:off + 2], "big")
 
-def s16le(buf, off):
-    value = u16le(buf, off)
+def s16be(buf, off):
+    value = u16be(buf, off)
     return value - 65536 if value >= 32768 else value
 
-def u32le(buf, off):
-    return (
-        buf[off]
-        | (buf[off + 1] << 8)
-        | (buf[off + 2] << 16)
-        | (buf[off + 3] << 24)
-    )
+def u32be(buf, off):
+    return int.from_bytes(buf[off:off + 4], "big")
 
 def ensure_trace_layout(trace, expected_base, expected_size, trace_name):
     if trace is None:
@@ -2452,9 +2499,9 @@ def decode_menu_panel(buf, *, state_names, selected_names=None):
         "num_cols": s8(buf, 0x05),
         "num_rows": s8(buf, 0x06),
         "num_pages": s8(buf, 0x07),
-        "grid_data_ptr": f"0x{u32le(buf, 0x08):08x}",
-        "handle_input_ptr": f"0x{u32le(buf, 0x10):08x}",
-        "update_ptr": f"0x{u32le(buf, 0x14):08x}",
+        "grid_data_ptr": f"0x{u32be(buf, 0x08):08x}",
+        "handle_input_ptr": f"0x{u32be(buf, 0x10):08x}",
+        "update_ptr": f"0x{u32be(buf, 0x14):08x}",
     }
 
 def decode_window_flags(flags):
@@ -2465,8 +2512,8 @@ def decode_window_update(value):
 
 def decode_window(buf):
     flags = u8(buf, 0x00)
-    fp_update = u32le(buf, 0x04)
-    fp_pending = u32le(buf, 0x08)
+    fp_update = u32be(buf, 0x04)
+    fp_pending = u32be(buf, 0x08)
     return {
         "flags": flags,
         "flag_names": decode_window_flags(flags),
@@ -2478,13 +2525,13 @@ def decode_window(buf):
         "fp_pending": f"0x{fp_pending:08x}",
         "fp_pending_name": decode_window_update(fp_pending),
         "pos": {
-            "x": s16le(buf, 0x0C),
-            "y": s16le(buf, 0x0E),
+            "x": s16be(buf, 0x0C),
+            "y": s16be(buf, 0x0E),
         },
-        "width": s16le(buf, 0x10),
-        "height": s16le(buf, 0x12),
-        "draw_contents_ptr": f"0x{u32le(buf, 0x14):08x}",
-        "draw_contents_arg0_ptr": f"0x{u32le(buf, 0x18):08x}",
+        "width": s16be(buf, 0x10),
+        "height": s16be(buf, 0x12),
+        "draw_contents_ptr": f"0x{u32be(buf, 0x14):08x}",
+        "draw_contents_arg0_ptr": f"0x{u32be(buf, 0x18):08x}",
         "update_counter": u8(buf, 0x1C),
     }
 
@@ -2493,10 +2540,11 @@ if trace is None:
     raise SystemExit("Paper Mario gamestatus snapshot not found in bundle traces.")
 ensure_trace_layout(trace, expected_base, expected_size, trace_path.name)
 
-gamestatus = trace["data"]
-window_sha256 = hashlib.sha256(gamestatus).hexdigest()
-area_id = s16le(gamestatus, 0x00)
-map_id = s16le(gamestatus, 0x06)
+logical_offset = gamestatus_logical_base - expected_base
+gamestatus = trace["data"][logical_offset:logical_offset + gamestatus_logical_size]
+window_sha256 = hashlib.sha256(trace["native_data"]).hexdigest()
+area_id = s16be(gamestatus, 0x00)
+map_id = s16be(gamestatus, 0x06)
 map_name_candidates = AREA_MAP_NAMES.get(area_id, [])
 map_name_candidate = None
 if 0 <= map_id < len(map_name_candidates):
@@ -2585,7 +2633,11 @@ result = {
             "base_address": f"0x{trace['base_address']:08x}",
             "window_size_bytes": len(trace["data"]),
             "window_sha256": window_sha256,
-            "description": "Empirical vanilla Paper Mario US gGameStatus slice starting at +0x86.",
+            "memory_format": "native-rdram-little-endian-32-bit-words",
+            "decoder_revision": "native-rdram-words-v1",
+            "logical_base_address": f"0x{gamestatus_logical_base:08x}",
+            "logical_size_bytes": gamestatus_logical_size,
+            "description": "Vanilla Paper Mario US gGameStatus +0x86 slice decoded from complete native RDRAM words.",
         }
     },
     "paper_mario_us": {
@@ -2593,42 +2645,42 @@ result = {
         "game_status": {
             "area_id": area_id,
             "area_name": AREA_NAMES.get(area_id, "UNKNOWN"),
-            "prev_area": s16le(gamestatus, 0x02),
-            "prev_area_name": AREA_NAMES.get(s16le(gamestatus, 0x02), "UNKNOWN"),
-            "did_area_change": s16le(gamestatus, 0x04),
+            "prev_area": s16be(gamestatus, 0x02),
+            "prev_area_name": AREA_NAMES.get(s16be(gamestatus, 0x02), "UNKNOWN"),
+            "did_area_change": s16be(gamestatus, 0x04),
             "map_id": map_id,
             "map_name_candidate": map_name_candidate,
-            "entry_id": s16le(gamestatus, 0x08),
+            "entry_id": s16be(gamestatus, 0x08),
             "intro_part": s8(gamestatus, 0x22),
             "startup_state": s8(gamestatus, 0x26),
             "title_screen_timer": s8(gamestatus, 0x29),
             "title_screen_dismiss_time": s8(gamestatus, 0x2A),
-            "frame_counter": u16le(gamestatus, 0xAE),
+            "frame_counter": u16be(gamestatus, 0xAE),
             "save_slot": u8(gamestatus, 0xE0),
             "load_type": u8(gamestatus, 0xE1),
             "load_type_name": LOAD_TYPE_NAMES.get(u8(gamestatus, 0xE1), "UNKNOWN"),
-            "save_count": u32le(gamestatus, 0xE2),
+            "save_count": u32be(gamestatus, 0xE2),
         }
     },
 }
 
 if cur_game_mode_trace is not None:
     cur_game_mode = cur_game_mode_trace["data"]
-    init_ptr = u32le(cur_game_mode, 0x04)
-    step_ptr = u32le(cur_game_mode, 0x08)
-    render_front_ui_ptr = u32le(cur_game_mode, 0x0C)
-    render_back_ui_ptr = u32le(cur_game_mode, 0x10)
+    init_ptr = u32be(cur_game_mode, 0x04)
+    step_ptr = u32be(cur_game_mode, 0x08)
+    render_front_ui_ptr = u32be(cur_game_mode, 0x0C)
+    render_back_ui_ptr = u32be(cur_game_mode, 0x10)
     result["sources"]["cur_game_mode"] = {
         "path": cur_game_mode_trace["path"],
         "base_address": f"0x{cur_game_mode_trace['base_address']:08x}",
         "window_size_bytes": len(cur_game_mode_trace["data"]),
-        "window_sha256": hashlib.sha256(cur_game_mode).hexdigest(),
-        "description": "Vanilla Paper Mario US CurGameMode runtime block from symbol_addrs.txt.",
+        "window_sha256": hashlib.sha256(cur_game_mode_trace["native_data"]).hexdigest(),
+        "description": "Vanilla Paper Mario US gMainGameMode first 20 bytes from symbol_addrs.txt and GameMode layout.",
     }
     result["paper_mario_us"]["cur_game_mode"] = {
-        "layout_note": "Runtime observations currently indicate a 2-byte leading field, then 2-byte flags, then init/step/renderFront/renderBack pointers.",
-        "leading_u16": u16le(cur_game_mode, 0x00),
-        "flags": u16le(cur_game_mode, 0x02),
+        "layout_note": "GameMode has flags at +0x00, padding at +0x02 and aligned callback words starting at +0x04.",
+        "flags": u16be(cur_game_mode, 0x00),
+        "padding_u16": u16be(cur_game_mode, 0x02),
         "init_ptr": f"0x{init_ptr:08x}",
         "init_symbol": CUR_GAME_MODE_POINTER_NAMES.get(init_ptr),
         "step_ptr": f"0x{step_ptr:08x}",
@@ -2646,13 +2698,13 @@ if transition_trace is not None:
         "path": transition_trace["path"],
         "base_address": f"0x{transition_trace['base_address']:08x}",
         "window_size_bytes": len(transition_trace["data"]),
-        "window_sha256": hashlib.sha256(transition).hexdigest(),
+        "window_sha256": hashlib.sha256(transition_trace["native_data"]).hexdigest(),
         "description": "Vanilla Paper Mario US map-transition globals from symbol_addrs.txt.",
     }
     result["paper_mario_us"]["map_transition"] = {
-        "state": s16le(transition, 0x00),
-        "state_time": s16le(transition, 0x02),
-        "loaded_from_file_select": s16le(transition, 0x04),
+        "state": s16be(transition, 0x00),
+        "state_time": s16be(transition, 0x02),
+        "loaded_from_file_select": s16be(transition, 0x04),
     }
 
 if any(
@@ -2674,17 +2726,19 @@ if any(
             "path": filemenu_current_menu_trace["path"],
             "base_address": f"0x{filemenu_current_menu_trace['base_address']:08x}",
             "window_size_bytes": len(filemenu_current_menu_trace["data"]),
+            "window_sha256": hashlib.sha256(filemenu_current_menu_trace["native_data"]).hexdigest(),
         }
         filemenu_result["current_menu"] = filemenu_current_menu
         filemenu_result["current_menu_name"] = FILE_MENU_NAMES.get(filemenu_current_menu)
 
     if filemenu_menus_trace is not None:
-        main_panel_ptr = u32le(filemenu_menus_trace["data"], 0x00)
-        confirm_panel_ptr = u32le(filemenu_menus_trace["data"], 0x04)
+        main_panel_ptr = u32be(filemenu_menus_trace["data"], 0x00)
+        confirm_panel_ptr = u32be(filemenu_menus_trace["data"], 0x04)
         result["sources"]["filemenu_runtime"]["menus"] = {
             "path": filemenu_menus_trace["path"],
             "base_address": f"0x{filemenu_menus_trace['base_address']:08x}",
             "window_size_bytes": len(filemenu_menus_trace["data"]),
+            "window_sha256": hashlib.sha256(filemenu_menus_trace["native_data"]).hexdigest(),
         }
         filemenu_result["menus"] = {
             "main_panel_ptr": f"0x{main_panel_ptr:08x}",
@@ -2697,7 +2751,7 @@ if any(
             "path": filemenu_main_panel_trace["path"],
             "base_address": f"0x{filemenu_main_panel_trace['base_address']:08x}",
             "window_size_bytes": len(main_panel),
-            "window_sha256": hashlib.sha256(main_panel).hexdigest(),
+            "window_sha256": hashlib.sha256(filemenu_main_panel_trace["native_data"]).hexdigest(),
         }
         filemenu_result["main_panel"] = decode_menu_panel(
             main_panel,
@@ -2711,7 +2765,7 @@ if any(
             "path": filemenu_confirm_panel_trace["path"],
             "base_address": f"0x{filemenu_confirm_panel_trace['base_address']:08x}",
             "window_size_bytes": len(confirm_panel),
-            "window_sha256": hashlib.sha256(confirm_panel).hexdigest(),
+            "window_sha256": hashlib.sha256(filemenu_confirm_panel_trace["native_data"]).hexdigest(),
         }
         filemenu_result["confirm_panel"] = decode_menu_panel(
             confirm_panel,
@@ -2720,11 +2774,12 @@ if any(
         )
 
     if filemenu_pressed_buttons_trace is not None:
-        pressed_buttons = u32le(filemenu_pressed_buttons_trace["data"], 0x00)
+        pressed_buttons = u32be(filemenu_pressed_buttons_trace["data"], 0x00)
         result["sources"]["filemenu_runtime"]["pressed_buttons"] = {
             "path": filemenu_pressed_buttons_trace["path"],
             "base_address": f"0x{filemenu_pressed_buttons_trace['base_address']:08x}",
             "window_size_bytes": len(filemenu_pressed_buttons_trace["data"]),
+            "window_sha256": hashlib.sha256(filemenu_pressed_buttons_trace["native_data"]).hexdigest(),
         }
         filemenu_result["pressed_buttons"] = {
             "raw": pressed_buttons,
@@ -2732,11 +2787,12 @@ if any(
         }
 
     if filemenu_held_buttons_trace is not None:
-        held_buttons = u32le(filemenu_held_buttons_trace["data"], 0x00)
+        held_buttons = u32be(filemenu_held_buttons_trace["data"], 0x00)
         result["sources"]["filemenu_runtime"]["held_buttons"] = {
             "path": filemenu_held_buttons_trace["path"],
             "base_address": f"0x{filemenu_held_buttons_trace['base_address']:08x}",
             "window_size_bytes": len(filemenu_held_buttons_trace["data"]),
+            "window_sha256": hashlib.sha256(filemenu_held_buttons_trace["native_data"]).hexdigest(),
         }
         filemenu_result["held_buttons"] = {
             "raw": held_buttons,
@@ -2749,6 +2805,7 @@ if any(
             "path": save_slot_has_data_trace["path"],
             "base_address": f"0x{save_slot_has_data_trace['base_address']:08x}",
             "window_size_bytes": len(save_slot_has_data_trace["data"]),
+            "window_sha256": hashlib.sha256(save_slot_has_data_trace["native_data"]).hexdigest(),
         }
         filemenu_result["save_slot_has_data"] = save_slot_has_data
 
@@ -2803,7 +2860,7 @@ if window_traces:
             "path": window_trace["path"],
             "base_address": f"0x{window_trace['base_address']:08x}",
             "window_size_bytes": len(window_data),
-            "window_sha256": hashlib.sha256(window_data).hexdigest(),
+            "window_sha256": hashlib.sha256(window_trace["native_data"]).hexdigest(),
             "window_id": FILE_MENU_WINDOW_IDS[window_name],
         }
         windows_result[window_name] = decode_window(window_data)

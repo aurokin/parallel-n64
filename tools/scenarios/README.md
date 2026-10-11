@@ -74,12 +74,17 @@ this check; do not use an untrusted file. Keep fixture assertions unchanged.
 |---------|------------|
 | Paper Mario title | `paper-mario-title-screen.sh` |
 | Paper Mario file select | `paper-mario-file-select.sh` |
-| Paper Mario `kmr_03 ENTRY_5` | `paper-mario-kmr-03-entry-5.sh` |
+| Paper Mario `kmr_03 ENTRY_5` (scene-unqualified) | `paper-mario-kmr-03-entry-5.sh` |
 | Paper Mario PHRB authority set | `paper-mario-phrb-authority-validation.sh` |
 | Full-cache runtime wrapper | `paper-mario-full-cache-phrb-authority-validation.sh` |
 | SM64/OoT boot breadth | `cross-game-hires-boot-validation.sh` |
 | SM64/OoT fixed-state breadth | `cross-game-hires-savestate-fixture-validation.sh` |
 | GlideN64 content reference | `gliden64-reference-capture.sh` |
+
+The retained kmr03 authority fails the corrected named-scene contract. Its
+historical 960-frame bootstrap is unqualified; passing title or replacement
+traffic checks cannot repair that scene claim. Remint publication now stages and
+verifies candidate bytes before replacing the requested output.
 
 Remint helpers and bounded research probes live beside these entrypoints. Read a
 script's usage before invoking it rather than treating the directory as an

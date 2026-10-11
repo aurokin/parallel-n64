@@ -331,10 +331,10 @@ else
       --command "LOAD_STATE_SLOT_PAUSED 0" \
       --command "STEP_FRAME ${POST_LOAD_SETTLE_FRAMES}" \
       --command "WAIT_STATUS_FRAME PAUSED ${POST_LOAD_SETTLE_FRAMES} 10" \
-      --command "SNAPSHOT_CORE_MEMORY paper-mario-gamestatus 800740aa 230" \
+      --command "SNAPSHOT_CORE_MEMORY paper-mario-gamestatus 800740a8 232" \
       --command "SNAPSHOT_CORE_MEMORY paper-mario-curgamemode 80151700 20" \
       --command "SNAPSHOT_CORE_MEMORY paper-mario-transition 800a0944 8" \
-      --command "SNAPSHOT_CORE_MEMORY paper-mario-filemenu-current-menu 8024c098 1" \
+      --command "SNAPSHOT_CORE_MEMORY paper-mario-filemenu-current-menu 8024c098 4" \
       --command "SNAPSHOT_CORE_MEMORY paper-mario-filemenu-menus 80249b84 8" \
       --command "SNAPSHOT_CORE_POINTER_MEMORY paper-mario-filemenu-main-panel 80249b84 28" \
       --command "SNAPSHOT_CORE_POINTER_MEMORY paper-mario-filemenu-confirm-panel 80249b88 28" \
@@ -374,10 +374,10 @@ else
       --command "CLEAR_INPUT_PORT 0" \
       --command "STEP_FRAME ${remaining_frames}" \
       --command "WAIT_STATUS_FRAME PAUSED ${FILE_SELECT_TARGET_FRAME} 10" \
-      --command "SNAPSHOT_CORE_MEMORY paper-mario-gamestatus 800740aa 230" \
+      --command "SNAPSHOT_CORE_MEMORY paper-mario-gamestatus 800740a8 232" \
       --command "SNAPSHOT_CORE_MEMORY paper-mario-curgamemode 80151700 20" \
       --command "SNAPSHOT_CORE_MEMORY paper-mario-transition 800a0944 8" \
-      --command "SNAPSHOT_CORE_MEMORY paper-mario-filemenu-current-menu 8024c098 1" \
+      --command "SNAPSHOT_CORE_MEMORY paper-mario-filemenu-current-menu 8024c098 4" \
       --command "SNAPSHOT_CORE_MEMORY paper-mario-filemenu-menus 80249b84 8" \
       --command "SNAPSHOT_CORE_POINTER_MEMORY paper-mario-filemenu-main-panel 80249b84 28" \
       --command "SNAPSHOT_CORE_POINTER_MEMORY paper-mario-filemenu-confirm-panel 80249b88 28" \

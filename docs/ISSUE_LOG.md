@@ -142,8 +142,9 @@ same header repeatedly; all four feature-off rasterizer SPIR-V variants remain
 byte-identical. These checks establish the sampling correction, not a verdict
 on every historical scene or pack.
 
-The isolated rebuilt core passes the hi-res title and named kmr03 fixtures at
-4x with bounded visual review. Feature-off before/after title captures are
+The earlier isolated rebuilt-core check reported hi-res title and named kmr03
+success at 4x. The native RDRAM correction below invalidates its kmr03 scene
+claim; the title evidence remains separate. Feature-off before/after title captures are
 byte-identical on the same current frontend/configuration; both differ from the older recorded
 headless baseline. That baseline mismatch is retained, not reminted by this
 correction. Full GPU fractional-LOD cutout and macOS checks remain outstanding.
@@ -191,13 +192,14 @@ profile requires area 0, map `kmr_03`, entry 5. Generic world fixtures remain
 unconstrained unless their profile declares a scene.
 
 Focused contracts reject malformed/truncated captures and wrong or missing
-scene identities; existing title/file-select/kmr03 evidence remains admissible.
+scene identities. The later native RDRAM correction below additionally rejects
+legacy named-scene metadata and invalidates the retained kmr03 scene claim.
 These are evidence admission checks. Correct textures, regions, filtering and
 composition still require semantic evidence and explicit visual judgment.
 
 ## Prologue shadow and Bowser sprite observations
 
-Status: historical observations identified; current replay and cause unqualified.
+Status: bounded current replay reviewed October 11, 2026; historical cause unresolved.
 
 Existing Paper Mario evidence contains a rectangular dark floor region during
 Peach/Bowser's castle confrontation, coarse native-looking jaw/chest regions in
@@ -225,10 +227,29 @@ Prior black-hole and tint-loss accusations were overturned by authored content
 and unmatched effect phases; they do not close these new observations. Several
 historical Bowser filenames identify other scenes, so labels alone are unsafe.
 
-Next evidence: cold-load the selected start, confirm the phase, and collect a
-bounded native/replacement sequence plus draw/key/palette/view/alpha evidence.
+The subsequent serial 4x Linux canary loads the castle dialogue, intro-attract
+closeup and old first battle command menu. A literal archived continuation
+reaches third-turn Star Rod use and the historical laugh caption with connected
+Bowser parts. Matched dense native/replacement phases show cast rays, flare
+rings, cyclic colors, expanding glow and dialogue fades in both conditions;
+no replacement-only segmentation or opaque chest patch is reproduced there.
+A new cold process reloads those starts and the protected pre-cast checkpoint,
+then reaches the effect and recovery without a new playthrough.
+
+The earlier arrival route also completes with matching native/replacement input
+steps and final GameStatus bytes. Reviewed smash, arrival, dialogue and walking
+phases show connected Bowser parts and actor-associated shadows in both; no
+isolated floor slab is reproduced in those samples. These negative
+observations are limited to the recorded core/pack/RADV/4x/trilinear condition;
+the old Mac core/pack and exact website extraction phase are not reconstructed.
+No specific historical renderer cause or prologue GPU fix is established.
 Follow ADR-0004/0005; do not match GlideN64 geometry or add scene-specific policy.
-No prologue scene defect was fixed or closed by this offline investigation.
+
+A separate transient appearance remains unresolved: replacement Peach hair
+becomes flat bright yellow at the window-smash cue while native hair stays
+brown. A protected pre-smash checkpoint and short recorded input suffix are
+retained. Inspect the actual replacement key/content, palette, shade and
+combiner before assigning a renderer or pack cause; color alone is insufficient.
 
 ## Same-offset CI4 palette-bank binding lead
 
@@ -245,3 +266,68 @@ different palette B without texture/TLUT reload, and another draw through the
 production lookup/binding path. Distinct expected keys/content must establish
 stale serving before changing invalidation. Do not indiscriminately clear every
 descriptor change or infer this mechanism from a fragmented Bowser screenshot.
+
+## Paper Mario native RDRAM semantic decoding
+
+Status: native word mapping corrected and bounded runtime decoding checked October 11, 2026.
+
+The semantic decoder treated CPU field offsets as direct offsets into the
+little-endian native RDRAM returned by `READ_CORE_MEMORY`. Its unaligned
+`0x800740aa`/230-byte GameStatus snapshot omitted the native bytes containing
+areaID and swapped neighboring halfwords. A battle sample with area 4, map 7
+and entry 2 consequently appeared as area 512, map 2 and entry 7. Byte fields
+and optional menu/window/transition fields had the same mapping defect.
+
+Maintained producers now capture complete aligned words at `0x800740a8`/232
+bytes. The decoder reverses each native word, slices the logical
+`0x800740aa`/230-byte GameStatus range and reads CPU big-endian fields. The
+current-menu capture widens from one byte to four. Optional byte/halfword
+decoding follows the same mapping; aligned pointer/word values retain their
+numeric meaning. GameMode flags use CPU offset 0; offset 2 is padding.
+Source metadata declares the native format and decoder revision, preserves
+raw-window hashes and records the separate logical slice.
+
+The focused memory contract invokes the real decoder on distinct adjacent
+fields, optional byte/halfword/word inputs and a captured native battle window.
+The fixture contract now decodes raw kmr03 memory before admitting the matching
+scene and rejecting wrong area/map/entry. Named scene admission additionally
+requires the corrected decoder revision, native format and raw/logical layout;
+legacy semantic JSON with matching labels remains unqualified and is rejected.
+Callback-only title and generic world contracts do not acquire this scene-only
+requirement. Legacy unaligned GameStatus and
+single-byte menu snapshots, short ranges and malformed inputs fail closed;
+missing area bytes are never guessed. These offline checks pass, but do not
+establish current state compatibility or capture freshness.
+
+Historical traces and semantic outputs remain unchanged and unqualified for
+these fields unless independently attested. No authority was reminted, and no
+renderer, transport, scorer or frozen input changed. Newly decoded runtime
+scene evidence remains separate from renderer-authority promotion.
+
+The corrected live kmr03 scenario reports area 6/map 5/entry 2 and fails its
+unchanged area 0/kmr_03/entry 5 expectation. Decoder qualification passes; named
+scene identity fails. Its prior passing named-scene result was false evidence.
+The manifest and graph node are now scene-unqualified, retaining IDs, paths,
+expected scene and historical state/capture hashes. The title-plus-960-frame
+bootstrap is not a proven route to kmr03 and must not be used as such.
+
+The PHRB authority wrapper also requires literal successful decoder qualification
+and scene identity when aggregating that named fixture, including `--reuse`.
+Its former reliance on a cached `passed:true` verdict could bypass the corrected
+consumer. Focused wrapper-policy checks reject legacy/malformed/truthy verdicts
+and retain callback-only title/file-select admission.
+
+## Authority remint publication
+
+Status: kmr03 helper verifies staged bytes before atomic publication October 11, 2026.
+
+The helper previously copied a bootstrap candidate over the authority before
+verification. A failing scene or feature-off capture check left that output
+overwritten, and a custom output could verify the runtime profile's default
+instead. It now verifies an independently staged candidate, checks the canonical
+scenario's selected-state hash/mode and pinned capture digest, and atomically
+publishes only the verified bytes. Failure preserves the existing output.
+
+Six focused offline CLI checks exercise verifier/digest failures, wrong selected
+bytes/mode, changed candidate and successful publication through the real helper.
+No actual remint, asset change or authority promotion was performed.

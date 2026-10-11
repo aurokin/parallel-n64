@@ -43,7 +43,8 @@ nodes:
     fixture_id: paper-mario-kmr-03-entry-5
     state_path: assets/states/paper-mario-kmr-03-entry-5/ParaLLEl N64/Paper Mario (USA).state
     kind: authoritative
-    status: active
+    # Retained bytes decode as area 6/map 5/entry 2; intended scene is unqualified.
+    status: scene-unqualified
     scene_identity:
       map: kmr_03
       entry: ENTRY_5

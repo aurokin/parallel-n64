@@ -295,7 +295,7 @@ if [[ "$AUTHORITY_MODE_USED" == "bootstrap" ]]; then
 fi
 
 ADAPTER_ARGS+=(
-  --command "SNAPSHOT_CORE_MEMORY paper-mario-gamestatus 800740aa 230"
+  --command "SNAPSHOT_CORE_MEMORY paper-mario-gamestatus 800740a8 232"
   --command "SNAPSHOT_CORE_MEMORY paper-mario-curgamemode 80151700 20"
   --command "SNAPSHOT_CORE_MEMORY paper-mario-transition 800a0944 8"
   --command "SCREENSHOT"

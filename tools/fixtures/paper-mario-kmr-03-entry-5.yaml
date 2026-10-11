@@ -1,10 +1,11 @@
 id: paper-mario-kmr-03-entry-5
 game: paper_mario
-status: active
+status: scene-unqualified
 description: >
-  First deterministic non-menu Paper Mario authority fixture. This steady-state
-  world scene is minted from the title-screen authority by advancing 960 frames
-  into `kmr_03 ENTRY_5`, then saving and verifying a canonical capture.
+  Intended kmr_03 ENTRY_5 world-scene contract. Corrected native RDRAM decoding
+  identifies the retained authority as area 6, map 5, entry 2 instead. Existing
+  bytes and historical capture digests remain preserved; the scene and the
+  title-plus-960-frame bootstrap require qualification before authority use.
 
 content:
   rom_path: assets/Paper Mario (USA).zip
@@ -66,7 +67,8 @@ checks:
 
 notes:
   - The canonical steady-state contract is `load savestate -> settle 3 frames -> screenshot`.
-  - The verified bootstrap path is `title authority -> settle 3 -> step 960 frames -> save`.
+  - The historical bootstrap path is `title authority -> settle 3 -> step 960 frames -> save`; it does not establish the intended named scene.
+  - October 11 corrected decoding rejects the retained state as area 6, map 5, entry 2. Keep the expected kmr_03 ENTRY_5 contract; do not relax it to admit these bytes.
   - The canonical savestate-backed off-mode capture hash is `35213195f6ffca55458f76821198390880f135f4331efbca2cb139885b3ad879`.
   - The earlier live probe hash `4bd3929dabff3ffb1b7e03a9c10d8ce50e9b6d0f067825d3a788c48a41b6fc62` remains useful as lineage evidence, but it is not the post-load steady-state capture for this fixture.
   - This fixture exists to broaden validation beyond menus before default-path promotion.

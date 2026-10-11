@@ -56,6 +56,11 @@ title-screen, file-select, and `kmr_03 ENTRY_5` authorities. It asserts:
 - fallbacks carry explicit reasons;
 - the bundle records ROM, state, pack, and configuration identity.
 
+The retained kmr03 state is scene-unqualified after the native RDRAM decoder
+correction: it reports area 6/map 5/entry 2. The runtime lane must reject that
+state against its unchanged intended scene contract. A passing required profile
+does not qualify this runtime authority or its historical bootstrap recipe.
+
 The wrapper's observed default is
 `artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb`.
 Override it with `EMU_RUNTIME_PM64_FULL_CACHE_PHRB`. Fixture manifests

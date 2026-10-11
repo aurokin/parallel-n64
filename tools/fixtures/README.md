@@ -26,4 +26,6 @@ Tracked Paper Mario fixtures:
 
 - [title screen](paper-mario-title-screen.yaml)
 - [file select](paper-mario-file-select.yaml)
-- [`kmr_03 ENTRY_5`](paper-mario-kmr-03-entry-5.yaml)
+- [`kmr_03 ENTRY_5`](paper-mario-kmr-03-entry-5.yaml): scene-unqualified;
+  corrected decoding rejects its retained authority. Preserve the intended
+  contract and historical bytes pending a verified route to that scene.

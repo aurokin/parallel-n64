@@ -2,6 +2,7 @@
 import ast
 import copy
 from pathlib import Path
+import tempfile
 import unittest
 
 REPO = Path(__file__).resolve().parents[3]
@@ -15,10 +16,15 @@ class AuthorityEvidenceContract(unittest.TestCase):
         # this contract checks reuse validation independently of fixture checks.
         source = WRAPPER.read_text().split("<<'PY'\n", 1)[1].split('\nPY\n', 1)[0]
         tree = ast.parse(source)
-        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in ('to_int', 'require_provider_owned_evidence')]
-        namespace = {'expected_source_mode': 'phrb-only'}
+        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in (
+            'to_int', 'require_provider_owned_evidence', 'require_named_scene_verification',
+            'require_reuse_provenance',
+        )]
+        namespace = {'expected_source_mode': 'phrb-only', 'Path': Path}
         exec(compile(ast.Module(body=functions, type_ignores=[]), str(WRAPPER), 'exec'), namespace)
         cls.validate = staticmethod(namespace['require_provider_owned_evidence'])
+        cls.validate_scene = staticmethod(namespace['require_named_scene_verification'])
+        cls.validate_reuse = staticmethod(namespace['require_reuse_provenance'])
 
     def setUp(self):
         self.evidence = {
@@ -60,6 +66,44 @@ class AuthorityEvidenceContract(unittest.TestCase):
                 self.assertTrue(self.validate(evidence, 'evidence.json'))
         self.evidence['summary']['provider'] = 'off'
         self.assertTrue(self.validate(self.evidence, 'evidence.json'))
+
+    def test_legacy_passed_verdict_cannot_qualify_named_scene(self):
+        record = {'fixture_id': 'paper-mario-kmr-03-entry-5', 'passed': True,
+                  'checks': {'scene_identity_match': True}}
+        failures = self.validate_scene(record, record['fixture_id'])
+        self.assertTrue(any('scene_decoder_qualified' in failure for failure in failures), failures)
+        # The aggregation provenance path must apply the same policy even before
+        # an early return for incomplete bundle metadata.
+        with tempfile.TemporaryDirectory() as directory:
+            failures = self.validate_reuse(Path(directory), record, record['fixture_id'], {})
+        self.assertTrue(any('scene_decoder_qualified' in failure for failure in failures), failures)
+
+    def test_corrected_named_scene_verdict_is_admissible(self):
+        record = {'passed': True, 'checks': {'scene_decoder_qualified': True, 'scene_identity_match': True}}
+        self.assertEqual(self.validate_scene(record, 'paper-mario-kmr-03-entry-5'), [])
+
+    def test_named_scene_checks_require_literal_true(self):
+        for check in ('scene_decoder_qualified', 'scene_identity_match'):
+            for value in (False, None, 'true', '1', 1, 1.0, [], {}):
+                with self.subTest(check=check, value=value):
+                    record = {'passed': True, 'checks': {'scene_decoder_qualified': True, 'scene_identity_match': True}}
+                    record['checks'][check] = value
+                    failures = self.validate_scene(record, 'paper-mario-kmr-03-entry-5')
+                    self.assertTrue(any(check in failure for failure in failures), failures)
+            del record['checks'][check]
+            self.assertTrue(self.validate_scene(record, 'paper-mario-kmr-03-entry-5'))
+
+    def test_missing_or_malformed_check_records_reject_named_scene(self):
+        for checks in (None, [], True, 'passed'):
+            with self.subTest(checks=checks):
+                self.assertTrue(self.validate_scene({'passed': True, 'checks': checks}, 'paper-mario-kmr-03-entry-5'))
+        self.assertTrue(self.validate_scene({'passed': True}, 'paper-mario-kmr-03-entry-5'))
+
+    def test_callback_fixtures_do_not_require_named_scene_verdicts(self):
+        for fixture in ('paper-mario-title-screen', 'paper-mario-file-select'):
+            with self.subTest(fixture=fixture):
+                self.assertEqual(self.validate_scene({'passed': True}, fixture), [])
+                self.assertEqual(self.validate_scene({'checks': {'scene_decoder_qualified': False}}, fixture), [])
 
 
 if __name__ == '__main__':

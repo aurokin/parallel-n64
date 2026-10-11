@@ -364,8 +364,21 @@ def require_adapter_session_provenance(bundle_dir, bundle_meta, expected_mode):
         )
     return failures
 
-def require_reuse_provenance(bundle_dir, verification, expected_fixture_id, hires_evidence):
+def require_named_scene_verification(verification, expected_fixture_id):
+    if expected_fixture_id != "paper-mario-kmr-03-entry-5":
+        return []
+    # A cached passed:true verdict can predate corrected scene decoding.
+    # Reuse the verifier's qualification verdict without duplicating its layout.
+    checks = verification.get("checks")
+    checks = checks if isinstance(checks, dict) else {}
     failures = []
+    for check in ("scene_decoder_qualified", "scene_identity_match"):
+        if checks.get(check) is not True:
+            failures.append(f"Named kmr03 authority requires {check}=true, got {checks.get(check)!r}.")
+    return failures
+
+def require_reuse_provenance(bundle_dir, verification, expected_fixture_id, hires_evidence):
+    failures = require_named_scene_verification(verification, expected_fixture_id)
     actual_fixture_id = verification.get("fixture_id")
     if actual_fixture_id != expected_fixture_id:
         failures.append(f"Expected fixture_id={expected_fixture_id!r}, got {actual_fixture_id!r}.")

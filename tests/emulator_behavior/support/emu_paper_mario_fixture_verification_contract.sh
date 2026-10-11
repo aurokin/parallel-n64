@@ -120,39 +120,55 @@ done
 # the decoded scene, while unrelated world fixtures may define their own scene.
 WORLD_BUNDLE="$TMPDIR/world"
 cp -R "$PASS_BUNDLE" "$WORLD_BUNDLE"
-python3 - "$WORLD_BUNDLE/traces/paper-mario-game-status.json" <<'PY'
-import json
+python3 - "$WORLD_BUNDLE/traces" <<'PY'
 from pathlib import Path
 import sys
 
-path = Path(sys.argv[1])
-data = json.loads(path.read_text())
-data['paper_mario_us']['cur_game_mode'].update(init_symbol='state_init_world', step_symbol='state_step_world')
-data['paper_mario_us']['game_status'] = {'area_id': 0, 'map_name_candidate': 'kmr_03', 'entry_id': 5}
-path.write_text(json.dumps(data))
+traces = Path(sys.argv[1])
+# Exercise the same native-memory decoder that supplies runtime scene gates.
+# Adjacent fields differ, so halfword swaps cannot accidentally pass kmr03.
+status = bytes.fromhex('00 00 00 02 01 00 09 00 05 00 02 00') + bytes(220)
+mode = bytes.fromhex('00 00 01 00 30 5d 03 80 54 5d 03 80 90 2b 11 80 d0 5d 03 80')
+for name, base, raw in [('gamestatus', '800740a8', status), ('curgamemode', '80151700', mode)]:
+    (traces / f'paper-mario-{name}.core-memory.txt').write_text(
+        f'READ_CORE_MEMORY {base} ' + raw.hex(' ') + '\n'
+    )
 PY
+scenario_decode_paper_mario_semantic_state \
+  "$WORLD_BUNDLE" "$WORLD_BUNDLE/traces/paper-mario-game-status.json"
 for scene in matching wrongmap wrongarea wrongentry missing; do
   SCENE_BUNDLE="$TMPDIR/scene-$scene"
   cp -R "$WORLD_BUNDLE" "$SCENE_BUNDLE"
-  python3 - "$SCENE_BUNDLE/traces/paper-mario-game-status.json" "$scene" <<'PY'
+  python3 - "$SCENE_BUNDLE/traces/paper-mario-gamestatus.core-memory.txt" "$scene" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+fields = path.read_text().split()
+raw = bytearray(int(value, 16) for value in fields[2:])
+case = sys.argv[2]
+if case == 'wrongmap':
+    raw[10:12] = (1).to_bytes(2, 'little')
+elif case == 'wrongarea':
+    raw[0:2] = (5).to_bytes(2, 'little')
+elif case == 'wrongentry':
+    raw[8:10] = (0).to_bytes(2, 'little')
+path.write_text('READ_CORE_MEMORY 800740a8 ' + raw.hex(' ') + '\n')
+PY
+  scenario_decode_paper_mario_semantic_state \
+    "$SCENE_BUNDLE" "$SCENE_BUNDLE/traces/paper-mario-game-status.json"
+  if [[ "$scene" == "missing" ]]; then
+    python3 - "$SCENE_BUNDLE/traces/paper-mario-game-status.json" <<'PY'
 import json
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
 data = json.loads(path.read_text())
-scene = data['paper_mario_us']['game_status']
-case = sys.argv[2]
-if case == 'wrongmap':
-    scene['map_name_candidate'] = 'kmr_02'
-elif case == 'wrongarea':
-    scene['area_id'] = 5
-elif case == 'wrongentry':
-    scene['entry_id'] = 0
-elif case == 'missing':
-    del data['paper_mario_us']['game_status']
+del data['paper_mario_us']['game_status']
 path.write_text(json.dumps(data))
 PY
+  fi
   # These scene-only cases use the feature-off contract to isolate map checks
   # from the independently tested replacement-class requirements.
   printf '{"mode":"off"}\n' > "$SCENE_BUNDLE/bundle.json"
@@ -173,15 +189,63 @@ result = json.loads(Path(sys.argv[1]).read_text())
 matching = sys.argv[2] == 'matching'
 assert (int(sys.argv[3]) == 0) == matching, result
 assert result['checks']['scene_identity_match'] is matching, result
+assert result['checks']['scene_decoder_qualified'] is True, result
 assert result['checks']['capture_decodes'] is True, result
 if not matching:
     assert any('Scene identity mismatch' in failure for failure in result['failures']), result
 PY
 done
 
+# Old decoded labels can match perfectly despite originating in an insufficient
+# native capture. Source qualification must independently reject those labels.
+for qualification in missing-source legacy-revision legacy-layout wrong-format; do
+  LEGACY_BUNDLE="$TMPDIR/qualification-$qualification"
+  cp -R "$TMPDIR/scene-matching" "$LEGACY_BUNDLE"
+  python3 - "$LEGACY_BUNDLE/traces/paper-mario-game-status.json" "$qualification" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+case = sys.argv[2]
+if case == 'missing-source':
+    del data['sources']['gamestatus_window']
+elif case == 'legacy-revision':
+    del data['sources']['gamestatus_window']['decoder_revision']
+elif case == 'legacy-layout':
+    data['sources']['gamestatus_window'].update(base_address='0x800740aa', window_size_bytes=230)
+elif case == 'wrong-format':
+    data['sources']['gamestatus_window']['memory_format'] = 'cpu-big-endian'
+path.write_text(json.dumps(data))
+PY
+  status=0
+  (
+    scenario_source_runtime_env "$REPO_ROOT/tools/scenarios/paper-mario-kmr-03-entry-5.runtime.env"
+    unset EXPECTED_HIRES_PROVENANCE_AVAILABLE_OFF EXPECTED_HIRES_DRAW_USAGE_AVAILABLE_OFF
+    scenario_verify_paper_mario_fixture \
+      "$LEGACY_BUNDLE" "$LEGACY_BUNDLE/verification.json" \
+      "paper-mario-kmr-03-entry-5" "" "state_init_world" "state_step_world"
+  ) || status=$?
+  python3 - "$LEGACY_BUNDLE/verification.json" "$status" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+result = json.loads(Path(sys.argv[1]).read_text())
+assert int(sys.argv[2]) != 0, result
+assert result['checks']['scene_identity_match'] is True, result
+assert result['checks']['scene_decoder_qualified'] is False, result
+assert any('requires qualified GameStatus decoding' in failure for failure in result['failures']), result
+PY
+done
+
 # Optional scene expectations do not constrain generic world fixtures.
 scenario_verify_paper_mario_fixture \
   "$TMPDIR/scene-wrongmap" "$TMPDIR/scene-wrongmap/generic-verification.json" \
+  "generic-world" "" "state_init_world" "state_step_world"
+scenario_verify_paper_mario_fixture \
+  "$TMPDIR/qualification-missing-source" "$TMPDIR/qualification-missing-source/generic-verification.json" \
   "generic-world" "" "state_init_world" "state_step_world"
 
 # A loaded package and upload hits do not prove draw-time replacement. Keep

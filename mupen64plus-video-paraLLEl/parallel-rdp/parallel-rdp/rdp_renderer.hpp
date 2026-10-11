@@ -23,6 +23,7 @@
 #pragma once
 
 #include "rdp_data_structures.hpp"
+#include "rdp_hires_ci_binding_policy.hpp"
 #include "device.hpp"
 #include "rdp_common.hpp"
 #include "worker_thread.hpp"
@@ -336,6 +337,7 @@ private:
 		// from this address; a differing hires_rdram_load_addr means the
 		// binding describes overwritten texels (stale-binding guard).
 		uint32_t keyed_rdram_addr = 0;
+		detail::HiresCI4PaletteBinding ci4_palette;
 		bool valid = false;
 		bool hit = false;
 	};
@@ -367,6 +369,7 @@ private:
 	uint64_t hires_compat_draw_time_hits = 0;
 	uint64_t hires_compat_draw_time_ci_attempts = 0;
 	uint64_t hires_compat_draw_time_ci_hits = 0;
+	// Retired cross-bank fallback; retain its zero-valued summary field.
 	uint64_t hires_compat_draw_time_bank0_hits = 0;
 	std::unordered_set<uint64_t> hires_compat_draw_miss_logged;
 	std::unordered_set<std::string> hires_block_shape_probe_logged_hits;

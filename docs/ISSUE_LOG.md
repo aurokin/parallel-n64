@@ -245,27 +245,71 @@ the old Mac core/pack and exact website extraction phase are not reconstructed.
 No specific historical renderer cause or prologue GPU fix is established.
 Follow ADR-0004/0005; do not match GlideN64 geometry or add scene-specific policy.
 
-A separate transient appearance remains unresolved: replacement Peach hair
-becomes flat bright yellow at the window-smash cue while native hair stays
-brown. A protected pre-smash checkpoint and short recorded input suffix are
-retained. Inspect the actual replacement key/content, palette, shade and
-combiner before assigning a renderer or pack cause; color alone is insufficient.
+The subsequent cold replay reproduced the separate Peach hair transition and
+traced its cause to the CI4 palette-bank substitution below. The replacement
+pack itself contains flat yellow hair; a color difference alone did not prove
+this fault. Actual draw roles and binding provenance supply the diagnosis.
 
-## Same-offset CI4 palette-bank binding lead
+## CI4 palette-bank replacement provenance
 
-Status: source-supported follow-up; reproduction and Bowser connection unconfirmed.
+Status: reproduced and corrected October 11, 2026; cold/arrival art recovery,
+Star Rod control and feature-off parity pass; the required gate passes 54/54.
 
-The `b3d9be57` follow-up notes a CI tile palette-bank change without texture
-reload. Current `set_tile` preserves an existing replacement hit when its TMEM
-offset is unchanged, while the draw-time compatibility resolver runs on a miss.
-The binding carries no keyed palette-bank stamp. Separate TLUT-load overlap
-invalidation does not establish correctness for a descriptor-only bank switch.
+Paper Mario's shaded-sprite pipeline deliberately samples equal-offset CI4
+tiles with different palette roles: bank1 is generated lighting, bank0 is sprite
+art. Its two-cycle combiner multiplies those samples, then applies shade and
+environment. Replacement bindings previously retained no palette-bank provenance;
+equal-offset upload propagation and SetTile retention could put a bank0 art
+replacement into the bank1 lighting slot. Draw-time bank0 compatibility could
+also restore that wrong-role binding.
 
-Confirm with a CI4 draw using palette A, a same-offset SetTile switch to a
-different palette B without texture/TLUT reload, and another draw through the
-production lookup/binding path. Distinct expected keys/content must establish
-stale serving before changing invalidation. Do not indiscriminately clear every
-descriptor change or infer this mechanism from a fragmented Bowser screenshot.
+A protected pre-window-smash checkpoint and its confirm2/neutral20,
+confirm2/neutral20, neutral180 suffix reproduce the fault in fresh processes.
+The identified Peach back sprite is `2c603189edadae7d`, native 48×72,
+replacement 210×315. Actual triangle location, both physical tile identities,
+authored/generated TLUT loads and the combiner establish the roles: before the
+fix, bank1 serves bank0 replacement art; bank0 changes from native to the same
+replacement near the smash. The pack's back-hair art is itself flat yellow;
+matching native brown is not the correctness criterion.
+
+Bindings now preserve their lookup-source palette bank across aliases. Draws
+reject mismatched CI4 bindings only for sampled tiles, before resolving misses;
+the unequal-bank0 fallback is removed. CI8-to-CI4 reinterpretation normalizes
+its source provenance to bank0, matching the existing lookup. SetTile's pending
+load behavior remains unchanged.
+
+Bank rejection alone visibly lost replacement art at a cold start. Each sampled
+slot now resolves independently against its own palette and final texture view.
+A missing load origin may be inferred only from peers with matching offset,
+stride, format, size and native extent, whose known addresses all agree. This
+copies an origin, never a replacement binding or key. Overlapping writes retire
+known origins even when a tile has already fallen back to native. This is bounded
+inference from existing per-tile tracking, not a complete TMEM generation model.
+
+The final cold replay retains crisp Mario and Peach replacement art while
+restoring generated modulation: Peach's hair is muted olive/gold and her dress
+purple, rather than the earlier neon-yellow/pink. The rejected guard-only
+candidate and its visible native-fallback regression remain separate evidence.
+The arrival replay also retains HD actors through Bowser’s entrance, and the
+unsplit Star Rod control preserves coherent connected body/cast/glow phases.
+Four feature-off captures match the prior native condition exactly. No
+scene-specific renderer policy or texture-pack change is involved.
+
+Opt-in diagnostics expose both physical tiles and raw queued triangle/shade
+setup. Sampled CRCs explicitly describe host-global TMEM and pending upload
+count: those bytes are not a current-draw snapshot while uploads are queued.
+Legacy RDRAM/TLUT compatibility keys are recorded separately; the CRC algorithms
+are not interchangeable. Probe coverage includes TEXEL1 triangles without
+widening sampled-exact replacement admission.
+
+The full isolated build passes, the required owner gate passes 54/54 and closing
+static review reports no actionable findings. An independent reviewer inspected
+all 22 final captures; the emulator is stopped. Production-policy tests cover
+changed/unchanged CI4 banks, aliases without
+provenance, CI8 normalization, pending SetTile, unsampled neighbors, coherent
+versus ambiguous origins and overlap/wraparound. They do not replace GPU replay
+validation. Same-bank TLUT-content changes, other backends, every intermediate
+frame and the historical Bowser cause remain unqualified.
 
 ## Paper Mario native RDRAM semantic decoding
 

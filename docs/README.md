@@ -15,6 +15,8 @@
   skip policy.
 - [Open technical issues](ISSUE_LOG.md) — verified or bounded owner-repository
   follow-ups only.
+- [Evidence retention](EVIDENCE_RETENTION.md) — compact reproducible cases,
+  temporary recording closure and explicit coverage limits.
 
 ## Operational Components
 

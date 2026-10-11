@@ -106,6 +106,20 @@ target_include_directories(emu_unit_seed_policy_test PRIVATE
 target_compile_features(emu_unit_seed_policy_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.seed_policy COMMAND emu_unit_seed_policy_test)
 
+add_executable(emu_unit_input_analog_test
+  emu_unit_input_analog_test.c
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/plugin/emulate_game_controller_via_libretro.c"
+)
+target_include_directories(emu_unit_input_analog_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+)
+target_compile_features(emu_unit_input_analog_test PRIVATE c_std_99)
+if(UNIX)
+  target_link_libraries(emu_unit_input_analog_test PRIVATE m)
+endif()
+add_test(NAME emu.unit.input_analog COMMAND emu_unit_input_analog_test)
+
 add_executable(emu_unit_rdp_hires_compat_crc_override_test
   emu_unit_rdp_hires_compat_crc_override_test.cpp
 )

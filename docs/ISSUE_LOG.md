@@ -4,6 +4,32 @@ This register holds technical details owned by `parallel-n64`.
 Scheduling, priority, fleet rollout, eval operation, and gameplay research are
 tracked by their owning systems.
 
+## Full negative analog diagonal loses input
+
+Status: corrected in source October 11, 2026; bounded live candidate qualification passed. Installed-runtime rollout remains separate.
+
+The libretro controller bridge squared two signed 16-bit stick axes as `int`
+before passing their sum to `sqrt`. For `(-32768, -32768)`, the sum is
+2147483648, overflowing a signed 32-bit integer. The resulting invalid radius
+can take the deadzone branch and emit zero N64 axes. Fresh gameplay reproduced
+no movement for that full diagonal while cardinal inputs and a smaller negative
+diagonal moved the player. This is a controller conversion defect; it does not
+classify IL-3's historical load-settle report or establish a renderer fault.
+
+The conversion now widens each product to `double` before adding. Deadzone,
+sensitivity, angle snapping, button mapping and valid-axis rounding are unchanged.
+`emu.unit.input_analog` links the production controller module, supplies frontend
+callbacks, and checks emitted N64 axes for all full-range corners, cardinals,
+neutral input, a smaller diagonal and configured deadzone behavior. A standalone
+UndefinedBehaviorSanitizer run reproduces the overflow before the change and
+passes after it. A matched fresh-process 4x Vulkan replay from the same protected
+hammer checkpoint reproduced zero displacement on the original candidate and
+movement on the corrected candidate for the same 12-frame full negative
+diagonal, followed by normal idle control after release. Actual retained PNGs
+and position probes were independently reviewed. This qualifies that bounded
+controller behavior, not whole-game or other-backend correctness; the installed
+runtime was unchanged.
+
 ## IL-3: Load-settle input pathology
 
 Status: unconfirmed historical report; needs a minimal reproduction before fix work.

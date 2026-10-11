@@ -275,9 +275,8 @@ static uint32_t scan_rdram_ci_max_index(
 	return cimax;
 }
 
-// Compute Rice CRC using GlideN64-compatible parameters derived from the draw-time tile descriptor.
-// GlideN64 computes CRC lazily at draw time using the rendering tile's SetTileSize dimensions
-// and the tile's line-based stride, not the upload-path's raw LoadBlock dimensions.
+// Compute the lazy draw key over the masked view and its tracked source layout.
+// LoadTile uses source rows/crop, while LoadBlock preserves the line-based path.
 // Optional bank-zero identity is diagnostic evidence for CI4 palette-role
 // comparisons. It must not substitute for the current rendering tile's bank.
 static uint64_t compute_gliden64_compat_checksum64(
@@ -285,6 +284,7 @@ static uint64_t compute_gliden64_compat_checksum64(
 	uint32_t rdram_load_addr,
 	const TileMeta &meta,
 	const TileSize &tile_size,
+	const detail::HiresLoadTileSource &source,
 	const uint8_t *tlut_shadow,
 	bool tlut_shadow_valid,
 	uint64_t *alt_checksum64)
@@ -294,22 +294,12 @@ static uint64_t compute_gliden64_compat_checksum64(
 	if (!cpu_rdram || rdram_size == 0)
 		return 0;
 
-	uint32_t tile_width = 0, tile_height = 0;
-	if (!compute_hires_gliden64_display_dims(meta, tile_size, tile_width, tile_height))
+	detail::HiresCompatView view;
+	if (!detail::compute_hires_compat_view(meta, tile_size, rdram_load_addr, source, view))
 		return 0;
-
-	// Stride = tile line bytes. For 32bpp GlideN64 uses line << 4 instead of line << 3.
-	uint32_t bpl = meta.stride;
-	if (meta.size == TextureSize::Bpp32)
-		bpl <<= 1;
-	if (bpl == 0)
-	{
-		// Fallback: compute stride from tile dimensions (matches GlideN64 for zero-line tiles)
-		uint32_t computed_bpl = detail::compute_hires_texture_row_bytes(tile_width, meta.size);
-		if (computed_bpl == 0)
-			return 0;
-		bpl = computed_bpl;
-	}
+	const uint32_t tile_width = view.width, tile_height = view.height;
+	const uint32_t bpl = view.row_stride;
+	rdram_load_addr = view.address;
 
 	// GlideN64 uses the tile descriptor's size (meta.size), not SetTextureImage's size.
 	// For IA textures, SetTextureImage.size may be 16bpp while tile.size is 8bpp.
@@ -2213,8 +2203,11 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 					view.stride = peer_meta.stride;
 					compute_hires_gliden64_display_dims(peer_meta, tiles[peer].size, view.width, view.height);
 					view.address = hires_rdram_load_addr[peer];
+					view.source = hires_load_tile_source[peer];
 				}
-				hires_rdram_load_addr[t] = detail::find_hires_load_origin(views[t], views, Limits::MaxNumTiles);
+				const auto origin = detail::find_hires_load_origin_info(views[t], views, Limits::MaxNumTiles);
+				hires_rdram_load_addr[t] = origin.address;
+				hires_load_tile_source[t] = origin.source;
 			}
 			const auto &state = replacement_tiles[t];
 			if (state.hit && !detail::hires_ci4_binding_matches(
@@ -2230,8 +2223,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		}
 	}
 	// GlideN64-compat RDRAM CRC fallback: if the upload path missed, try computing CRC
-	// at draw time using the rendering tile's SetTileSize dimensions and line-based stride.
-	// GlideN64 computes its Rice CRC lazily at draw/cache time with these parameters.
+	// at draw time using the masked rendering view. LoadTile retains its source
+	// crop/stride; LoadBlock keeps the existing TMEM-line/DXT convention.
 	for (unsigned slot = 0; slot < 2; slot++)
 	{
 		if (!sampled_slots[slot])
@@ -2239,17 +2232,43 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		const unsigned resolve_tile = sampled_tiles[slot];
 		const auto &resolve_meta = tiles[resolve_tile].meta;
 		const auto &resolve_size = tiles[resolve_tile].size;
-		if (!replacement_tiles[resolve_tile].hit &&
-		    hires_gliden64_compat_crc_enabled &&
+		detail::HiresCompatView compat_view;
+		const bool compat_view_valid = hires_gliden64_compat_crc_enabled &&
 		    replacement_provider && cpu_rdram && rdram_size > 0 &&
-		    hires_rdram_load_addr[resolve_tile] != 0)
+		    hires_rdram_load_addr[resolve_tile] != 0 &&
+		    detail::compute_hires_compat_view(resolve_meta, resolve_size,
+		        hires_rdram_load_addr[resolve_tile], hires_load_tile_source[resolve_tile], compat_view);
+		auto &binding = replacement_tiles[resolve_tile];
+		if (binding.hit && detail::hires_source_binding_must_retire(
+		        binding.source_layout_binding, compat_view_valid, compat_view))
+		{
+			binding = {};
+			clear_hires_tile_binding(resolve_tile);
+		}
+		if (compat_view_valid &&
+		    (!replacement_tiles[resolve_tile].hit ||
+		     detail::hires_source_view_needs_rekey(compat_view,
+		         replacement_tiles[resolve_tile].key_w, replacement_tiles[resolve_tile].key_h)))
 		{
 			const uint64_t compat_checksum64 = compute_gliden64_compat_checksum64(
 				cpu_rdram, rdram_size,
 				hires_rdram_load_addr[resolve_tile],
-				resolve_meta, resolve_size,
+				resolve_meta, resolve_size, hires_load_tile_source[resolve_tile],
 				tlut_shadow, tlut_shadow_valid,
 				nullptr);
+
+			// An upload hit for the unmasked LoadTile region must not hide
+			// the exact source-backed draw key. LoadBlock subview rebasing
+			// retains its established behavior.
+			auto &prior_state = replacement_tiles[resolve_tile];
+			if (prior_state.hit && prior_state.checksum64 == compat_checksum64 &&
+			    prior_state.formatsize == formatsize_key(resolve_meta.fmt, resolve_meta.size))
+				continue;
+			if (prior_state.hit)
+			{
+				prior_state = {};
+				clear_hires_tile_binding(resolve_tile);
+			}
 
 			const bool is_ci_compat_texture = (compat_checksum64 >> 32) != 0;
 			if (is_ci_compat_texture)
@@ -2269,8 +2288,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 
 				if (compat_hit)
 				{
-					uint32_t compat_w = 0, compat_h = 0;
-					compute_hires_gliden64_display_dims(resolve_meta, resolve_size, compat_w, compat_h);
+					const uint32_t compat_w = compat_view.width, compat_h = compat_view.height;
 					ReplacementMeta compat_repl_meta = compat_resolution.meta;
 					compat_repl_meta.orig_w = compat_w;
 					compat_repl_meta.orig_h = compat_h;
@@ -2293,6 +2311,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 						repl_state.vk_image_index = compat_repl_meta.vk_image_index;
 						repl_state.keyed_rdram_addr = hires_rdram_load_addr[resolve_tile];
 						repl_state.ci4_palette = detail::make_hires_ci4_palette_binding(compat_formatsize, resolve_meta.palette);
+						repl_state.source_layout_binding = compat_view.source_layout;
 						apply_hires_tile_binding(resolve_tile, repl_state);
 						hires_compat_draw_time_hits++;
 						if (is_ci_compat_texture)
@@ -2303,8 +2322,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 							LOGI("Hi-res GlideN64-compat draw-time hit: tile=%u key=%016llx w=%u h=%u stride=%u addr=0x%06x.\n",
 							     resolve_tile,
 							     static_cast<unsigned long long>(compat_checksum64),
-							     compat_w, compat_h, resolve_meta.stride,
-							     hires_rdram_load_addr[resolve_tile] & 0x00ffffffu);
+							     compat_w, compat_h, compat_view.row_stride,
+							     compat_view.address & 0x00ffffffu);
 						}
 					}
 				}
@@ -2392,9 +2411,11 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				clear_hires_tile_binding(t);
 				continue;
 			}
-			uint32_t display_w = 0, display_h = 0;
-			if (!compute_hires_gliden64_display_dims(tiles[t].meta, tiles[t].size, display_w, display_h))
+			detail::HiresCompatView display_view;
+			if (!detail::compute_hires_compat_view(tiles[t].meta, tiles[t].size,
+			        hires_rdram_load_addr[t], hires_load_tile_source[t], display_view))
 				continue;
+			const uint32_t display_w = display_view.width, display_h = display_view.height;
 			if (repl_state.orig_w != display_w || repl_state.orig_h != display_h)
 			{
 				repl_state.orig_w = uint16_t(display_w);
@@ -2414,10 +2435,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			// the binding for this draw; the next in-window view rebases and
 			// rebinds. Draw-time compat hits key over the view itself, so
 			// they always pass.
-			uint32_t view_bytes = display_h * tiles[t].meta.stride;
-			uint32_t key_bytes = (uint32_t(repl_state.key_w) << (repl_state.formatsize >> 8)) >> 1;
-			key_bytes *= repl_state.key_h;
-			if (repl_state.key_w != 0 && repl_state.key_h != 0 && view_bytes > key_bytes)
+			if (!detail::hires_compat_view_fits_key(display_view, repl_state.key_w, repl_state.key_h,
+			        TextureSize(repl_state.formatsize >> 8), tiles[t].meta.stride))
 			{
 				if (hires_debug)
 				{
@@ -2962,7 +2981,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			if (cpu_rdram && rdram_size > 0 && hires_rdram_load_addr[probe_tile] != 0)
 				current_compat_key = compute_gliden64_compat_checksum64(
 					cpu_rdram, rdram_size, hires_rdram_load_addr[probe_tile],
-					probe_meta, probe_size, tlut_shadow, tlut_shadow_valid,
+					probe_meta, probe_size, hires_load_tile_source[probe_tile], tlut_shadow, tlut_shadow_valid,
 					&current_bank0_alt_key);
 			char probe_key[512] = {};
 			std::snprintf(probe_key, sizeof(probe_key),
@@ -4522,12 +4541,14 @@ void Renderer::set_tile(uint32_t tile, const TileMeta &meta)
 		// (GlideN64's loadInfo is per-TMEM-address and survives re-points),
 		// else zero so the compat lane cannot CRC the wrong RDRAM region.
 		hires_rdram_load_addr[tile] = 0;
+		hires_load_tile_source[tile] = {};
 		for (unsigned other = 0; other < Limits::MaxNumTiles; other++)
 		{
 			if (other != tile && tiles[other].meta.offset == meta.offset &&
 			    hires_rdram_load_addr[other] != 0)
 			{
 				hires_rdram_load_addr[tile] = hires_rdram_load_addr[other];
+				hires_load_tile_source[tile] = hires_load_tile_source[other];
 				break;
 			}
 		}
@@ -5409,13 +5430,29 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 		// point to the same TMEM region.
 		{
 			const uint32_t load_tmem_offset = meta.offset;
+			detail::HiresLoadTileSource source;
+			if (hires_gliden64_compat_crc_enabled &&
+			    detail::hires_load_tile_source_supported(info.mode == UploadMode::Tile, info.size, meta.size, tmem_offset))
+			{
+				source.address = src_base_addr;
+				source.image_width = info.tex_width;
+				source.row_stride = row_stride_bytes;
+				source.tmem_stride = meta.stride;
+				source.format = meta.fmt;
+				source.size = meta.size;
+				source.valid = true;
+			}
 			hires_rdram_load_addr[tile & (Limits::MaxNumTiles - 1)] = info.tex_addr;
+			hires_load_tile_source[tile & (Limits::MaxNumTiles - 1)] = source;
 			for (unsigned alias = 0; alias < Limits::MaxNumTiles; alias++)
 			{
 				if (alias == (tile & (Limits::MaxNumTiles - 1)))
 					continue;
 				if (tiles[alias].meta.offset == load_tmem_offset)
+				{
 					hires_rdram_load_addr[alias] = info.tex_addr;
+					hires_load_tile_source[alias] = source;
+				}
 			}
 		}
 
@@ -5473,6 +5510,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					// address and re-mint the binding this clear just
 					// dropped (and set_tile adoption would spread it).
 					hires_rdram_load_addr[i] = 0;
+					hires_load_tile_source[i] = {};
 				}
 			}
 		}
@@ -5876,6 +5914,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			repl_state.repl_h = static_cast<uint16_t>(repl_meta.repl_h);
 			repl_state.vk_image_index = repl_meta.vk_image_index;
 			repl_state.keyed_rdram_addr = info.tex_addr;
+			repl_state.source_layout_binding = false;
 			repl_state.ci4_palette = detail::make_hires_ci4_palette_binding(
 				lookup_formatsize, detail::hires_ci4_lookup_palette(meta.size, meta.palette));
 			apply_hires_tile_binding(tile & (Limits::MaxNumTiles - 1), repl_state);

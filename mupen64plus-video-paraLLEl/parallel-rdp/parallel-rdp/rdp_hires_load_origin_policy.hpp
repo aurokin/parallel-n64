@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rdp_common.hpp"
+#include "rdp_hires_compat_view.hpp"
 #include <algorithm>
 
 namespace RDP
@@ -16,16 +17,17 @@ struct HiresLoadOrigin
 	uint32_t width = 0;
 	uint32_t height = 0;
 	uint32_t address = 0;
+	HiresLoadTileSource source;
 };
 
 // Palette banks share index bytes, but a different TMEM window or native
 // extent cannot establish a missing tile's texture-image origin.
-inline uint32_t find_hires_load_origin(const HiresLoadOrigin &target,
-                                      const HiresLoadOrigin *peers, unsigned count)
+inline HiresLoadOrigin find_hires_load_origin_info(const HiresLoadOrigin &target,
+                                                 const HiresLoadOrigin *peers, unsigned count)
 {
 	if (target.address != 0 || target.width == 0 || target.height == 0)
-		return target.address;
-	uint32_t address = 0;
+		return target;
+	HiresLoadOrigin resolved = target;
 	for (unsigned i = 0; i < count; i++)
 	{
 		const auto &peer = peers[i];
@@ -33,11 +35,18 @@ inline uint32_t find_hires_load_origin(const HiresLoadOrigin &target,
 		    peer.format != target.format || peer.size != target.size ||
 		    peer.width != target.width || peer.height != target.height)
 			continue;
-		if (address != 0 && address != peer.address)
-			return 0;
-		address = peer.address;
+		if (resolved.address != 0 &&
+		    (resolved.address != peer.address || !(resolved.source == peer.source)))
+			return target;
+		resolved = peer;
 	}
-	return address;
+	return resolved;
+}
+
+inline uint32_t find_hires_load_origin(const HiresLoadOrigin &target,
+                                      const HiresLoadOrigin *peers, unsigned count)
+{
+	return find_hires_load_origin_info(target, peers, count).address;
 }
 
 inline bool hires_tmem_spans_overlap(uint32_t a0, uint32_t an, uint32_t b0, uint32_t bn,

@@ -451,3 +451,54 @@ publishes only the verified bytes. Failure preserves the existing output.
 Six focused offline CLI checks exercise verifier/digest failures, wrong selected
 bytes/mode, changed candidate and successful publication through the real helper.
 No actual remint, asset change or authority promotion was performed.
+
+## LoadTile source layout in compatibility draw keys
+
+Status: corrected and qualified in bounded October 11, 2026 regression checks.
+
+Mario Kart 64's stock-USA title draws its character illustration as 320×2
+strips from a 320-wide RGBA16 source. Inclusive command bounds report 321×3,
+the masks retain two rows and TMEM aligns rows to 648 bytes. Compatibility
+lookup incorrectly hashed that wider view with TMEM stride and the uncropped
+image base. The matching pack was present, but the HD title art stayed native.
+Copyright strips have the same fault: source width 124 and stride 248 became
+width 125 and stride 256.
+
+A protected title checkpoint independently reproduces both prior miss keys
+from native RDRAM. Source-width/crop/stride correction produces all 120 default
+background strip keys and the two full copyright-strip keys in the selected
+pack. Its final copyright row remains an unqualified native fallback; no key
+is invented for it. These are identity proofs, not image correctness gates.
+
+Equal-format/size, unsplit LoadTile uploads now retain their source crop,
+image width and RDRAM row stride alongside the existing tracked image base.
+Aliases copy that context; conflicting contexts cannot establish an inferred
+origin, and re-points/overlapping writes retire it. Draw keys clamp width to
+the source and retain masked height. A differing source-view extent retries
+the exact draw key even when the raw upload had a replacement hit. Alignment
+padding no longer counts as extra sampled rows; real extra rows and columns
+still reject a binding. Split transfers and format/size reinterpretations
+retain the prior compatibility path. LoadBlock/DXT and its legacy odd-CI4
+packed-byte guard remain unchanged.
+
+Bindings minted from a qualified source view carry that provenance. A later
+same-offset stride or format/size change that loses the qualified view retires
+only those bindings before an exact legacy lookup can retry. Pending raw-upload
+and LoadBlock bindings retain their existing reshape policy. This closes the
+648-to-640 stride transition that otherwise passes the legacy byte guard.
+
+Production-policy tests cover independent CRC goldens for adjacent cropped
+strips, unaligned copyright rows, odd unmasked heights, unsupported context,
+split-tail qualification, conflicting aliases, exact-view retry and genuine
+overruns and source-binding retirement after a stride change. No game-specific
+dimension adjustment or pack edit is involved.
+
+The final isolated candidate passed all 57 required tests. Fresh and cold MK64
+title inspection supports the HD-art correction; six protected course starts
+and a later Thwomp orientation remain coherent. Eight native controls match the
+prior binary exactly with identical process/load histories. Independent visual
+review found no introduced semantic defect in the 59-sample fresh Paper Mario
+demo, its returned-title boundary and three cold starts, or two SM64 Boo phases.
+Static closing review reported no actionable finding. Normal MK64 gameplay HUD,
+every intervening frame, patched MK64DX and other graphics backends remain
+unqualified. Installed runtimes were preserved.

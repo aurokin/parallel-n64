@@ -31,6 +31,12 @@ loads can require different settling from a warm scene: retain the actual
 qualified sequence without silently changing a fixture's authority contract.
 Fixture promotion still follows [ADR-0008](adr/0008-fixture-and-evidence-authority.md).
 
+For feature-off pixel parity, match the process start and ordered load/step
+history as well as the selected state's bytes. The VI's gamma-dither seed uses
+its runtime frame count, which a CPU-state reload does not reset. An extra title
+reload before the same race state can therefore change pixels without changing
+the native scene. Record that history instead of weakening the parity check.
+
 ## Capture and closure
 
 Default to screenshots and event states during play or automatic demos. Capture

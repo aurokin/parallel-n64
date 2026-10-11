@@ -24,6 +24,7 @@
 
 #include "rdp_data_structures.hpp"
 #include "rdp_hires_ci_binding_policy.hpp"
+#include "rdp_hires_compat_view.hpp"
 #include "device.hpp"
 #include "rdp_common.hpp"
 #include "worker_thread.hpp"
@@ -338,11 +339,13 @@ private:
 		// binding describes overwritten texels (stale-binding guard).
 		uint32_t keyed_rdram_addr = 0;
 		detail::HiresCI4PaletteBinding ci4_palette;
+		bool source_layout_binding = false;
 		bool valid = false;
 		bool hit = false;
 	};
 	ReplacementTileState replacement_tiles[Limits::MaxNumTiles] = {};
 	uint32_t hires_rdram_load_addr[Limits::MaxNumTiles] = {};
+	detail::HiresLoadTileSource hires_load_tile_source[Limits::MaxNumTiles] = {};
 	uint8_t tlut_shadow[512] = {};
 	uint8_t tlut_tmem_shadow[2048] = {};
 	bool tlut_shadow_valid = false;

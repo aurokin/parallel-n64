@@ -34,6 +34,7 @@ const int SCALING_FACTOR = 1 << SCALING_LOG2;
 #include "texture.h"
 #include "dither.h"
 #include "combiner.h"
+#include "hires_cutout_policy.h"
 
 bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 {
@@ -325,10 +326,11 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	}
 
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
-	// A sampled replacement texel was a pack cutout (filtered alpha == 0):
-	// the pack authored "nothing here", so the pixel must not be written in
-	// any blend mode (see hires_replacement_cutout in texture.h).
-	if (hires_replacement_cutout)
+	// Replacement alpha zero normally denotes a cutout. A color decal can
+	// instead use that alpha to reveal SHADE on the same surface.
+	if (hires_replacement_cutout_kills_pixel(hires_replacement_cutout, multi_cycle,
+	                                       uses_texel1 || uses_pipelined_texel1, convert_one,
+	                                       combiner_inputs_rgb1, combiner_inputs_alpha1))
 		return false;
 #endif
 

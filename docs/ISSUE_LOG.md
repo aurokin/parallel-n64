@@ -4,6 +4,40 @@ This register holds technical details owned by `parallel-n64`.
 Scheduling, priority, fleet rollout, eval operation, and gameplay research are
 tracked by their owning systems.
 
+## Replacement decal alpha removes shaded geometry
+
+Status: corrected in source October 11, 2026; isolated live candidate qualified.
+Installed-runtime rollout remains separate.
+
+SM64's automatic Big Boo's Haunt demo exposed a hollow front on Boo with the
+Reloaded HD pack. Eyes `b11fdc36` and mouth `070e836f` are RGBA16 identities whose
+replacement alpha masks color over a shaded body. Their converted payloads equal
+the source cache. Actual one-cycle triangle draws use normalized RGB mux
+`01040804` and alpha mux `07070705`: `(TEXEL0-SHADE)*TEXEL0_ALPHA+SHADE`, with
+environment-controlled output alpha. Rejecting every replacement alpha-zero
+sample before the combiner incorrectly removes the shaded face geometry.
+
+The shared shader policy now preserves empty one-cycle TEXEL0-over-SHADE decals
+when output alpha is independent of textures. Secondary/pipelined samples,
+conversion and two-cycle draws retain the existing cutout policy. Ordinary
+sprite/effect cutouts and the later combined-alpha kill remain intact. This is a
+combiner class rule, without a game, texture-key or descriptor override.
+
+Two fresh-demo checkpoints reproduce the face hole with replacements enabled
+and retain the face in matched native controls. Cold loads briefly show native
+fallback output, so the accepted before/candidate comparisons step fifteen
+neutral frames after the same state load. The candidate restores shaded Boo
+fronts and authored eyes/mouth in both inspected phases; one phase also repairs
+small holes in Mario's face. Surrounding replacement art remains coherent.
+Both native-off captures are pixel-identical before and after the correction.
+
+`emu.unit.hires_cutout_policy` exercises the production decision helper, the
+captured mux and conservative coverage/dependency exclusions. GPU evidence is
+separate from that selector test. The tracked shader header is regenerated using
+the pinned 2020 packer and the candidate core is built in an isolated source
+copy. Other combiner classes, all opacity phases and other backends remain
+unqualified; broader multi-cycle alpha dependency propagation is not implemented.
+
 ## Full negative analog diagonal loses input
 
 Status: corrected in source October 11, 2026; bounded live candidate qualification passed. Installed-runtime rollout remains separate.

@@ -330,6 +330,52 @@ static void test_ci4_odd_width_stride_reaches_second_row_palette_indices()
 	check(entries == 16u, "CI4 odd-width entry count should reflect second-row max index coverage");
 }
 
+static void test_ci32_group_palette_crc_respects_shadow_bounds()
+{
+	std::array<uint8_t, 2048> shadow = {};
+	for (size_t i = 0; i < shadow.size(); i++)
+		shadow[i] = uint8_t((i * 41u + 3u) & 0xffu);
+
+	// The last representable group includes entries 252 through 255.
+	const std::array<uint8_t, 4> last_group = { 0x00u, 0x3fu, 0x00u, 0x00u };
+	const auto usage = detail::compute_hires_ci32_tlut_usage(
+		last_group.data(), last_group.size(), 0, 1, 1, 2);
+	check(usage.valid && usage.min_entry == 252u && usage.max_entry == 255u,
+	      "CI32 usage should retain the last available TLUT group");
+	std::array<uint8_t, 8> packed = {};
+	for (uint32_t i = 0; i < 4u; i++)
+	{
+		packed[i * 2u] = shadow[(252u + i) * 8u];
+		packed[i * 2u + 1u] = shadow[(252u + i) * 8u + 1u];
+	}
+	const auto expected = rice_crc32_wrapped(packed.data(), packed.size(), 0, 4, 1, 2, 8);
+	check(expected != 0, "valid boundary palette should have an available CRC");
+	check(detail::compute_hires_ci32_tlut_group_palette_crc(
+		shadow.data(), shadow.size(), true, usage) == expected,
+	      "CI32 boundary palette CRC should preserve available bytes");
+
+	for (const auto high_byte : { 0x40u, 0xffu })
+	{
+		const std::array<uint8_t, 4> texels = { 0x00u, uint8_t(high_byte), 0x00u, 0x00u };
+		const auto unavailable = detail::compute_hires_ci32_tlut_usage(
+			texels.data(), texels.size(), 0, 1, 1, 2);
+		check(unavailable.valid && unavailable.min_entry >= 256u,
+		      "CI32 usage should expose groups beyond the physical palette shadow");
+		check(detail::compute_hires_ci32_tlut_group_palette_crc(
+			shadow.data(), shadow.size(), true, unavailable) == 0,
+		      "CI32 palette CRC should reject unavailable groups");
+	}
+
+	const std::array<uint8_t, 4> mixed = { 0x00u, 0x3fu, 0x00u, 0x40u };
+	const auto mixed_usage = detail::compute_hires_ci32_tlut_usage(
+		mixed.data(), mixed.size(), 0, 2, 1, 4);
+	check(mixed_usage.used_count == 8u && mixed_usage.min_entry == 252u && mixed_usage.max_entry == 259u,
+	      "CI32 mixed usage should include both available and unavailable entries");
+	check(detail::compute_hires_ci32_tlut_group_palette_crc(
+		shadow.data(), shadow.size(), true, mixed_usage) == 0,
+	      "CI32 palette CRC should reject the whole incomplete palette, not hash a prefix");
+}
+
 static void test_tmem_palette_crc_tracks_sampled_object_view()
 {
 	std::array<uint8_t, 512> tlut_shadow = {};
@@ -405,6 +451,7 @@ int main()
 	test_ci4_row_bytes_round_up_for_odd_width();
 	test_ci4_odd_width_stride_reaches_second_row_palette_indices();
 	test_tmem_palette_crc_tracks_sampled_object_view();
+	test_ci32_group_palette_crc_respects_shadow_bounds();
 
 	std::cout << "emu_unit_hires_ci_palette_policy_test: PASS" << std::endl;
 	return 0;

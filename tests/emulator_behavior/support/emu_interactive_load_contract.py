@@ -36,10 +36,27 @@ fd = os.open(bundle / "retroarch.stdin", os.O_RDWR)
 stream = os.fdopen(fd)
 log = bundle / "logs/retroarch.log"
 attempt = 0
+frame = 7
 with log.open("a", buffering=1) as output:
     for command in stream:
         command = command.strip()
-        if command.startswith("LOAD_STATE_SLOT"):
+        if command.startswith("SET_INPUT_PORT"):
+            (bundle / "input.held").write_text(command)
+            if mode != "input-set-timeout":
+                output.write(command + "\n")
+        elif command.startswith("CLEAR_INPUT_PORT"):
+            (bundle / "input.held").write_text("released")
+            output.write(command + "\n")
+        elif command == "GET_STATUS":
+            if mode == "input-bad-status":
+                output.write("GET_STATUS UNKNOWN\n")
+            else:
+                output.write(f"GET_STATUS PAUSED,frame={frame}\n")
+        elif command.startswith("STEP_FRAME"):
+            if mode != "input-stalled-step":
+                frame += int(command.split()[1])
+            output.write(command + "\n")
+        elif command.startswith("LOAD_STATE_SLOT"):
             attempt += 1
             with (bundle / "load.events").open("a") as events:
                 events.write(f"load {time.monotonic()}\n")
@@ -190,6 +207,89 @@ class LoadContract(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Frontend load barrier unavailable", result.stderr)
         self.assertFalse(bundle.exists())
+
+    def test_frame_input_releases_selected_port_after_success(self):
+        self.session("success")
+        result = self.adapter("input", "--bundle-dir", str(self.bundle),
+                              "--port", "2", "--mask", "0x80", "--frames", "3",
+                              "--analog", "123,-456,0,0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = (self.bundle / "logs/interactive.commands.log").read_text().splitlines()
+        self.assertEqual(commands[0], "SET_INPUT_PORT 2 0x80 123 -456 0 0")
+        self.assertIn("STEP_FRAME 3", commands)
+        self.assertEqual(commands[-1], "CLEAR_INPUT_PORT 2")
+        self.assertEqual(commands.count("CLEAR_INPUT_PORT 2"), 1)
+        self.assertEqual((self.bundle / "input.held").read_text(), "released")
+
+    def test_frame_input_releases_after_status_failure(self):
+        self.session("input-bad-status")
+        result = self.adapter("input", "--bundle-dir", str(self.bundle),
+                              "--mask", "0x80", "--frames", "3")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Could not read current frame", result.stderr)
+        commands = (self.bundle / "logs/interactive.commands.log").read_text().splitlines()
+        self.assertEqual(commands, ["SET_INPUT_PORT 0 0x80", "GET_STATUS", "CLEAR_INPUT_PORT 0"])
+        self.assertEqual((self.bundle / "input.held").read_text(), "released")
+
+    def test_input_releases_when_set_acknowledgement_is_lost(self):
+        self.session("input-set-timeout")
+        result = self.adapter("input", "--bundle-dir", str(self.bundle),
+                              "--mask", "0x80", "--hold-seconds", "0")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SET_INPUT_PORT not acknowledged", result.stderr)
+        commands = (self.bundle / "logs/interactive.commands.log").read_text().splitlines()
+        self.assertEqual(commands, ["SET_INPUT_PORT 0 0x80", "CLEAR_INPUT_PORT 0"])
+        self.assertEqual((self.bundle / "input.held").read_text(), "released")
+
+    def test_input_releases_when_frame_wait_is_interrupted(self):
+        self.session("input-stalled-step")
+        process = subprocess.Popen(["bash", str(ADAPTER), "input", "--bundle-dir", str(self.bundle),
+                                    "--mask", "0x80", "--frames", "3"],
+                                   text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.addCleanup(lambda: process.kill() if process.poll() is None else None)
+        command_log = self.bundle / "logs/interactive.commands.log"
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if command_log.exists() and "STEP_FRAME 3" in command_log.read_text():
+                break
+            time.sleep(0.02)
+        else:
+            self.fail("input did not enter its frame wait")
+        process.terminate()
+        process.communicate(timeout=10)
+        self.assertEqual(process.returncode, 143)
+        self.assertEqual(command_log.read_text().splitlines()[-1], "CLEAR_INPUT_PORT 0")
+        self.assertEqual((self.bundle / "input.held").read_text(), "released")
+
+    def test_input_releases_promptly_when_timed_hold_is_interrupted(self):
+        self.session("success")
+        process = subprocess.Popen(["bash", str(ADAPTER), "input", "--bundle-dir", str(self.bundle),
+                                    "--mask", "0x80", "--hold-seconds", "30"],
+                                   text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.addCleanup(lambda: process.kill() if process.poll() is None else None)
+        deadline = time.monotonic() + 5
+        sleep_pid = None
+        while time.monotonic() < deadline:
+            children = subprocess.check_output(["ps", "-eo", "pid=,ppid=,args="], text=True)
+            for child in children.splitlines():
+                pid, parent, command = child.split(maxsplit=2)
+                if (int(parent) == process.pid and command.split()[-1:] == ["30"]
+                        and Path(command.split()[0]).name == "sleep"):
+                    sleep_pid = int(pid)
+                    break
+            if sleep_pid is not None:
+                break
+            time.sleep(0.02)
+        else:
+            self.fail("input did not enter its timed hold")
+        process.terminate()
+        process.communicate(timeout=3)
+        self.assertEqual(process.returncode, 143)
+        self.assertEqual((self.bundle / "input.held").read_text(), "released")
+        self.assertEqual((self.bundle / "logs/interactive.commands.log").read_text().splitlines()[-1],
+                         "CLEAR_INPUT_PORT 0")
+        with self.assertRaises(ProcessLookupError):
+            os.kill(sleep_pid, 0)
 
 
 if __name__ == "__main__":

@@ -1646,6 +1646,7 @@ import hashlib
 import os
 import sys
 from pathlib import Path
+from PIL import Image
 
 bundle_dir = Path(sys.argv[1])
 output_path = Path(sys.argv[2])
@@ -1711,6 +1712,9 @@ expected_draw_classes = parse_expected_list("EXPECTED_HIRES_DRAW_CLASS_PRESENT")
 expected_min_exact_hit_count = parse_expected_int("EXPECTED_HIRES_MIN_EXACT_HIT_COUNT")
 expected_min_exact_conflict_miss_count = parse_expected_int("EXPECTED_HIRES_MIN_EXACT_CONFLICT_MISS_COUNT")
 expected_min_exact_unresolved_miss_count = parse_expected_int("EXPECTED_HIRES_MIN_EXACT_UNRESOLVED_MISS_COUNT")
+expected_scene_area_id = parse_expected_int("EXPECTED_SCENE_AREA_ID")
+expected_scene_map_name = get_mode_expected("EXPECTED_SCENE_MAP_NAME")
+expected_scene_entry_id = parse_expected_int("EXPECTED_SCENE_ENTRY_ID")
 
 requires_hires_assertions = any([
     expected_hires_provider is not None,
@@ -1736,10 +1740,12 @@ result = {
     "passed": True,
     "checks": {
         "single_capture": False,
+        "capture_decodes": False,
         "screenshot_sha256": None,
         "screenshot_sha256_match": None,
         "semantic_trace_present": semantic_path.is_file(),
         "cur_game_mode_match": None,
+        "scene_identity_match": None,
         "hires_evidence_present": hires_path.is_file(),
         "hires_summary_provider_match": None,
         "hires_summary_source_mode_match": None,
@@ -1761,6 +1767,9 @@ result = {
         "screenshot_sha256": expected_screenshot_sha256 or None,
         "init_symbol": expected_init_symbol or None,
         "step_symbol": expected_step_symbol or None,
+        "scene_area_id": expected_scene_area_id,
+        "scene_map_name": expected_scene_map_name,
+        "scene_entry_id": expected_scene_entry_id,
         "hires_summary_provider": expected_hires_provider,
         "hires_summary_source_mode": expected_hires_source_mode,
         "hires_min_summary_entry_count": expected_min_summary_entry_count,
@@ -1779,8 +1788,12 @@ result = {
     },
     "actual": {
         "capture_path": None,
+        "capture_dimensions": None,
         "init_symbol": None,
         "step_symbol": None,
+        "scene_area_id": None,
+        "scene_map_name": None,
+        "scene_entry_id": None,
         "hires_summary_provider": None,
         "hires_summary_source_mode": None,
         "hires_summary_entry_count": None,
@@ -1810,6 +1823,16 @@ else:
     result["actual"]["capture_path"] = str(capture_path)
     sha256 = hashlib.sha256(capture_path.read_bytes()).hexdigest()
     result["checks"]["screenshot_sha256"] = sha256
+    try:
+        with Image.open(capture_path) as capture:
+            capture.load()
+            if capture.width <= 0 or capture.height <= 0:
+                raise ValueError("capture dimensions must be positive")
+            result["actual"]["capture_dimensions"] = list(capture.size)
+            result["checks"]["capture_decodes"] = True
+    except Exception as exc:
+        result["passed"] = False
+        result["failures"].append(f"Capture could not be decoded: {exc}.")
     if expected_screenshot_sha256:
         if mode != "off":
             result["passed"] = False
@@ -1825,6 +1848,31 @@ else:
 
 if semantic_path.is_file():
     semantic = json.loads(semantic_path.read_text())
+    game_status = semantic.get("paper_mario_us", {}).get("game_status", {})
+    actual_scene = {
+        "area_id": game_status.get("area_id"),
+        "map_name": game_status.get("map_name_candidate"),
+        "entry_id": game_status.get("entry_id"),
+    }
+    for field, value in actual_scene.items():
+        result["actual"][f"scene_{field}"] = value
+    expected_scene = {
+        "area_id": expected_scene_area_id,
+        "map_name": expected_scene_map_name,
+        "entry_id": expected_scene_entry_id,
+    }
+    if any(value is not None for value in expected_scene.values()):
+        matched = all(
+            expected is None
+            or (type(actual_scene[field]) is type(expected) and actual_scene[field] == expected)
+            for field, expected in expected_scene.items()
+        )
+        result["checks"]["scene_identity_match"] = matched
+        if not matched:
+            result["passed"] = False
+            result["failures"].append(
+                f"Scene identity mismatch: expected {expected_scene}, got {actual_scene}."
+            )
     cur_game_mode = semantic.get("paper_mario_us", {}).get("cur_game_mode", {})
     init_symbol = cur_game_mode.get("init_symbol")
     step_symbol = cur_game_mode.get("step_symbol")

@@ -22,6 +22,11 @@ Replacement sampling operates in replacement-texel space, with these rules:
 2. **Alpha-weighted RGB filtering** (3da623f5): bilinear taps (and mip reduction)
    weight RGB by alpha because packs store black RGB under transparent texels
    (267/268 sampled cutout textures in the PM pack). Fixed cutout halos.
+   The October 11, 2026 correction applies the same opacity weighting between
+   mip levels: plain interpolation of their straight RGB reintroduced dark
+   fringes when mip opacities differed. Interpolated alpha stays linear. The
+   shared production helper is exercised by `emu.unit.hires_mip_filter`;
+   feature-off rasterizer SPIR-V remains byte-identical after regeneration.
 3. **Replaced tiles are truly direct-sampled** (e647e357): the N64 3-point combine
    is reduced to `t_base` on replaced draws (frac/sum_frac zeroed, TLUT draws
    included) so hi-res taps are not re-blended at native-texel spacing. This was

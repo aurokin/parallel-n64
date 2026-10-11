@@ -879,6 +879,29 @@ wait_for_paused_frame() {
   return 1
 }
 
+# A failed acknowledgement or frame wait can leave the frontend's persistent
+# override held. Release it on every exit, including interruption, without
+# waiting indefinitely on a dead session's FIFO.
+release_input_on_exit() {
+  if [[ -n "${INPUT_HOLD_PID:-}" ]]; then
+    kill "$INPUT_HOLD_PID" 2>/dev/null || true
+    wait "$INPUT_HOLD_PID" 2>/dev/null || true
+    INPUT_HOLD_PID=""
+  fi
+  [[ "${INPUT_MAY_BE_HELD:-0}" == 1 ]] || return 0
+  local start_bytes
+  start_bytes="$(log_size_bytes)"
+  if timeout 5 bash -c 'printf "CLEAR_INPUT_PORT %s\n" "$1" > "$2"' \
+      _ "$INPUT_RELEASE_PORT" "$FIFO_PATH"; then
+    printf 'CLEAR_INPUT_PORT %s\n' "$INPUT_RELEASE_PORT" >> "$BUNDLE_DIR/logs/interactive.commands.log"
+    if ! wait_for_log_pattern_after "$start_bytes" "CLEAR_INPUT_PORT " 5; then
+      echo "Input release after the failed hold was not acknowledged; session input is uncertain." >&2
+    fi
+  else
+    echo "Could not release input after the failed hold; session input is uncertain." >&2
+  fi
+}
+
 cmd_input() {
   local PORT=0 MASK="" HOLD_SECONDS="" FRAMES="" ANALOG=""
   while (($#)); do
@@ -908,6 +931,12 @@ cmd_input() {
   [[ -z "$HOLD_SECONDS" && -z "$FRAMES" ]] && HOLD_SECONDS=0.5
   require_live_session
 
+  INPUT_RELEASE_PORT="$PORT"
+  INPUT_MAY_BE_HELD=1
+  trap release_input_on_exit EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+
   local set_cmd="SET_INPUT_PORT $PORT $MASK"
   [[ -n "$ANALOG" ]] && set_cmd="$set_cmd $ANALOG"
   local start_bytes
@@ -932,7 +961,14 @@ cmd_input() {
       exit 1
     fi
   else
-    sleep "$HOLD_SECONDS"
+    # Bash defers signal traps during a foreground sleep. Waiting on our own
+    # child makes interruption immediate and lets exit cleanup reap it.
+    sleep "$HOLD_SECONDS" &
+    INPUT_HOLD_PID=$!
+    local hold_status=0
+    wait "$INPUT_HOLD_PID" || hold_status=$?
+    INPUT_HOLD_PID=""
+    (( hold_status == 0 )) || return "$hold_status"
   fi
 
   start_bytes="$(log_size_bytes)"
@@ -941,6 +977,8 @@ cmd_input() {
     echo "CLEAR_INPUT_PORT not acknowledged." >&2
     exit 1
   fi
+  INPUT_MAY_BE_HELD=0
+  trap - EXIT INT TERM
   if [[ -n "$FRAMES" ]]; then
     echo "[interactive] held mask=$MASK on port $PORT for $FRAMES stepped frames"
   else

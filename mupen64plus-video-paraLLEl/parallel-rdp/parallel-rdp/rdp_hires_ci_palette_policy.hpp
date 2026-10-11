@@ -389,6 +389,10 @@ inline uint32_t compute_hires_ci32_tlut_group_palette_crc(const uint8_t *tlut_tm
 			continue;
 
 		const uint32_t src = entry * 8u;
+		// CI32 diagnostic groups can exceed the available TLUT shadow. A
+		// partial or wrapped palette would describe a different identity.
+		if (src + 1u >= tlut_tmem_shadow_size)
+			return 0;
 		packed[packed_entries * 2u + 0u] = tlut_tmem_shadow[src + 0u];
 		packed[packed_entries * 2u + 1u] = tlut_tmem_shadow[src + 1u];
 		packed_entries++;

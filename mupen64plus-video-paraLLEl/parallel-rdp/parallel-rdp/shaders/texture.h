@@ -26,6 +26,7 @@
 #include "data_structures.h"
 
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+#include "hires_mip_filter.h"
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_samplerless_texture_functions : require
 layout(set = 3, binding = 0) uniform mediump texture2D uHiresTextures[];
@@ -171,7 +172,7 @@ i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 st_fp5, bool linea
 			float lf = lod_clamped - float(l0);
 			repl = hires_filtered_fetch_level(tile, st_texel, l0);
 			if (lf > 0.0)
-				repl = mix(repl, hires_filtered_fetch_level(tile, st_texel, l0 + 1), lf);
+				repl = hires_alpha_weighted_mix(repl, hires_filtered_fetch_level(tile, st_texel, l0 + 1), lf);
 		}
 		else
 			repl = hires_filtered_fetch_level(tile, st_texel, 0);

@@ -117,3 +117,80 @@ compilation checks the integration. This accounts reserved replacement mip-chain
 bytes; failed image creation can conservatively retain a reservation until cache
 reset. It is not a physical VRAM ceiling. GPU-pressure rendering and nonzero-budget
 runtime behavior still need bounded qualification before deployment.
+
+An October 11 isolated 4x title probe with a 4 MiB admission limit completed
+load, step, capture and shutdown with coherent mixed native/replacement output.
+Its strict hi-res fixture rejected the missing compatible draw hits; it is a
+fallback observation, not a passing replacement qualification or a measured
+physical-memory bound. Broader pressure behavior remains unverified.
+
+## Trilinear replacement cutout fringes
+
+Status: alpha-weighted interpolation across mip levels fixed October 11, 2026.
+
+Replacement mip samples contain straight RGB after opacity-weighted bilinear
+filtering. Ordinary RGBA interpolation between them darkened cutout edges when
+one mip contributed transparent black, or when the two opacities differed.
+Trilinear filtering now weights the two RGB samples by their alpha contribution
+and keeps interpolated alpha. Fully transparent results return zero RGBA.
+Nearest, bilinear and feature-off sampling are unchanged.
+
+`emu.unit.hires_mip_filter` executes the shared production shader arithmetic:
+transparent boundaries, unequal opacity, ordinary opaque/equal-alpha filtering,
+endpoints and a fractional-LOD cutout. The pinned shader tool regenerates the
+same header repeatedly; all four feature-off rasterizer SPIR-V variants remain
+byte-identical. These checks establish the sampling correction, not a verdict
+on every historical scene or pack.
+
+The isolated rebuilt core passes the hi-res title and named kmr03 fixtures at
+4x with bounded visual review. Feature-off before/after title captures are
+byte-identical on the same current frontend/configuration; both differ from the older recorded
+headless baseline. That baseline mismatch is retained, not reminted by this
+correction. Full GPU fractional-LOD cutout and macOS checks remain outstanding.
+
+## CI32 diagnostic palette bounds
+
+Status: out-of-range diagnostic groups rejected October 11, 2026.
+
+The optional CI palette probe can derive groups above entry 255 from 16-bit
+texels, while the renderer's TLUT shadow holds only 256 entries. Computing its
+palette CRC read beyond that shadow. The probe now returns its existing
+unavailable sentinel for an incomplete group rather than reading, wrapping or
+hashing only a prefix. Normal replacement identity selection is unchanged.
+
+The CI palette unit test covers the last valid group, first and highest
+unavailable groups, and mixed valid/unavailable usage. AddressSanitizer exposed
+the prior read and passes the corrected cases.
+
+## Input override cleanup after a failed hold
+
+Status: bounded release on failure/interruption added October 11, 2026.
+
+The interactive adapter previously exited after failed input acknowledgement,
+frame-status read or stepping without releasing its persistent input override.
+Later stepping or state loads could therefore inherit held buttons or analog
+input. An exit handler now attempts a bounded clear of the selected port and
+checks its acknowledgement; an unreachable frontend still leaves an explicitly
+uncertain outcome. Successful holds retain their existing clear sequence.
+
+The display-free interactive contract exercises successful frame/analog holds,
+missing set acknowledgement, failed status reads and interruption during a
+stalled frame wait or timed hold through the real FIFO/log path. Timed holds
+release promptly on interruption and reap their sleeping child. This does not
+reproduce or close IL-3, whose historical fault boundary remains unconfirmed.
+
+## Paper Mario fixture capture and scene admission
+
+Status: invalid captures and wrong named world scenes rejected October 11, 2026.
+
+The shared verifier previously accepted a non-image capture and accepted any
+world scene for the `kmr_03 ENTRY_5` fixture when world callbacks and replacement
+traffic matched. It now requires a decodable capture with positive dimensions.
+Fixture profiles may declare typed area/map/entry expectations; the kmr03
+profile requires area 0, map `kmr_03`, entry 5. Generic world fixtures remain
+unconstrained unless their profile declares a scene.
+
+Focused contracts reject malformed/truncated captures and wrong or missing
+scene identities; existing title/file-select/kmr03 evidence remains admissible.
+These are evidence admission checks. Correct textures, regions, filtering and
+composition still require semantic evidence and explicit visual judgment.

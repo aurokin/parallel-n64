@@ -18,10 +18,111 @@ void check(bool condition, const char *message)
 		std::exit(1);
 	}
 }
+
+void test_ci4_load_tile_padding_and_binding_lifetime()
+{
+	std::array<uint8_t, 8192> rdram;
+	for (size_t i = 0; i < rdram.size(); i++)
+		rdram[i] = uint8_t(i * 73 + (i / 640) * 19 + 17);
+	TileMeta meta = {};
+	meta.fmt = TextureFormat::CI;
+	meta.size = TextureSize::Bpp4;
+	meta.stride = 8;
+	meta.mask_s = 3;
+	meta.mask_t = 6;
+	TileSize size = {};
+	size.shi = 7 * 4;
+	size.thi = 63 * 4;
+	HiresLoadTileSource source;
+	source.address = 1280;
+	source.image_width = 4;
+	source.row_stride = 4;
+	source.tmem_stride = 8;
+	source.format = TextureFormat::CI;
+	source.size = TextureSize::Bpp8;
+	source.valid = true;
+	HiresCompatView view;
+	check(compute_hires_compat_view(meta, size, source.address, source, view),
+	      "CI8 transport can qualify its CI4 draw view");
+	check(view.source_layout && view.width == 8 && view.height == 64 &&
+	      view.address == source.address && view.row_stride == 4,
+	      "CI4 conversion doubles source width units and preserves byte crop/stride");
+	const auto texture_crc = rice_crc32_wrapped(rdram.data(), rdram.size(), view.address,
+	                                           view.width, view.height, unsigned(meta.size), view.row_stride);
+	check(texture_crc == 0xe28f3e17u && texture_crc == rice_crc32_wrapped(
+	          rdram.data(), rdram.size(), source.address, 4, 64, unsigned(TextureSize::Bpp8), 4),
+	      "qualified CI4 rows reproduce the independent CRC of the CI8 transport bytes");
+	check(rice_crc32_wrapped(rdram.data(), rdram.size(), source.address, 8, 64, 0, 8) == 0x44a006bfu,
+	      "the padded TMEM stride describes different source pixels");
+	check(hires_compat_view_fits_key(view, 8, 64, meta.size, meta.stride),
+	      "a narrow CI4 key is admitted without counting TMEM padding as extra texels");
+	const bool source_binding = hires_compat_binding_needs_source_layout(view, 8, 64, meta.size, meta.stride);
+	check(source_binding, "live padding-qualified raw admission acquires source dependency");
+	check(!hires_source_binding_must_retire(source_binding, true, view),
+	      "the admitted strip retains its unchanged qualified layout");
+	check(!hires_compat_binding_needs_source_layout(view, 0, 0, meta.size, meta.stride),
+	      "an unknown key window cannot establish a padding dependency");
+	for (unsigned mismatch = 0; mismatch < 3; mismatch++)
+	{
+		auto incompatible = source;
+		if (mismatch == 0)
+			incompatible.format = TextureFormat::RGBA;
+		else
+			incompatible.size = mismatch == 1 ? TextureSize::Bpp16 : TextureSize::Bpp32;
+		compute_hires_compat_view(meta, size, source.address, incompatible, view);
+		check(!view.source_layout && view.row_stride == 8,
+		      "other source format/size reinterpretations retain the legacy path");
+		check(hires_source_binding_must_retire(source_binding, true, view),
+		      "a source-dependent strip cannot retain an unsupported reinterpretation");
+	}
+	auto reversed_meta = meta;
+	reversed_meta.size = TextureSize::Bpp8;
+	auto reversed_source = source;
+	reversed_source.size = TextureSize::Bpp4;
+	compute_hires_compat_view(reversed_meta, size, source.address, reversed_source, view);
+	check(!view.source_layout, "the CI4-to-CI8 reverse reinterpretation remains unsupported");
+	auto reshaped = meta;
+	reshaped.stride = 0;
+	compute_hires_compat_view(reshaped, size, source.address, source, view);
+	check(!view.source_layout && hires_compat_view_fits_key(view, 8, 64, meta.size, reshaped.stride),
+	      "the legacy guard alone does not reject a zero-line stride transition");
+	check(hires_source_binding_must_retire(source_binding, true, view),
+	      "a padding-qualified binding retires before the unsupported layout retries");
+	check(!hires_source_binding_must_retire(false, true, view),
+	      "pending raw upload and LoadBlock bindings keep their prior reshape policy");
+	compute_hires_compat_view(meta, size, source.address, {}, view);
+	check(!view.source_layout && !hires_compat_binding_needs_source_layout(view, 8, 64, meta.size, meta.stride),
+	      "a raw overwrite without source provenance cannot inherit the padding exemption");
+	meta.mask_t = 0;
+	size.thi = 64 * 4;
+	compute_hires_compat_view(meta, size, source.address, source, view);
+	check(!hires_compat_view_fits_key(view, 8, 64, meta.size, meta.stride) &&
+	      !hires_compat_binding_needs_source_layout(view, 8, 64, meta.size, meta.stride),
+	      "a real extra source row cannot acquire padding-qualified admission");
+	meta.mask_s = 0;
+	size.shi = 8 * 4;
+	size.thi = 63 * 4;
+	source.image_width = 5;
+	source.row_stride = 5;
+	compute_hires_compat_view(meta, size, source.address, source, view);
+	check(view.width == 9 && !hires_compat_view_fits_key(view, 8, 64, meta.size, meta.stride),
+	      "a real extra source column is rejected independently of padding");
+	meta.stride = 16;
+	meta.mask_s = 5;
+	meta.mask_t = 6;
+	size.shi = 31 * 4;
+	source.image_width = 16;
+	source.row_stride = source.tmem_stride = 16;
+	compute_hires_compat_view(meta, size, source.address, source, view);
+	check(view.source_layout && hires_compat_view_fits_key(view, 32, 64, meta.size, meta.stride) &&
+	      !hires_compat_binding_needs_source_layout(view, 32, 64, meta.size, meta.stride),
+	      "aligned CI4 source rows do not change the raw binding lifetime policy");
+}
 }
 
 int main()
 {
+	test_ci4_load_tile_padding_and_binding_lifetime();
 	std::array<uint8_t, 8192> rdram;
 	for (size_t i = 0; i < rdram.size(); i++)
 		rdram[i] = uint8_t(i * 73 + (i / 640) * 19 + 17);

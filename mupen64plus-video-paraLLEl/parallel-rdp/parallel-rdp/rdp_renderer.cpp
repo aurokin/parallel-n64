@@ -2447,6 +2447,15 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				}
 				clear_hires_tile_binding(t);
 			}
+			else if (detail::hires_descriptor_index_valid(tiles[t].replacement.repl_desc_index) &&
+			         detail::hires_compat_binding_needs_source_layout(display_view,
+			             repl_state.key_w, repl_state.key_h,
+			             TextureSize(repl_state.formatsize >> 8), tiles[t].meta.stride))
+			{
+				// A raw upload admitted only through source-row padding proof
+				// must retire if a later draw no longer has that qualified layout.
+				repl_state.source_layout_binding = true;
+			}
 		}
 	}
 

@@ -339,6 +339,7 @@ private:
 		// binding describes overwritten texels (stale-binding guard).
 		uint32_t keyed_rdram_addr = 0;
 		detail::HiresCI4PaletteBinding ci4_palette;
+		// The key or live admission depended on qualified LoadTile source rows.
 		bool source_layout_binding = false;
 		bool valid = false;
 		bool hit = false;

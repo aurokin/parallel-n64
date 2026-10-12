@@ -9,7 +9,7 @@ namespace RDP
 namespace detail
 {
 // LoadTile's RDRAM rows and crop are independent of padded TMEM rows.
-// Keep the loading format so a later reinterpretation cannot reuse these units.
+// Keep the loading format to distinguish CI4 transport from unsupported reinterpretations.
 struct HiresLoadTileSource
 {
 	uint32_t address = 0;
@@ -51,7 +51,7 @@ inline bool hires_source_view_needs_rekey(const HiresCompatView &view, uint32_t 
 	return view.source_layout && (view.width != key_width || view.height != key_height);
 }
 
-// Only draw-time source keys depend on retaining this qualified layout.
+// Source-derived keys and padding-qualified admission depend on this layout.
 // Pending upload/LoadBlock bindings keep their existing reshape policy.
 inline bool hires_source_binding_must_retire(bool source_binding, bool view_valid,
                                             const HiresCompatView &view)
@@ -77,10 +77,15 @@ inline bool compute_hires_compat_view(const TileMeta &meta, const TileSize &size
 	view.row_stride = meta.stride;
 	if (meta.size == TextureSize::Bpp32)
 		view.row_stride <<= 1;
-	if (source.valid && source.format == meta.fmt && source.size == meta.size &&
+	// The standard CI4 tile macro transports two indices per CI8 source byte.
+	// Convert width units only; crop addresses and row strides remain bytes.
+	const bool ci4_transport = source.format == TextureFormat::CI && meta.fmt == TextureFormat::CI &&
+	                           source.size == TextureSize::Bpp8 && meta.size == TextureSize::Bpp4;
+	if (source.valid && source.format == meta.fmt && (source.size == meta.size || ci4_transport) &&
 	    source.tmem_stride == meta.stride && source.image_width != 0 && source.row_stride != 0)
 	{
-		view.width = std::min(view.width, source.image_width);
+		const uint64_t source_width = uint64_t(source.image_width) << (ci4_transport ? 1u : 0u);
+		view.width = uint32_t(std::min<uint64_t>(view.width, source_width));
 		view.address = source.address;
 		view.row_stride = source.row_stride;
 		view.source_layout = true;
@@ -101,6 +106,19 @@ inline bool hires_compat_view_fits_key(const HiresCompatView &view, uint32_t key
 		return view.width <= key_width && view.height <= key_height;
 	return uint64_t(view.height) * tmem_stride <=
 	       ((uint64_t(key_width) << unsigned(key_size)) >> 1) * key_height;
+}
+
+// Mark only live bindings whose admission relies on distinguishing source rows
+// from TMEM alignment. Aligned raw uploads retain their existing reshape policy.
+inline bool hires_compat_binding_needs_source_layout(const HiresCompatView &view, uint32_t key_width,
+                                                     uint32_t key_height, TextureSize key_size,
+                                                     uint32_t tmem_stride)
+{
+	if (!view.source_layout || !hires_compat_view_fits_key(view, key_width, key_height, key_size, tmem_stride))
+		return false;
+	auto legacy_view = view;
+	legacy_view.source_layout = false;
+	return !hires_compat_view_fits_key(legacy_view, key_width, key_height, key_size, tmem_stride);
 }
 }
 }

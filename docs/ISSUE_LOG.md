@@ -502,3 +502,35 @@ demo, its returned-title boundary and three cold starts, or two SM64 Boo phases.
 Static closing review reported no actionable finding. Normal MK64 gameplay HUD,
 every intervening frame, patched MK64DX and other graphics backends remain
 unqualified. Installed runtimes were preserved.
+
+## CI4 LoadTile transport padding drops a valid replacement
+
+Status: corrected in source October 12, 2026; isolated Linux 4x candidate qualified.
+Installed-runtime rollout remains separate.
+
+Paper Mario's ordinary speech bubble uses an 8×64 CI4 center between two
+32×64 caps. The standard tile macro transports the center as a four-byte-wide
+CI8 source, with four-byte RDRAM rows and eight-byte TMEM alignment. The selected
+pack contains the authored center. Live diagnostics show a successful CI4
+reinterpretation upload followed by a draw-window rejection: padded TMEM bytes
+were mistaken for extra sampled image data. The result was a native-gray center
+between authored lavender caps, with a discontinuous border.
+
+The qualified source view now admits the CI8-transport-to-CI4 case when both
+formats are CI and the captured TMEM stride still matches. Source width doubles
+into CI4 texels; crop addresses and RDRAM strides remain byte units. A live
+binding whose admission depends on this padding proof carries source-layout
+provenance and retires when a later draw loses it. Aligned raw uploads and
+LoadBlock retain their prior policy; reverse and unrelated reinterpretations
+remain unsupported. There is no game, key, descriptor or pack override.
+
+The production compatibility-view test covers the real CRC calculation, logical
+window admission, genuine overruns, incompatible sizes/formats, raw overwrite
+and later stride changes, including the earlier 648-to-640 retirement case.
+All 57 required tests passed after the gameplay session stopped. Two independent
+fresh candidate replays with debug disabled restore the authored fill and
+continuous border, with matched CPU cues and original GPU screenshots inspected
+independently. The matched native control is decoded-RGBA identical to the prior
+native control. The selected package payload and game source establish the art;
+a same-style GLide screenshot is not qualified for this scene. These checks do
+not establish every palette, animation frame, game or graphics backend.

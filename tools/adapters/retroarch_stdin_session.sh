@@ -1075,6 +1075,10 @@ if kill -0 "$RA_PID" 2>/dev/null; then
   echo "[adapter] RetroArch did not exit after QUIT; sending SIGTERM."
   kill "$RA_PID" 2>/dev/null || true
   sleep 2
+  # A wedged frontend may never act on TERM; without KILL the wait below
+  # would block forever while the child keeps the display. KILL on an
+  # already-exited (unreaped) child is a no-op.
+  kill -KILL "$RA_PID" 2>/dev/null || true
 fi
 
 exit_status=0

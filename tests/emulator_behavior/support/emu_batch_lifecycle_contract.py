@@ -78,6 +78,28 @@ os.execv({real_sed!r}, [{real_sed!r}, *sys.argv[1:]])
         self.assertEqual(metadata['status']['scenario_state'], 'runtime_failed')
         self.assertFalse(metadata['status']['runtime_executed'])
 
+    def test_wedged_frontend_is_killed_after_quit_and_term(self):
+        # A frontend that ignores both QUIT and TERM must not hang teardown.
+        self.binary.write_text('''#!/usr/bin/env python3
+import os
+from pathlib import Path
+import signal
+import sys
+import time
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+Path(__file__).with_suffix('.pid').write_text(str(os.getpid()))
+for line in sys.stdin:
+    pass
+while True:
+    time.sleep(1)
+''')
+        result = self.run_adapter('QUIT')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('did not exit after QUIT', result.stdout)
+        self.assert_child_gone()
+        env = dict(line.split('=', 1) for line in (self.bundle / 'retroarch.run.env').read_text().splitlines())
+        self.assertEqual(env['FORCED_TERMINATION'], '1')
+
     def test_invalid_metadata_fails_before_launch(self):
         self.metadata.write_text('{invalid')
         result = self.run_adapter('QUIT')

@@ -44,7 +44,11 @@ the bounded session adapters to qualify startup and control before runtime use.
 - Keep saves, options, logs, captures, and process metadata bundle-local.
 - Record an explicit session-end reason.
 - Bound interactive sessions with a TTL and terminate the process group on
-  teardown.
+  teardown. The interactive launch chain (`setsid`, `flock`,
+  `timeout --foreground`, RetroArch) stays in one process group, so `stop`
+  reaches the frontend after a `QUIT` timeout. At the TTL, `timeout` sends
+  TERM and then KILL after `RETROARCH_TTL_KILL_AFTER_SECONDS` (default 10).
+  The batch adapter follows an unanswered `QUIT` with TERM, then KILL.
 
 Local pseudo-commands such as `WAIT_COMMAND_READY`,
 `WAIT_STATUS_FRAME`, memory waits, and memory snapshots are adapter
@@ -53,6 +57,12 @@ operations; they are not frontend commands.
 ## Deterministic Control
 
 - Pause before deterministic play and step frames explicitly.
+- Do not change input, read memory, capture, save or load state, or step again
+  while a step is running. The interactive adapter records each step's target
+  frame in `BUNDLE/session.step-target` and serializes `send`, `input`,
+  `screenshot`, `save-slot` and `load-slot` on one bundle lock. A step whose
+  waiter was interrupted or timed out makes those commands fail until the
+  frontend pauses or reaches the target.
 - Use frame-counted input for replayable paths; wall-clock holds are
   exploratory.
 - Pair `SAVE_STATE` with `WAIT_SAVE_STATE`.

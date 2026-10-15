@@ -8,8 +8,8 @@
 The bank-0 rescue decision below is historical. October 11, 2026 replay proved
 that a shaded sprite's nonzero CI4 bank can carry generated lighting rather
 than replacement art. Runtime lookup now uses the actual rendering bank;
-bank-0 alternative keys are diagnostic evidence only. See the CI4 shading-role
-entry in [the issue log](../ISSUE_LOG.md). The TLUT base-shadow convention remains.
+bank-0 alternative keys are diagnostic evidence only. See [CI4 palette-bank replacement
+provenance](../ISSUE_LOG.md#ci4-palette-bank-replacement-provenance). The TLUT base-shadow convention remains.
 
 ## Context
 

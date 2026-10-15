@@ -13,10 +13,11 @@ without a fleet controller or private workspace.
 - GlideN64/Rice-compatible draw-time texture identity.
 - Offline `.hts`/`.htc` to `.phrb` conversion; runtime loading is `.phrb` only.
 - Replacement-aware texrect, sampling, mip, alpha, and view-key behavior.
-- Deterministic RetroArch control through
-  [`tools/retroarch-patches/`](tools/retroarch-patches/).
-- Paper Mario fixture authorities plus opt-in compatibility lanes for SM64,
-  OoT, MK64, and MM.
+- Deterministic RetroArch control through the maintained `agent-control`
+  frontend branch; [`tools/retroarch-patches/`](tools/retroarch-patches/)
+  reconstructs the older stdin-control series.
+- Paper Mario fixture authorities plus opt-in SM64 and OoT compatibility lanes;
+  MK64 and MM are manual breadth checks.
 - Class-level runtime evidence and explicit fallback reporting.
 
 Paper Mario is the strict renderer-validation title. The other games exercise

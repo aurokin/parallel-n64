@@ -13,8 +13,10 @@
 #     after --ttl-seconds (default 3600); a grace watchdog sends QUIT
 #     shortly before that hard kill so core end-of-run summaries flush,
 #     and records the reason in logs/session.end-reason
-#   - the whole chain lives in its own setsid process group recorded in
-#     session.pid; `stop` QUITs politely, then kills the group
+#   - the chain starts in its own setsid session recorded in session.pid;
+#     `stop` QUITs politely, then kills that group. `timeout` moves RetroArch
+#     into a separate group, so a QUIT timeout can leave it running (see
+#     docs/ISSUE_LOG.md); `doctor --reap` signals each process's own group
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -291,8 +293,8 @@ record_end_reason() {
 
 # Evidence-contract hardening: a TTL kill used to be a silent hard stop
 # that lost the core's end-of-run summaries. This watchdog (outside the
-# session process group, so group liveness still means "RetroArch is
-# alive") asks RetroArch to QUIT shortly before the hard `timeout` kill
+# session's setsid chain, so it never counts as a live session process)
+# asks RetroArch to QUIT shortly before the hard `timeout` kill
 # and records the reason, turning the TTL into an explicit, reported
 # fallback. If the QUIT doesn't land, the original hard kill still fires.
 start_ttl_grace_watchdog() {

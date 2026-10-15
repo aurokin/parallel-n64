@@ -6,7 +6,11 @@ record which private host currently stores an artifact.
 
 ## Format Contract
 
-- Runtime input is `.phrb` only.
+- Runtime input is `.phrb` only. The cache path (`PARALLEL_RDP_HIRES_CACHE_PATH`,
+  otherwise the frontend system directory) must be a directory whose top-level
+  `*.phrb` files are loaded, or a file whose name ends in `.phrb`. Any other path,
+  including an extension-less file, logs `Hi-res replacement cache load failed`
+  and renders native textures.
 - `tools/hts2phrb.py` converts GlideN64/GLideNHQ `.hts` or
   `.htc` caches offline.
 - Rice-format PNG directories require a separate GlideN64 cache-generation

@@ -39,7 +39,7 @@ Attempt A's pixel-diff failure mode or invasively forking the reference core.
 
 - Side-by-side review pairs are standard evidence.
 - The corrected txDump semantics unlocked the real keying root causes (TLUT base
-  convention, bank-0 palette — ADR-0013; orig-dims — ADR-0014).
+  convention, bank-0 palette (since superseded) — ADR-0013; orig-dims — ADR-0014).
 - All coverage analysis scripts must state which dump mode they consumed.
 
 ## Evidence

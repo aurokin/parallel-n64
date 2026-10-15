@@ -517,7 +517,8 @@ were mistaken for extra sampled image data. The result was a native-gray center
 between authored lavender caps, with a discontinuous border.
 
 The qualified source view now admits the CI8-transport-to-CI4 case when both
-formats are CI and the captured TMEM stride still matches. Source width doubles
+formats are CI and the captured TMEM stride still matches. (October 15 widened
+this to any same-format 8-to-4-bit transport; see the I/IA entry below.) Source width doubles
 into CI4 texels; crop addresses and RDRAM strides remain byte units. A live
 binding whose admission depends on this padding proof carries source-layout
 provenance and retires when a later draw loses it. Aligned raw uploads and
@@ -599,8 +600,21 @@ art; Paper Mario's attract "1" star now serves its replacement centered on the
 native silhouette. Stencil transitions, pause arrows and other I4/IA4 users are
 expected to benefit but were not separately captured.
 
-Open adjacent gap: draw-time compatibility keys add a palette CRC only for CI.
-GLideN64 adds one whenever TLUT is enabled, so palette-recolored I/IA draws may
-miss or alias their pack entries. This correction makes I4/IA4 TLUT draws reach
-that key on their first draw; the keying gap itself predates it and is
-unqualified.
+Adjacent keying note: draw-time compatibility keys add a palette CRC only for
+CI. GLideN64 palette-qualifies I/IA draws with TLUT enabled but then falls back to
+the texture-only key (ADR-0010 rule 7), the form packs carry for non-CI art, so
+both reach the same entries. Only palette-qualified I/IA pack entries would
+differ; none is known.
+
+## Interactive stop leaves RetroArch running after a QUIT timeout
+
+Status: reproduced in process-group analysis; not corrected.
+
+`retroarch_interactive_session.sh start` records the setsid leader as the session
+process group, but GNU `timeout` moves itself and RetroArch into a new process
+group within that session. When `QUIT` times out, `stop` signals only the
+leader's group, so RetroArch keeps running. `doctor --reap` signals each matched
+chain process's own group and remains the cleanup path; confirm no frontend
+remains before treating a host as idle. A correction must signal the frontend's
+actual group and add a display-free contract with a fake frontend that ignores
+`QUIT`.

@@ -8,6 +8,8 @@ Status values:
 
 - **Accepted** — currently in force.
 - **Accepted, amended** — in force with a later correction in the same record.
+- **Partially superseded** — a named decision is historical; the rest of the
+  record remains in force.
 - **Historical** — explains the present architecture but no longer sequences
   work.
 
@@ -27,7 +29,7 @@ Status values:
 | [0010](0010-replacement-sampling-semantics.md) | Replacement sampling semantics | Accepted, amended |
 | [0011](0011-texrect-rasterization-policy.md) | Replacement-aware texrect policy | Accepted |
 | [0012](0012-gliden64-reference-rig-and-txdump.md) | Reference rig and txDump interpretation | Accepted |
-| [0013](0013-compat-keying-refinements.md) | Compat keying refinements | Accepted |
+| [0013](0013-compat-keying-refinements.md) | Compat keying refinements | Partially superseded |
 | [0014](0014-orig-dims-display-view-rebase.md) | Display-view original dimensions | Accepted |
 | [0015](0015-pack-content-curation-boundary.md) | Miss taxonomy and pack-curation boundary | Accepted, amended |
 | [0016](0016-test-surface-trim.md) | Behavior-backed test surface | Accepted |

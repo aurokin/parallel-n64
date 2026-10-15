@@ -23,6 +23,11 @@ add_test(
   COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_runtime_paths_contract.py"
 )
 
+add_test(
+  NAME emu.support.savestate_bridge_contract
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_savestate_bridge_contract.py"
+)
+
 set(EMU_BEHAVIOR_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/support")
 
 add_test(

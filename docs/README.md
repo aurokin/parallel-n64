@@ -25,6 +25,7 @@
 - [Adapters](../tools/adapters/)
 - [RetroArch patch set](../tools/retroarch-patches/)
 - [GlideN64 txDump patch](../tools/gliden64-txdump-patch/)
+- [Savestate bridge to mupen64plus-next](../tools/savestate_bridge.py)
 - [Shader toolchain patches](../tools/parallel-rdp-toolchain-patches/)
 - [Generated artifacts](../artifacts/)
 

@@ -28,7 +28,7 @@ Status values:
 | [0009](0009-interactive-adapter-and-deterministic-play.md) | Bounded stdin control and paused stepping | Accepted, amended |
 | [0010](0010-replacement-sampling-semantics.md) | Replacement sampling semantics | Accepted, amended |
 | [0011](0011-texrect-rasterization-policy.md) | Replacement-aware texrect policy | Accepted |
-| [0012](0012-gliden64-reference-rig-and-txdump.md) | Reference rig and txDump interpretation | Accepted |
+| [0012](0012-gliden64-reference-rig-and-txdump.md) | Reference rig and txDump interpretation | Accepted, amended |
 | [0013](0013-compat-keying-refinements.md) | Compat keying refinements | Partially superseded |
 | [0014](0014-orig-dims-display-view-rebase.md) | Display-view original dimensions | Accepted |
 | [0015](0015-pack-content-curation-boundary.md) | Miss taxonomy and pack-curation boundary | Accepted, amended |

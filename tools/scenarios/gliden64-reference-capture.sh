@@ -8,9 +8,10 @@
 # numeric image-similarity metric or digest gate (see
 # tests/emulator_behavior/support/emu_gliden64_reference_guardrails.sh).
 #
-# GlideN64 reaches scenes by boot + timed input, not by savestate: paraLLEl
-# savestates do not load into mupen64plus-next, so scene framing is
-# approximate by design.
+# The title scene reaches its frame by boot + timed input, so its framing is
+# approximate. `--state` opens a ParaLLEl N64 savestate at the same game moment
+# instead: tools/savestate_bridge.py converts it to the mupen64plus-next layout,
+# and the session loads it paused, steps `--frames` frames and captures.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,7 +26,10 @@ Required:
   --bundle-dir PATH   Output bundle directory
 
 Options:
-  --scene NAME        Scene recipe: title (default: title)
+  --scene NAME        Scene recipe: title (default: title, or state with --state)
+  --state PATH        ParaLLEl N64 savestate to open in GlideN64
+  --savefile PATH     Matching .srm save file to stage (optional)
+  --frames N          Frames to step after loading --state (default: 3)
   --rom PATH          ROM (default: assets/Paper Mario (USA).zip)
   --core PATH         mupen64plus-next core
                       (required: --core PATH or GLIDEN64_CORE_PATH)
@@ -37,7 +41,10 @@ EOF
 }
 
 BUNDLE_DIR=""
-SCENE="title"
+SCENE=""
+STATE_PATH=""
+SAVEFILE_PATH=""
+STATE_FRAMES=3
 ROM_PATH="$REPO_ROOT/assets/Paper Mario (USA).zip"
 CORE_PATH="${GLIDEN64_CORE_PATH:-}"
 PACK_PATH="$REPO_ROOT/assets/PAPER MARIO_HIRESTEXTURES.hts"
@@ -47,6 +54,9 @@ while (($#)); do
   case "$1" in
     --bundle-dir) shift; BUNDLE_DIR="${1:-}" ;;
     --scene) shift; SCENE="${1:-}" ;;
+    --state) shift; STATE_PATH="${1:-}" ;;
+    --savefile) shift; SAVEFILE_PATH="${1:-}" ;;
+    --frames) shift; STATE_FRAMES="${1:-}" ;;
     --rom) shift; ROM_PATH="${1:-}" ;;
     --core) shift; CORE_PATH="${1:-}" ;;
     --pack) shift; PACK_PATH="${1:-}" ;;
@@ -59,6 +69,18 @@ done
 
 if [[ -z "$BUNDLE_DIR" ]]; then
   echo "--bundle-dir is required." >&2
+  exit 2
+fi
+if [[ -z "$SCENE" ]]; then
+  SCENE="title"
+  [[ -n "$STATE_PATH" ]] && SCENE="state"
+fi
+if [[ -n "$STATE_PATH" && "$SCENE" != "state" ]]; then
+  echo "--state opens the state scene; drop --scene $SCENE." >&2
+  exit 2
+fi
+if [[ -n "$SAVEFILE_PATH" && -z "$STATE_PATH" ]]; then
+  echo "--savefile applies only with --state." >&2
   exit 2
 fi
 if [[ ! -f "$PACK_PATH" ]]; then
@@ -100,6 +122,10 @@ EXTRA_APPEND="$BUNDLE_DIR/retroarch.extra.cfg"
 cat > "$EXTRA_APPEND" <<EOF
 video_driver = "gl"
 system_directory = "$SYSTEM_DIR"
+sort_savestates_enable = "true"
+sort_savefiles_enable = "true"
+sort_savestates_by_content_enable = "false"
+sort_savefiles_by_content_enable = "false"
 EOF
 
 declare -a SCENE_COMMANDS=()
@@ -119,8 +145,40 @@ case "$SCENE" in
       "QUIT"
     )
     ;;
+  state)
+    if [[ ! -f "$STATE_PATH" ]]; then
+      echo "--state must name an existing savestate." >&2
+      exit 2
+    fi
+    if ! [[ "$STATE_FRAMES" =~ ^[1-9][0-9]*$ ]]; then
+      echo "--frames must be a positive integer." >&2
+      exit 2
+    fi
+    # RetroArch files states and saves under the core's library name and the
+    # content basename (sorting pinned in the extra append config above).
+    CONTENT_NAME="$(basename "$ROM_PATH")"
+    CONTENT_NAME="${CONTENT_NAME%.*}"
+    mkdir -p "$BUNDLE_DIR/states/Mupen64Plus-Next" "$BUNDLE_DIR/savefiles/Mupen64Plus-Next"
+    python3 "$REPO_ROOT/tools/savestate_bridge.py" to-gliden64 "$STATE_PATH" \
+      "$BUNDLE_DIR/states/Mupen64Plus-Next/$CONTENT_NAME.state9"
+    # A reused bundle must not resume an earlier run's save data.
+    rm -f "$BUNDLE_DIR/savefiles/Mupen64Plus-Next/$CONTENT_NAME.srm"
+    if [[ -n "$SAVEFILE_PATH" ]]; then
+      cp "$SAVEFILE_PATH" "$BUNDLE_DIR/savefiles/Mupen64Plus-Next/$CONTENT_NAME.srm"
+    fi
+    SCENE_COMMANDS=(
+      "WAIT_COMMAND_READY 120"
+      "LOAD_STATE_SLOT_PAUSED 9"
+      "WAIT_LOAD_STATE"
+      "STEP_FRAME $STATE_FRAMES"
+      "WAIT_STATUS_FRAME PAUSED $STATE_FRAMES 60"
+      "SCREENSHOT"
+      "WAIT_NEW_CAPTURE 10"
+      "QUIT"
+    )
+    ;;
   *)
-    echo "Unknown scene: $SCENE (supported: title)" >&2
+    echo "Unknown scene: $SCENE (supported: title, state)" >&2
     exit 2
     ;;
 esac

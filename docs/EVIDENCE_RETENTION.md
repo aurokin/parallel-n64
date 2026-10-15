@@ -16,7 +16,8 @@ For each retained defect or useful coverage checkpoint, record:
   shared inputs by identity and locator instead of copying them into every case.
 - Reproduction entry: fresh boot with empty saves, an in-game save, or a protected
   pre-event state. Include the state's hash, origin and producing runtime. Never
-  assume a state works across cores, builds or backends.
+  assume a state works across cores, builds or backends; GlideN64 comparisons
+  convert states with `tools/savestate_bridge.py` and record both identities.
 - Exact input and neutral holds, frame steps, load/settle sequence, observable
   start/stop cues, and a runnable script with its dependencies. Say whether fresh
   boot is repeatable, random, or only a way to discover the event.

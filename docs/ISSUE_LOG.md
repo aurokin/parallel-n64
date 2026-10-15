@@ -618,3 +618,44 @@ chain process's own group and remains the cleanup path; confirm no frontend
 remains before treating a host as idle. A correction must signal the frontend's
 actual group and add a display-free contract with a fake frontend that ignores
 `QUIT`.
+
+## Savestate bridge to mupen64plus-next
+
+Status: tool added October 15, 2026; three Paper Mario states qualified in both
+directions on a Linux 4x candidate.
+
+mupen64plus-next segfaulted on this core's states because our writer stores
+`ai.last_read` inside the AI section of a version 1.0 state; its 1.0 parser read
+every later field four bytes off (PC 0, shifted RDRAM) and over-read a fixed
+1024-byte event queue. `tools/savestate_bridge.py to-gliden64` writes next's
+version 1.1: the extra word removed, the queue padded, `using_tlb` set from
+valid TLB entries, and event 0x800 (CART_INT here, RSP_DMA_EVT there) dropped.
+With CP0 Status.FR clear, FPRs are repacked between this core's per-slot layout
+and next's packed pairs. `to-parallel` reads next 1.0–1.9, restores `last_read`
+from the 1.3+ extra block, rebuilds `next_vi` from the VI event, maps flashram
+read/status/ID modes (locating the block past any Transfer Pak cartridge), drops
+64DD events and returns SPECIAL_INT to count 0: next saves a half-wrap point
+there, which stalled this core about 460 frames after load until normalized.
+Both directions refuse states saved with the RSP running, an RSP DMA pending or
+a flash erase/program in flight. `gliden64-reference-capture.sh --state`
+converts, stages and captures in one command with RetroArch's save-directory
+sorting pinned. `emu.support.savestate_bridge_contract` covers both layouts,
+FPR repacking, flash mapping and refusals on synthetic states, checked against
+both cores' literal sizes.
+
+Toad Town, Goomba Village and an attract-demo state ran 600 frames in GlideN64
+with the HD pack and matched this core's scene, poses, idle-HUD timing and title
+return at +1/+3/+60/+600 frames; GlideN64's own re-saves converted back ran 600
+frames here and matched again. RDRAM after one frame differed only in frame and
+depth buffers (GlideN64 does not write them back), HLE-vs-LLE RSP output buffers
+and a few timing words. A Super Mario 64 Hazy Maze Cave state (FR=0 with live
+FPU values) matched at +101/+401 frames as well; an unrepacked control matched
+too, so the FPR repacking rests on the two cores' code rather than a visible
+failure at that save point.
+
+Limits: version 1.1 has no field for `last_read` (0 after a round trip) and lets
+next apply its own extra-state defaults, including about 1542 VI cycles per
+scanline where this core uses 1500. Other games, states saved mid-RSP-task or
+mid-flash-operation, and long-run drift are unqualified. Separately, this core's
+writer stores the PI domain-1 timing registers in the domain-2 slots; the
+bridge carries them unchanged.

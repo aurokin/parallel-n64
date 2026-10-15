@@ -1,6 +1,6 @@
 # ADR-0012: GlideN64 reference rig; txDump output is the MISS set
 
-- Status: Accepted
+- Status: Accepted, amended (2026-10-15 savestate bridge)
 - Date: 2026-06-10 (rig); 2026-06-12 (txDump semantics correction)
 
 ## Context
@@ -16,9 +16,13 @@ Attempt A's pixel-diff failure mode or invasively forking the reference core.
    the same adapter (generic `--core-options-template` / `--extra-append-config`);
    `compose-reference-pair.py` builds labeled review pairs; the guardrail gate
    bans image metrics from the test surface.
-   Cross-core savestate loading is impossible (mupen64plus-next segfaults on our
-   m64p states), so glide-side scenes are reached by natural boot/play — an
-   accepted timeline-drift cost in beat matching.
+   Glide-side scenes were reached by natural boot/play, an accepted
+   timeline-drift cost, because mupen64plus-next segfaulted on our m64p states.
+   *Amendment (2026-10-15):* the segfault was a layout skew, not a deep
+   incompatibility: our writer stores `ai.last_read` inside the AI section
+   without a version bump. `tools/savestate_bridge.py` converts states in both
+   directions, and `gliden64-reference-capture.sh --state` opens one of our
+   states in GlideN64 at the same game moment.
 2. **txDump oracle as an env-gated one-line patch** (5f7ea3cc): `GLN64_TXDUMP=1`
    in the local mupen64plus-libretro-nx clone dumps Rice-CRC-named PNGs; patch and
    rebuild recipe in `tools/gliden64-txdump-patch/`.

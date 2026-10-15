@@ -415,8 +415,8 @@ def parse_hires(log_text: str) -> dict[str, Any]:
         entries=fields.get("entries"),
         hits=fields.get("hits"),
         misses=fields.get("misses"),
-        # Draw-time replacement is the qualifying hit (EMU_TESTING.md); older
-        # summaries without the field fall back to lookup hits.
+        # Draw-time replacement hits; older summaries without the field fall
+        # back to lookup hits.
         draw_hits=fields.get("compat_draw_hits", fields.get("hits")),
     )
     return hires
@@ -565,6 +565,8 @@ def execute(scenario: Scenario, ctx: RunContext, session: Session, record: dict[
              "--retroarch-bin", str(args.retroarch_bin), "--base-config", str(args.base_config),
              "--ttl-seconds", str(args.ttl or max(600, 180 + scenario.total_frames // 10)),
              "--start-paused"]
+    if args.extra_append_config:
+        start += ["--extra-append-config", str(args.extra_append_config)]
     if inputs.state:
         # The adapter copies a "ParaLLEl N64" source into the core's sorted
         # state directory; RetroArch names slots after the content basename.
@@ -766,9 +768,14 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
             gates.append(gate("hires.provider", "pass" if loaded else "fail",
                               "" if loaded else ("cache load failed" if hires["cache_load_failed"]
                                                  else f"no provider=on summary (provider {hires['provider']})")))
-            for key, label in (("entries", "hires.entries"), ("draw_hits", "hires.draw_hits")):
-                value = hires[key]
-                gates.append(gate(label, "pass" if (value or 0) >= 1 else "fail", f"{key}={value}"))
+            entries = hires["entries"]
+            gates.append(gate("hires.entries", "pass" if (entries or 0) >= 1 else "fail", f"entries={entries}"))
+            # A replacement is served when bound at upload (hits) or at draw time
+            # (draw_hits); scenes served entirely at upload, such as boot logos,
+            # report no draw-time hits.
+            served = max(hires["hits"] or 0, hires["draw_hits"] or 0)
+            gates.append(gate("hires.served", "pass" if served >= 1 else "fail",
+                              f"hits={hires['hits']} draw_hits={hires['draw_hits']}"))
         else:
             active = hires["provider"] == "on"
             gates.append(gate("hires.inert", "fail" if active else "pass",
@@ -897,6 +904,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--core", type=Path, required=True)
     parser.add_argument("--retroarch-bin", type=Path, required=True)
     parser.add_argument("--base-config", type=Path, required=True)
+    parser.add_argument("--extra-append-config", type=Path,
+                        help="config loaded after the adapter's generated settings (e.g. capture profile)")
     parser.add_argument("--mode", choices=("off", "on"), default="off")
     parser.add_argument("--pack", type=Path, help="hi-res .phrb package (required with --mode on)")
     parser.add_argument("--runtime-class", required=True, help="caller-declared runtime class label")

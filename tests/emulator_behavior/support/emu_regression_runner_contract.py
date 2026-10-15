@@ -231,7 +231,7 @@ class RegressionRunnerContract(unittest.TestCase):
         record = records["field-state"]
         gates = self.gates(record)
         self.assertEqual(gates["capture@42"], "review")
-        self.assertEqual((gates["hires.provider"], gates["hires.entries"], gates["hires.draw_hits"]),
+        self.assertEqual((gates["hires.provider"], gates["hires.entries"], gates["hires.served"]),
                          ("pass", "pass", "pass"))
         self.assertEqual(gates["end_state"], "skip")
         self.assertEqual(record["hires"]["draw_hits"], 3)

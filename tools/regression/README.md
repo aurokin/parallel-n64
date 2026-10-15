@@ -13,12 +13,16 @@ tools/regression/run_scenarios.py \
   --scenarios "$CORPUS/scenarios" --blobs "$CORPUS/blobs" \
   --core "$CORE_PATH" --retroarch-bin "$RETROARCH_BIN" \
   --base-config "$RETROARCH_BASE_CONFIG" \
+  --extra-append-config "$CAPTURE_PROFILE" \
   --runtime-class linux-radv-headless-vk-4x --mode off \
   --expectations "$CORPUS/expectations" \
   --select tier=smoke --out artifacts/regression/smoke-off
 ```
 
 - `--mode on` requires `--pack PATH` (a `.phrb` package).
+- `--extra-append-config PATH` loads after the adapter's generated settings;
+  use it for the capture profile (output size, GPU screenshots). Settings
+  placed only in the base config are overridden by the generated ones.
 - ROMs resolve from `--rom PATH` (one ROM, sha checked), `--rom-map JSON`
   (`{"<rom sha256>": "/path"}`) or `<blobs>/roms/<sha>.*`.
 - `--select` takes an id glob or `tag=value[,value]`; repeated filters must
@@ -88,7 +92,7 @@ second run into a new `--out`; compare their records.
 | `capture@F` — PNG sha equals expectation | fail ([ADR-0002](../../docs/adr/0002-protected-feature-off-property.md)) | review ([ADR-0004](../../docs/adr/0004-hires-on-validation-methodology.md)) |
 | `end_state` — end-state body sha | fail | report-only |
 | `hires.provider` — summary has `provider=on`, no cache load failure | — | fail |
-| `hires.entries`, `hires.draw_hits` — at least one | — | fail |
+| `hires.entries`, `hires.served` (upload or draw-time hits) — at least one | — | fail |
 | `hires.inert` — no `provider=on` summary | fail | — |
 
 - Missing expectations make a gate `skip`, not `pass`.
@@ -117,3 +121,12 @@ second run into a new `--out`; compare their records.
 Expectations are evidence for one runtime class. Re-record them only with a
 justification, and keep bundles under the
 [retention policy](../../docs/EVIDENCE_RETENTION.md).
+
+## Hi-res presentation-only check
+
+`compare_modes.py OFF_RUN ON_RUN` compares an off-mode and an on-mode run of the
+same scenarios. Every savestate byte outside RDRAM and every checkpoint RAM cue
+must match; RDRAM differences are listed by address range. Replacement changes the
+native framebuffer and depth-buffer contents the renderer writes back, so those
+ranges are expected; any other range needs review.
+

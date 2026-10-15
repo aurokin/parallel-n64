@@ -38,6 +38,11 @@ add_test(
   COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_regression_runner_contract.py"
 )
 
+add_test(
+  NAME emu.support.regression_compare_modes_contract
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_regression_compare_modes_contract.py"
+)
+
 set(EMU_BEHAVIOR_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/support")
 
 add_test(

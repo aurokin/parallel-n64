@@ -10,13 +10,15 @@
 #   - the session holds the same runtime flock as the batch adapter, so the
 #     one-emulator-at-a-time rule still holds across both adapters
 #   - RetroArch runs under `timeout`, so a forgotten session kills itself
-#     after --ttl-seconds (default 3600); a grace watchdog sends QUIT
-#     shortly before that hard kill so core end-of-run summaries flush,
-#     and records the reason in logs/session.end-reason
-#   - the chain starts in its own setsid session recorded in session.pid;
-#     `stop` QUITs politely, then kills that group. `timeout` moves RetroArch
-#     into a separate group, so a QUIT timeout can leave it running (see
-#     docs/ISSUE_LOG.md); `doctor --reap` signals each process's own group
+#     after --ttl-seconds (default 3600): TERM at the TTL, then KILL
+#     RETROARCH_TTL_KILL_AFTER_SECONDS (default 10) later if it is wedged; a
+#     grace watchdog sends QUIT shortly before the TTL so core end-of-run
+#     summaries flush, and records the reason in logs/session.end-reason
+#   - the chain starts in its own setsid session whose leader pid (== PGID)
+#     is recorded in session.pid. `timeout --foreground` keeps itself and
+#     RetroArch in that group (plain `timeout` would move them into a group
+#     of their own), so `stop` QUITs politely, then TERM/KILLs the one group
+#     and nothing survives; `doctor --reap` signals each process's own group
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -74,7 +76,10 @@ deterministic play, keep the session paused and use `input --frames N`
 (TAS-style: input held for exactly N stepped frames, session stays
 paused). Pause with `send --command "SET_PAUSE ON"`; the command accepts
 ON, OFF, or TOGGLE. `--hold-seconds` is wall-clock and only suited to
-menus and title screens.
+menus and title screens. Input, memory reads, screenshots, state
+saves/loads and further steps are refused while a STEP_FRAME is still
+running (for example after an interrupted step wait); wait for status to
+report PAUSED at the target, or SET_PAUSE ON to abandon the step.
 
 Capture note: after LOAD_STATE_SLOT_PAUSED, step at least one frame
 before `screenshot` — the loaded frame has not been presented yet and
@@ -193,22 +198,27 @@ start_session_leader() {
   local pid_file="$1" lock_file="$2" ttl_seconds="$3" retroarch_bin="$4"
   local base_config="$5" append_config="$6" core_path="$7" rom_path="$8"
   local fifo_path="$9" ra_log="${10}" start_paused="${11:-0}"
+  local kill_after="${12}"
 
+  # --foreground keeps `timeout` from calling setpgid(): without it, timeout
+  # and RetroArch leave the leader's group and survive `stop`'s group kill.
+  # In this mode the TTL signal goes to RetroArch itself, and --kill-after
+  # follows up with KILL when a wedged frontend does not act on TERM.
   if command -v setsid >/dev/null 2>&1; then
     setsid bash -c '
       echo "$$" > "$1"
       EXTRA=()
       [ "${11}" = "1" ] && EXTRA+=(--start-paused)
-      exec flock -n "$2" timeout --signal=TERM "$3" "$4" \
+      exec flock -n "$2" timeout --foreground --kill-after="${12}" --signal=TERM "$3" "$4" \
         --verbose --config "$5" --appendconfig "$6" "${EXTRA[@]}" -L "$7" "$8" \
         0<> "$9" >> "${10}" 2>&1
     ' _ "$pid_file" "$lock_file" "$ttl_seconds" "$retroarch_bin" \
         "$base_config" "$append_config" "$core_path" "$rom_path" \
-        "$fifo_path" "$ra_log" "$start_paused" &
+        "$fifo_path" "$ra_log" "$start_paused" "$kill_after" &
   else
     python3 - "$pid_file" "$lock_file" "$ttl_seconds" "$retroarch_bin" \
         "$base_config" "$append_config" "$core_path" "$rom_path" \
-        "$fifo_path" "$ra_log" "$start_paused" <<'PY' &
+        "$fifo_path" "$ra_log" "$start_paused" "$kill_after" <<'PY' &
 import os
 import sys
 from pathlib import Path
@@ -225,6 +235,7 @@ from pathlib import Path
     fifo_path,
     ra_log,
     start_paused,
+    kill_after,
 ) = sys.argv[1:]
 
 os.setsid()
@@ -244,6 +255,8 @@ argv = [
     "-n",
     lock_file,
     "timeout",
+    "--foreground",
+    f"--kill-after={kill_after}",
     "--signal=TERM",
     ttl_seconds,
     retroarch_bin,
@@ -284,6 +297,7 @@ session_paths() {
   SESSION_ENV="$BUNDLE_DIR/retroarch.session.env"
   PID_FILE="$BUNDLE_DIR/session.pid"
   SLOT_FILE="$BUNDLE_DIR/session.state-slot"
+  STEP_TARGET_FILE="$BUNDLE_DIR/session.step-target"
   END_REASON_FILE="$BUNDLE_DIR/logs/session.end-reason"
 }
 
@@ -296,7 +310,9 @@ record_end_reason() {
 # session's setsid chain, so it never counts as a live session process)
 # asks RetroArch to QUIT shortly before the hard `timeout` kill
 # and records the reason, turning the TTL into an explicit, reported
-# fallback. If the QUIT doesn't land, the original hard kill still fires.
+# fallback. If the QUIT doesn't land, `timeout` still sends TERM at the TTL
+# and KILL after its --kill-after delay; the whole chain shares the
+# recorded process group, so the watchdog's group probe sees RetroArch too.
 start_ttl_grace_watchdog() {
   local pgid="$1" launch_epoch="$2" ttl_seconds="$3"
   local grace="${RETROARCH_TTL_GRACE_SECONDS:-30}"
@@ -449,6 +465,11 @@ cmd_start() {
 
   if [[ -z "${BUNDLE_DIR:-}" || -z "$ROM_PATH" || -z "$CORE_PATH" ]]; then
     echo "start requires --bundle-dir, --rom, and --core." >&2
+    exit 2
+  fi
+  local TTL_KILL_AFTER="${RETROARCH_TTL_KILL_AFTER_SECONDS:-10}"
+  if [[ ! "$TTL_KILL_AFTER" =~ ^[1-9][0-9]*$ ]]; then
+    echo "RETROARCH_TTL_KILL_AFTER_SECONDS must be a whole number of seconds >= 1." >&2
     exit 2
   fi
   # RetroArch splits its one appendconfig argument on pipes; reject paths
@@ -689,7 +710,7 @@ EOF
     HIRES_CACHE_SHA256="$(sha256_file "$HIRES_CACHE_PATH")"
   fi
 
-  rm -f "$FIFO_PATH" "$PID_FILE"
+  rm -f "$FIFO_PATH" "$PID_FILE" "$STEP_TARGET_FILE"
   mkfifo "$FIFO_PATH"
   echo 0 > "$SLOT_FILE"
 
@@ -699,7 +720,7 @@ EOF
   LAUNCH_EPOCH="$(date +%s)"
   start_session_leader "$PID_FILE" "$LOCK_FILE" "$TTL_SECONDS" "$RETROARCH_BIN" \
       "$BASE_CONFIG" "$APPEND_CONFIG_ARGUMENT" "$CORE_PATH" "$ROM_PATH" \
-      "$FIFO_PATH" "$RA_LOG" "$START_PAUSED"
+      "$FIFO_PATH" "$RA_LOG" "$START_PAUSED" "$TTL_KILL_AFTER"
 
   local deadline=$(( $(date +%s) + 10 ))
   while [[ ! -s "$PID_FILE" ]] && (( $(date +%s) < deadline )); do
@@ -803,17 +824,18 @@ cmd_send() {
   # Serialize the send+ack unit per bundle: the ack matcher takes the LAST
   # pattern match after start_bytes, so two concurrent same-verb sends (e.g.
   # a scorer polling READ_CORE_MEMORY while the agent probes RAM) can each
-  # collect the other's reply. flock releases on process exit.
-  exec 9>"$BUNDLE_DIR/logs/send.lock"
-  if ! flock -w "$((ACK_TIMEOUT + 15))" 9; then
-    echo "Timed out waiting for the bundle send lock." >&2
-    exit 1
-  fi
+  # collect the other's reply.
+  acquire_send_lock "$((ACK_TIMEOUT + 15))"
+  case "$COMMAND" in
+    STEP_FRAME*|SET_INPUT_PORT*|CLEAR_INPUT_PORT*|READ_CORE_MEMORY*|SCREENSHOT*|SAVE_STATE*|LOAD_STATE*)
+      refuse_if_step_in_flight "${COMMAND%% *}" ;;
+  esac
   if [[ -n "$step_frames" ]]; then
     if ! step_base="$(current_status_frame)"; then
       echo "Could not read the current frame before STEP_FRAME." >&2
       exit 1
     fi
+    record_step_target "$(( step_base + step_frames ))"
   fi
   start_bytes="$(log_size_bytes)"
   send_fifo "$COMMAND"
@@ -832,6 +854,7 @@ cmd_send() {
       echo "STEP_FRAME $step_frames did not complete (still draining, or the session is not paused)." >&2
       exit 1
     fi
+    rm -f "$STEP_TARGET_FILE"
   fi
   if [[ "$COMMAND" =~ ^SET_PAUSE[[:space:]]+ON$ ]]; then
     local pf1 pf2
@@ -848,19 +871,75 @@ cmd_send() {
   fi
 }
 
-current_status_frame() {
-  local start_bytes status_line
+current_status_line() {
+  local start_bytes
   start_bytes="$(log_size_bytes)"
   send_fifo "GET_STATUS"
   if ! wait_for_log_pattern_after "$start_bytes" "GET_STATUS " 5; then
     return 1
   fi
-  status_line="$(tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -o "GET_STATUS [^\r\n]*" | tail -n1)"
+  tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -o "GET_STATUS [^\r\n]*" | tail -n1
+}
+
+current_status_frame() {
+  local status_line
+  status_line="$(current_status_line)" || return 1
   if [[ "$status_line" =~ frame=([0-9]+)$ ]]; then
     printf '%s\n' "${BASH_REMATCH[1]}"
     return 0
   fi
   return 1
+}
+
+# Recording contract: input, memory reads, captures, state saves/loads and
+# further steps must not land while a STEP_FRAME is still running frames.
+# Each step records its target frame in the bundle, so the rule also holds
+# across adapter invocations, including after a step wait was interrupted or
+# timed out. Callers hold the bundle send lock, which a stepping invocation
+# keeps until its step completes, so a target seen here belongs to a waiter
+# that is gone, and FIFO order answers this GET_STATUS after that STEP_FRAME.
+# The step is in flight while the frontend reports PLAYING below the target;
+# it is over once the frontend paused (at the target, or because the agent
+# paused it explicitly) or reached the target.
+refuse_if_step_in_flight() {
+  local what="$1" target status_line frame=""
+  [[ -f "$STEP_TARGET_FILE" ]] || return 0
+  target="$(cat "$STEP_TARGET_FILE")"
+  if ! status_line="$(current_status_line)"; then
+    echo "Refusing $what: a STEP_FRAME toward frame $target may still be running and GET_STATUS did not answer." >&2
+    exit 1
+  fi
+  [[ "$status_line" =~ ,frame=([0-9]+)$ ]] && frame="${BASH_REMATCH[1]}"
+  local finished=0
+  if [[ "$status_line" =~ ^GET_STATUS[[:space:]]+PAUSED ]]; then
+    finished=1
+  elif [[ -n "$frame" && "$target" =~ ^[0-9]+$ ]] && (( frame >= target )); then
+    finished=1
+  fi
+  if (( finished )); then
+    rm -f "$STEP_TARGET_FILE"
+    return 0
+  fi
+  echo "Refusing $what: a STEP_FRAME is still in flight (frame=${frame:-unknown}, target=$target)." \
+       "Wait until status reports PAUSED at the target, or pause with SET_PAUSE ON to abandon the step." >&2
+  exit 1
+}
+
+# STEP_FRAME clears the frontend's pause flag and runs N frames before pausing
+# again; a second STEP_FRAME overwrites the remaining count. Record the target
+# before sending so concurrent and later invocations can see the step.
+record_step_target() {
+  printf '%s\n' "$1" > "$STEP_TARGET_FILE"
+}
+
+# Every bundle command that the recording contract orders against a step
+# serializes through one lock; flock releases on process exit.
+acquire_send_lock() {
+  exec 9>"$BUNDLE_DIR/logs/send.lock"
+  if ! flock -w "$1" 9; then
+    echo "Timed out waiting for the bundle send lock." >&2
+    exit 1
+  fi
 }
 
 wait_for_paused_frame() {
@@ -932,6 +1011,9 @@ cmd_input() {
   fi
   [[ -z "$HOLD_SECONDS" && -z "$FRAMES" ]] && HOLD_SECONDS=0.5
   require_live_session
+  # One input (set, hold or step, release) is a single unit on the bundle.
+  acquire_send_lock 25
+  refuse_if_step_in_flight "input"
 
   INPUT_RELEASE_PORT="$PORT"
   INPUT_MAY_BE_HELD=1
@@ -957,11 +1039,13 @@ cmd_input() {
       echo "Could not read current frame for --frames input." >&2
       exit 1
     fi
+    record_step_target "$(( base_frame + FRAMES ))"
     send_fifo "STEP_FRAME $FRAMES"
     if ! wait_for_paused_frame "$(( base_frame + FRAMES ))" "$(( FRAMES / 60 + 30 ))"; then
       echo "STEP_FRAME $FRAMES did not complete (is the session paused?)." >&2
       exit 1
     fi
+    rm -f "$STEP_TARGET_FILE"
   else
     # Bash defers signal traps during a foreground sleep. Waiting on our own
     # child makes interruption immediate and lets exit cleanup reap it.
@@ -998,6 +1082,8 @@ cmd_screenshot() {
   done
   [[ -z "${BUNDLE_DIR:-}" ]] && { echo "screenshot requires --bundle-dir." >&2; exit 2; }
   require_live_session
+  acquire_send_lock 25
+  refuse_if_step_in_flight "SCREENSHOT"
 
   local before
   before="$(find "$BUNDLE_DIR/captures" -maxdepth 1 -type f | wc -l)"
@@ -1157,6 +1243,8 @@ cmd_save_slot() {
     exit 2
   fi
   require_live_session
+  acquire_send_lock 25
+  refuse_if_step_in_flight "save-slot"
 
   # STATE_SLOT_PLUS/MINUS are silent keybind events: track the slot locally
   # and verify the SAVE_STATE log names the expected .state<N> file.
@@ -1210,6 +1298,8 @@ cmd_load_slot() {
     exit 2
   fi
   require_live_session
+  acquire_send_lock 25
+  refuse_if_step_in_flight "load-slot"
 
   # Read the recorded path as data: paths containing spaces must not be sourced
   # as shell code. Refuse an unidentifiable/old session before changing its state.
@@ -1286,11 +1376,16 @@ cmd_stop() {
   done
   echo "[interactive] QUIT timed out; killing process group $PGID."
   record_end_reason "stop: QUIT timed out; killed process group $PGID"
+  # The chain shares the leader's group; the session-id sweep also covers a
+  # session launched before `timeout --foreground`, whose frontend sits in a
+  # separate group of the same session.
   kill -TERM -- "-$PGID" 2>/dev/null || true
+  pkill -TERM -s "$PGID" 2>/dev/null || true
   sleep 2
   if kill -0 -- "-$PGID" 2>/dev/null; then
     kill -KILL -- "-$PGID" 2>/dev/null || true
   fi
+  pkill -KILL -s "$PGID" 2>/dev/null || true
   rm -f "$FIFO_PATH"
   echo "[interactive] session terminated."
 }

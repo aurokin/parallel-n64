@@ -608,16 +608,58 @@ differ; none is known.
 
 ## Interactive stop leaves RetroArch running after a QUIT timeout
 
-Status: reproduced in process-group analysis; not corrected.
+Status: corrected in source October 15, 2026; display-free contracts only.
 
-`retroarch_interactive_session.sh start` records the setsid leader as the session
-process group, but GNU `timeout` moves itself and RetroArch into a new process
-group within that session. When `QUIT` times out, `stop` signals only the
-leader's group, so RetroArch keeps running. `doctor --reap` signals each matched
-chain process's own group and remains the cleanup path; confirm no frontend
-remains before treating a host as idle. A correction must signal the frontend's
-actual group and add a display-free contract with a fake frontend that ignores
-`QUIT`.
+`retroarch_interactive_session.sh start` recorded the setsid leader as the
+session process group, but GNU `timeout` called `setpgid` and moved itself and
+RetroArch into a new group within that session. When `QUIT` timed out, `stop`
+signaled only the leader's group (`flock`), so RetroArch kept running and kept
+the runtime lock. The launch chain now uses `timeout --foreground`, which keeps
+`timeout` and RetroArch in the recorded group. The group probes used by
+`start`, `require_live_session` and the TTL watchdog now include the frontend,
+and `stop`'s TERM/KILL reaches it. `stop` also signals every process in the
+recorded session ID. This covers sessions launched before the change.
+
+With `--foreground`, the TTL signal goes to RetroArch itself rather than the
+group. `--kill-after` (`RETROARCH_TTL_KILL_AFTER_SECONDS`, default 10) now follows
+TERM with KILL. Before, a wedged frontend that ignored TERM outlived its TTL.
+`doctor --reap` is unchanged. The batch adapter launches RetroArch as a direct
+child, so it does not have this group defect. However, after an unanswered
+`QUIT` it sent only TERM and then waited without bound. It now follows the TERM
+with KILL.
+
+`emu.support.interactive_lifecycle_contract` runs the real
+setsid/flock/timeout chain with a fake frontend that ignores `QUIT` and TERM.
+It checks that `stop` leaves no frontend, `timeout` or leader process and that
+the group TERM reached the frontend. It also checks that TTL expiry delivers TERM
+and then kills the frontend. `emu.support.batch_lifecycle_contract` covers the
+batch escalation. Against the previous adapters, the frontend survived `stop`
+and TTL expiry, and the batch adapter hung. The contracts ran on Linux only; the
+`setsid`-less macOS launch path received the same change but was not exercised.
+
+## Interactive commands overlapping a running step
+
+Status: enforced in the interactive adapter October 15, 2026; display-free
+contract only.
+
+`STEP_FRAME` clears the frontend's pause flag and acknowledges before its
+frames run. A second `STEP_FRAME` overwrites the remaining count. `send` already
+waited for the step target, but `input`, `screenshot`, `save-slot` and
+`load-slot` did not take the bundle send lock. A step whose waiter was
+interrupted or timed out left nothing to stop the next command from landing
+mid-step. Each step now records its target frame in `BUNDLE/session.step-target`.
+`send`, `input`, `screenshot`, `save-slot` and `load-slot` serialize on the
+bundle lock. While a recorded step is still PLAYING below its target, they
+refuse input set/clear, memory reads, screenshots, state saves/loads and further
+steps. The step ends when the frontend pauses or reaches the target. `SET_PAUSE
+ON` abandons it. The failure-path release in `input` is unchanged: it still
+clears a held port after a failed or interrupted step wait, even mid-step.
+
+`emu.support.interactive_lifecycle_contract` interrupts a running step and
+checks that each guarded `send` command and `input` is refused before reaching
+the frontend. After the step finishes, input lands at the target frame. A
+concurrent `input --frames` waits for a running step instead of overwriting it.
+Against the previous adapter, that overlap stalled the first step's waiter.
 
 ## Savestate bridge to mupen64plus-next
 

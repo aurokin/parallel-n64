@@ -14,6 +14,11 @@ add_test(
 )
 
 add_test(
+  NAME emu.support.interactive_lifecycle_contract
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_interactive_lifecycle_contract.py"
+)
+
+add_test(
   NAME emu.support.adapter_config_contract
   COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_adapter_config_contract.py"
 )

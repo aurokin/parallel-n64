@@ -30,6 +30,7 @@
 #include "rdp_renderer.hpp"
 #include "rdp_common.hpp"
 #include "rdp_hires_runtime_config.hpp"
+#include "rdp_hires_summary_interval.hpp"
 #include "command_ring.hpp"
 #include "worker_thread.hpp"
 #include "texture_replacement.hpp"
@@ -227,6 +228,7 @@ private:
 	bool is_host_coherent = true;
 	bool timestamp = false;
 	detail::HiresGlideN64CompatCRCOverride hires_gliden64_compat_crc_override = {};
+	detail::HiresSummaryIntervalClock hires_summary_clock = {};
 
 	friend class Renderer;
 

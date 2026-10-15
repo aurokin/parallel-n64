@@ -160,7 +160,12 @@ public:
 	void set_hires_gliden64_compat_crc(bool enable);
 	void set_hires_filter(unsigned mode);
 	void set_hires_gpu_budget_bytes(size_t bytes);
+	// Final summary, emitted once at teardown. Its line format is parsed by
+	// tools/scenarios/lib/common.sh and must stay stable.
 	void log_hires_summary() const;
+	// Cumulative snapshot of the same counters, labelled with the presented
+	// frame count so log parsers can tell it apart from the final summary.
+	void log_hires_summary_periodic(uint64_t frame) const;
 
 	void set_blend_color(uint32_t color);
 	void set_fog_color(uint32_t color);
@@ -191,6 +196,8 @@ public:
 	void unlock_command_processing();
 
 private:
+	void emit_hires_summary(const char *label, bool include_duplicate_diagnostics) const;
+
 	CommandProcessor &processor;
 	Vulkan::Device *device = nullptr;
 	Vulkan::Buffer *rdram = nullptr;

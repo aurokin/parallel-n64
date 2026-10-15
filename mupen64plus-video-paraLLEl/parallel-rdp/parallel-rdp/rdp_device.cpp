@@ -272,6 +272,8 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 
 	hires_gliden64_compat_crc_override =
 		detail::parse_hires_gliden64_compat_crc_override(getenv("PARALLEL_RDP_HIRES_GLIDEN64_COMPAT_CRC"));
+	hires_summary_clock.interval =
+		detail::parse_hires_summary_interval_frames(getenv("PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES"));
 	if (const char *env = getenv("PARALLEL_RDP_HIRES_GPU_BUDGET_MB"))
 	{
 		long mb = strtol(env, nullptr, 0);
@@ -300,6 +302,12 @@ void CommandProcessor::begin_frame_context()
 {
 	flush();
 	drain_command_ring();
+	// The ring is drained here, so renderer counters are quiescent. Counters are
+	// cumulative since the replacement provider was last attached (as in the
+	// final summary); frame=K counts presented frames since this processor was
+	// created and is never reset.
+	if (hires_summary_clock.advance())
+		renderer.log_hires_summary_periodic(hires_summary_clock.frames);
 	renderer.begin_frame_context();
 	device.next_frame_context();
 }

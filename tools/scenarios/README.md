@@ -104,6 +104,18 @@ Every tracked bundle records:
 Hi-res-on validation uses class-level semantics and explicit visual judgment.
 Capture digests are reserved for feature-off parity and authority remints.
 
+The renderer logs its `Hi-res keying summary:` line only at teardown, so a
+crashed or force-killed run loses it. Set
+`PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES=N` (N > 0; unset or 0 disables) to
+also log `Hi-res keying summary (periodic, frame=K):` and
+`Hi-res native checksum detail (periodic, frame=K):` every N presented frames.
+Counters are cumulative since the pack was attached, not per-interval deltas;
+take differences between snapshots to attribute traffic to a checkpoint.
+`frame=K` counts presented frames since the renderer started and is not reset
+by state loads. Periodic lines omit the sampled-duplicate diagnostics, and the
+evidence extractor ignores them; the final summary format is unchanged. Nothing
+is logged when hi-res replacement and `PARALLEL_RDP_HIRES_DEBUG` are both off.
+
 ## Reminting
 
 Use dedicated `remint-*` helpers. A replacement authority must pass

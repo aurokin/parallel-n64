@@ -1348,13 +1348,30 @@ void Renderer::set_hires_gpu_budget_bytes(size_t bytes)
 
 void Renderer::log_hires_summary() const
 {
+	emit_hires_summary("", true);
+}
+
+void Renderer::log_hires_summary_periodic(uint64_t frame) const
+{
+	char label[48];
+	std::snprintf(label, sizeof(label), " (periodic, frame=%llu)", static_cast<unsigned long long>(frame));
+	emit_hires_summary(label, false);
+}
+
+// label is inserted between the line name and its colon. The final summary
+// passes "" so its format stays byte-identical for existing log parsers.
+// Periodic snapshots skip the sampled-duplicate diagnostics: those describe the
+// loaded pack rather than runtime traffic, and parsers count them per line.
+void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diagnostics) const
+{
 	if (!replacement_provider && !hires_debug)
 		return;
 
 	if (replacement_provider)
 	{
 		ReplacementProviderStats provider_stats = replacement_provider->get_stats();
-		LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu filtered=%llu block_probe_hits=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
+		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu filtered=%llu block_probe_hits=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
+		     label,
 		     static_cast<unsigned long long>(hires_lookup_total),
 		     static_cast<unsigned long long>(hires_lookup_hits),
 		     static_cast<unsigned long long>(hires_lookup_misses),
@@ -1385,10 +1402,13 @@ void Renderer::log_hires_summary() const
 		     static_cast<unsigned long long>(hires_descriptor_generic_native_plain_resolutions),
 		     static_cast<unsigned long long>(hires_descriptor_generic_compat_plain_resolutions),
 		     static_cast<unsigned long long>(hires_descriptor_generic_unknown_plain_resolutions));
-		LOGI("Hi-res native checksum detail: exact=%llu identity_assisted=%llu generic_fallback=%llu.\n",
+		LOGI("Hi-res native checksum detail%s: exact=%llu identity_assisted=%llu generic_fallback=%llu.\n",
+		     label,
 		     static_cast<unsigned long long>(hires_descriptor_native_checksum_exact_resolutions),
 		     static_cast<unsigned long long>(hires_descriptor_native_checksum_identity_assisted_resolutions),
 		     static_cast<unsigned long long>(hires_descriptor_native_checksum_generic_fallback_resolutions));
+		if (!include_duplicate_diagnostics)
+			return;
 		for (const auto &diag : replacement_provider->get_sampled_duplicate_diagnostics(10))
 		{
 			LOGI("Hi-res sampled duplicate: sampled_fmt=%u sampled_siz=%u tex_offset=%u stride=%u wh=%ux%u sampled_low32=%08x palette_crc=%08x fs=%u selector=%016llx total_entries=%u duplicate_entries=%u active_checksum=%016llx repl=%ux%u policy=%s replacement_id=%s sampled_object=%s source=%s.\n",
@@ -1415,7 +1435,8 @@ void Renderer::log_hires_summary() const
 	}
 	else
 	{
-		LOGI("Hi-res keying summary: lookups=%llu hits=%llu misses=%llu filtered=%llu block_probe_hits=%llu provider=off.\n",
+		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu filtered=%llu block_probe_hits=%llu provider=off.\n",
+		     label,
 		     static_cast<unsigned long long>(hires_lookup_total),
 		     static_cast<unsigned long long>(hires_lookup_hits),
 		     static_cast<unsigned long long>(hires_lookup_misses),

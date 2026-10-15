@@ -13,6 +13,8 @@ mkdir -p "$BUNDLE_DIR/logs"
 cat > "$BUNDLE_DIR/logs/retroarch.log" <<'EOF'
 [INFO] Hi-res capability check: descriptor_indexing=1 runtime_descriptor_array=1 sampled_image_array_non_uniform_indexing=1 descriptor_binding_variable_descriptor_count=1 descriptor_binding_partially_bound=1 descriptor_binding_update_after_bind=1 maxDescriptorSetUpdateAfterBindSampledImages=8388606 cache_path=/tmp/example/package.phrb.
 [INFO] Hi-res replacement cache loaded: 12 entries from /tmp/example/package.phrb
+[INFO] Hi-res keying summary (periodic, frame=60): lookups=7 hits=7 misses=0 provider=on entries=12 native_sampled=1 compat=11 sampled_index=1 sampled_dupe_keys=0 sampled_dupe_entries=0 sampled_families=1 compat_low32_families=11 sources(phrb=12) descriptor_paths(sampled=7 native_checksum=0 generic=0 compat=0) sampled_detail(family_singleton=7 ordered_surface_singleton=0) generic_detail(identity_assisted=0 plain=0).
+[INFO] Hi-res native checksum detail (periodic, frame=60): exact=5 identity_assisted=0 generic_fallback=0.
 [INFO] Hi-res keying summary: lookups=1 hits=1 misses=0 provider=on entries=12 native_sampled=1 compat=11 sampled_index=1 sampled_dupe_keys=0 sampled_dupe_entries=0 sampled_families=1 compat_low32_families=11 sources(phrb=12) descriptor_paths(sampled=1 native_checksum=0 generic=0 compat=0) sampled_detail(family_singleton=1 ordered_surface_singleton=0) generic_detail(identity_assisted=0 plain=0).
 EOF
 
@@ -36,6 +38,12 @@ if "source_policy" in evidence:
     raise SystemExit(f"FAIL: stale source_policy should not be parsed into evidence: {evidence.get('source_policy')!r}")
 if "source_policy" in summary:
     raise SystemExit(f"FAIL: stale source_policy should not be synthesized into summary: {summary.get('source_policy')!r}")
+# Periodic snapshots (PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES) must not be
+# read as the final summary or merged into it.
+if summary.get("lookups") != 1:
+    raise SystemExit(f"FAIL: periodic summary leaked into final summary lookups: {summary.get('lookups')!r}")
+if "native_checksum_exact" in (summary.get("descriptor_path_detail_counts") or {}):
+    raise SystemExit("FAIL: periodic native checksum detail leaked into final summary")
 if summary.get("source_mode") != "phrb-only":
     raise SystemExit(f"FAIL: expected summary source_mode=phrb-only, got {summary.get('source_mode')!r}")
 PY

@@ -569,8 +569,12 @@ text) moved about 2 output pixels onto its native silhouette. Independent visual
 review flagged one class of change, traced at texture level to pack content: Peach's castle
 ledge strips that sample the wall texture at its wrap boundary now blend into the
 repaint's top rows instead of holding its dark bottom rows, because the repaint
-does not reproduce the native border-row layout. GLideN64 comparisons for those
-castle phases, other games and other backends remain unqualified.
+does not reproduce the native border-row layout. A fresh-boot GLideN64 capture
+of the same attract-demo frame (16264, balcony pillar on the same wall art) shows
+the candidate's uniform band, not the base's dark streaks. GLideN64's own title
+logo keeps a weaker strip seam that the candidate no longer has. The gameplay
+castle phases themselves, other games and other backends remain unqualified in
+GLideN64.
 
 ## 4-bit intensity LoadTile transport drops the first replaced draw
 

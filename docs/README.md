@@ -23,6 +23,7 @@
 - [Fixtures](../tools/fixtures/)
 - [Scenarios](../tools/scenarios/)
 - [Adapters](../tools/adapters/)
+- [Regression scenario runner](../tools/regression/)
 - [RetroArch patch set](../tools/retroarch-patches/)
 - [GlideN64 txDump patch](../tools/gliden64-txdump-patch/)
 - [Savestate bridge to mupen64plus-next](../tools/savestate_bridge.py)

@@ -17,6 +17,7 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/../../.." && pwd)"
 SCAN_PATHS=(
   "tools/scenarios"
   "tools/adapters"
+  "tools/regression"
   "tests"
   "run-tests.sh"
 )

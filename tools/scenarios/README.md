@@ -20,6 +20,9 @@ Authority modes:
 - `bootstrap` follows the declared parent and deterministic input.
 - `auto` prefers authority and falls back to bootstrap.
 
+Imported authorities, such as kmr03, have no bootstrap parent; they accept only
+`authoritative` and `auto`, which both select the canonical state.
+
 ## Portable Inputs
 
 Runners accept their inputs through existing arguments, fixture fields, and
@@ -74,17 +77,20 @@ this check; do not use an untrusted file. Keep fixture assertions unchanged.
 |---------|------------|
 | Paper Mario title | `paper-mario-title-screen.sh` |
 | Paper Mario file select | `paper-mario-file-select.sh` |
-| Paper Mario `kmr_03 ENTRY_5` (scene-unqualified) | `paper-mario-kmr-03-entry-5.sh` |
+| Paper Mario `kmr_03 ENTRY_2` (pending remint) | `paper-mario-kmr-03-entry-2.sh` |
 | Paper Mario PHRB authority set | `paper-mario-phrb-authority-validation.sh` |
 | Full-cache runtime wrapper | `paper-mario-full-cache-phrb-authority-validation.sh` |
 | SM64/OoT boot breadth | `cross-game-hires-boot-validation.sh` |
 | SM64/OoT fixed-state breadth | `cross-game-hires-savestate-fixture-validation.sh` |
 | GlideN64 content reference | `gliden64-reference-capture.sh` |
 
-The retained kmr03 authority fails the corrected named-scene contract. Its
-historical 960-frame bootstrap is unqualified; passing title or replacement
-traffic checks cannot repair that scene claim. Remint publication now stages and
-verifies candidate bytes before replacing the requested output.
+The kmr03 authority is imported rather than bootstrapped. Its remint helper
+stages a recorded state supplied with `--source-state` (or
+`AUTHORITY_SOURCE_STATE_PATH`), checks the pinned M64+SAVE body digest, loads it
+paused, settles three frames and captures feature-off. It publishes atomically
+only after the qualified `kmr_03`/entry 2 scene and pinned capture digest match.
+While that digest is pending, it reports the observed digest and exits 3
+without publishing.
 
 Remint helpers and bounded research probes live beside these entrypoints. Read a
 script's usage before invoking it rather than treating the directory as an

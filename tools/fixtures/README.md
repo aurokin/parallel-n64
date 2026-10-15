@@ -26,6 +26,7 @@ Tracked Paper Mario fixtures:
 
 - [title screen](paper-mario-title-screen.yaml)
 - [file select](paper-mario-file-select.yaml)
-- [`kmr_03 ENTRY_5`](paper-mario-kmr-03-entry-5.yaml): scene-unqualified;
-  corrected decoding rejects its retained authority. Preserve the intended
-  contract and historical bytes pending a verified route to that scene.
+- [`kmr_03 ENTRY_2`](paper-mario-kmr-03-entry-2.yaml): pending-remint; an
+  imported recording checkpoint whose feature-off digest is pinned by its first
+  runtime remint. It replaces the retired, scene-unqualified `kmr_03 ENTRY_5`
+  fixture (see the issue log).

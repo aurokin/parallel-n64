@@ -68,7 +68,7 @@ class AuthorityEvidenceContract(unittest.TestCase):
         self.assertTrue(self.validate(self.evidence, 'evidence.json'))
 
     def test_legacy_passed_verdict_cannot_qualify_named_scene(self):
-        record = {'fixture_id': 'paper-mario-kmr-03-entry-5', 'passed': True,
+        record = {'fixture_id': 'paper-mario-kmr-03-entry-2', 'passed': True,
                   'checks': {'scene_identity_match': True}}
         failures = self.validate_scene(record, record['fixture_id'])
         self.assertTrue(any('scene_decoder_qualified' in failure for failure in failures), failures)
@@ -80,7 +80,7 @@ class AuthorityEvidenceContract(unittest.TestCase):
 
     def test_corrected_named_scene_verdict_is_admissible(self):
         record = {'passed': True, 'checks': {'scene_decoder_qualified': True, 'scene_identity_match': True}}
-        self.assertEqual(self.validate_scene(record, 'paper-mario-kmr-03-entry-5'), [])
+        self.assertEqual(self.validate_scene(record, 'paper-mario-kmr-03-entry-2'), [])
 
     def test_named_scene_checks_require_literal_true(self):
         for check in ('scene_decoder_qualified', 'scene_identity_match'):
@@ -88,16 +88,16 @@ class AuthorityEvidenceContract(unittest.TestCase):
                 with self.subTest(check=check, value=value):
                     record = {'passed': True, 'checks': {'scene_decoder_qualified': True, 'scene_identity_match': True}}
                     record['checks'][check] = value
-                    failures = self.validate_scene(record, 'paper-mario-kmr-03-entry-5')
+                    failures = self.validate_scene(record, 'paper-mario-kmr-03-entry-2')
                     self.assertTrue(any(check in failure for failure in failures), failures)
             del record['checks'][check]
-            self.assertTrue(self.validate_scene(record, 'paper-mario-kmr-03-entry-5'))
+            self.assertTrue(self.validate_scene(record, 'paper-mario-kmr-03-entry-2'))
 
     def test_missing_or_malformed_check_records_reject_named_scene(self):
         for checks in (None, [], True, 'passed'):
             with self.subTest(checks=checks):
-                self.assertTrue(self.validate_scene({'passed': True, 'checks': checks}, 'paper-mario-kmr-03-entry-5'))
-        self.assertTrue(self.validate_scene({'passed': True}, 'paper-mario-kmr-03-entry-5'))
+                self.assertTrue(self.validate_scene({'passed': True, 'checks': checks}, 'paper-mario-kmr-03-entry-2'))
+        self.assertTrue(self.validate_scene({'passed': True}, 'paper-mario-kmr-03-entry-2'))
 
     def test_callback_fixtures_do_not_require_named_scene_verdicts(self):
         for fixture in ('paper-mario-title-screen', 'paper-mario-file-select'):

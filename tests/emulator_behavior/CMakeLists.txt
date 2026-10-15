@@ -51,8 +51,8 @@ add_test(
 )
 
 add_test(
-  NAME emu.support.kmr03_remint_publication_contract
-  COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_kmr03_remint_publication_contract.py"
+  NAME emu.support.kmr03_import_remint_publication_contract
+  COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_kmr03_import_remint_publication_contract.py"
 )
 
 add_test(

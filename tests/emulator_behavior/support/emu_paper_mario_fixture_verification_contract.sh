@@ -117,7 +117,8 @@ PY
 done
 
 # World callbacks occur in many maps. The kmr03 authority additionally locks
-# the decoded scene, while unrelated world fixtures may define their own scene.
+# the decoded scene (area 0, kmr_03, entry 2), while unrelated world fixtures
+# may define their own scene.
 WORLD_BUNDLE="$TMPDIR/world"
 cp -R "$PASS_BUNDLE" "$WORLD_BUNDLE"
 python3 - "$WORLD_BUNDLE/traces" <<'PY'
@@ -126,8 +127,10 @@ import sys
 
 traces = Path(sys.argv[1])
 # Exercise the same native-memory decoder that supplies runtime scene gates.
-# Adjacent fields differ, so halfword swaps cannot accidentally pass kmr03.
-status = bytes.fromhex('00 00 00 02 01 00 09 00 05 00 02 00') + bytes(220)
+# The area halfword shares its word with a nonzero value, so a halfword swap
+# cannot pass. Map and entry are both 2 here; the memory decoder contract owns
+# their order with distinct values.
+status = bytes.fromhex('00 00 00 02 01 00 09 00 02 00 02 00') + bytes(220)
 mode = bytes.fromhex('00 00 01 00 30 5d 03 80 54 5d 03 80 90 2b 11 80 d0 5d 03 80')
 for name, base, raw in [('gamestatus', '800740a8', status), ('curgamemode', '80151700', mode)]:
     (traces / f'paper-mario-{name}.core-memory.txt').write_text(
@@ -136,7 +139,7 @@ for name, base, raw in [('gamestatus', '800740a8', status), ('curgamemode', '801
 PY
 scenario_decode_paper_mario_semantic_state \
   "$WORLD_BUNDLE" "$WORLD_BUNDLE/traces/paper-mario-game-status.json"
-for scene in matching wrongmap wrongarea wrongentry missing; do
+for scene in matching wrongmap wrongarea wrongentry retired missing; do
   SCENE_BUNDLE="$TMPDIR/scene-$scene"
   cp -R "$WORLD_BUNDLE" "$SCENE_BUNDLE"
   python3 - "$SCENE_BUNDLE/traces/paper-mario-gamestatus.core-memory.txt" "$scene" <<'PY'
@@ -153,6 +156,10 @@ elif case == 'wrongarea':
     raw[0:2] = (5).to_bytes(2, 'little')
 elif case == 'wrongentry':
     raw[8:10] = (0).to_bytes(2, 'little')
+elif case == 'retired':
+    # The retired kmr_03 ENTRY_5 bytes decoded as area 6/map 5/entry 2.
+    raw[0:2] = (6).to_bytes(2, 'little')
+    raw[10:12] = (5).to_bytes(2, 'little')
 path.write_text('READ_CORE_MEMORY 800740a8 ' + raw.hex(' ') + '\n')
 PY
   scenario_decode_paper_mario_semantic_state \
@@ -174,11 +181,11 @@ PY
   printf '{"mode":"off"}\n' > "$SCENE_BUNDLE/bundle.json"
   status=0
   (
-    scenario_source_runtime_env "$REPO_ROOT/tools/scenarios/paper-mario-kmr-03-entry-5.runtime.env"
+    scenario_source_runtime_env "$REPO_ROOT/tools/scenarios/paper-mario-kmr-03-entry-2.runtime.env"
     unset EXPECTED_HIRES_PROVENANCE_AVAILABLE_OFF EXPECTED_HIRES_DRAW_USAGE_AVAILABLE_OFF
     scenario_verify_paper_mario_fixture \
       "$SCENE_BUNDLE" "$SCENE_BUNDLE/verification.json" \
-      "paper-mario-kmr-03-entry-5" "" "state_init_world" "state_step_world"
+      "paper-mario-kmr-03-entry-2" "" "state_init_world" "state_step_world"
   ) || status=$?
   python3 - "$SCENE_BUNDLE/verification.json" "$scene" "$status" <<'PY'
 import json
@@ -221,11 +228,11 @@ path.write_text(json.dumps(data))
 PY
   status=0
   (
-    scenario_source_runtime_env "$REPO_ROOT/tools/scenarios/paper-mario-kmr-03-entry-5.runtime.env"
+    scenario_source_runtime_env "$REPO_ROOT/tools/scenarios/paper-mario-kmr-03-entry-2.runtime.env"
     unset EXPECTED_HIRES_PROVENANCE_AVAILABLE_OFF EXPECTED_HIRES_DRAW_USAGE_AVAILABLE_OFF
     scenario_verify_paper_mario_fixture \
       "$LEGACY_BUNDLE" "$LEGACY_BUNDLE/verification.json" \
-      "paper-mario-kmr-03-entry-5" "" "state_init_world" "state_step_world"
+      "paper-mario-kmr-03-entry-2" "" "state_init_world" "state_step_world"
   ) || status=$?
   python3 - "$LEGACY_BUNDLE/verification.json" "$status" <<'PY'
 import json

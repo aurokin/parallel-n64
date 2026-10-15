@@ -1,6 +1,6 @@
 # ADR-0010: Replacement sampling: sub-texel fp5, direct sampling, CPU mips, trilinear
 
-- Status: Accepted, amended
+- Status: Accepted, amended (latest 2026-10-15)
 - Date: 2026-06-10 (sequence of commits, each falsification-backed)
 
 ## Context
@@ -61,6 +61,24 @@ Replacement sampling operates in replacement-texel space, with these rules:
    collision, and the sewer artifacts were a composition-semantics gap on our
    side, fixed by the cutout/alpha kill rules in ADR-0018. Verbatim serving
    itself stands unchanged.
+
+8. **Addressing happens in replacement-texel space** (2026-10-15). The sampler
+   takes the tile-relative coordinate before the N64 clamp and mask, scales it
+   to the replacement, and wraps, mirrors or clamps each bilinear tap with the
+   replacement-scaled period (`shaders/hires_addressing.h`, exercised by
+   `emu.unit.hires_addressing`). Clamped tiles extend to the end of the last
+   native texel. Native-space addressing had clamped taps at the image edge at
+   every wrap (SM64 Hazy Maze Cave wall blocks and floor seams) and pinned
+   clamped strips to the last texel's origin, freezing the replacement rows
+   inside it (Paper Mario title-logo banding). Point-sampled draws map native
+   texel i's footprint [i, i + 1) to its replacement block; bilinear draws keep
+   the integer-centered convention. The copy pipe keeps its own mapping.
+   Feature-off output is unchanged.
+
+   *Correction to rule 1 (2026-10-15):* the retained `/SCALING_FACTOR`
+   normalization was a preprocessor `#if` on a GLSL constant and never
+   compiled; non-copy replacement ST has always been native-domain. The dead
+   block was removed with no behavior change.
 
 Replaced draws thereby diverge deliberately from N64 filter semantics — sanctioned,
 because direct sampling is the point of replacement. Feature-off is provably inert

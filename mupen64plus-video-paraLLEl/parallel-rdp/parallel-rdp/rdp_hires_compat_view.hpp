@@ -9,7 +9,7 @@ namespace RDP
 namespace detail
 {
 // LoadTile's RDRAM rows and crop are independent of padded TMEM rows.
-// Keep the loading format to distinguish CI4 transport from unsupported reinterpretations.
+// Keep the loading format to distinguish 4-bit transport from unsupported reinterpretations.
 struct HiresLoadTileSource
 {
 	uint32_t address = 0;
@@ -77,14 +77,14 @@ inline bool compute_hires_compat_view(const TileMeta &meta, const TileSize &size
 	view.row_stride = meta.stride;
 	if (meta.size == TextureSize::Bpp32)
 		view.row_stride <<= 1;
-	// The standard CI4 tile macro transports two indices per CI8 source byte.
-	// Convert width units only; crop addresses and row strides remain bytes.
-	const bool ci4_transport = source.format == TextureFormat::CI && meta.fmt == TextureFormat::CI &&
-	                           source.size == TextureSize::Bpp8 && meta.size == TextureSize::Bpp4;
-	if (source.valid && source.format == meta.fmt && (source.size == meta.size || ci4_transport) &&
+	// The standard 4-bit tile macros (CI, I and IA alike) transport two texels
+	// per 8-bit source byte of the same format. Convert width units only; crop
+	// addresses and row strides remain bytes.
+	const bool four_bit_transport = source.size == TextureSize::Bpp8 && meta.size == TextureSize::Bpp4;
+	if (source.valid && source.format == meta.fmt && (source.size == meta.size || four_bit_transport) &&
 	    source.tmem_stride == meta.stride && source.image_width != 0 && source.row_stride != 0)
 	{
-		const uint64_t source_width = uint64_t(source.image_width) << (ci4_transport ? 1u : 0u);
+		const uint64_t source_width = uint64_t(source.image_width) << (four_bit_transport ? 1u : 0u);
 		view.width = uint32_t(std::min<uint64_t>(view.width, source_width));
 		view.address = source.address;
 		view.row_stride = source.row_stride;

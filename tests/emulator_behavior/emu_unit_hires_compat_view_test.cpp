@@ -118,11 +118,69 @@ void test_ci4_load_tile_padding_and_binding_lifetime()
 	      !hires_compat_binding_needs_source_layout(view, 32, 64, meta.size, meta.stride),
 	      "aligned CI4 source rows do not change the raw binding lifetime policy");
 }
+
+// Paper Mario's entity shadow and Mt. Lavalava smoke load I4/IA4 art through
+// the 4-bit tile macro as 8-bit rows. The draw view must re-key at the 4-bit
+// tile identity instead of keeping (then dropping) the 8-bit upload key.
+void test_intensity_four_bit_load_tile_transport()
+{
+	std::array<uint8_t, 4096> rdram;
+	for (size_t i = 0; i < rdram.size(); i++)
+		rdram[i] = uint8_t(i * 37 + (i / 64) * 11 + 5);
+	for (TextureFormat fmt : { TextureFormat::I, TextureFormat::IA })
+	{
+		TileMeta meta = {};
+		meta.fmt = fmt;
+		meta.size = TextureSize::Bpp4;
+		meta.stride = 8;
+		meta.mask_s = 4;
+		meta.mask_t = 4;
+		TileSize size = {};
+		size.shi = 15 * 4;
+		size.thi = 15 * 4;
+		HiresLoadTileSource source;
+		source.address = 512;
+		source.image_width = 8;
+		source.row_stride = 8;
+		source.tmem_stride = 8;
+		source.format = fmt;
+		source.size = TextureSize::Bpp8;
+		source.valid = true;
+		HiresCompatView view;
+		check(compute_hires_compat_view(meta, size, source.address, source, view),
+		      "8-bit transport can qualify its 4-bit intensity draw view");
+		check(view.source_layout && view.width == 16 && view.height == 16 && view.row_stride == 8,
+		      "4-bit intensity conversion doubles source width units and preserves byte stride");
+		check(hires_source_view_needs_rekey(view, 8, 16),
+		      "the 8-bit upload key window re-keys at the 4-bit draw view");
+		check(rice_crc32_wrapped(rdram.data(), rdram.size(), view.address, view.width, view.height,
+		                         unsigned(meta.size), view.row_stride) == 0x1f33063au,
+		      "the 4-bit intensity view hashes the transported bytes");
+
+		// A crop of a wider RDRAM image keys its own rows; the legacy view would
+		// hash the uncropped TMEM-stride window from the load address instead.
+		auto cropped = source;
+		cropped.address = 512 + 16 + 10;
+		cropped.row_stride = 16;
+		check(compute_hires_compat_view(meta, size, 512, cropped, view) && view.source_layout &&
+		      view.address == cropped.address && view.width == 16 && view.row_stride == 16,
+		      "a cropped 8-bit transport keeps its source address and RDRAM stride");
+		check(rice_crc32_wrapped(rdram.data(), rdram.size(), view.address, view.width, view.height,
+		                         unsigned(meta.size), view.row_stride) == 0x126164a3u,
+		      "the cropped 4-bit intensity view hashes the cropped source rows");
+
+		auto other_format = source;
+		other_format.format = fmt == TextureFormat::I ? TextureFormat::IA : TextureFormat::I;
+		compute_hires_compat_view(meta, size, source.address, other_format, view);
+		check(!view.source_layout, "a cross-format 4-bit reinterpretation retains the legacy path");
+	}
+}
 }
 
 int main()
 {
 	test_ci4_load_tile_padding_and_binding_lifetime();
+	test_intensity_four_bit_load_tile_transport();
 	std::array<uint8_t, 8192> rdram;
 	for (size_t i = 0; i < rdram.size(); i++)
 		rdram[i] = uint8_t(i * 73 + (i / 640) * 19 + 17);

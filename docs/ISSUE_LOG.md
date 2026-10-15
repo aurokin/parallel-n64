@@ -534,3 +534,69 @@ independently. The matched native control is decoded-RGBA identical to the prior
 native control. The selected package payload and game source establish the art;
 a same-style GLide screenshot is not qualified for this scene. These checks do
 not establish every palette, animation frame, game or graphics backend.
+
+## Replacement addressing in native texel space
+
+Status: corrected in source October 15, 2026; isolated Linux 4x candidate qualified.
+Installed-runtime rollout remains separate.
+
+Replacement sampling wrapped, mirrored and clamped in native texel space, then
+scaled into the replacement and clamped each tap at the image edge. Two visible
+defects followed. A wrapping tile clamped its bilinear taps at every native
+period boundary instead of continuing through the repeat: SM64's Hazy Maze Cave
+attract demo showed the wall backdrop (RGBA16 32×64 → 256×512) split into hard
+blocks and the floor (32×32 → 256×256) in stepped diagonal bands, while native
+and GLideN64 are continuous and the pack art tiles cleanly. A clamped tile used
+the N64 clamp, which pins coordinates to the last native texel's origin, so every
+replacement row inside that texel froze: Paper Mario's title logo (point-sampled,
+clamped 200×2 RGBA32 strips with 800×8 replacements) repeated four output rows and
+then jumped at each strip boundary.
+
+The sampler now takes the tile-relative coordinate before clamp and mask, scales
+it into the replacement and addresses each tap in replacement space with the
+scaled period (`shaders/hires_addressing.h`; ADR-0010 rule 8). A clamped tile
+holds the replacement texels of its first and last native texels, including
+tiles that still wrap inside a multi-period clamped range. Point-sampled draws
+map a native texel's [i, i + 1) footprint onto its replacement block; bilinear
+draws keep the integer-centered convention. The copy pipe is unchanged.
+
+`emu.unit.hires_addressing` covers wrap continuity across the period boundary,
+mirror reflection, clamp limits and the strip case. A paired sweep of 35 phases
+(Paper Mario field, prologue, attract storybook/demo, title; SM64 Hazy Maze Cave)
+on the base and candidate cores shows feature-off output pixel-identical, the
+three target defects removed, and point-sampled 2D art (dialogue boxes, title
+text) moved about 2 output pixels onto its native silhouette. Independent visual
+review flagged one class of change, traced at texture level to pack content: Peach's castle
+ledge strips that sample the wall texture at its wrap boundary now blend into the
+repaint's top rows instead of holding its dark bottom rows, because the repaint
+does not reproduce the native border-row layout. GLideN64 comparisons for those
+castle phases, other games and other backends remain unqualified.
+
+## 4-bit intensity LoadTile transport drops the first replaced draw
+
+Status: corrected in source October 15, 2026; isolated Linux 4x candidate qualified.
+Installed-runtime rollout remains separate.
+
+The October 12 transport correction admitted 8-bit-to-4-bit LoadTile views only
+for CI. The standard 4-bit tile macros load I4 and IA4 art the same way. Their
+8-bit upload key hit the pack, then the draw-time formatsize guard dropped it
+because the tile is 4-bit, so the first draw after each load rendered native and
+later draws re-keyed and rendered the replacement. Meshes were therefore part
+native, part replaced: Paper Mario's attract-demo Mt. Lavalava smoke and wall
+showed hard-edged grey wedges, and entity shadows hit the same path (830 guard
+drops in one 110-frame volcano window; 30 for shadows in a Toad Town pause).
+
+The source view now qualifies any same-format 8-bit-to-4-bit transport, so the
+draw re-keys at the 4-bit tile identity before the guard. Cross-format
+reinterpretations keep the legacy path. The compatibility-view test covers I and
+IA transport, the re-key trigger and the transported CRC. The same volcano
+window records no guard drops and renders the smoke as continuous replacement
+art; Paper Mario's attract "1" star now serves its replacement centered on the
+native silhouette. Stencil transitions, pause arrows and other I4/IA4 users are
+expected to benefit but were not separately captured.
+
+Open adjacent gap: draw-time compatibility keys add a palette CRC only for CI.
+GLideN64 adds one whenever TLUT is enabled, so palette-recolored I/IA draws may
+miss or alias their pack entries. This correction makes I4/IA4 TLUT draws reach
+that key on their first draw; the keying gap itself predates it and is
+unqualified.

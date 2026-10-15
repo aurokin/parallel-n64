@@ -27,6 +27,7 @@
 
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 #include "hires_mip_filter.h"
+#include "hires_addressing.h"
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_samplerless_texture_functions : require
 layout(set = 3, binding = 0) uniform mediump texture2D uHiresTextures[];
@@ -94,21 +95,10 @@ int remap_hires_coord_fp5(int coord_fp5, int mask_bits, bool mirror)
 	return (coord << 5) + frac;
 }
 
-ivec2 remap_hires_st_fp5(TileInfo tile, ivec2 st_fp5)
-{
-#if SCALING_FACTOR > 1
-	st_fp5 /= SCALING_FACTOR;
-#endif
-	return ivec2(
-			remap_hires_coord_fp5(st_fp5.x, tile.mask_s, (tile.flags & TILE_INFO_MIRROR_S_BIT) != 0),
-			remap_hires_coord_fp5(st_fp5.y, tile.mask_t, (tile.flags & TILE_INFO_MIRROR_T_BIT) != 0));
-}
-
 ivec2 remap_hires_st_fp5_copy(TileInfo tile, ivec2 st_fp5, int s_offset, int s_frac_fp5)
 {
 	// interpolate_st_copy already collapses dx to the native pixel grid
-	// (dx >>= SCALING_LOG2), so copy-pipe ST is native-domain here. Do not
-	// divide by SCALING_FACTOR again like the non-copy remap does.
+	// (dx >>= SCALING_LOG2), so copy-pipe ST is native-domain here.
 	// s_frac_fp5 is the sub-native S remainder of an unsnapped copy rect,
 	// scaled to a fraction of the one-texel-per-native-pixel copy step.
 	return ivec2(
@@ -117,16 +107,56 @@ ivec2 remap_hires_st_fp5_copy(TileInfo tile, ivec2 st_fp5, int s_offset, int s_f
 }
 
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
-vec4 hires_filtered_fetch_level(TileInfo tile, vec2 st_texel, int level)
+// Per-axis replacement addressing for one draw, derived from the native tile.
+struct HiresAddress
+{
+	ivec2 coord_fp5; // tile-relative native ST after shift, before clamp/mask
+	ivec2 extent;    // tile extent in native texels
+	bvec2 clamped;   // N64 clamp bits
+	ivec2 mode;      // HIRES_ADDRESS_* per axis
+	ivec2 mask;      // native mask bits per axis
+};
+
+HiresAddress hires_address(TileInfo tile, ivec2 coord_fp5)
+{
+	HiresAddress address;
+	address.coord_fp5 = coord_fp5;
+	address.extent = ivec2(hires_address_extent(int(tile.slo), int(tile.shi)),
+	                       hires_address_extent(int(tile.tlo), int(tile.thi)));
+	address.clamped = bvec2((tile.flags & TILE_INFO_CLAMP_S_BIT) != 0, (tile.flags & TILE_INFO_CLAMP_T_BIT) != 0);
+	address.mask = ivec2(tile.mask_s, tile.mask_t);
+	address.mode = ivec2(
+			hires_address_mode(address.mask.x, address.clamped.x, (tile.flags & TILE_INFO_MIRROR_S_BIT) != 0, address.extent.x),
+			hires_address_mode(address.mask.y, address.clamped.y, (tile.flags & TILE_INFO_MIRROR_T_BIT) != 0, address.extent.y));
+	return address;
+}
+
+vec2 hires_tap_positions(HiresAddress address, bool native_bilinear, bool linear_filter, vec2 scale)
+{
+	return vec2(
+			hires_tap_position(address.coord_fp5.x, native_bilinear, linear_filter, scale.x, address.clamped.x, address.extent.x),
+			hires_tap_position(address.coord_fp5.y, native_bilinear, linear_filter, scale.y, address.clamped.y, address.extent.y));
+}
+
+ivec2 hires_address_texels(HiresAddress address, ivec2 texel, ivec2 level_dims, ivec2 orig_dims)
+{
+	return ivec2(
+			hires_address_texel(texel.x, level_dims.x,
+			                    hires_address_period(address.mask.x, level_dims.x, orig_dims.x), address.mode.x),
+			hires_address_texel(texel.y, level_dims.y,
+			                    hires_address_period(address.mask.y, level_dims.y, orig_dims.y), address.mode.y));
+}
+
+vec4 hires_filtered_fetch_level(TileInfo tile, HiresAddress address, bool native_bilinear, int level)
 {
 	ivec2 orig_dims = max(ivec2(tile.repl_orig_w, tile.repl_orig_h), ivec2(1));
 	ivec2 level_dims = max(ivec2(tile.repl_w, tile.repl_h) >> level, ivec2(1));
-	vec2 repl_texel = (st_texel + vec2(0.5)) * (vec2(level_dims) / vec2(orig_dims)) - vec2(0.5);
-	vec2 repl_texel_clamped = clamp(repl_texel, vec2(0.0), vec2(level_dims - 1));
+	vec2 repl_texel = hires_tap_positions(address, native_bilinear, true, vec2(level_dims) / vec2(orig_dims));
 
-	ivec2 p0 = ivec2(floor(repl_texel_clamped));
-	ivec2 p1 = min(p0 + ivec2(1), level_dims - 1);
-	vec2 frac = repl_texel_clamped - vec2(p0);
+	ivec2 base = ivec2(floor(repl_texel));
+	vec2 frac = repl_texel - vec2(base);
+	ivec2 p0 = hires_address_texels(address, base, level_dims, orig_dims);
+	ivec2 p1 = hires_address_texels(address, base + ivec2(1), level_dims, orig_dims);
 
 	vec4 c00 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], p0, level);
 	vec4 c10 = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], ivec2(p1.x, p0.y), level);
@@ -154,12 +184,15 @@ vec4 hires_filtered_fetch_level(TileInfo tile, vec2 st_texel, int level)
 }
 #endif
 
-i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 st_fp5, bool linear_filter, float lod)
+// coord_fp5 is the tile-relative native ST after tile shift and before the
+// N64 clamp/mask; replacement addressing applies both in replacement space.
+i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 coord_fp5, bool native_bilinear,
+                                         bool linear_filter, float lod)
 {
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 	ivec2 orig_dims = max(ivec2(tile.repl_orig_w, tile.repl_orig_h), ivec2(1));
 	ivec2 repl_dims = max(ivec2(tile.repl_w, tile.repl_h), ivec2(1));
-	vec2 st_texel = vec2(st_fp5) * (1.0 / 32.0);
+	HiresAddress address = hires_address(tile, coord_fp5);
 
 	vec4 repl;
 	if (linear_filter)
@@ -170,18 +203,17 @@ i16x4 sample_hires_replacement_texel_fp5(TileInfo tile, ivec2 st_fp5, bool linea
 			float lod_clamped = min(lod, float(max_level));
 			int l0 = int(lod_clamped);
 			float lf = lod_clamped - float(l0);
-			repl = hires_filtered_fetch_level(tile, st_texel, l0);
+			repl = hires_filtered_fetch_level(tile, address, native_bilinear, l0);
 			if (lf > 0.0)
-				repl = hires_alpha_weighted_mix(repl, hires_filtered_fetch_level(tile, st_texel, l0 + 1), lf);
+				repl = hires_alpha_weighted_mix(repl, hires_filtered_fetch_level(tile, address, native_bilinear, l0 + 1), lf);
 		}
 		else
-			repl = hires_filtered_fetch_level(tile, st_texel, 0);
+			repl = hires_filtered_fetch_level(tile, address, native_bilinear, 0);
 	}
 	else
 	{
-		vec2 repl_texel = (st_texel + vec2(0.5)) * (vec2(repl_dims) / vec2(orig_dims)) - vec2(0.5);
-		vec2 repl_texel_clamped = clamp(repl_texel, vec2(0.0), vec2(repl_dims - 1));
-		ivec2 repl_coord = ivec2(floor(repl_texel_clamped + vec2(0.5)));
+		vec2 repl_texel = hires_tap_positions(address, native_bilinear, false, vec2(repl_dims) / vec2(orig_dims));
+		ivec2 repl_coord = hires_address_texels(address, ivec2(floor(repl_texel)), repl_dims, orig_dims);
 		repl = texelFetch(uHiresTextures[nonuniformEXT(tile.repl_desc_index)], repl_coord, 0);
 	}
 
@@ -705,6 +737,10 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
                      bool tlut, bool tlut_type, bool sample_quad, bool mid_texel, bool convert_one,
                      i16x4 prev_cycle)
 {
+	// Replacement addressing applies the clamp and mask in replacement space,
+	// so keep the shifted coordinate from before the native clamp.
+	ivec2 hires_st_fp5 = ivec2(shift_coord(st.x, int(tile.slo), int(tile.shift_s)),
+	                           shift_coord(st.y, int(tile.tlo), int(tile.shift_t)));
 	st.x = clamp_and_shift_coord((tile.flags & TILE_INFO_CLAMP_S_BIT) != 0, st.x, int(tile.slo), int(tile.shi), int(tile.shift_s));
 	st.y = clamp_and_shift_coord((tile.flags & TILE_INFO_CLAMP_T_BIT) != 0, st.y, int(tile.tlo), int(tile.thi), int(tile.shift_t));
 
@@ -714,10 +750,6 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 	else
 		frac = ivec2(0);
 
-	// Replacement sampling needs the sub-texel fraction regardless of
-	// sample_quad: it is what lets a hi-res texture resolve detail finer
-	// than the native texel grid.
-	ivec2 hires_frac_fp5 = st & 31;
 	int sum_frac = frac.x + frac.y;
 	st >>= 5;
 
@@ -742,7 +774,6 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 
 	if (tile_uses_hires_replacement(tile))
 	{
-		ivec2 st_fp5 = (st << 5) + hires_frac_fp5;
 		bool hires_linear = global_constants.fb_info.hires_filter != HIRES_FILTER_NEAREST;
 
 		// Replacement-texel footprint of one output pixel, from the
@@ -768,7 +799,7 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 				hires_lod = log2(rho);
 		}
 
-		t_base = sample_hires_replacement_texel_fp5(tile, remap_hires_st_fp5(tile, st_fp5), hires_linear, hires_lod);
+		t_base = sample_hires_replacement_texel_fp5(tile, hires_st_fp5, sample_quad, hires_linear, hires_lod);
 
 		// Flag empty replacement samples for the shading loop to interpret
 		// using the combiner's cutout/decal semantics. The alpha-weighted RGB filter in

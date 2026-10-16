@@ -93,7 +93,7 @@ second run into a new `--out`; compare their records.
 | `capture@F` — PNG sha equals expectation | fail ([ADR-0002](../../docs/adr/0002-protected-feature-off-property.md)) | review ([ADR-0004](../../docs/adr/0004-hires-on-validation-methodology.md)) |
 | `end_state` — end-state body sha | fail | report-only |
 | `hires.provider` — summary has `provider=on`, no cache load failure | — | fail |
-| `hires.entries`, `hires.served` (upload or draw-time hits) — at least one | — | fail |
+| `hires.entries`, `hires.served` (upload or draw-time hits) — at least one; `served` skips a session with no texture lookups | — | fail |
 | `hires.inert` — no `provider=on` summary | fail | — |
 
 - Missing expectations make a gate `skip`, not `pass`.

@@ -781,9 +781,13 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
             # A replacement is served when bound at upload (hits) or at draw time
             # (draw_hits); scenes served entirely at upload, such as boot logos,
             # report no draw-time hits.
+            # A session that looked up no texture at all (a few frames after
+            # power-on) has nothing to serve; misses without hits still fail.
             served = max(hires["hits"] or 0, hires["draw_hits"] or 0)
-            gates.append(gate("hires.served", "pass" if served >= 1 else "fail",
-                              f"hits={hires['hits']} draw_hits={hires['draw_hits']}"))
+            looked_up = served + (hires["misses"] or 0)
+            detail = f"hits={hires['hits']} draw_hits={hires['draw_hits']} misses={hires['misses']}"
+            gates.append(gate("hires.served", "pass" if served >= 1 else "skip" if looked_up == 0 else "fail",
+                              detail if looked_up else "no texture lookups"))
         else:
             active = hires["provider"] == "on"
             gates.append(gate("hires.inert", "fail" if active else "pass",

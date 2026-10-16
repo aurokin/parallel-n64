@@ -93,8 +93,10 @@ elif sub == "save-slot":
         b"#RZIPv\x01#" + struct.pack("<IQ", 1 << 17, len(body)) + struct.pack("<I", len(packed)) + packed)
 elif sub == "stop":
     if st["mode"] == "on":
-        emit("[INFO] Hi-res keying summary: lookups=5 hits=4 misses=1 filtered=0 block_probe_hits=0 "
-             "compat_draw_hits=3 compat_draw_ci_hits=0 compat_draw_ci_attempts=0 compat_draw_bank0_hits=0 "
+        counts = plan.get("lookups", "lookups=5 hits=4 misses=1")
+        draw_hits = plan.get("draw_hits", 3)
+        emit(f"[INFO] Hi-res keying summary: {counts} filtered=0 block_probe_hits=0 "
+             f"compat_draw_hits={draw_hits} compat_draw_ci_hits=0 compat_draw_ci_attempts=0 compat_draw_bank0_hits=0 "
              "provider=on entries=12 native_sampled=0 compat=12 sampled_index=0 sampled_dupe_keys=0 "
              "sampled_dupe_entries=0 sampled_families=0 compat_low32_families=12 sources(phrb=12) "
              "descriptor_paths(sampled=0 native_checksum=0 generic=0 compat=3) "
@@ -264,6 +266,14 @@ class RegressionRunnerContract(unittest.TestCase):
                 break
             time.sleep(0.1)
         self.assertNotIn(marker, listing)
+
+    def test_served_gate_skips_sessions_without_lookups(self):
+        _, records = self.run_runner("idle", "--select", "boot-power-on", mode="on",
+                                     plan={"lookups": "lookups=0 hits=0 misses=0", "draw_hits": 0})
+        self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], "skip")
+        _, records = self.run_runner("unserved", "--select", "boot-power-on", mode="on",
+                                     plan={"lookups": "lookups=3 hits=0 misses=3", "draw_hits": 0})
+        self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], "fail")
 
     def test_failed_stop_fails_the_exit_gate(self):
         result, records = self.run_runner("stop", "--select", "boot-power-on", plan={"fail": "stop"})

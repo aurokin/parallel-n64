@@ -1,14 +1,12 @@
 id: paper-mario-kmr-03-entry-2
 game: paper_mario
-status: pending-remint
+status: active
 description: >
   First player control in `kmr_03` after Mario's veranda fall, entered through
   ENTRY_2, in world mode. The authority is imported from a qualified
   frame-stepped Linux progression recording; it replaces the retired
   `paper-mario-kmr-03-entry-5` authority, whose retained state decoded as
-  area 6/map 5/entry 2 (the nok_12 attract demo). Status stays pending-remint
-  until the first feature-off capture digest is pinned and the staged bytes are
-  published through the remint helper.
+  area 6/map 5/entry 2 (the nok_12 attract demo).
 
 content:
   rom_path: assets/Paper Mario (USA).zip
@@ -83,4 +81,4 @@ notes:
   - Source is the `landing-control` checkpoint of a qualified frame-stepped Linux progression recording, saved at session frame 10230 and decoded there as kmr_03 entry 2, story progress -122, HP 10, world mode.
   - The savestate carries progression; no savefile is staged.
   - Source identity is the decompressed M64+SAVE body sha256 `e98271b65bfa81c5f18ceefd10a141eb4e2bc878aa28003783b1b12a82757d2d`; the recorded RetroArch file sha256 is `bff85c1ba9fae1d3a36cd9d049a552fd74b684211272ba419d84a49f50478783`.
-  - The feature-off steady-state capture digest is pending the first runtime remint. Until it is pinned in the runtime env and graph node, the remint helper refuses publication and reports the observed digest.
+  - The feature-off steady-state capture digest was pinned by the first runtime remint (October 16, 2026, headed X11 RADV) and is mirrored in the runtime env and graph node; the remint helper refuses publication on any other digest.

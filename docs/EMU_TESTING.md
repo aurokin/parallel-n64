@@ -59,10 +59,11 @@ title-screen, file-select, and `kmr_03 ENTRY_2` authorities. It asserts:
 The kmr03 authority is `paper-mario-kmr-03-entry-2`, imported from the
 `landing-control` checkpoint of a qualified Linux progression recording. It
 replaces the retired `kmr_03 ENTRY_5` authority, whose retained bytes decoded
-as area 6/map 5/entry 2. Its feature-off capture digest is pending the first
-runtime remint, and the remint helper publishes the state under
-`assets/states/paper-mario-kmr-03-entry-2/` only after that digest is pinned.
-Until the state is there, the lane fails loudly on the missing prerequisite.
+as area 6/map 5/entry 2. Its feature-off capture digest is pinned, and the
+remint helper publishes the state under
+`assets/states/paper-mario-kmr-03-entry-2/` only when a fresh capture matches
+it. Without the published state, the lane fails loudly on the missing
+prerequisite.
 The lane itself runs hi-res-on and does not use the digest. A passing required
 profile does not qualify the runtime authority.
 

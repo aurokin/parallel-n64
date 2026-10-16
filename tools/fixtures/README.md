@@ -26,7 +26,6 @@ Tracked Paper Mario fixtures:
 
 - [title screen](paper-mario-title-screen.yaml)
 - [file select](paper-mario-file-select.yaml)
-- [`kmr_03 ENTRY_2`](paper-mario-kmr-03-entry-2.yaml): pending-remint; an
-  imported recording checkpoint whose feature-off digest is pinned by its first
-  runtime remint. It replaces the retired, scene-unqualified `kmr_03 ENTRY_5`
+- [`kmr_03 ENTRY_2`](paper-mario-kmr-03-entry-2.yaml): an imported recording
+  checkpoint with a pinned feature-off digest. It replaces the retired, scene-unqualified `kmr_03 ENTRY_5`
   fixture (see the issue log).

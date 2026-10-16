@@ -77,7 +77,7 @@ this check; do not use an untrusted file. Keep fixture assertions unchanged.
 |---------|------------|
 | Paper Mario title | `paper-mario-title-screen.sh` |
 | Paper Mario file select | `paper-mario-file-select.sh` |
-| Paper Mario `kmr_03 ENTRY_2` (pending remint) | `paper-mario-kmr-03-entry-2.sh` |
+| Paper Mario `kmr_03 ENTRY_2` | `paper-mario-kmr-03-entry-2.sh` |
 | Paper Mario PHRB authority set | `paper-mario-phrb-authority-validation.sh` |
 | Full-cache runtime wrapper | `paper-mario-full-cache-phrb-authority-validation.sh` |
 | SM64/OoT boot breadth | `cross-game-hires-boot-validation.sh` |
@@ -89,8 +89,8 @@ stages a recorded state supplied with `--source-state` (or
 `AUTHORITY_SOURCE_STATE_PATH`), checks the pinned M64+SAVE body digest, loads it
 paused, settles three frames and captures feature-off. It publishes atomically
 only after the qualified `kmr_03`/entry 2 scene and pinned capture digest match.
-While that digest is pending, it reports the observed digest and exits 3
-without publishing.
+If the fixture's digest is ever cleared for a deliberate remint, it reports the
+observed digest and exits 3 without publishing.
 
 Remint helpers and bounded research probes live beside these entrypoints. Read a
 script's usage before invoking it rather than treating the directory as an

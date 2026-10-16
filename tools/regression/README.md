@@ -96,6 +96,10 @@ second run into a new `--out`; compare their records.
 | `hires.entries`, `hires.served` (upload or draw-time hits) — at least one; `served` skips a session with no texture lookups | — | fail |
 | `hires.inert` — no `provider=on` summary | fail | — |
 
+- End-state and RAM-cue gates follow
+  [ADR-0019](../../docs/adr/0019-deterministic-emulation-state-gates.md):
+  exact feature-off, and a scenario built from a recording gates only after it
+  reproduces that recording on the recording core.
 - Missing expectations make a gate `skip`, not `pass`.
 - Capture digests are gates only feature-off (ADR-0002). A changed hi-res-on
   capture is nominated for visual review and never fails a run; presence gates

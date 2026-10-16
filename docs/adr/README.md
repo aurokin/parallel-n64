@@ -35,6 +35,7 @@ Status values:
 | [0016](0016-test-surface-trim.md) | Behavior-backed test surface | Accepted |
 | [0017](0017-lab-repo-split.md) | Experimental session tooling stays external | Accepted, amended |
 | [0018](0018-hires-composition-pack-contract.md) | HLE pack composition contract | Accepted |
+| [0019](0019-deterministic-emulation-state-gates.md) | Deterministic emulation-state gates | Accepted |
 
 ## Decision Spine
 

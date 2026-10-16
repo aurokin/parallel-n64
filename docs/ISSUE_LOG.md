@@ -4,6 +4,45 @@ This register holds technical details owned by `parallel-n64`.
 Scheduling, priority, fleet rollout, eval operation, and gameplay research are
 tracked by their owning systems.
 
+## Savestate load does not reproduce the saving run
+
+Status: open, October 16, 2026. Cause not yet isolated.
+
+Replaying 90 recorded Paper Mario segments with the recording core and
+hi-res disabled reproduced all 9 power-on segments and 69 of 81 segments that
+start from a mid-run savestate byte for byte. The other 12 end in a different
+state. A second replay of those 12 matches the first exactly, so each fresh
+load is deterministic but differs from the run that wrote the state. The
+differences are the event queue, `next_interrupt` and CP0 Count, plus a few
+RDRAM pages; one 808-frame segment diverges widely.
+
+Three of the 12 were replayed again as a single continuous program from power-on
+through the end of the failing segment, with no load. All three reproduce the
+recorded end state. The savestate bytes are therefore correct, and an immediate
+re-save after a load reproduces the file. Emulator state that is not serialized
+still changes what happens after the load.
+
+The start states of failing and passing segments do not differ in SP_STATUS
+(the RSP is halted in every start state), in any device register word before
+RDRAM, or in their pending event types. Code-reading candidates for the
+unsaved state include:
+
+- cxd4 RSP yield and timeout state: `rsp_task_locked`,
+  `MF_SP_STATUS_TIMEOUT`, and the RSP scalar and vector registers;
+- the interrupted call stack that resumes after `retro_unserialize`, because
+  the load lands while the emulation coroutine is suspended inside an event
+  handler;
+- dynarec globals such as `dyna_interp`, `delay_slot` and `skip_jump`;
+- the ParaLLEl-RDP partial command buffer.
+
+None is confirmed. Instrumenting save and load points, and an A/B run with the
+cached and pure interpreters, are the next steps.
+
+Until this is fixed, regression scenarios that start from a savestate are
+qualified individually: a scenario that does not reproduce its recording on the
+recording core is excluded from gating
+([ADR-0019](adr/0019-deterministic-emulation-state-gates.md)).
+
 ## Replacement decal alpha removes shaded geometry
 
 Status: corrected in source October 11, 2026; isolated live candidate qualified.

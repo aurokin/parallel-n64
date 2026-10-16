@@ -7,6 +7,7 @@ same scenarios, compare each scenario's end savestate and checkpoint RAM cues:
 * every byte outside RDRAM (CPU, coprocessor, RSP/RDP and device registers, TLB,
   event queue) must be identical — a difference fails;
 * checkpoint RAM cues must be identical — a difference fails;
+* a scenario present in only one run fails, so an interrupted run cannot pass;
 * RDRAM differences are reported as address ranges. Replacement changes the
   native framebuffer and depth-buffer contents the renderer writes back, so
   those ranges are expected; anything else is for review.
@@ -61,8 +62,13 @@ def rdram_ranges(off: bytes, on: bytes) -> list[tuple[int, int, int]]:
 def compare(off_run: Path, on_run: Path) -> list[dict]:
     off_results, on_results = results(off_run), results(on_run)
     report = []
-    for scenario in sorted(set(off_results) & set(on_results)):
+    for scenario in sorted(set(off_results) | set(on_results)):
         entry: dict = {"scenario": scenario, "status": "pass", "detail": []}
+        if scenario not in off_results or scenario not in on_results:
+            entry["status"] = "fail"
+            entry["detail"].append(f"no {'off' if scenario not in off_results else 'on'} result")
+            report.append(entry)
+            continue
         off_cues = [c.get("ram", {}) for c in off_results[scenario].get("checkpoints", [])]
         on_cues = [c.get("ram", {}) for c in on_results[scenario].get("checkpoints", [])]
         if off_cues != on_cues:

@@ -13,20 +13,22 @@ COMPARE = TOOLS / "regression" / "compare_modes.py"
 SIZE = bridge.HEADER_SIZE + bridge.OURS_BASE_SIZE + 4
 
 
-def write_run(root: Path, mode: str, state: bytes, cue: str) -> Path:
+def write_run(root: Path, mode: str, state: bytes, cue: str, scenarios=("probe",)) -> Path:
     run = root / mode
-    states = run / "bundles" / f"probe__{mode}" / "states" / "ParaLLEl N64"
-    states.mkdir(parents=True)
-    (states / "Game.state2").write_bytes(state)
-    record = {"scenario": "probe", "checkpoints": [{"ram": {"cue": cue}}]}
-    (run / "results.jsonl").write_text(json.dumps(record) + "\n")
+    records = []
+    for scenario in scenarios:
+        states = run / "bundles" / f"{scenario}__{mode}" / "states" / "ParaLLEl N64"
+        states.mkdir(parents=True)
+        (states / "Game.state2").write_bytes(state)
+        records.append(json.dumps({"scenario": scenario, "checkpoints": [{"ram": {"cue": cue}}]}) + "\n")
+    (run / "results.jsonl").write_text("".join(records))
     return run
 
 
-def compare(off: bytes, on: bytes, off_cue: str = "01", on_cue: str = "01"):
+def compare(off: bytes, on: bytes, off_cue: str = "01", on_cue: str = "01", off_scenarios=("probe",)):
     with tempfile.TemporaryDirectory(prefix="compare-modes-") as directory:
         root = Path(directory)
-        result = subprocess.run([sys.executable, str(COMPARE), str(write_run(root, "off", off, off_cue)),
+        result = subprocess.run([sys.executable, str(COMPARE), str(write_run(root, "off", off, off_cue, off_scenarios)),
                                  str(write_run(root, "on", on, on_cue))],
                                 capture_output=True, text=True, check=False)
         return result.returncode, result.stdout
@@ -47,6 +49,9 @@ def main():
 
     status, output = compare(bytes(off), bytes(on), on_cue="02")
     assert status == 1 and "checkpoint RAM cues differ" in output, output
+
+    status, output = compare(bytes(off), bytes(on), off_scenarios=("probe", "interrupted"))
+    assert status == 1 and "interrupted: no on result" in output, output
     print("emu_regression_compare_modes_contract: PASS")
 
 

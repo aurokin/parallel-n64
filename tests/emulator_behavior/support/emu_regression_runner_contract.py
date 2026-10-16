@@ -100,6 +100,10 @@ elif sub == "stop":
              "descriptor_paths(sampled=0 native_checksum=0 generic=0 compat=3) "
              "sampled_detail(family_singleton=0 ordered_surface_singleton=0 exact_selector=0) "
              "generic_detail(identity_assisted=0 plain=0 native=0 compat=0 unknown=0).")
+    if plan.get("fail") == "stop":
+        print("[interactive] stop failed.", file=sys.stderr)
+        state_file.write_text(json.dumps(st))
+        raise SystemExit(1)
     if plan.get("fail") == "orphan":
         subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", str(bundle / "fake-frontend")],
                          start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -188,7 +192,7 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual(set(entry["checkpoints"]), {"42", "150"})
         self.assertIn("capture_sha256", entry["checkpoints"]["42"])
         self.assertRegex(entry["checkpoints"]["42"]["ram"]["cue"], r"^[0-9a-f]{16}$")
-        saved = self.root / "golden-off/bundles/field-state__off/states/ParaLLEl N64"
+        saved = self.root / "golden-off/bundles/field-state__off__fake-4x/states/ParaLLEl N64"
         rzip = next(saved.glob("*.state2")).read_bytes()
         self.assertEqual(entry["end_state_sha256"], sha256(zlib.decompress(rzip[24:])))
 
@@ -197,7 +201,7 @@ class RegressionRunnerContract(unittest.TestCase):
         for record in records.values():
             self.assertEqual(record["exit_class"], "clean")
             self.assertEqual({s for s in self.gates(record).values()}, {"pass"}, record["gates"])
-        commands = (self.root / "clean/bundles/field-state__off/commands.log").read_text().split("\n")
+        commands = (self.root / "clean/bundles/field-state__off__fake-4x/commands.log").read_text().split("\n")
         steps = [int(c.split()[1]) for c in commands if c.startswith("STEP_FRAME")]
         self.assertEqual(steps, [1, 12, 30, 50, 50, 8])  # bootstrap, then chunks split at checkpoint 42
         self.assertEqual(records["field-state"]["frames_run"], 150)
@@ -252,7 +256,7 @@ class RegressionRunnerContract(unittest.TestCase):
         record = records["boot-power-on"]
         self.assertEqual(record["exit_class"], "orphan-reaped")
         self.assertIn("orphan-reaped", record["log_flags"])
-        marker = str(self.root / "orphan/bundles/boot-power-on__off/fake-frontend")
+        marker = str(self.root / "orphan/bundles/boot-power-on__off__fake-4x/fake-frontend")
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             listing = subprocess.run(["ps", "-axww", "-o", "args="], capture_output=True, text=True).stdout
@@ -260,6 +264,22 @@ class RegressionRunnerContract(unittest.TestCase):
                 break
             time.sleep(0.1)
         self.assertNotIn(marker, listing)
+
+    def test_failed_stop_fails_the_exit_gate(self):
+        result, records = self.run_runner("stop", "--select", "boot-power-on", plan={"fail": "stop"})
+        self.assertEqual(result.returncode, 1)
+        record = records["boot-power-on"]
+        self.assertEqual(record["exit_class"], "nonzero")
+        self.assertIn("stop-failed", record["log_flags"])
+        self.assertEqual(self.gates(record)["exit"], "fail")
+
+    def test_bundles_are_kept_per_runtime_class(self):
+        self.run_runner("classes", "--select", "boot-power-on")
+        self.run_runner("classes", "--select", "boot-power-on", "--runtime-class", "other-4x", "--resume")
+        records = [json.loads(line) for line in (self.root / "classes/results.jsonl").read_text().splitlines()]
+        self.assertEqual(len({record["bundle"] for record in records}), 2)
+        for record in records:
+            self.assertTrue((self.root / "classes" / record["bundle"] / "logs").is_dir(), record["bundle"])
 
     def test_load_failure_is_classified(self):
         result, records = self.run_runner("load", plan={"fail": "load"})

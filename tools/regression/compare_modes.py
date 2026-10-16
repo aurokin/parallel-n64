@@ -37,8 +37,8 @@ def results(run: Path) -> dict[str, dict]:
     return records
 
 
-def end_state(run: Path, scenario: str, mode: str) -> bytes | None:
-    matches = sorted((run / "bundles" / f"{scenario}__{mode}" / "states").glob("*/*.state2"))
+def end_state(run: Path, record: dict) -> bytes | None:
+    matches = sorted((run / record["bundle"] / "states").glob("*/*.state2"))
     return bridge.unwrap(matches[-1].read_bytes()) if matches else None
 
 
@@ -74,7 +74,8 @@ def compare(off_run: Path, on_run: Path) -> list[dict]:
         if off_cues != on_cues:
             entry["status"] = "fail"
             entry["detail"].append("checkpoint RAM cues differ")
-        off_state, on_state = end_state(off_run, scenario, "off"), end_state(on_run, scenario, "on")
+        off_state = end_state(off_run, off_results[scenario])
+        on_state = end_state(on_run, on_results[scenario])
         if off_state is None or on_state is None:
             entry["status"] = "fail"
             entry["detail"].append("end state missing")

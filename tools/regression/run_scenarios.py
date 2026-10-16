@@ -614,7 +614,10 @@ def execute(scenario: Scenario, ctx: RunContext, session: Session, record: dict[
 
 def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
     args = ctx.args
-    bundle = ctx.out / "bundles" / f"{scenario.id}__{args.mode}"
+    # One bundle per condition, so runs of another runtime class in the same
+    # output directory never replace the evidence an earlier record points to.
+    runtime_slug = re.sub(r"[^A-Za-z0-9._-]+", "_", args.runtime_class)
+    bundle = ctx.out / "bundles" / f"{scenario.id}__{args.mode}__{runtime_slug}"
     if bundle.exists():
         bundle.rename(bundle.with_name(f"{bundle.name}.interrupted-{int(time.time())}"))
     (bundle / "logs").mkdir(parents=True)
@@ -658,6 +661,11 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
                 flags.add("quit-timeout")
                 if record["exit_class"] == "clean":
                     record["exit_class"] = "forced"
+            elif not stop.ok:
+                flags.add("stop-failed")
+                if record["exit_class"] == "clean":
+                    record["exit_class"] = "nonzero"
+                    record["error"] = f"stop: {stop.describe()}"
             reaped, remaining = reap_survivors(bundle, ctx.adapter, args.orphan_grace)
             record["orphans"] = reaped
             if reaped:

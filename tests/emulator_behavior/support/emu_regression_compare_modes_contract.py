@@ -17,10 +17,12 @@ def write_run(root: Path, mode: str, state: bytes, cue: str, scenarios=("probe",
     run = root / mode
     records = []
     for scenario in scenarios:
-        states = run / "bundles" / f"{scenario}__{mode}" / "states" / "ParaLLEl N64"
+        bundle = f"bundles/{scenario}__{mode}__probe-class"
+        states = run / bundle / "states" / "ParaLLEl N64"
         states.mkdir(parents=True)
         (states / "Game.state2").write_bytes(state)
-        records.append(json.dumps({"scenario": scenario, "checkpoints": [{"ram": {"cue": cue}}]}) + "\n")
+        records.append(json.dumps({"scenario": scenario, "bundle": bundle,
+                                   "checkpoints": [{"ram": {"cue": cue}}]}) + "\n")
     (run / "results.jsonl").write_text("".join(records))
     return run
 

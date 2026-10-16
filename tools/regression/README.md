@@ -46,8 +46,9 @@ Output in `--out`:
 - `results.jsonl` — one [result record](SCENARIO_SCHEMA.md#result-record) per run;
 - `report.md` — summary, failures, review queue with capture paths, log flags
   and stepping FPS;
-- `bundles/<id>__<mode>/` — the adapter bundle: logs, captures, states and
-  `logs/regression.adapter.log` (every adapter call and its reply).
+- `bundles/<id>__<mode>__<runtime-class>/` — the adapter bundle: logs,
+  captures, states and `logs/regression.adapter.log` (every adapter call and
+  its reply).
 
 Exit status: 0 when no gate failed (review items allowed), 1 when any gate
 failed, 2 for invalid scenarios or a busy host.
@@ -115,8 +116,8 @@ second run into a new `--out`; compare their records.
   Each bundle records its inputs and logs
   ([ADR-0008](../../docs/adr/0008-fixture-and-evidence-authority.md)).
 - Log flags (`hires-cache-load-failed`, `state-load-failed`,
-  `uniform-black-capture`, `quit-timeout`, `ttl-expired`, `orphan-reaped`,
-  `hires-summary-missing`) are reported for triage; gates decide the outcome.
+  `uniform-black-capture`, `quit-timeout`, `stop-failed`, `ttl-expired`,
+  `orphan-reaped`, `hires-summary-missing`) are reported for triage; gates decide the outcome.
 
 Expectations are evidence for one runtime class. Re-record them only with a
 justification, and keep bundles under the

@@ -90,7 +90,7 @@ fi
 declare -a FIXTURES=(
   "title-screen|tools/scenarios/paper-mario-title-screen.sh"
   "file-select|tools/scenarios/paper-mario-file-select.sh"
-  "kmr-03-entry-5|tools/scenarios/paper-mario-kmr-03-entry-5.sh"
+  "kmr-03-entry-2|tools/scenarios/paper-mario-kmr-03-entry-2.sh"
 )
 
 mkdir -p "$BUNDLE_ROOT"
@@ -179,7 +179,7 @@ expected_rom_sha256 = sha256_file(expected_rom_path)
 fixtures = [
     ("title-screen", "paper-mario-title-screen"),
     ("file-select", "paper-mario-file-select"),
-    ("kmr-03-entry-5", "paper-mario-kmr-03-entry-5"),
+    ("kmr-03-entry-2", "paper-mario-kmr-03-entry-2"),
 ]
 
 summary = {
@@ -365,7 +365,7 @@ def require_adapter_session_provenance(bundle_dir, bundle_meta, expected_mode):
     return failures
 
 def require_named_scene_verification(verification, expected_fixture_id):
-    if expected_fixture_id != "paper-mario-kmr-03-entry-5":
+    if expected_fixture_id != "paper-mario-kmr-03-entry-2":
         return []
     # A cached passed:true verdict can predate corrected scene decoding.
     # Reuse the verifier's qualification verdict without duplicating its layout.

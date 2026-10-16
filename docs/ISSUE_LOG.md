@@ -242,7 +242,9 @@ reproduce or close IL-3, whose historical fault boundary remains unconfirmed.
 
 ## Paper Mario fixture capture and scene admission
 
-Status: invalid captures and wrong named world scenes rejected October 11, 2026.
+Status: invalid captures and wrong named world scenes rejected October 11, 2026;
+kmr03 authority retargeted to `kmr_03 ENTRY_2` October 15, 2026, pending its
+first runtime remint.
 
 The shared verifier previously accepted a non-image capture and accepted any
 world scene for the `kmr_03 ENTRY_5` fixture when world callbacks and replacement
@@ -256,6 +258,30 @@ scene identities. The later native RDRAM correction below additionally rejects
 legacy named-scene metadata and invalidates the retained kmr03 scene claim.
 These are evidence admission checks. Correct textures, regions, filtering and
 composition still require semantic evidence and explicit visual judgment.
+
+The `paper-mario-kmr-03-entry-5` fixture is retired. Its retained state decoded
+as area 6/map 5/entry 2, the nok_12 attract demo, and no kmr_03 ENTRY_5 state
+exists in the available corpus, so its runtime lane could only fail. Relabeling
+those bytes would have recorded a false scene, so the authority was replaced.
+Its manifest, scenario, graph node and title-plus-960-frame bootstrap remain in
+Git history with their historical digests (capture `35213195…`, live probe
+`4bd3929d…`); the local state was never tracked.
+
+The replacement fixture is `paper-mario-kmr-03-entry-2` (graph node
+`kmr_03_entry_2_idle`, capture `kmr_03_entry_2`). Its profile requires
+qualified decoding of area 0, map `kmr_03` (area-local map index 2), entry 2.
+Lineage is an import of the `landing-control` checkpoint from a qualified
+frame-stepped Linux progression recording: first player control in kmr_03 after
+the veranda fall. The state was saved at session frame 10230 and decoded there as
+kmr_03 entry 2, story progress -122, HP 10, world mode. Its M64+SAVE body sha256
+is `e98271b6…757d2d`, and the RetroArch file sha256 is `bff85c1b…478783`. The
+savestate carries progression, so no savefile is staged. Remint loads paused,
+settles three frames and captures feature-off.
+
+The fixture and graph node stay `pending-remint` with no pinned feature-off
+digest until the first runtime remint reports one. The display-free contracts
+check the new scene, including rejection of the retired decode. They do not show
+that the imported bytes load or render correctly in this core.
 
 ## Prologue shadow and Bowser sprite observations
 
@@ -430,6 +456,9 @@ scene identity fails. Its prior passing named-scene result was false evidence.
 The manifest and graph node are now scene-unqualified, retaining IDs, paths,
 expected scene and historical state/capture hashes. The title-plus-960-frame
 bootstrap is not a proven route to kmr03 and must not be used as such.
+That fixture was retired October 15, 2026 in favor of an imported
+`kmr_03 ENTRY_2` authority; see "Paper Mario fixture capture and scene
+admission".
 
 The PHRB authority wrapper also requires literal successful decoder qualification
 and scene identity when aggregating that named fixture, including `--reuse`.
@@ -439,7 +468,8 @@ and retain callback-only title/file-select admission.
 
 ## Authority remint publication
 
-Status: kmr03 helper verifies staged bytes before atomic publication October 11, 2026.
+Status: kmr03 helper verifies staged bytes before atomic publication October 11, 2026;
+import staging added October 15, 2026.
 
 The helper previously copied a bootstrap candidate over the authority before
 verification. A failing scene or feature-off capture check left that output
@@ -451,6 +481,18 @@ publishes only the verified bytes. Failure preserves the existing output.
 Six focused offline CLI checks exercise verifier/digest failures, wrong selected
 bytes/mode, changed candidate and successful publication through the real helper.
 No actual remint, asset change or authority promotion was performed.
+
+The retargeted `remint-paper-mario-kmr-03-entry-2-authority.sh` no longer
+bootstraps. It stages a caller-supplied recorded state, requires its pinned
+M64+SAVE body digest (RetroArch containers are unwrapped) and verifies through
+the canonical load, settle and capture scenario. It also requires the scene
+decoded by that run to equal the tracked profile's pinned area, map and entry.
+Source, scene and capture pins come from the tracked runtime env, which a
+caller's runtime override cannot relax. With the capture digest still pending,
+the helper reports the observed digest and exits 3 without publishing.
+`emu.support.kmr03_import_remint_publication_contract` covers source mismatch,
+container identity, pending digest, wrong scene, relaxed override pins and the
+earlier publication cases through the real helper, shell library and unwrapper.
 
 ## LoadTile source layout in compatibility draw keys
 

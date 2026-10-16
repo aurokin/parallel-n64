@@ -83,7 +83,7 @@ require_runtime_env_prereqs() {
 
 require_runtime_env_prereqs "$REPO_ROOT/tools/scenarios/paper-mario-title-screen.runtime.env" "paper-mario-title-screen"
 require_runtime_env_prereqs "$REPO_ROOT/tools/scenarios/paper-mario-file-select.runtime.env" "paper-mario-file-select"
-require_runtime_env_prereqs "$REPO_ROOT/tools/scenarios/paper-mario-kmr-03-entry-5.runtime.env" "paper-mario-kmr-03-entry-5"
+require_runtime_env_prereqs "$REPO_ROOT/tools/scenarios/paper-mario-kmr-03-entry-2.runtime.env" "paper-mario-kmr-03-entry-2"
 
 cleanup_bundle_root=0
 if [[ -z "$BUNDLE_ROOT" ]]; then

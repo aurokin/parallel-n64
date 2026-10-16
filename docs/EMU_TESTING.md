@@ -48,7 +48,7 @@ It does not launch an emulator or prove runtime rendering.
 ## Runtime Lane
 
 `emu.conformance.paper_mario_full_cache_phrb_authorities` runs the
-title-screen, file-select, and `kmr_03 ENTRY_5` authorities. It asserts:
+title-screen, file-select, and `kmr_03 ENTRY_2` authorities. It asserts:
 
 - at least one hi-res entry loaded;
 - draw-time replacement traffic exists;
@@ -56,10 +56,15 @@ title-screen, file-select, and `kmr_03 ENTRY_5` authorities. It asserts:
 - fallbacks carry explicit reasons;
 - the bundle records ROM, state, pack, and configuration identity.
 
-The retained kmr03 state is scene-unqualified after the native RDRAM decoder
-correction: it reports area 6/map 5/entry 2. The runtime lane must reject that
-state against its unchanged intended scene contract. A passing required profile
-does not qualify this runtime authority or its historical bootstrap recipe.
+The kmr03 authority is `paper-mario-kmr-03-entry-2`, imported from the
+`landing-control` checkpoint of a qualified Linux progression recording. It
+replaces the retired `kmr_03 ENTRY_5` authority, whose retained bytes decoded
+as area 6/map 5/entry 2. Its feature-off capture digest is pending the first
+runtime remint, and the remint helper publishes the state under
+`assets/states/paper-mario-kmr-03-entry-2/` only after that digest is pinned.
+Until the state is there, the lane fails loudly on the missing prerequisite.
+The lane itself runs hi-res-on and does not use the digest. A passing required
+profile does not qualify the runtime authority.
 
 The wrapper's observed default is
 `artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb`.

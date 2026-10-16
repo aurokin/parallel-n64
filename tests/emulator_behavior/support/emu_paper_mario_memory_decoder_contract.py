@@ -99,6 +99,7 @@ class MemoryDecoderContract(unittest.TestCase):
         self.assertEqual(status['save_count'], 1)
 
     def test_named_kmr03_slice(self):
+        # Entry 5 differs from map index 2, so this also pins their order.
         raw = bytes.fromhex('00 00 00 02 01 00 09 00 05 00 02 00') + bytes(220)
         self.write('gamestatus', 0x800740A8, raw)
         status = self.decode()['paper_mario_us']['game_status']

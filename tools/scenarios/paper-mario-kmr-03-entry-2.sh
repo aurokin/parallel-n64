@@ -4,23 +4,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
-MANIFEST="$REPO_ROOT/tools/fixtures/paper-mario-kmr-03-entry-5.yaml"
-FIXTURE_ID="paper-mario-kmr-03-entry-5"
+MANIFEST="$REPO_ROOT/tools/fixtures/paper-mario-kmr-03-entry-2.yaml"
+FIXTURE_ID="paper-mario-kmr-03-entry-2"
 MODE="off"
 AUTHORITY_MODE="auto"
 DRY_RUN=1
 BUNDLE_DIR=""
-RUNTIME_ENV="${RUNTIME_ENV_OVERRIDE:-$SCRIPT_DIR/paper-mario-kmr-03-entry-5.runtime.env}"
+RUNTIME_ENV="${RUNTIME_ENV_OVERRIDE:-$SCRIPT_DIR/paper-mario-kmr-03-entry-2.runtime.env}"
 
 usage() {
   cat <<'EOF'
 Usage:
-  tools/scenarios/paper-mario-kmr-03-entry-5.sh [options]
+  tools/scenarios/paper-mario-kmr-03-entry-2.sh [options]
 
 Options:
   --mode off|on       Evidence bundle mode label (default: off)
-  --authority-mode auto|authoritative|bootstrap
-                      State selection mode (default: auto)
+  --authority-mode auto|authoritative
+                      State selection mode (default: auto). The imported
+                      authority has no bootstrap route; both select it.
   --bundle-dir PATH   Output bundle directory
   --run               Reserve bundle and continue toward runtime execution
   -h, --help          Show this help
@@ -40,8 +41,8 @@ while (($#)); do
     --authority-mode)
       shift
       AUTHORITY_MODE="${1:-}"
-      if [[ "$AUTHORITY_MODE" != "auto" && "$AUTHORITY_MODE" != "authoritative" && "$AUTHORITY_MODE" != "bootstrap" ]]; then
-        echo "--authority-mode must be 'auto', 'authoritative', or 'bootstrap'." >&2
+      if [[ "$AUTHORITY_MODE" != "auto" && "$AUTHORITY_MODE" != "authoritative" ]]; then
+        echo "--authority-mode must be 'auto' or 'authoritative'; this imported authority has no bootstrap route." >&2
         exit 2
       fi
       ;;
@@ -77,15 +78,13 @@ ROM_PATH="${ROM_PATH:-$REPO_ROOT/assets/Paper Mario (USA).zip}"
 PACK_PATH="$(scenario_default_paper_mario_hires_cache "$REPO_ROOT")"
 RETROARCH_PATH="${RETROARCH_PATH:-}"
 AUTHORITY_GRAPH_PATH="$REPO_ROOT/tools/fixtures/paper-mario-authority-graph.yaml"
-AUTHORITY_NODE_ID="kmr_03_entry_5_idle"
-BOOTSTRAP_PARENT_FIXTURE_ID="paper-mario-title-screen"
-REMINT_SCRIPT="tools/scenarios/remint-paper-mario-kmr-03-entry-5-authority.sh"
+AUTHORITY_NODE_ID="kmr_03_entry_2_idle"
+BOOTSTRAP_PARENT_FIXTURE_ID=""
+LINEAGE_SOURCE="import"
+REMINT_SCRIPT="tools/scenarios/remint-paper-mario-kmr-03-entry-2-authority.sh"
 AUTHORITATIVE_STATE_PATH="${AUTHORITATIVE_STATE_PATH:-}"
 AUTHORITATIVE_STATE_PRESENT=0
 AUTHORITATIVE_STATE_SHA256="missing"
-BOOTSTRAP_STATE_PATH="${BOOTSTRAP_STATE_PATH:-}"
-BOOTSTRAP_STATE_PRESENT=0
-BOOTSTRAP_STATE_SHA256="missing"
 AUTHORITY_MODE_USED="none"
 ACTIVE_STATE_PATH=""
 ACTIVE_STATE_SHA256="missing"
@@ -118,20 +117,15 @@ cat > "$BUNDLE_DIR/bundle.json" <<EOF
     "authority_graph_path": "$AUTHORITY_GRAPH_PATH",
     "authority_node_id": "$AUTHORITY_NODE_ID",
     "bootstrap_parent_fixture_id": "$BOOTSTRAP_PARENT_FIXTURE_ID",
+    "lineage_source": "$LINEAGE_SOURCE",
+    "source_state_body_sha256": "",
     "remint_script": "$REMINT_SCRIPT",
     "authoritative_state_path": "",
     "authoritative_state_present": false,
     "authoritative_state_sha256": "missing",
-    "bootstrap_state_path": "",
-    "bootstrap_state_present": false,
-    "bootstrap_state_sha256": "missing",
     "active_state_path": "",
     "active_state_sha256": "missing",
     "post_load_settle_frames": 0
-  },
-  "bootstrap_timeout": {
-    "step_frames": 0,
-    "step_chunk_frames": 0
   },
   "status": {
     "phase": "phase-1",
@@ -153,18 +147,15 @@ AUTHORITY_MODE_USED=none
 AUTHORITY_GRAPH_PATH=$AUTHORITY_GRAPH_PATH
 AUTHORITY_NODE_ID=$AUTHORITY_NODE_ID
 BOOTSTRAP_PARENT_FIXTURE_ID=$BOOTSTRAP_PARENT_FIXTURE_ID
+LINEAGE_SOURCE=$LINEAGE_SOURCE
+SOURCE_STATE_BODY_SHA256=
 REMINT_SCRIPT=$REMINT_SCRIPT
 AUTHORITATIVE_STATE_PATH=
 AUTHORITATIVE_STATE_PRESENT=0
 AUTHORITATIVE_STATE_SHA256=missing
-BOOTSTRAP_STATE_PATH=
-BOOTSTRAP_STATE_PRESENT=0
-BOOTSTRAP_STATE_SHA256=missing
 ACTIVE_STATE_PATH=
 ACTIVE_STATE_SHA256=missing
 POST_LOAD_SETTLE_FRAMES=0
-TIMEOUT_STEP_FRAMES=0
-TIMEOUT_STEP_CHUNK_FRAMES=0
 INTERNAL_SCALE=4x
 SERIAL_EXECUTION=1
 DISPLAY_REQUIRED=1
@@ -174,12 +165,12 @@ cat > "$BUNDLE_DIR/README.md" <<EOF
 # $FIXTURE_ID
 
 - Mode: \`$MODE\`
-- Manifest: [paper-mario-kmr-03-entry-5.yaml]($MANIFEST)
+- Manifest: [paper-mario-kmr-03-entry-2.yaml]($MANIFEST)
 - Internal scale: \`4x\`
 - Execution rule: one emulator-facing run at a time
 - Status: bundle initialized
 
-This bundle is the first deterministic non-menu Paper Mario authority fixture.
+This bundle exercises the imported \`kmr_03 ENTRY_2\` world authority.
 Populate \`captures/\`, \`logs/\`, and \`traces/\` through the tracked scenario and adapter flow.
 EOF
 
@@ -209,51 +200,21 @@ if [[ -n "${AUTHORITATIVE_STATE_PATH:-}" && -f "${AUTHORITATIVE_STATE_PATH:-}" ]
   AUTHORITATIVE_STATE_PRESENT=1
   AUTHORITATIVE_STATE_SHA256="$(scenario_sha256_file "$AUTHORITATIVE_STATE_PATH")"
 fi
-if [[ -n "${BOOTSTRAP_STATE_PATH:-}" && -f "${BOOTSTRAP_STATE_PATH:-}" ]]; then
-  BOOTSTRAP_STATE_PRESENT=1
-  BOOTSTRAP_STATE_SHA256="$(scenario_sha256_file "$BOOTSTRAP_STATE_PATH")"
+# Both modes select the imported authority; there is no bootstrap fallback.
+if (( ! AUTHORITATIVE_STATE_PRESENT )); then
+  echo "[scenario] authoritative Paper Mario kmr_03 entry 2 state is required: ${AUTHORITATIVE_STATE_PATH:-unset}" >&2
+  echo "[scenario] stage it with tools/scenarios/remint-paper-mario-kmr-03-entry-2-authority.sh." >&2
+  exit 1
 fi
-
-case "$AUTHORITY_MODE" in
-  authoritative)
-    if (( ! AUTHORITATIVE_STATE_PRESENT )); then
-      echo "[scenario] authoritative Paper Mario kmr_03 entry 5 state is required." >&2
-      exit 1
-    fi
-    AUTHORITY_MODE_USED="authoritative"
-    ACTIVE_STATE_PATH="$AUTHORITATIVE_STATE_PATH"
-    ACTIVE_STATE_SHA256="$AUTHORITATIVE_STATE_SHA256"
-    ;;
-  bootstrap)
-    if (( ! BOOTSTRAP_STATE_PRESENT )); then
-      echo "[scenario] bootstrap Paper Mario title-screen state is required." >&2
-      exit 1
-    fi
-    AUTHORITY_MODE_USED="bootstrap"
-    ACTIVE_STATE_PATH="$BOOTSTRAP_STATE_PATH"
-    ACTIVE_STATE_SHA256="$BOOTSTRAP_STATE_SHA256"
-    ;;
-  auto)
-    if (( AUTHORITATIVE_STATE_PRESENT )); then
-      AUTHORITY_MODE_USED="authoritative"
-      ACTIVE_STATE_PATH="$AUTHORITATIVE_STATE_PATH"
-      ACTIVE_STATE_SHA256="$AUTHORITATIVE_STATE_SHA256"
-    elif (( BOOTSTRAP_STATE_PRESENT )); then
-      AUTHORITY_MODE_USED="bootstrap"
-      ACTIVE_STATE_PATH="$BOOTSTRAP_STATE_PATH"
-      ACTIVE_STATE_SHA256="$BOOTSTRAP_STATE_SHA256"
-    else
-      echo "[scenario] authoritative or bootstrap Paper Mario state is required for the kmr_03 entry 5 fixture." >&2
-      exit 1
-    fi
-    ;;
-esac
+AUTHORITY_MODE_USED="authoritative"
+ACTIVE_STATE_PATH="$AUTHORITATIVE_STATE_PATH"
+ACTIVE_STATE_SHA256="$AUTHORITATIVE_STATE_SHA256"
 
 mkdir -p "$BUNDLE_DIR/states/ParaLLEl N64"
 cp "$ACTIVE_STATE_PATH" "$BUNDLE_DIR/states/ParaLLEl N64/Paper Mario (USA).state"
 
-scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"hires_pack_path": "[^"]*"|"hires_pack_path": "'"${PACK_PATH}"'"|g; s|"hires_pack_sha256": "[^"]*"|"hires_pack_sha256": "'"${PACK_SHA256}"'"|g; s|"authority_mode_used": "none"|"authority_mode_used": "'"${AUTHORITY_MODE_USED:-none}"'"|g; s|"bootstrap_parent_fixture_id": "paper-mario-title-screen"|"bootstrap_parent_fixture_id": "'"${BOOTSTRAP_PARENT_FIXTURE_ID:-}"'"|g; s|"remint_script": "tools/scenarios/remint-paper-mario-kmr-03-entry-5-authority.sh"|"remint_script": "'"${REMINT_SCRIPT:-}"'"|g; s|"authoritative_state_path": ""|"authoritative_state_path": "'"${AUTHORITATIVE_STATE_PATH:-}"'"|g; s|"authoritative_state_present": false|"authoritative_state_present": '"$(scenario_json_bool "$AUTHORITATIVE_STATE_PRESENT")"'|g; s|"authoritative_state_sha256": "missing"|"authoritative_state_sha256": "'"${AUTHORITATIVE_STATE_SHA256:-missing}"'"|g; s|"bootstrap_state_path": ""|"bootstrap_state_path": "'"${BOOTSTRAP_STATE_PATH:-}"'"|g; s|"bootstrap_state_present": false|"bootstrap_state_present": '"$(scenario_json_bool "$BOOTSTRAP_STATE_PRESENT")"'|g; s|"bootstrap_state_sha256": "missing"|"bootstrap_state_sha256": "'"${BOOTSTRAP_STATE_SHA256:-missing}"'"|g; s|"active_state_path": ""|"active_state_path": "'"${ACTIVE_STATE_PATH:-}"'"|g; s|"active_state_sha256": "missing"|"active_state_sha256": "'"${ACTIVE_STATE_SHA256:-missing}"'"|g; s|"post_load_settle_frames": 0|"post_load_settle_frames": '"${POST_LOAD_SETTLE_FRAMES:-0}"'|g; s|"step_frames": 0|"step_frames": '"${TIMEOUT_STEP_FRAMES:-0}"'|g; s|"step_chunk_frames": 0|"step_chunk_frames": '"${TIMEOUT_STEP_CHUNK_FRAMES:-0}"'|g'
-scenario_patch_file "$BUNDLE_DIR/config.env" 's|HIRES_PACK_PATH=.*|HIRES_PACK_PATH='"${PACK_PATH}"'|g; s|AUTHORITY_MODE_USED=none|AUTHORITY_MODE_USED='"${AUTHORITY_MODE_USED:-none}"'|g; s|BOOTSTRAP_PARENT_FIXTURE_ID=paper-mario-title-screen|BOOTSTRAP_PARENT_FIXTURE_ID='"${BOOTSTRAP_PARENT_FIXTURE_ID:-}"'|g; s|REMINT_SCRIPT=tools/scenarios/remint-paper-mario-kmr-03-entry-5-authority.sh|REMINT_SCRIPT='"${REMINT_SCRIPT:-}"'|g; s|AUTHORITATIVE_STATE_PATH=|AUTHORITATIVE_STATE_PATH='"${AUTHORITATIVE_STATE_PATH:-}"'|g; s|AUTHORITATIVE_STATE_PRESENT=0|AUTHORITATIVE_STATE_PRESENT='"$AUTHORITATIVE_STATE_PRESENT"'|g; s|AUTHORITATIVE_STATE_SHA256=missing|AUTHORITATIVE_STATE_SHA256='"${AUTHORITATIVE_STATE_SHA256:-missing}"'|g; s|BOOTSTRAP_STATE_PATH=|BOOTSTRAP_STATE_PATH='"${BOOTSTRAP_STATE_PATH:-}"'|g; s|BOOTSTRAP_STATE_PRESENT=0|BOOTSTRAP_STATE_PRESENT='"$BOOTSTRAP_STATE_PRESENT"'|g; s|BOOTSTRAP_STATE_SHA256=missing|BOOTSTRAP_STATE_SHA256='"${BOOTSTRAP_STATE_SHA256:-missing}"'|g; s|ACTIVE_STATE_PATH=|ACTIVE_STATE_PATH='"${ACTIVE_STATE_PATH:-}"'|g; s|ACTIVE_STATE_SHA256=missing|ACTIVE_STATE_SHA256='"${ACTIVE_STATE_SHA256:-missing}"'|g; s|POST_LOAD_SETTLE_FRAMES=0|POST_LOAD_SETTLE_FRAMES='"${POST_LOAD_SETTLE_FRAMES:-0}"'|g; s|TIMEOUT_STEP_FRAMES=0|TIMEOUT_STEP_FRAMES='"${TIMEOUT_STEP_FRAMES:-0}"'|g; s|TIMEOUT_STEP_CHUNK_FRAMES=0|TIMEOUT_STEP_CHUNK_FRAMES='"${TIMEOUT_STEP_CHUNK_FRAMES:-0}"'|g'
+scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"hires_pack_path": "[^"]*"|"hires_pack_path": "'"${PACK_PATH}"'"|g; s|"hires_pack_sha256": "[^"]*"|"hires_pack_sha256": "'"${PACK_SHA256}"'"|g; s|"authority_mode_used": "none"|"authority_mode_used": "'"${AUTHORITY_MODE_USED:-none}"'"|g; s|"source_state_body_sha256": ""|"source_state_body_sha256": "'"${AUTHORITY_SOURCE_STATE_BODY_SHA256:-}"'"|g; s|"authoritative_state_path": ""|"authoritative_state_path": "'"${AUTHORITATIVE_STATE_PATH:-}"'"|g; s|"authoritative_state_present": false|"authoritative_state_present": '"$(scenario_json_bool "$AUTHORITATIVE_STATE_PRESENT")"'|g; s|"authoritative_state_sha256": "missing"|"authoritative_state_sha256": "'"${AUTHORITATIVE_STATE_SHA256:-missing}"'"|g; s|"active_state_path": ""|"active_state_path": "'"${ACTIVE_STATE_PATH:-}"'"|g; s|"active_state_sha256": "missing"|"active_state_sha256": "'"${ACTIVE_STATE_SHA256:-missing}"'"|g; s|"post_load_settle_frames": 0|"post_load_settle_frames": '"${POST_LOAD_SETTLE_FRAMES:-0}"'|g'
+scenario_patch_file "$BUNDLE_DIR/config.env" 's|HIRES_PACK_PATH=.*|HIRES_PACK_PATH='"${PACK_PATH}"'|g; s|AUTHORITY_MODE_USED=none|AUTHORITY_MODE_USED='"${AUTHORITY_MODE_USED:-none}"'|g; s|SOURCE_STATE_BODY_SHA256=\n|SOURCE_STATE_BODY_SHA256='"${AUTHORITY_SOURCE_STATE_BODY_SHA256:-}"'\n|g; s|AUTHORITATIVE_STATE_PATH=|AUTHORITATIVE_STATE_PATH='"${AUTHORITATIVE_STATE_PATH:-}"'|g; s|AUTHORITATIVE_STATE_PRESENT=0|AUTHORITATIVE_STATE_PRESENT='"$AUTHORITATIVE_STATE_PRESENT"'|g; s|AUTHORITATIVE_STATE_SHA256=missing|AUTHORITATIVE_STATE_SHA256='"${AUTHORITATIVE_STATE_SHA256:-missing}"'|g; s|ACTIVE_STATE_PATH=|ACTIVE_STATE_PATH='"${ACTIVE_STATE_PATH:-}"'|g; s|ACTIVE_STATE_SHA256=missing|ACTIVE_STATE_SHA256='"${ACTIVE_STATE_SHA256:-missing}"'|g; s|POST_LOAD_SETTLE_FRAMES=0|POST_LOAD_SETTLE_FRAMES='"${POST_LOAD_SETTLE_FRAMES:-0}"'|g'
 
 declare -a ADAPTER_ARGS=(
   --bundle-dir "$BUNDLE_DIR"
@@ -267,34 +228,6 @@ declare -a ADAPTER_ARGS=(
   --command "LOAD_STATE_SLOT_PAUSED 0"
   --command "STEP_FRAME ${POST_LOAD_SETTLE_FRAMES}"
   --command "WAIT_STATUS_FRAME PAUSED ${POST_LOAD_SETTLE_FRAMES} 10"
-)
-
-frame_cursor="$POST_LOAD_SETTLE_FRAMES"
-
-append_chunked_step_commands() {
-  local frame_count="$1"
-  local chunk_limit="$2"
-  local timeout_seconds="$3"
-  local remaining="$frame_count"
-  local chunk=""
-  while (( remaining > 0 )); do
-    if (( remaining > chunk_limit )); then
-      chunk="$chunk_limit"
-    else
-      chunk="$remaining"
-    fi
-    frame_cursor=$(( frame_cursor + chunk ))
-    ADAPTER_ARGS+=(--command "STEP_FRAME ${chunk}")
-    ADAPTER_ARGS+=(--command "WAIT_STATUS_FRAME PAUSED ${frame_cursor} ${timeout_seconds}")
-    remaining=$(( remaining - chunk ))
-  done
-}
-
-if [[ "$AUTHORITY_MODE_USED" == "bootstrap" ]]; then
-  append_chunked_step_commands "${TIMEOUT_STEP_FRAMES:-0}" "${TIMEOUT_STEP_CHUNK_FRAMES:-120}" 90
-fi
-
-ADAPTER_ARGS+=(
   --command "SNAPSHOT_CORE_MEMORY paper-mario-gamestatus 800740a8 232"
   --command "SNAPSHOT_CORE_MEMORY paper-mario-curgamemode 80151700 20"
   --command "SNAPSHOT_CORE_MEMORY paper-mario-transition 800a0944 8"

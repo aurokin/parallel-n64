@@ -45,7 +45,8 @@ recording core is excluded from gating
 
 ## Replacement changes the native RDRAM render targets
 
-Status: open, October 18, 2026. Mechanism located; no fix chosen.
+Status: open, October 18, 2026. Mechanism located; opt-in fix
+`PARALLEL_RDP_HIRES_NATIVE_PASS=native` available, default not yet changed.
 
 Hi-res replacement is applied in the native-resolution rasterization pass as
 well as the upscaled one: `tile_uses_hires_replacement()` does not depend on the
@@ -68,7 +69,19 @@ code was not traced. Two other OoT segments of the same play diverge the same
 way; Paper Mario, Super Mario 64, Mario Kart 64, Majora's Mask and GoldenEye
 segments recorded so far do not.
 
-Options include skipping replacement in the native pass whenever an upscaled
+`PARALLEL_RDP_HIRES_NATIVE_PASS=native` skips replacement in that pass when an
+upscaled pass exists. Over the 262-scenario nightly lab corpus at 4x (PM, OoT, MM,
+GoldenEye, SM64, MK64; the GoldenEye menu segment is feature-off only), every
+feature-on run with `native` ended in exactly the feature-off end state, the OoT
+segment included. Presented captures matched the earlier feature-on goldens in
+255 of 261 scenarios. The six changes are framebuffer-copy effects: an OoT pause
+background now sharp where it was blocky; MM pause and boot, the PM storybook and
+game over below visible difference; and the PM battle-entry transition, whose
+fade now matches feature-off brightness but whose screen copy shows faint native
+ground art. Feature-off runs on the same build passed all 262 scenarios against
+the feature-off goldens.
+
+Options considered: skipping replacement in the native pass whenever an upscaled
 pass exists (RDRAM then matches feature-off byte for byte, but effects built
 from CPU-read framebuffers would show native art), or keeping current behavior
 (likely closer to HLE renderers that copy their own depth back; not checked)

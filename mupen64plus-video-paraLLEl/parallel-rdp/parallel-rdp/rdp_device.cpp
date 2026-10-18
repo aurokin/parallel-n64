@@ -281,6 +281,16 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 			renderer.set_hires_gpu_budget_bytes(size_t(mb) * 1024u * 1024u);
 	}
 
+	// PARALLEL_RDP_HIRES_NATIVE_PASS: "replace" (default) or "native". See
+	// Renderer::set_hires_native_pass_replacement().
+	if (const char *env = getenv("PARALLEL_RDP_HIRES_NATIVE_PASS"))
+	{
+		if (strcmp(env, "native") == 0)
+			renderer.set_hires_native_pass_replacement(false);
+		else if (strcmp(env, "replace") != 0)
+			LOGW("Ignoring PARALLEL_RDP_HIRES_NATIVE_PASS=%s; expected replace or native.\n", env);
+	}
+
 	const bool allow_tile = parse_optional_bool_env(getenv("PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE"), true);
 	const bool allow_block = parse_optional_bool_env(getenv("PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK"), true);
 	auto blocked_signatures = parse_hires_filter_signatures_env(getenv("PARALLEL_RDP_HIRES_FILTER_SIGNATURES"));

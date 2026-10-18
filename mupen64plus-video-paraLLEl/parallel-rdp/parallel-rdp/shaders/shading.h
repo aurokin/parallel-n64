@@ -393,7 +393,8 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	// pixels), materializing effect quads choreographed to be invisible
 	// through shade alpha. The < 8 threshold absorbs alpha dither; an HLE
 	// renderer leaves under 3% contribution for such pixels anyway.
-	if ((static_state_flags & RASTERIZATION_HIRES_ALPHA_KILL_BIT) != 0 && combined.a < U8_C(8))
+	if ((static_state_flags & RASTERIZATION_HIRES_ALPHA_KILL_BIT) != 0 &&
+	    global_constants.fb_info.hires_replacement != 0u && combined.a < U8_C(8))
 		return false;
 #endif
 

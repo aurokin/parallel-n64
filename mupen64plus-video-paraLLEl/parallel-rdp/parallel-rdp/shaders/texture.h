@@ -56,7 +56,8 @@ bool hires_replacement_cutout = false;
 bool tile_uses_hires_replacement(TileInfo tile)
 {
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
-	return tile.repl_desc_index != HIRES_INVALID_DESC_INDEX &&
+	return global_constants.fb_info.hires_replacement != 0u &&
+	       tile.repl_desc_index != HIRES_INVALID_DESC_INDEX &&
 	       tile.repl_orig_w != 0u &&
 	       tile.repl_orig_h != 0u &&
 	       tile.repl_w != 0u &&

@@ -159,6 +159,11 @@ public:
 	void set_hires_debug_ci_low32_fallback(HiresDebugCILow32FallbackMode mode);
 	void set_hires_gliden64_compat_crc(bool enable);
 	void set_hires_filter(unsigned mode);
+	// When false, the native pass of an upscaled frame renders without replacements so
+	// RDRAM (color and depth the CPU can read) matches feature-off; the upscaled pass,
+	// which is presented, still replaces. Without upscaling the native pass is presented
+	// and always replaces.
+	void set_hires_native_pass_replacement(bool enable);
 	void set_hires_gpu_budget_bytes(size_t bytes);
 	// Final summary, emitted once at teardown. Its line format is parsed by
 	// tools/scenarios/lib/common.sh and must stay stable.
@@ -241,6 +246,7 @@ private:
 	bool hires_gliden64_compat_crc_enabled = false;
 	// 0 = nearest, 1 = bilinear, 2 = trilinear (see HIRES_FILTER_* in shaders).
 	unsigned hires_filter_mode = 2;
+	bool hires_native_pass_replacement = true;
 
 	bool init_caps();
 	void init_blender_lut();

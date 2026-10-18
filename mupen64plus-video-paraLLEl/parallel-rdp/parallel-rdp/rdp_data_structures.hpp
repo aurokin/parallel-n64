@@ -254,6 +254,7 @@ struct GlobalFBInfo
 	uint32_t fb_size;
 	uint32_t base_primitive_index;
 	uint32_t hires_filter;
+	uint32_t hires_replacement;
 };
 
 template <typename T, unsigned N>

@@ -352,6 +352,9 @@ struct GlobalFBInfo
 	int fb_size;
 	uint base_primitive_index;
 	uint hires_filter;
+	// 0 when this pass must not sample replacements (the native pass of an
+	// upscaled frame under PARALLEL_RDP_HIRES_NATIVE_PASS=native).
+	uint hires_replacement;
 };
 
 const uint HIRES_FILTER_NEAREST = 0u;

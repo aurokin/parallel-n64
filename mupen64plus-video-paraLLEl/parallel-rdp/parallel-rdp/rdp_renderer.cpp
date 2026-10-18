@@ -1299,6 +1299,12 @@ void Renderer::set_hires_gliden64_compat_crc(bool enable)
 		LOGI("Hi-res GlideN64-compat RDRAM CRC fallback enabled.\n");
 }
 
+void Renderer::set_hires_native_pass_replacement(bool enable)
+{
+	hires_native_pass_replacement = enable;
+	LOGI("Hi-res native pass: %s.\n", enable ? "replace" : "native (RDRAM matches feature-off when upscaling)");
+}
+
 void Renderer::set_hires_filter(unsigned mode)
 {
 	if (mode > 2)
@@ -3391,6 +3397,8 @@ void Renderer::submit_rasterization(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &
 
 	global_fb_info->base_primitive_index = base_primitive_index;
 	global_fb_info->hires_filter = hires_filter_mode;
+	global_fb_info->hires_replacement =
+			(upscaling || caps.upscaling <= 1 || hires_native_pass_replacement) ? 1u : 0u;
 
 #ifdef PARALLEL_RDP_SHADER_DIR
 	cmd.set_program("rdp://rasterizer.comp", {
@@ -3729,6 +3737,8 @@ void Renderer::submit_depth_blend(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &tm
 
 	global_fb_info->base_primitive_index = base_primitive_index;
 	global_fb_info->hires_filter = hires_filter_mode;
+	global_fb_info->hires_replacement =
+			(upscaled || caps.upscaling <= 1 || hires_native_pass_replacement) ? 1u : 0u;
 
 	push.depth_addr_index = fb.depth_addr >> 1;
 	unsigned num_primitives_32 = (stream.triangle_setup.size() + 31) / 32;

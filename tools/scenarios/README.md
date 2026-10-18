@@ -122,6 +122,14 @@ by state loads. Periodic lines omit the sampled-duplicate diagnostics, and the
 evidence extractor ignores them; the final summary format is unchanged. Nothing
 is logged when hi-res replacement and `PARALLEL_RDP_HIRES_DEBUG` are both off.
 
+`PARALLEL_RDP_HIRES_NATIVE_PASS` chooses how an upscaled frame's native-resolution
+pass, the one written to RDRAM, treats replacements: `replace` (default) samples
+them as the upscaled pass does; `native` renders it with the game's own textures,
+so the color and depth the CPU can read match feature-off and game state cannot
+depend on the pack. The presented upscaled image still replaces. Without
+upscaling the native pass is presented and always replaces. See the ISSUE_LOG
+entry "Replacement changes the native RDRAM render targets".
+
 ## Reminting
 
 Use dedicated `remint-*` helpers. A replacement authority must pass

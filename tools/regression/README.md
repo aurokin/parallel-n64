@@ -19,7 +19,11 @@ tools/regression/run_scenarios.py \
   --select tier=smoke --out artifacts/regression/smoke-off
 ```
 
-- `--mode on` requires `--pack PATH` (a `.phrb` package).
+- `--mode on` takes either `--pack PATH` (one `.phrb` package for every game) or
+  `--pack-map JSON` (`{"<rom sha256>": "/path/package.phrb"}`), which gives each
+  game its own pack in one run. Scenarios of games without a mapped pack are
+  listed and not run. Each record carries the pack it used; when an on-mode
+  expectation names another pack, the `pack` gate is `review`.
 - `--extra-append-config PATH` loads after the adapter's generated settings;
   use it for the capture profile (output size, GPU screenshots). Settings
   placed only in the base config are overridden by the generated ones.
@@ -92,6 +96,7 @@ second run into a new `--out`; compare their records.
 | `ram@F:name` — RAM cue equals expectation | fail | fail |
 | `capture@F` — PNG sha equals expectation | fail ([ADR-0002](../../docs/adr/0002-protected-feature-off-property.md)) | review ([ADR-0004](../../docs/adr/0004-hires-on-validation-methodology.md)) |
 | `end_state` — end-state body sha | fail | report-only |
+| `pack` — the run's pack is the one the on-mode expectation was recorded with | — | review |
 | `hires.provider` — summary has `provider=on`, no cache load failure | — | fail |
 | `hires.entries`, `hires.served` (upload or draw-time hits) — at least one; `served` skips a session with no texture lookups | — | fail |
 | `hires.inert` — no `provider=on` summary | fail | — |

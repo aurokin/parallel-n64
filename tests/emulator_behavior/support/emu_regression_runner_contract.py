@@ -162,14 +162,14 @@ class RegressionRunnerContract(unittest.TestCase):
     def write_scenario(self, scenario):
         (self.scenarios / f"{scenario['id']}.json").write_text(json.dumps(scenario, indent=2))
 
-    def run_runner(self, out, *extra, plan=None, mode="off"):
+    def run_runner(self, out, *extra, plan=None, mode="off", packs=None):
         argv = [sys.executable, str(RUNNER), "--scenarios", str(self.scenarios),
                 "--blobs", str(self.root / "blobs"), "--core", str(self.root / "core.so"),
                 "--retroarch-bin", str(self.root / "retroarch"), "--base-config", str(self.root / "base.cfg"),
                 "--runtime-class", "fake-4x", "--mode", mode, "--out", str(self.root / out),
                 "--adapter", str(self.adapter), "--orphan-grace", "0.5", "--step-chunk", "50", *extra]
         if mode == "on":
-            argv += ["--pack", str(self.root / "pack.phrb")]
+            argv += packs if packs is not None else ["--pack", str(self.root / "pack.phrb")]
         env = {**os.environ, "FAKE_ADAPTER_PLAN": json.dumps(plan or {})}
         result = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=120)
         records = [json.loads(line) for line in (self.root / out / "results.jsonl").read_text().splitlines()]
@@ -244,6 +244,45 @@ class RegressionRunnerContract(unittest.TestCase):
         report = (self.root / "on/report.md").read_text()
         review = report.split("## Review queue")[1]
         self.assertIn(record["checkpoints"][0]["capture_path"], review)
+
+    def pack_map(self, name, mapping):
+        path = self.root / name
+        path.write_text(json.dumps({sha: str(self.root / pack) for sha, pack in mapping.items()}))
+        return ["--pack-map", str(path)]
+
+    def test_pack_map_runs_each_game_with_its_own_pack(self):
+        other_rom = b"other fake rom"
+        (self.root / "blobs/roms" / f"{sha256(other_rom)}.z64").write_bytes(other_rom)
+        self.write_scenario({"schema": "n64-regression-scenario/1", "id": "other-game",
+                             "game": {"rom_sha256": sha256(other_rom)}, "start": {"kind": "power-on"},
+                             "program": ["STEP_FRAME 30"], "checkpoints": [{"after_frames": 30}],
+                             "end": {"save_state": True}, "tags": {"tier": ["nightly"]}})
+        result, records = self.run_runner("mapped", mode="on",
+                                          packs=self.pack_map("packs.json", {sha256(b"fake rom"): "pack.phrb"}))
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(set(records), {"field-state", "boot-power-on"})
+        self.assertIn(f"no pack mapped for ROM {sha256(other_rom)[:12]}: 1 scenario(s) not run", result.stdout)
+        self.assertEqual({r["pack_sha256"] for r in records.values()}, {sha256(b"pack.phrb")})
+
+    def test_malformed_pack_map_is_a_configuration_error(self):
+        for value in ([], {"abc": None}, {"abc": 3}):
+            path = self.root / "bad-packs.json"
+            path.write_text(json.dumps(value))
+            argv = [sys.executable, str(RUNNER), "--scenarios", str(self.scenarios), "--blobs", str(self.root / "blobs"),
+                    "--core", str(self.root / "core.so"), "--retroarch-bin", str(self.root / "retroarch"),
+                    "--base-config", str(self.root / "base.cfg"), "--runtime-class", "fake-4x", "--mode", "on",
+                    "--out", str(self.root / "bad"), "--adapter", str(self.adapter), "--pack-map", str(path)]
+            result = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_on_mode_golden_from_another_pack_is_review(self):
+        expectations = self.record_golden(mode="on")
+        (self.root / "pack2.phrb").write_bytes(b"pack2")
+        result, records = self.run_runner("swapped", "--expectations", str(expectations), "--select", "field-state",
+                                          mode="on", packs=self.pack_map("swap.json", {sha256(b"fake rom"): "pack2.phrb"}))
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(self.gates(records["field-state"])["pack"], "review")
 
     def test_step_timeout_is_classified(self):
         result, records = self.run_runner("step", "--select", "field-state", plan={"fail": "step"})

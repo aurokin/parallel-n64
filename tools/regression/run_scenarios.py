@@ -433,12 +433,25 @@ class RunContext:
     out: Path
     condition: str
     identities: dict[str, str | None]
+    pack_map: dict[str, Path] = field(default_factory=dict)
     rom_sha_cache: dict[Path, str] = field(default_factory=dict)
+    pack_sha_cache: dict[Path, str] = field(default_factory=dict)
 
     def rom_sha(self, path: Path) -> str:
         if path not in self.rom_sha_cache:
             self.rom_sha_cache[path] = sha256_file(path)
         return self.rom_sha_cache[path]
+
+    def pack_for(self, scenario: Scenario) -> Path | None:
+        """The hi-res pack for this scenario's game: --pack for every game, else its --pack-map entry."""
+        if self.args.mode != "on":
+            return None
+        return self.args.pack or self.pack_map.get(scenario.rom_sha256)
+
+    def pack_sha(self, path: Path) -> str:
+        if path not in self.pack_sha_cache:
+            self.pack_sha_cache[path] = sha256_file(path)
+        return self.pack_sha_cache[path]
 
 
 def resolve_rom(scenario: Scenario, ctx: RunContext) -> Path:
@@ -622,9 +635,11 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
         bundle.rename(bundle.with_name(f"{bundle.name}.interrupted-{int(time.time())}"))
     (bundle / "logs").mkdir(parents=True)
     env = dict(os.environ)
-    if args.mode == "on":
-        env["PARALLEL_RDP_HIRES_CACHE_PATH"] = str(args.pack)
-        env["PARALLEL_RDP_HIRES_CACHE_SHA256"] = ctx.identities["pack_sha256"] or ""
+    pack = ctx.pack_for(scenario)
+    pack_sha = ctx.pack_sha(pack) if pack else None
+    if pack:
+        env["PARALLEL_RDP_HIRES_CACHE_PATH"] = str(pack)
+        env["PARALLEL_RDP_HIRES_CACHE_SHA256"] = pack_sha or ""
         env["PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES"] = str(args.hires_summary_interval)
     else:
         for key in ("PARALLEL_RDP_HIRES_CACHE_PATH", "PARALLEL_RDP_HIRES_CACHE_SHA256"):
@@ -633,7 +648,8 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
 
     record: dict[str, Any] = {
         "scenario": scenario.id, "condition": ctx.condition, "mode": args.mode,
-        "runtime_class": args.runtime_class, **ctx.identities, "rom_sha256": scenario.rom_sha256,
+        "runtime_class": args.runtime_class, **ctx.identities, "pack_sha256": pack_sha,
+        "rom_sha256": scenario.rom_sha256,
         "scenario_file": str(scenario.path), "bundle": os.path.relpath(bundle, ctx.out),
         "start_kind": scenario.start["kind"], "started": utc_now(), "ended": None,
         "exit_class": "clean", "error": None, "load": None, "frames_run": 0,
@@ -769,6 +785,9 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
             verdict = ("no expectation" if wanted is None else "not observed" if observed is None
                        else "matches" if observed == wanted else f"differs: observed {observed}, expected {wanted}")
             gates.append(gate("end_state", "skip", f"report-only in on mode; {verdict}"))
+    if mode == "on" and expected.get("pack_sha256"):
+        # Goldens recorded with another pack describe different replacement content.
+        gates.append(compare("pack", record["pack_sha256"], expected["pack_sha256"], on_mismatch="review"))
     hires = record["hires"]
     if hires is not None:
         if mode == "on":
@@ -860,8 +879,10 @@ def write_report(out: Path, records: list[dict[str, Any]]) -> None:
     lines += [f"Generated {utc_now()}. Scenarios: {len(records)}; pass {counts['pass']}, "
               f"review {counts['review']}, fail {counts['fail']}.", ""]
     for rec in records[:1]:
-        lines += [f"Core `{rec['core_sha256']}`, frontend `{rec['frontend_sha256']}`, "
-                  f"pack `{rec['pack_sha256'] or '-'}`.", ""]
+        lines += [f"Core `{rec['core_sha256']}`, frontend `{rec['frontend_sha256']}`.", ""]
+    packs = sorted({(rec["rom_sha256"], rec["pack_sha256"]) for rec in records if rec["pack_sha256"]})
+    if packs:
+        lines += ["Packs by ROM: " + ", ".join(f"`{rom[:12]}` → `{pack}`" for rom, pack in packs) + ".", ""]
     lines += ["## Summary", "", "| Scenario | Condition | Outcome | Exit | Frames | FPS | Gates (pass/fail/review/skip) |",
               "|---|---|---|---|---:|---:|---|"]
     for rec in records:
@@ -919,7 +940,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--extra-append-config", type=Path,
                         help="config loaded after the adapter's generated settings (e.g. capture profile)")
     parser.add_argument("--mode", choices=("off", "on"), default="off")
-    parser.add_argument("--pack", type=Path, help="hi-res .phrb package (required with --mode on)")
+    packs = parser.add_mutually_exclusive_group()
+    packs.add_argument("--pack", type=Path, help="hi-res .phrb package for every game (--mode on)")
+    packs.add_argument("--pack-map", type=Path,
+                       help="JSON object mapping ROM sha256 to that game's .phrb package (--mode on); "
+                            "scenarios of unmapped games are not run")
     parser.add_argument("--runtime-class", required=True, help="caller-declared runtime class label")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--select", action="append", default=[],
@@ -938,8 +963,10 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.step_chunk < 1:
         parser.error("--step-chunk must be positive")
-    if args.mode == "on" and (not args.pack or not args.pack.is_file()):
-        parser.error("--mode on requires an existing --pack")
+    if args.mode == "on" and not args.pack_map and (not args.pack or not args.pack.is_file()):
+        parser.error("--mode on requires an existing --pack or a --pack-map")
+    if args.mode != "on" and (args.pack or args.pack_map):
+        parser.error("--pack and --pack-map apply only to --mode on")
     if "|" in str(args.out.resolve()):
         parser.error("--out must not contain '|'")
     for name in ("core", "retroarch_bin", "base_config"):
@@ -956,6 +983,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[regression] {err}", file=sys.stderr)
         return 2
     selected = [s for s in scenarios if all(matches_filter(s, f) for f in args.select)]
+    pack_map: dict[str, Path] = {}
+    if args.pack_map:
+        try:
+            raw = json.loads(args.pack_map.read_text())
+        except (OSError, ValueError) as err:
+            print(f"[regression] unreadable --pack-map: {err}", file=sys.stderr)
+            return 2
+        if not isinstance(raw, dict) or not all(isinstance(v, str) and v for v in raw.values()):
+            print("[regression] --pack-map must map ROM sha256 strings to pack path strings", file=sys.stderr)
+            return 2
+        pack_map = {sha: Path(path) for sha, path in raw.items()}
+        missing = sorted(str(path) for path in pack_map.values() if not path.is_file())
+        if missing:
+            print(f"[regression] --pack-map packs not found: {', '.join(missing)}", file=sys.stderr)
+            return 2
+        unpacked = [s for s in selected if s.rom_sha256 not in pack_map]
+        for rom_sha in sorted({s.rom_sha256 for s in unpacked}):
+            count = sum(1 for s in unpacked if s.rom_sha256 == rom_sha)
+            print(f"[regression] no pack mapped for ROM {rom_sha[:12]}: {count} scenario(s) not run")
+        selected = [s for s in selected if s.rom_sha256 in pack_map]
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     results_path = out / "results.jsonl"
@@ -966,10 +1013,9 @@ def main(argv: list[str] | None = None) -> int:
           f"condition {condition}")
 
     adapter = args.adapter.resolve()
-    ctx = RunContext(args=args, adapter=adapter, out=out, condition=condition, identities={
+    ctx = RunContext(args=args, adapter=adapter, out=out, condition=condition, pack_map=pack_map, identities={
         "core_sha256": sha256_file(args.core),
         "frontend_sha256": sha256_file(args.retroarch_bin),
-        "pack_sha256": sha256_file(args.pack) if args.mode == "on" else None,
     })
     if pending:
         doctor = subprocess.run([str(adapter), "doctor"], capture_output=True, text=True, check=False)

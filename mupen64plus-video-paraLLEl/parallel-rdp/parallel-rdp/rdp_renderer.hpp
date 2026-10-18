@@ -246,7 +246,7 @@ private:
 	bool hires_gliden64_compat_crc_enabled = false;
 	// 0 = nearest, 1 = bilinear, 2 = trilinear (see HIRES_FILTER_* in shaders).
 	unsigned hires_filter_mode = 2;
-	bool hires_native_pass_replacement = true;
+	bool hires_native_pass_replacement = false;
 
 	bool init_caps();
 	void init_blender_lut();

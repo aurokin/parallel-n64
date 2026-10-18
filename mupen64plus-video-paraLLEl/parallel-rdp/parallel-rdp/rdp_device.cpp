@@ -281,14 +281,14 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 			renderer.set_hires_gpu_budget_bytes(size_t(mb) * 1024u * 1024u);
 	}
 
-	// PARALLEL_RDP_HIRES_NATIVE_PASS: "replace" (default) or "native". See
-	// Renderer::set_hires_native_pass_replacement().
+	// PARALLEL_RDP_HIRES_NATIVE_PASS: "native" (default) or "replace". See
+	// Renderer::set_hires_native_pass_replacement() and ADR-0020.
 	if (const char *env = getenv("PARALLEL_RDP_HIRES_NATIVE_PASS"))
 	{
-		if (strcmp(env, "native") == 0)
-			renderer.set_hires_native_pass_replacement(false);
-		else if (strcmp(env, "replace") != 0)
-			LOGW("Ignoring PARALLEL_RDP_HIRES_NATIVE_PASS=%s; expected replace or native.\n", env);
+		if (strcmp(env, "replace") == 0)
+			renderer.set_hires_native_pass_replacement(true);
+		else if (strcmp(env, "native") != 0)
+			LOGW("Ignoring PARALLEL_RDP_HIRES_NATIVE_PASS=%s; expected native or replace.\n", env);
 	}
 
 	const bool allow_tile = parse_optional_bool_env(getenv("PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE"), true);

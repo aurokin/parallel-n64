@@ -45,8 +45,9 @@ recording core is excluded from gating
 
 ## Replacement changes the native RDRAM render targets
 
-Status: open, October 18, 2026. Mechanism located; opt-in fix
-`PARALLEL_RDP_HIRES_NATIVE_PASS=native` available, default not yet changed.
+Status: resolved, October 18, 2026, by
+[ADR-0020](adr/0020-replacement-stays-out-of-rdram.md): `native` is the default;
+`PARALLEL_RDP_HIRES_NATIVE_PASS=replace` restores the earlier behavior.
 
 Hi-res replacement is applied in the native-resolution rasterization pass as
 well as the upscaled one: `tile_uses_hires_replacement()` does not depend on the

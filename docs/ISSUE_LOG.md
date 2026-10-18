@@ -43,6 +43,38 @@ qualified individually: a scenario that does not reproduce its recording on the
 recording core is excluded from gating
 ([ADR-0019](adr/0019-deterministic-emulation-state-gates.md)).
 
+## Replacement changes the native RDRAM render targets
+
+Status: open, October 18, 2026. Mechanism located; no fix chosen.
+
+Hi-res replacement is applied in the native-resolution rasterization pass as
+well as the upscaled one: `tile_uses_hires_replacement()` does not depend on the
+scale, and both `submit_render_pass()` and `submit_render_pass_upscaled()` bind
+the same `HIRES_REPLACEMENT` rasterizer. Replacement alpha therefore decides,
+through cutouts, the HLE alpha-kill rule and alpha test, which pixels write
+color and depth to RDRAM. A game that reads its render targets back on the CPU
+can then run differently with a pack loaded.
+
+Ocarina of Time (USA 1.0, `local-oot-zero-config` pack, core `d574adc6`) shows
+it. In a 2,970-frame segment of the opening Kokiri Forest flight, feature-off
+and feature-on runs are each deterministic. State saved every frame from the
+same start agrees outside the color buffers until frame 2,049. From frame 2,049
+to 2,400 the only other differences are words of one 320-pixel-wide 16-bit
+buffer (rows 0x280 bytes apart, depth-like values) at 0x80130000-0x80140000,
+probably the depth buffer. From frame 2,500 game memory diverges as well, and
+by frame 2,700 RSP memory and CPU registers do too. OoT reads its depth buffer
+on the CPU for sun lens-flare visibility, which fits this chain, but the reading
+code was not traced. Two other OoT segments of the same play diverge the same
+way; Paper Mario, Super Mario 64, Mario Kart 64, Majora's Mask and GoldenEye
+segments recorded so far do not.
+
+Options include skipping replacement in the native pass whenever an upscaled
+pass exists (RDRAM then matches feature-off byte for byte, but effects built
+from CPU-read framebuffers would show native art), or keeping current behavior
+(likely closer to HLE renderers that copy their own depth back; not checked)
+and gating CPU invariance per game. Evidence: lab regression `lab-play-oot` and the October 18
+multi-game regression receipt in the private workspace.
+
 ## Replacement decal alpha removes shaded geometry
 
 Status: corrected in source October 11, 2026; isolated live candidate qualified.

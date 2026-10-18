@@ -276,6 +276,25 @@ class RegressionRunnerContract(unittest.TestCase):
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertNotIn("Traceback", result.stderr)
 
+    def test_off_only_scenarios_are_not_run_in_on_mode(self):
+        path = self.scenarios / "boot-power-on.json"
+        scenario = json.loads(path.read_text())
+        path.write_text(json.dumps({**scenario, "modes": ["off"]}))
+        result, records = self.run_runner("off-only", mode="on")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(set(records), {"field-state"})
+        self.assertIn("declare no on-mode coverage and are not run: boot-power-on", result.stdout)
+        _, records = self.run_runner("off-only-off")
+        self.assertEqual(set(records), {"field-state", "boot-power-on"})
+        path.write_text(json.dumps({**scenario, "modes": ["off", "off"]}))
+        result = subprocess.run([sys.executable, str(RUNNER), "--scenarios", str(self.scenarios),
+                                 "--core", str(self.root / "core.so"), "--retroarch-bin", str(self.root / "retroarch"),
+                                 "--base-config", str(self.root / "base.cfg"), "--runtime-class", "fake-4x",
+                                 "--out", str(self.root / "bad-modes"), "--adapter", str(self.adapter)],
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("modes must be", result.stderr)
+
     def test_on_mode_golden_from_another_pack_is_review(self):
         expectations = self.record_golden(mode="on")
         (self.root / "pack2.phrb").write_bytes(b"pack2")

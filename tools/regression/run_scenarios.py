@@ -95,6 +95,7 @@ class Scenario:
     checkpoints: tuple[Checkpoint, ...]
     save_end: bool
     tags: dict[str, Any]
+    modes: tuple[str, ...] = ("off", "on")
 
     @property
     def total_frames(self) -> int:
@@ -178,10 +179,13 @@ def parse_scenario(path: Path) -> Scenario:
 
     tags = data.get("tags") or {}
     need(isinstance(tags, dict), "tags must be an object")
+    modes = data.get("modes", ["off", "on"])
+    need(isinstance(modes, list) and bool(modes) and set(modes) <= {"off", "on"} and len(set(modes)) == len(modes),
+         "modes must be a non-empty list of distinct 'off'/'on'")
     return Scenario(
         path=path, data=data, id=scenario_id, rom_sha256=rom_sha, start=start,
         program=tuple(program), checkpoints=tuple(sorted(checkpoints, key=lambda c: c.after_frames)),
-        save_end=bool((data.get("end") or {}).get("save_state")), tags=tags,
+        save_end=bool((data.get("end") or {}).get("save_state")), tags=tags, modes=tuple(modes),
     )
 
 
@@ -983,6 +987,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[regression] {err}", file=sys.stderr)
         return 2
     selected = [s for s in scenarios if all(matches_filter(s, f) for f in args.select)]
+    # A scenario may declare the modes it covers, e.g. feature-off only where its game's
+    # pack replaces nothing in that section.
+    excluded = [s for s in selected if args.mode not in s.modes]
+    if excluded:
+        print(f"[regression] {len(excluded)} scenario(s) declare no {args.mode}-mode coverage and are not run: "
+              + ", ".join(s.id for s in excluded))
+        selected = [s for s in selected if args.mode in s.modes]
     pack_map: dict[str, Path] = {}
     if args.pack_map:
         try:

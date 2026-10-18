@@ -32,13 +32,17 @@ blob directory.
              "ref": "<run id / bundle id / durable id>", "segment": 51,
              "recorded_core_sha256": "<core that produced the recording>",
              "recorded_end_state_sha256": "<as recorded>"},
-  "tags": {"scene": "kkj_13/e0", "mode": "battle", "chapter": 0, "tier": ["smoke", "nightly"]}
+  "tags": {"scene": "kkj_13/e0", "mode": "battle", "chapter": 0, "tier": ["smoke", "nightly"]},
+  "modes": ["off"]
 }
 ```
 
 Rules:
 
 - `id` matches `[A-Za-z0-9._-]+`; it names the bundle and expectation files.
+- `modes` (optional, default `["off", "on"]`) lists the hi-res modes the
+  scenario covers. A run in another mode lists the scenario as not run; use
+  `["off"]` where the game's pack replaces nothing in that section.
 - `program` uses only `SET_INPUT_PORT`, `CLEAR_INPUT_PORT` and `STEP_FRAME`,
   exactly as the RetroArch agent-control surface accepts them. Frames advance
   only through `STEP_FRAME`; the session stays paused otherwise. A power-on

@@ -24,6 +24,8 @@ tools/regression/run_scenarios.py \
   game its own pack in one run. Scenarios of games without a mapped pack are
   listed and not run. Each record carries the pack it used; when an on-mode
   expectation names another pack, the `pack` gate is `review`.
+- A scenario whose `modes` omits the run's mode (for example `["off"]` where
+  the game's pack replaces nothing in that section) is listed and not run.
 - `--extra-append-config PATH` loads after the adapter's generated settings;
   use it for the capture profile (output size, GPU screenshots). Settings
   placed only in the base config are overridden by the generated ones.

@@ -7,10 +7,13 @@ same scenarios, compare each scenario's end savestate and checkpoint RAM cues:
 * every byte outside RDRAM (CPU, coprocessor, RSP/RDP and device registers, TLB,
   event queue) must be identical — a difference fails;
 * checkpoint RAM cues must be identical — a difference fails;
-* a scenario present in only one run fails, so an interrupted run cannot pass;
-* RDRAM differences are reported as address ranges. Replacement changes the
-  native framebuffer and depth-buffer contents the renderer writes back, so
-  those ranges are expected; anything else is for review.
+* a scenario present in only one run fails, so an interrupted run cannot pass,
+  unless its scenario file declares `modes` without the missing mode;
+* RDRAM differences are reported as address ranges. With `--strict-rdram` any
+  RDRAM difference fails: at upscaled runtime classes replacement stays out of
+  the RDRAM render targets (ADR-0020), so the whole end state must match.
+  Without it, framebuffer and depth-buffer ranges are expected (no upscaling, or
+  PARALLEL_RDP_HIRES_NATIVE_PASS=replace) and anything else is for review.
 
 Exit status is nonzero when any scenario fails.
 """
@@ -59,12 +62,26 @@ def rdram_ranges(off: bytes, on: bytes) -> list[tuple[int, int, int]]:
     return [tuple(r) for r in ranges]
 
 
-def compare(off_run: Path, on_run: Path) -> list[dict]:
+def declared_modes(record: dict) -> list[str]:
+    try:
+        return json.loads(Path(record["scenario_file"]).read_text()).get("modes", ["off", "on"])
+    except (KeyError, OSError, ValueError):
+        return ["off", "on"]
+
+
+def compare(off_run: Path, on_run: Path, strict_rdram: bool = False) -> list[dict]:
     off_results, on_results = results(off_run), results(on_run)
     report = []
     for scenario in sorted(set(off_results) | set(on_results)):
         entry: dict = {"scenario": scenario, "status": "pass", "detail": []}
-        if scenario not in off_results or scenario not in on_results:
+        only = off_results.get(scenario) or on_results.get(scenario)
+        missing = "off" if scenario not in off_results else "on" if scenario not in on_results else None
+        if missing and missing not in declared_modes(only):
+            entry["status"] = "skip"
+            entry["detail"].append(f"declares no {missing}-mode coverage")
+            report.append(entry)
+            continue
+        if missing:
             entry["status"] = "fail"
             entry["detail"].append(f"no {'off' if scenario not in off_results else 'on'} result")
             report.append(entry)
@@ -90,6 +107,9 @@ def compare(off_run: Path, on_run: Path) -> list[dict]:
                 entry["detail"].append("state outside RDRAM differs")
             entry["rdram_ranges"] = [{"start": f"{s:#08x}", "end": f"{e:#08x}", "words": w}
                                      for s, e, w in rdram_ranges(off_state, on_state)]
+            if strict_rdram and entry["rdram_ranges"]:
+                entry["status"] = "fail"
+                entry["detail"].append("RDRAM differs")
         report.append(entry)
     return report
 
@@ -99,15 +119,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("off_run", type=Path)
     parser.add_argument("on_run", type=Path)
     parser.add_argument("--json", type=Path, help="write the full report here")
+    parser.add_argument("--strict-rdram", action="store_true",
+                        help="fail on any RDRAM difference (upscaled runtime classes, ADR-0020)")
     args = parser.parse_args(argv)
-    report = compare(args.off_run, args.on_run)
+    report = compare(args.off_run, args.on_run, args.strict_rdram)
     for entry in report:
         ranges = ", ".join(f"{r['start']}-{r['end']}({r['words']})" for r in entry.get("rdram_ranges", []))
         print(f"{entry['status']:4} {entry['scenario']}: {'; '.join(entry['detail']) or 'non-RDRAM state identical'}"
               f"{'; RDRAM ' + ranges if ranges else ''}")
     if args.json:
         args.json.write_text(json.dumps(report, indent=2) + "\n")
-    return 1 if any(entry["status"] != "pass" for entry in report) or not report else 0
+    return 1 if any(entry["status"] == "fail" for entry in report) or not report else 0
 
 
 if __name__ == "__main__":

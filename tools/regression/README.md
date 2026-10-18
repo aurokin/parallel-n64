@@ -97,7 +97,7 @@ second run into a new `--out`; compare their records.
 | `load` — paused load succeeded | fail | fail |
 | `ram@F:name` — RAM cue equals expectation | fail | fail |
 | `capture@F` — PNG sha equals expectation | fail ([ADR-0002](../../docs/adr/0002-protected-feature-off-property.md)) | review ([ADR-0004](../../docs/adr/0004-hires-on-validation-methodology.md)) |
-| `end_state` — end-state body sha | fail | report-only |
+| `end_state` — end-state body sha | fail | fail ([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md)) |
 | `pack` — the run's pack is the one the on-mode expectation was recorded with | — | review |
 | `hires.provider` — summary has `provider=on`, no cache load failure | — | fail |
 | `hires.entries`, `hires.served` (upload or draw-time hits) — at least one; `served` skips a session with no texture lookups | — | fail |
@@ -141,7 +141,8 @@ same scenarios. Every savestate byte outside RDRAM and every checkpoint RAM cue
 must match; RDRAM differences are listed by address range. At upscaled runtime
 classes the native pass renders without replacements
 ([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md)), so RDRAM
-should match too and any listed range needs review. Without upscaling, or with
-`PARALLEL_RDP_HIRES_NATIVE_PASS=replace`, replacement changes the framebuffer and
-depth-buffer contents written back, and those ranges are expected.
+should match too: pass `--strict-rdram` to fail on any RDRAM difference. Without
+upscaling, or with `PARALLEL_RDP_HIRES_NATIVE_PASS=replace`, replacement changes
+the framebuffer and depth-buffer contents written back, and those ranges are
+expected.
 

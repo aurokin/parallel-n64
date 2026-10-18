@@ -86,7 +86,7 @@ elif sub == "screenshot":
     print(capture)
 elif sub == "save-slot":
     body = bytes.fromhex(st["body"]) if st["body"] else b"M64+SAVE"
-    body += f"|frame={st['frame']}|inputs={st['inputs']}".encode()
+    body += f"|frame={st['frame']}|inputs={st['inputs']}|{plan.get('state', '')}".encode()
     packed = zlib.compress(body)
     core_states.mkdir(parents=True, exist_ok=True)
     (core_states / f"{st['stem']}.state{opts['--slot']}").write_bytes(
@@ -239,7 +239,7 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual(gates["capture@42"], "review")
         self.assertEqual((gates["hires.provider"], gates["hires.entries"], gates["hires.served"]),
                          ("pass", "pass", "pass"))
-        self.assertEqual(gates["end_state"], "skip")
+        self.assertEqual(gates["end_state"], "pass")
         self.assertEqual(record["hires"]["draw_hits"], 3)
         report = (self.root / "on/report.md").read_text()
         review = report.split("## Review queue")[1]
@@ -302,6 +302,13 @@ class RegressionRunnerContract(unittest.TestCase):
                                           mode="on", packs=self.pack_map("swap.json", {sha256(b"fake rom"): "pack2.phrb"}))
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertEqual(self.gates(records["field-state"])["pack"], "review")
+
+    def test_on_mode_end_state_change_fails(self):
+        expectations = self.record_golden(mode="on")
+        result, records = self.run_runner("on-state", "--expectations", str(expectations), "--select", "field-state",
+                                          plan={"state": "drifted"}, mode="on")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(self.gates(records["field-state"])["end_state"], "fail")
 
     def test_step_timeout_is_classified(self):
         result, records = self.run_runner("step", "--select", "field-state", plan={"fail": "step"})

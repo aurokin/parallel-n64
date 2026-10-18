@@ -1,6 +1,6 @@
 # ADR-0019: Deterministic emulation-state gates for regression scenarios
 
-- Status: Accepted
+- Status: Accepted, amended
 - Date: 2026-10-16
 
 ## Context
@@ -50,6 +50,11 @@ buffers, plus two small Paper Mario regions whose role is unconfirmed: a
 6. Gates are fresh-process per scenario. A scenario that is not reproducible
    across two runs on the same core and runtime class is a determinism defect,
    not a flaky test.
+
+Amendment (2026-10-18): with [ADR-0020](0020-replacement-stays-out-of-rdram.md)
+replacement no longer reaches RDRAM when upscaling. The on-mode end-state hash
+now gates like the off-mode one, and `compare_modes.py --strict-rdram` requires
+the on-mode end state to equal the off-mode one at upscaled runtime classes.
 
 ## Consequences
 

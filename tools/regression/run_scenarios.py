@@ -782,13 +782,8 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
                 reference = want.get("reference_capture_sha256") or want.get("capture_sha256")
                 gates.append(compare(name, seen["capture_sha256"], reference, on_mismatch="review"))
     if scenario.save_end:
-        observed, wanted = record["end_state_sha256"], expected.get("end_state_sha256")
-        if mode == "off":
-            gates.append(compare("end_state", observed, wanted))
-        else:
-            verdict = ("no expectation" if wanted is None else "not observed" if observed is None
-                       else "matches" if observed == wanted else f"differs: observed {observed}, expected {wanted}")
-            gates.append(gate("end_state", "skip", f"report-only in on mode; {verdict}"))
+        # Both modes are deterministic, so the end state gates in each (ADR-0019, ADR-0020).
+        gates.append(compare("end_state", record["end_state_sha256"], expected.get("end_state_sha256")))
     if mode == "on" and expected.get("pack_sha256"):
         # Goldens recorded with another pack describe different replacement content.
         gates.append(compare("pack", record["pack_sha256"], expected["pack_sha256"], on_mismatch="review"))

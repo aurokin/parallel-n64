@@ -64,8 +64,9 @@ Rules:
   ([ADR-0002](../../docs/adr/0002-protected-feature-off-property.md)). `on:*`
   captures are stored and, when they change, queued for review, never gated
   ([ADR-0004](../../docs/adr/0004-hires-on-validation-methodology.md)).
-  `end_state_sha256` gates `off:*` and is report-only for `on:*` until a
-  CPU-invariance experiment and its ADR decide otherwise.
+  `end_state_sha256` gates both `off:*` and `on:*` conditions
+  ([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md)); at
+  upscaled runtime classes the on-mode value equals the off-mode one.
 
 ## Expectation file (`<id>.expect.json`)
 

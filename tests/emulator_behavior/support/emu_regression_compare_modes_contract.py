@@ -17,21 +17,23 @@ def write_run(root: Path, mode: str, state: bytes, cue: str, scenarios=("probe",
     run = root / mode
     records = []
     for scenario in scenarios:
+        scenario_file = root / f"{scenario}.json"
+        scenario_file.write_text(json.dumps({"id": scenario, **({"modes": ["off"]} if scenario.startswith("off-only") else {})}))
         bundle = f"bundles/{scenario}__{mode}__probe-class"
         states = run / bundle / "states" / "ParaLLEl N64"
         states.mkdir(parents=True)
         (states / "Game.state2").write_bytes(state)
-        records.append(json.dumps({"scenario": scenario, "bundle": bundle,
+        records.append(json.dumps({"scenario": scenario, "bundle": bundle, "scenario_file": str(scenario_file),
                                    "checkpoints": [{"ram": {"cue": cue}}]}) + "\n")
     (run / "results.jsonl").write_text("".join(records))
     return run
 
 
-def compare(off: bytes, on: bytes, off_cue: str = "01", on_cue: str = "01", off_scenarios=("probe",)):
+def compare(off: bytes, on: bytes, off_cue: str = "01", on_cue: str = "01", off_scenarios=("probe",), extra=()):
     with tempfile.TemporaryDirectory(prefix="compare-modes-") as directory:
         root = Path(directory)
         result = subprocess.run([sys.executable, str(COMPARE), str(write_run(root, "off", off, off_cue, off_scenarios)),
-                                 str(write_run(root, "on", on, on_cue))],
+                                 str(write_run(root, "on", on, on_cue)), *extra],
                                 capture_output=True, text=True, check=False)
         return result.returncode, result.stdout
 
@@ -49,11 +51,19 @@ def main():
     status, output = compare(bytes(off), bytes(register))
     assert status == 1 and "state outside RDRAM differs" in output, output
 
+    status, output = compare(bytes(off), bytes(on), extra=("--strict-rdram",))
+    assert status == 1 and "RDRAM differs" in output, output
+    status, output = compare(bytes(off), bytes(off), extra=("--strict-rdram",))
+    assert status == 0, output
+
     status, output = compare(bytes(off), bytes(on), on_cue="02")
     assert status == 1 and "checkpoint RAM cues differ" in output, output
 
     status, output = compare(bytes(off), bytes(on), off_scenarios=("probe", "interrupted"))
     assert status == 1 and "interrupted: no on result" in output, output
+
+    status, output = compare(bytes(off), bytes(on), off_scenarios=("probe", "off-only-menu"))
+    assert status == 0 and "off-only-menu: declares no on-mode coverage" in output, output
     print("emu_regression_compare_modes_contract: PASS")
 
 

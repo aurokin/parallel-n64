@@ -86,6 +86,11 @@ add_test(
 )
 
 add_test(
+  NAME emu.support.hts2phrb_loose_inputs_contract
+  COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_loose_inputs_contract.py"
+)
+
+add_test(
   NAME emu.support.hts2phrb_all_families
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_all_families.sh"
 )

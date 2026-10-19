@@ -12,7 +12,11 @@ from pathlib import Path
 from hires_pack_apply_alias_group_review import apply_alias_group_reviews
 from hires_pack_apply_duplicate_review import dedupe_loader_manifest
 from hires_pack_common import (
+    LOOSE_PNG_STORAGE,
+    configure_loose_png_input,
     decode_entry_rgba8,
+    input_size_bytes,
+    load_derived_cache_input,
     parse_bundle_ci_context,
     parse_bundle_families,
     parse_bundle_sampled_object_context,
@@ -509,12 +513,25 @@ def fingerprint_path(value):
             "exists": False,
         }
     stat = path.stat()
-    return {
+    fingerprint = {
         "path": normalized,
         "exists": True,
         "size": int(stat.st_size),
         "mtime_ns": int(stat.st_mtime_ns),
     }
+    if path.is_dir():
+        # A loose PNG pack changes through its files, not the directory entry;
+        # names matter too, since a rename changes a texture's key.
+        tree = hashlib.sha256()
+        count = 0
+        for entry in sorted(path.rglob("*")):
+            if entry.is_file() and not entry.is_symlink():
+                item = entry.stat()
+                tree.update(f"{entry.relative_to(path).as_posix()}\0{item.st_size}\0{item.st_mtime_ns}\n".encode())
+                count += 1
+        fingerprint["tree_file_count"] = count
+        fingerprint["tree_sha256"] = tree.hexdigest()
+    return fingerprint
 
 
 def bundle_provenance_fingerprints(bundle_resolution):
@@ -581,6 +598,32 @@ def tool_fingerprint():
     }
 
 
+def source_input_options(args, cache_resolution):
+    """Options that change how a loose PNG directory loads; None for cache files."""
+    if cache_resolution["resolved_storage"] != LOOSE_PNG_STORAGE:
+        return None
+    return {
+        "rom_name": args.rom_name,
+        "loose_png_alpha": args.loose_png_alpha,
+    }
+
+
+def write_source_input_report(output_dir: Path, cache_path: Path, cache_resolution):
+    """Persist the load report for derived inputs (loose PNG, Glide64 .dat).
+
+    The full per-file skip list goes to source-input-report.json; the returned
+    summary drops the per-file lists so hts2phrb-report.json stays small.
+    """
+    if cache_resolution["resolved_storage"] not in (LOOSE_PNG_STORAGE, "dat"):
+        return None
+    full_report = load_derived_cache_input(cache_path)["report"]
+    report_path = output_dir / "source-input-report.json"
+    report_path.write_text(json.dumps(full_report, indent=2) + "\n")
+    summary = {key: value for key, value in full_report.items() if key not in ("skipped", "oversize")}
+    summary["report_path"] = str(report_path)
+    return summary
+
+
 def make_pre_request_signature(args, cache_resolution, bundle_resolution):
     return {
         "artifact_contract_version": HTS2PHRB_ARTIFACT_VERSION,
@@ -588,6 +631,7 @@ def make_pre_request_signature(args, cache_resolution, bundle_resolution):
         "resolved_cache_path": str(Path(cache_resolution["resolved_path"]).resolve()),
         "resolved_cache_storage": cache_resolution["resolved_storage"],
         "cache_fingerprint": fingerprint_path(cache_resolution["resolved_path"]),
+        "source_input_options": source_input_options(args, cache_resolution),
         "resolved_bundle_path": (
             str(Path(bundle_resolution["resolved_bundle_path"]).resolve())
             if bundle_resolution and bundle_resolution.get("resolved_bundle_path")
@@ -669,6 +713,7 @@ def make_request_signature(args, cache_resolution, request_mode, requested_pairs
         "resolved_cache_path": str(Path(cache_resolution["resolved_path"]).resolve()),
         "resolved_cache_storage": cache_resolution["resolved_storage"],
         "cache_fingerprint": fingerprint_path(cache_resolution["resolved_path"]),
+        "source_input_options": source_input_options(args, cache_resolution),
         "request_mode": request_mode,
         "requested_pairs": [[int(low32), int(formatsize)] for low32, formatsize in requested_pairs],
         "resolved_bundle_path": (
@@ -3093,6 +3138,7 @@ def build_markdown_summary(report):
         f"- Output dir: `{report['output_dir']}`",
         f"- Cache input: `{report['cache_input_path']}`",
         f"- Resolved cache: `{report['cache_path']}`",
+        f"- Source input: {format_source_input_summary(report.get('source_input_report'))}",
         f"- Request mode: `{report['request_mode']}`",
         f"- Context bundle inputs: `{report.get('context_bundle_input_count', len(report.get('context_bundle_paths') or []))}`",
         f"- Expanded context bundles: `{report.get('context_bundle_resolution_count', len(report.get('context_bundle_resolutions') or []))}` (`{report.get('context_bundle_class')}`)",
@@ -3498,6 +3544,17 @@ def build_markdown_summary(report):
     return "\n".join(lines)
 
 
+def format_source_input_summary(source_input_report):
+    if not source_input_report:
+        return "cache"
+    skips = ", ".join(
+        f"{name}={count}" for name, count in sorted((source_input_report.get("skip_reason_counts") or {}).items())
+    ) or "none"
+    rom_name = source_input_report.get("rom_name")
+    prefix = f"rom_name={rom_name!r} alpha={source_input_report.get('alpha_mode')} " if rom_name else ""
+    return f"{prefix}entries={source_input_report.get('entry_count', 0)} skipped={skips}"
+
+
 def build_stdout_summary(report):
     runtime_overlay_artifacts_emitted = bool(
         report.get("runtime_overlay_artifacts_emitted",
@@ -3557,6 +3614,7 @@ def build_stdout_summary(report):
         f"report: {report['report_path']}",
         f"summary: {report['summary_path']}",
         f"request_mode: {report['request_mode']}",
+        f"source_input: {format_source_input_summary(report.get('source_input_report'))}",
         f"context_bundle_inputs: {report.get('context_bundle_input_count', len(report.get('context_bundle_paths') or []))}",
         f"context_bundles: {report.get('context_bundle_resolution_count', len(report.get('context_bundle_resolutions') or []))}",
         f"context_bundle_class: {report.get('context_bundle_class')}",
@@ -3691,6 +3749,8 @@ def evaluate_conversion_gates(args, report):
 
 
 def validate_bundle_resolution_for_cache(bundle_resolution, cache_path: Path):
+    if not cache_path.is_file():
+        raise ValueError(f"Bundle and context-bundle inputs require a cache file, not a directory: {cache_path}")
     bundle_path = Path(bundle_resolution["resolved_bundle_path"])
     bundle_hires_path = Path(bundle_resolution["resolved_hires_path"])
     _validate_enrichment_fixture_bundle(
@@ -3783,6 +3843,20 @@ def build_conversion(args):
     stage_started = time.perf_counter()
     cache_resolution = resolve_legacy_cache_path(cache_input_path)
     cache_path = Path(cache_resolution["resolved_path"])
+    if cache_resolution["resolved_storage"] == "dat" and not args.accept_glide64_pow2_padding:
+        raise SystemExit(
+            "Glide64 .dat caches store every texture padded to power-of-two dimensions (edge replication, "
+            "8:1 aspect clamp) without the original size, so non-power-of-two textures convert at the wrong "
+            "scale. Prefer the pack's Rice PNG or GLideN64 release; pass --accept-glide64-pow2-padding to "
+            "convert anyway."
+        )
+    if cache_resolution["resolved_storage"] == LOOSE_PNG_STORAGE:
+        configure_loose_png_input(
+            cache_path,
+            rom_name=args.rom_name,
+            alpha_mode=args.loose_png_alpha,
+            workers=args.loose_png_workers,
+        )
     stage_timings_ms["resolve_cache_input"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
     if args.bundle:
         stage_started = time.perf_counter()
@@ -4609,6 +4683,7 @@ def build_conversion(args):
         len(alias_group_review_changes),
         len(alias_group_review_skips),
     )
+    source_input_report = write_source_input_report(output_dir, cache_path, cache_resolution)
 
     report = {
         "cache_input_path": str(cache_input_path),
@@ -4638,7 +4713,8 @@ def build_conversion(args):
         "runtime_overlay_artifacts_emitted": runtime_overlay_artifacts_emitted,
         "requested_family_count": len(requested_pairs),
         "artifact_contract_version": HTS2PHRB_ARTIFACT_VERSION,
-        "input_cache_bytes": cache_path.stat().st_size if cache_path.exists() else 0,
+        "input_cache_bytes": input_size_bytes(cache_path) if cache_path.exists() else 0,
+        "source_input_report": source_input_report,
         "migration_plan_path": str(migration_plan_path),
         "migration_plan_bytes": migration_plan_path.stat().st_size if migration_plan_path.exists() else 0,
         "loader_manifest_path": str(canonical_loader_manifest_path),
@@ -4819,9 +4895,13 @@ def build_conversion(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert a legacy .hts/.htc hi-res cache into a structured .phrb package using the current safe import pipeline."
+        description="Convert a legacy hi-res texture pack (.hts/.htc cache, loose Rice PNG directory or Glide64 .dat cache) into a structured .phrb package using the current safe import pipeline."
     )
-    parser.add_argument("--cache", required=True, help="Path to the legacy .hts/.htc cache file or a directory containing one.")
+    parser.add_argument("--cache", required=True, help="Path to a GLideN64 .hts/.htc cache, a Glide64 *_HIRESTEXTURES.dat cache, a directory containing one, or a loose Rice-named PNG texture directory (used when the directory holds no cache file).")
+    parser.add_argument("--rom-name", help="Loose PNG input: ROM internal name that texture file names must start with (GLideN64's texture folder name). Defaults to the most common <name># prefix in the directory.")
+    parser.add_argument("--loose-png-alpha", choices=("full", "rice"), default="full", help="Loose PNG input: 'full' keeps artist alpha (GLideN64 txHiresFullAlphaChannel=True, its default); 'rice' applies GLideNHQ's legacy Rice alpha rounding to fmt 0/siz 2 and CI textures (txHiresFullAlphaChannel=False).")
+    parser.add_argument("--accept-glide64-pow2-padding", action="store_true", help="Convert a Glide64 .dat cache even though its non-power-of-two textures are stored padded and will render at the wrong scale.")
+    parser.add_argument("--loose-png-workers", type=int, help="Loose PNG input: decoder processes. Defaults to the CPU count.")
     parser.add_argument("--bundle", help="Optional evidence input. Accepts a bundle directory, traces/hires-evidence.json, validation-summary.json, or validation-summary.md.")
     parser.add_argument("--context-bundle", action="append", default=[], help="Optional passed validation-summary.json/.md input used only to enrich sampled/CI context. Pass multiple times. Direct hires-evidence inputs are rejected for enrichment. Does not change requested families unless --bundle is also supplied.")
     parser.add_argument("--context-dir", action="append", default=[], help="Directory to scan recursively for validation-summary.json files. Each discovered input is treated as an implicit --context-bundle input. Pass multiple times.")

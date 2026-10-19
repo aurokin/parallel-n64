@@ -11,13 +11,69 @@ record which private host currently stores an artifact.
   `*.phrb` files are loaded, or a file whose name ends in `.phrb`. Any other path,
   including an extension-less file, logs `Hi-res replacement cache load failed`
   and renders native textures.
-- `tools/hts2phrb.py` converts GlideN64/GLideNHQ `.hts` or
-  `.htc` caches offline.
-- Rice-format PNG directories require a separate GlideN64 cache-generation
-  step before conversion.
+- `tools/hts2phrb.py --cache <input>` converts these inputs offline:
+  - GlideN64/GLideNHQ `.hts` or `.htc` caches, or a directory holding one.
+  - Loose Rice-named PNG directories (Rice and GLideN64 PNG releases). Pass
+    the texture folder, normally `hires_texture/<ROM name>`; it is used when
+    the directory holds no cache file. See [Loose PNG packs](#loose-png-packs).
+  - Glide64 `*_HIRESTEXTURES.dat` caches, only with
+    `--accept-glide64-pow2-padding`. Glide64 stores every texture padded to
+    power-of-two size by edge replication and does not record the original
+    size, so non-power-of-two textures convert at the wrong scale. Prefer the
+    same pack's Rice PNG or GLideN64 release.
+- Not convertible: Rice `_ci.bmp` textures (they need the game palette at
+  draw time; GLideNHQ skips them as well), Project64/Jabo packs named by
+  32-digit MD5, and port-specific folders such as Dolphin `tex1_*` or rt64
+  names, which the loose PNG loader skips by name.
 - ROMs, pack archives, extracted caches, and generated packages are never
   committed.
 - Record the source URL and archive SHA-256 before promoting a new source.
+
+## Loose PNG Packs
+
+```sh
+python3 tools/hts2phrb.py --cache "hires_texture/SUPER MARIO 64" \
+  --output-dir artifacts/hts2phrb/sm64-png
+```
+
+The loader reproduces the records GLideNHQ (`TxHiResCache`/`TxHiResLoader`)
+would write to a cache from that folder:
+
+- Names must be `<ROM>#<CRC>#<fmt>#<siz>[#<PALCRC>]_<suffix>` with suffix
+  `all.png`, `allciByRGBA.png`, `ciByRGBA.png`, `rgb.png`, `rgb.bmp`,
+  `a.png` or `a.bmp`, or a `$` wildcard form (`#<CRC>#<fmt>#<siz>#$_`,
+  `#$#<fmt>#<siz>#<PALCRC>_`). The key is `PALCRC << 32 | CRC` (the
+  palette-only form keys on `PALCRC`) and the formatsize is `fmt | siz << 8`.
+- `<ROM>` defaults to the most common prefix in the folder. Rice-era packs
+  often use Rice's game names (`Mario Kart 64`) instead of the ROM header
+  name; the key does not depend on it. Override it with `--rom-name`.
+- Subfolders are searched; names starting with `.` or `~!~` are skipped. The
+  first loadable file for a key and formatsize wins.
+- `_rgb` + `_a` pairs take alpha from the red channel of `_a`; `_rgb` alone is
+  opaque. fmt 4 (I) textures without alpha get alpha `(R + G + B) / 3`.
+- `--loose-png-alpha full` (default) matches GlideN64's
+  `txHiresFullAlphaChannel=True`. `rice` matches `False`, the libretro
+  default, which rounds alpha and fills transparent texels for fmt 0/siz 2
+  and CI textures.
+- `source-input-report.json` in the output directory lists every skipped file
+  and its reason.
+
+Deliberate differences from current GLideNHQ, which this converter treats as
+GLideNHQ defects:
+
+- Name matching is case-insensitive, as GLideNHQ behaves on Windows. On other
+  systems it requires exact case.
+- Traversal is depth-first in case-insensitive name order (the NTFS order), so
+  duplicate resolution is deterministic. GLideNHQ uses directory order.
+- `_rgb`/`_a` partners are resolved in the file's own folder. Current
+  GLideNHQ checks for the partner relative to the process working directory
+  and so drops these pairs; the older GlideHQ changed into the folder first.
+- BMP colors are decoded as stored. GLideNHQ copies BMP bytes without swapping
+  blue and red.
+- Textures larger than 4096 pixels are kept at full size, where GLideNHQ would
+  downscale them. The report lists them as `oversize`.
+- A wildcard name whose key is zero is skipped. In GLideNHQ it aborts the whole
+  load.
 
 ## Source Catalog
 

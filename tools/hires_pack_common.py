@@ -2,6 +2,7 @@
 import gzip
 import hashlib
 import json
+import os
 import re
 import struct
 import zlib
@@ -10,7 +11,10 @@ from pathlib import Path
 
 TXCACHE_FORMAT_VERSION = 0x08000000
 REPO_ROOT = Path(__file__).resolve().parent.parent
-LEGACY_CACHE_SUFFIXES = (".htc", ".hts")
+LEGACY_CACHE_SUFFIXES = (".htc", ".hts", ".dat")
+LEGACY_CACHE_SUFFIX_PRIORITY = {".htc": 0, ".hts": 1, ".dat": 2}
+GLIDE64_DAT_STORAGE = "glide64-dat"
+LOOSE_PNG_STORAGE = "loose-png"
 LEGACY_CACHE_ARCHIVAL_MARKERS = (".pre-", ".bak", ".old", ".orig", ".disabled")
 FIELD_RE = re.compile(r"(\w+)=([^\s]+)")
 PROVENANCE_LINE_RE = re.compile(
@@ -49,7 +53,7 @@ def _legacy_cache_archival_rank(cache_path: Path):
 
 
 def _legacy_cache_sort_key(cache_path: Path):
-    suffix_priority = 0 if cache_path.suffix.lower() == ".htc" else 1
+    suffix_priority = LEGACY_CACHE_SUFFIX_PRIORITY.get(cache_path.suffix.lower(), len(LEGACY_CACHE_SUFFIX_PRIORITY))
     return (
         _legacy_cache_archival_rank(cache_path),
         suffix_priority,
@@ -77,12 +81,27 @@ def resolve_legacy_cache_path(cache_input_path: Path):
             (
                 path
                 for path in cache_input_path.iterdir()
-                if path.is_file() and path.suffix.lower() in LEGACY_CACHE_SUFFIXES
+                if path.is_file()
+                and path.suffix.lower() in LEGACY_CACHE_SUFFIXES
+                # Glide64 *_MEMORYCACHE.dat holds native-texture filter output, not hi-res textures.
+                and not path.name.upper().endswith("_MEMORYCACHE.DAT")
             ),
             key=_legacy_cache_sort_key,
         )
         if not candidates:
-            raise ValueError(f"No legacy .hts/.htc cache files found in directory: {cache_input_path}")
+            if _directory_has_loose_images(cache_input_path):
+                return {
+                    "input_path": str(cache_input_path),
+                    "input_kind": "directory",
+                    "resolved_path": str(cache_input_path),
+                    "resolved_storage": LOOSE_PNG_STORAGE,
+                    "selection_reason": "loose-png-directory",
+                    "candidate_count": 1,
+                    "candidate_paths": [str(cache_input_path)],
+                }
+            raise ValueError(
+                f"No .hts/.htc/.dat cache files or loose PNG textures found in directory: {cache_input_path}"
+            )
 
         resolved_path = candidates[0]
         return {
@@ -227,12 +246,198 @@ def parse_htc_entries(cache_path: Path):
 
 
 def parse_cache_entries(cache_path: Path):
+    cache_path = Path(cache_path)
+    if cache_path.is_dir():
+        return load_derived_cache_input(cache_path)["entries"]
     suffix = cache_path.suffix.lower()
     if suffix == ".hts":
         return parse_hts_entries(cache_path)
     if suffix == ".htc":
         return parse_htc_entries(cache_path)
+    if suffix == ".dat":
+        return load_derived_cache_input(cache_path)["entries"]
     raise ValueError(f"Unsupported cache format: {cache_path}")
+
+
+# Loose PNG directories and Glide64 .dat caches are converted to RGBA8 entries
+# once per process; later parse_cache_entries() calls (migration, package
+# materialization, blob streaming) reuse the same entries.
+_DERIVED_INPUT_CACHE = {}
+_LOOSE_PNG_OPTIONS = {}
+
+
+def _directory_has_loose_images(directory: Path):
+    for _dirpath, _dirnames, filenames in os.walk(directory):
+        if any(name.lower().endswith((".png", ".bmp")) for name in filenames):
+            return True
+    return False
+
+
+def configure_loose_png_input(directory: Path, rom_name=None, alpha_mode="full", workers=None):
+    """Set the GLideNHQ load options used whenever `directory` is parsed in this process."""
+    key = str(Path(directory).resolve())
+    options = {"rom_name": rom_name, "alpha_mode": alpha_mode, "workers": workers}
+    if _LOOSE_PNG_OPTIONS.get(key) != options:
+        _DERIVED_INPUT_CACHE.pop(key, None)
+    _LOOSE_PNG_OPTIONS[key] = options
+
+
+def load_derived_cache_input(cache_path: Path):
+    """Return {"entries", "report"} for a loose PNG directory or Glide64 .dat cache."""
+    key = str(Path(cache_path).resolve())
+    if key not in _DERIVED_INPUT_CACHE:
+        if Path(cache_path).is_dir():
+            from hires_pack_loose_png import scan_loose_png_pack
+
+            options = _LOOSE_PNG_OPTIONS.get(key, {})
+            entries, report = scan_loose_png_pack(
+                Path(cache_path),
+                rom_name=options.get("rom_name"),
+                alpha_mode=options.get("alpha_mode") or "full",
+                workers=options.get("workers"),
+            )
+        else:
+            entries, report = parse_glide64_dat(Path(cache_path))
+        _DERIVED_INPUT_CACHE[key] = {"entries": entries, "report": report}
+    return _DERIVED_INPUT_CACHE[key]
+
+
+def input_size_bytes(path: Path):
+    """Bytes on disk for a cache file or every regular file under a pack directory."""
+    path = Path(path)
+    if path.is_file():
+        return path.stat().st_size
+    total = 0
+    for dirpath, _dirnames, filenames in os.walk(path):
+        for name in filenames:
+            file_path = Path(dirpath) / name
+            if file_path.is_file() and not file_path.is_symlink():
+                total += file_path.stat().st_size
+    return total
+
+
+# Glide64 (glide64mk2 GlideHQ TxCache) record header: checksum, width, height,
+# 16-bit GR_TEXFMT format, smallLodLog2, largeLodLog2, aspectRatioLog2, tiles,
+# untiled_width, untiled_height, is_hires_tex, dataSize.
+GLIDE64_DAT_RECORD = struct.Struct("<QiiHiiiiiiBi")
+GR_TEXFMT_GZ = 0x8000
+GR_TEXFMT_INTENSITY_8 = 0x03
+GR_TEXFMT_RGB_565 = 0x0A
+GR_TEXFMT_ARGB_1555 = 0x0B
+GR_TEXFMT_ARGB_4444 = 0x0C
+GR_TEXFMT_ALPHA_INTENSITY_88 = 0x0D
+GR_TEXFMT_ARGB_8888 = 0x12
+GLIDEHQ_HIRESTEXTURES_MASK = 0x000F0000
+GLIDEHQ_RICE_HIRESTEXTURES = 0x00020000
+
+
+def _glide_texels_to_rgba8(gr_format, width, height, pixels):
+    """Convert one GlideHQ texture (Glide byte order) to RGBA8, or None if unsupported."""
+    from PIL import Image
+
+    size = (width, height)
+    if gr_format == GR_TEXFMT_ARGB_8888:
+        return Image.frombytes("RGBA", size, pixels, "raw", "BGRA").tobytes()
+    if gr_format == GR_TEXFMT_ALPHA_INTENSITY_88:
+        return Image.frombytes("LA", size, pixels).convert("RGBA").tobytes()
+    if gr_format == GR_TEXFMT_INTENSITY_8:
+        return Image.frombytes("L", size, pixels).convert("RGBA").tobytes()
+    if gr_format in (GR_TEXFMT_RGB_565, GR_TEXFMT_ARGB_1555, GR_TEXFMT_ARGB_4444):
+        rgba = bytearray(width * height * 4)
+        for i, (value,) in enumerate(struct.iter_unpack("<H", pixels[: width * height * 2])):
+            if gr_format == GR_TEXFMT_RGB_565:
+                texel = (_expand_5_to_8(value >> 11), _expand_6_to_8(value >> 5), _expand_5_to_8(value), 255)
+            elif gr_format == GR_TEXFMT_ARGB_1555:
+                texel = (_expand_5_to_8(value >> 10), _expand_5_to_8(value >> 5), _expand_5_to_8(value),
+                         255 if value & 0x8000 else 0)
+            else:
+                texel = (_expand_4_to_8(value >> 8), _expand_4_to_8(value >> 4), _expand_4_to_8(value),
+                         _expand_4_to_8(value >> 12))
+            rgba[4 * i:4 * i + 4] = bytes(texel)
+        return bytes(rgba)
+    return None
+
+
+def parse_glide64_dat(cache_path: Path):
+    """Read a Glide64 *_HIRESTEXTURES.dat cache into RGBA8 entries plus a skip report.
+
+    The file is one gzip stream: an int32 GlideHQ option word, then records
+    until EOF. Unlike GLideN64 caches there is no version word and no
+    formatsize, so entries carry formatsize 0 (match any formatsize).
+    """
+    entries = []
+    skip_reason_counts = Counter()
+    format_counts = Counter()
+    with gzip.open(cache_path, "rb") as fp:
+        config_raw = fp.read(4)
+        if len(config_raw) != 4:
+            raise ValueError(f"Truncated Glide64 cache: {cache_path}")
+        config = struct.unpack("<I", config_raw)[0]
+        if config == TXCACHE_FORMAT_VERSION:
+            raise ValueError(f"{cache_path} is a GLideN64 cache, not a Glide64 .dat cache")
+        if (config & GLIDEHQ_HIRESTEXTURES_MASK) != GLIDEHQ_RICE_HIRESTEXTURES:
+            raise ValueError(
+                f"{cache_path} is not a Glide64 hi-res texture cache (option word 0x{config:08x})"
+            )
+        while True:
+            header = fp.read(GLIDE64_DAT_RECORD.size)
+            if not header:
+                break
+            if len(header) != GLIDE64_DAT_RECORD.size:
+                skip_reason_counts["truncated-record"] += 1
+                break
+            (checksum64, width, height, gr_format, _small_lod, _large_lod, _aspect,
+             tiles, _untiled_width, _untiled_height, is_hires, data_size) = GLIDE64_DAT_RECORD.unpack(header)
+            payload = fp.read(data_size)
+            if len(payload) != data_size:
+                skip_reason_counts["truncated-record"] += 1
+                break
+            base_format = gr_format & ~GR_TEXFMT_GZ
+            format_counts[f"0x{base_format:02x}"] += 1
+            if tiles:
+                skip_reason_counts["tiled-record"] += 1
+                continue
+            if checksum64 == 0 or width <= 0 or height <= 0:
+                skip_reason_counts["invalid-record"] += 1
+                continue
+            try:
+                pixels = zlib.decompress(payload) if gr_format & GR_TEXFMT_GZ else payload
+                rgba = _glide_texels_to_rgba8(base_format, width, height, pixels)
+            except (zlib.error, ValueError):
+                skip_reason_counts["decode-failed"] += 1
+                continue
+            if rgba is None:
+                skip_reason_counts[f"unsupported-glide-format-0x{base_format:02x}"] += 1
+                continue
+            blob = zlib.compress(rgba, 6)
+            entries.append(
+                {
+                    "checksum64": checksum64,
+                    "palette_crc": (checksum64 >> 32) & 0xFFFFFFFF,
+                    "texture_crc": checksum64 & 0xFFFFFFFF,
+                    "formatsize": 0,
+                    "width": width,
+                    "height": height,
+                    "format": GL_RGBA8 | GL_TEXFMT_GZ,
+                    "texture_format": GL_RGBA,
+                    "pixel_type": GL_UNSIGNED_BYTE,
+                    "is_hires": bool(is_hires),
+                    "data_size": len(blob),
+                    "source_path": str(cache_path),
+                    "storage": GLIDE64_DAT_STORAGE,
+                    "inline_blob": True,
+                    "blob": blob,
+                }
+            )
+    report = {
+        "option_word": f"0x{config:08x}",
+        "record_count": len(entries) + sum(skip_reason_counts.values()),
+        "entry_count": len(entries),
+        "skipped_count": sum(skip_reason_counts.values()),
+        "skip_reason_counts": dict(sorted(skip_reason_counts.items())),
+        "glide_format_counts": dict(sorted(format_counts.items())),
+    }
+    return entries, report
 
 
 def resolve_summary_bundle_reference(summary_path: Path, bundle_reference: str):

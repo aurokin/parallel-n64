@@ -15,6 +15,7 @@ LEGACY_CACHE_SUFFIXES = (".htc", ".hts", ".dat")
 LEGACY_CACHE_SUFFIX_PRIORITY = {".htc": 0, ".hts": 1, ".dat": 2}
 GLIDE64_DAT_STORAGE = "glide64-dat"
 LOOSE_PNG_STORAGE = "loose-png"
+JABO_STORAGE = "jabo-md5"
 LEGACY_CACHE_ARCHIVAL_MARKERS = (".pre-", ".bak", ".old", ".orig", ".disabled")
 FIELD_RE = re.compile(r"(\w+)=([^\s]+)")
 PROVENANCE_LINE_RE = re.compile(
@@ -89,18 +90,19 @@ def resolve_legacy_cache_path(cache_input_path: Path):
             key=_legacy_cache_sort_key,
         )
         if not candidates:
-            if _directory_has_loose_images(cache_input_path):
+            storage = _classify_loose_directory(cache_input_path)
+            if storage is not None:
                 return {
                     "input_path": str(cache_input_path),
                     "input_kind": "directory",
                     "resolved_path": str(cache_input_path),
-                    "resolved_storage": LOOSE_PNG_STORAGE,
-                    "selection_reason": "loose-png-directory",
+                    "resolved_storage": storage,
+                    "selection_reason": "jabo-directory" if storage == JABO_STORAGE else "loose-png-directory",
                     "candidate_count": 1,
                     "candidate_paths": [str(cache_input_path)],
                 }
             raise ValueError(
-                f"No .hts/.htc/.dat cache files or loose PNG textures found in directory: {cache_input_path}"
+                f"No .hts/.htc/.dat cache files, loose PNG textures or Jabo textures found in directory: {cache_input_path}"
             )
 
         resolved_path = candidates[0]
@@ -266,11 +268,20 @@ _DERIVED_INPUT_CACHE = {}
 _LOOSE_PNG_OPTIONS = {}
 
 
-def _directory_has_loose_images(directory: Path):
+def _classify_loose_directory(directory: Path):
+    """Name a loose texture folder's loader: Jabo when 32-hex-digit texture names outnumber Rice `#` names."""
+    from hires_pack_jabo import is_jabo_texture_name
+
+    rice_count = jabo_count = image_count = 0
     for _dirpath, _dirnames, filenames in os.walk(directory):
-        if any(name.lower().endswith((".png", ".bmp")) for name in filenames):
-            return True
-    return False
+        for name in filenames:
+            if name.lower().endswith((".png", ".bmp")):
+                image_count += 1
+                rice_count += "#" in name
+            jabo_count += is_jabo_texture_name(name)
+    if jabo_count > rice_count:
+        return JABO_STORAGE
+    return LOOSE_PNG_STORAGE if image_count else None
 
 
 def configure_loose_png_input(directory: Path, rom_name=None, alpha_mode="full", workers=None):
@@ -283,10 +294,14 @@ def configure_loose_png_input(directory: Path, rom_name=None, alpha_mode="full",
 
 
 def load_derived_cache_input(cache_path: Path):
-    """Return {"entries", "report"} for a loose PNG directory or Glide64 .dat cache."""
+    """Return {"entries", "report"} for a loose PNG or Jabo directory or a Glide64 .dat cache."""
     key = str(Path(cache_path).resolve())
     if key not in _DERIVED_INPUT_CACHE:
-        if Path(cache_path).is_dir():
+        if Path(cache_path).is_dir() and _classify_loose_directory(Path(cache_path)) == JABO_STORAGE:
+            from hires_pack_jabo import scan_jabo_pack
+
+            entries, report = scan_jabo_pack(Path(cache_path), workers=_LOOSE_PNG_OPTIONS.get(key, {}).get("workers"))
+        elif Path(cache_path).is_dir():
             from hires_pack_loose_png import scan_loose_png_pack
 
             options = _LOOSE_PNG_OPTIONS.get(key, {})

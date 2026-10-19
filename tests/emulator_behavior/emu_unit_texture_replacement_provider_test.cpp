@@ -404,6 +404,7 @@ int main()
 			<< " native_sampled=" << stats.native_sampled_entry_count
 			<< " compat=" << stats.compat_entry_count
 			<< " phrb=" << stats.source_phrb_entry_count
+			<< " jabo=" << stats.jabo_entry_count
 			<< std::endl;
 		return 0;
 	}

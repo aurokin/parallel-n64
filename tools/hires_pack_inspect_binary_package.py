@@ -10,6 +10,7 @@ HEADER_STRUCT = struct.Struct('<4sIIIIIII')
 RECORD_STRUCT_V1 = struct.Struct('<IIIIIIIIII')
 RECORD_STRUCT_V2 = struct.Struct('<IIIIIIIIIIIII')
 RECORD_STRUCT_V4 = struct.Struct('<IIIIIIIIIIIIII')
+RECORD_KEY_STRUCT_V8 = struct.Struct('<I16s')
 ASSET_STRUCT_V2 = struct.Struct('<IIIIIIIIIIII')
 ASSET_STRUCT_V3 = struct.Struct('<IIIIIIIIIIQII')
 ASSET_STRUCT_V5 = struct.Struct('<IIIIIIIIIIQQII')
@@ -32,14 +33,15 @@ def inspect_binary_package(path: Path):
     magic, version, record_count, asset_count, record_off, asset_off, string_off, blob_off = HEADER_STRUCT.unpack_from(data, 0)
     if magic != MAGIC:
         raise ValueError(f'Unexpected magic: {magic!r}')
-    if version not in (1, 2, 3, 4, 5, 6, 7):
+    if version not in (1, 2, 3, 4, 5, 6, 7, 8):
         raise ValueError(f'Unsupported version: {version}')
 
     string_blob = data[string_off:blob_off]
     records = []
     record_struct = RECORD_STRUCT_V4 if version >= 4 else RECORD_STRUCT_V2 if version >= 2 else RECORD_STRUCT_V1
+    record_size = record_struct.size + (RECORD_KEY_STRUCT_V8.size if version >= 8 else 0)
     for i in range(record_count):
-        off = record_off + i * record_struct.size
+        off = record_off + i * record_size
         if version >= 4:
             (policy_key_off, sampled_object_id_off, record_flags, fmt, siz, tex_off, stride, width, height, formatsize, sampled_low32, sampled_entry_pcrc, sampled_sparse_pcrc, asset_candidate_count) = record_struct.unpack_from(data, off)
         elif version >= 2:
@@ -71,6 +73,11 @@ def inspect_binary_package(path: Path):
             'asset_candidate_count': asset_candidate_count,
             'asset_candidates': [],
         })
+        if version >= 8:
+            key_kind, key = RECORD_KEY_STRUCT_V8.unpack_from(data, off + record_struct.size)
+            records[-1]['key_kind'] = {0: 'rice', 1: 'jabo-md5'}.get(key_kind, key_kind)
+            if key_kind == 1:
+                records[-1]['jabo_md5'] = key.hex()
 
     asset_struct = ASSET_STRUCT_V7 if version >= 7 else ASSET_STRUCT_V6 if version >= 6 else ASSET_STRUCT_V5 if version >= 5 else ASSET_STRUCT_V3 if version >= 3 else ASSET_STRUCT_V2
     for i in range(asset_count):

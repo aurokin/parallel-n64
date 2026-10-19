@@ -12,6 +12,7 @@ from pathlib import Path
 from hires_pack_apply_alias_group_review import apply_alias_group_reviews
 from hires_pack_apply_duplicate_review import dedupe_loader_manifest
 from hires_pack_common import (
+    JABO_STORAGE,
     LOOSE_PNG_STORAGE,
     configure_loose_png_input,
     decode_entry_rgba8,
@@ -614,12 +615,12 @@ def write_source_input_report(output_dir: Path, cache_path: Path, cache_resoluti
     The full per-file skip list goes to source-input-report.json; the returned
     summary drops the per-file lists so hts2phrb-report.json stays small.
     """
-    if cache_resolution["resolved_storage"] not in (LOOSE_PNG_STORAGE, "dat"):
+    if cache_resolution["resolved_storage"] not in (LOOSE_PNG_STORAGE, JABO_STORAGE, "dat"):
         return None
     full_report = load_derived_cache_input(cache_path)["report"]
     report_path = output_dir / "source-input-report.json"
     report_path.write_text(json.dumps(full_report, indent=2) + "\n")
-    summary = {key: value for key, value in full_report.items() if key not in ("skipped", "oversize")}
+    summary = {key: value for key, value in full_report.items() if key not in ("skipped", "oversize", "pack_metadata")}
     summary["report_path"] = str(report_path)
     return summary
 
@@ -3556,6 +3557,8 @@ def format_source_input_summary(source_input_report):
 
 
 def build_stdout_summary(report):
+    if report.get("resolved_cache_storage") == JABO_STORAGE:
+        return build_jabo_stdout_summary(report)
     runtime_overlay_artifacts_emitted = bool(
         report.get("runtime_overlay_artifacts_emitted",
                    bool(report.get("bindings_path") or report.get("runtime_loader_manifest_path")))
@@ -3825,6 +3828,105 @@ def resolve_requested_pairs(args, entries, bundle_resolution=None, cache_path=No
     return deduped_pairs, bundle_context, bundle_sampled_context, request_mode, request_was_defaulted, bundle_resolution
 
 
+# Options that only apply to the Rice migration pipeline.
+JABO_UNSUPPORTED_OPTIONS = (
+    "bundle", "context_bundle", "context_dir", "low32", "formatsize", "import_policy", "transport_policy",
+    "canonical_family_selection_review", "duplicate_review", "alias_group_review", "review_profile",
+)
+
+
+def build_jabo_conversion(args, cache_input_path, cache_resolution, started_at, stage_timings_ms):
+    """Convert a Project64/Jabo pack: one flat MD5-keyed record per texture in a version-8 .phrb."""
+    from hires_pack_jabo import build_jabo_package_manifest
+
+    used = [f"--{name.replace('_', '-')}" for name in JABO_UNSUPPORTED_OPTIONS if getattr(args, name, None)]
+    if used:
+        raise SystemExit(f"Jabo pack conversion does not support {', '.join(used)}.")
+    cache_path = Path(cache_resolution["resolved_path"])
+    configure_loose_png_input(cache_path, workers=args.loose_png_workers)
+    output_dir, output_dir_was_default = resolve_output_dir(args, cache_input_path, cache_resolution)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    report_path = output_dir / "hts2phrb-report.json"
+    summary_path = output_dir / "hts2phrb-summary.md"
+    binary_path = output_dir / args.package_name
+
+    stage_started = time.perf_counter()
+    entries = load_derived_cache_input(cache_path)["entries"]
+    stage_timings_ms["parse_cache"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
+
+    stage_started = time.perf_counter()
+    package_manifest = build_jabo_package_manifest(entries)
+    blobs = {f"jabo-{entry['jabo_md5']}": entry["blob"] for entry in entries}
+    binary_result = emit_binary_package_from_manifest(package_manifest, binary_path, blobs, asset_storage_mode="legacy")
+    stage_timings_ms["emit_binary_package"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
+    stage_timings_ms["total"] = round((time.perf_counter() - started_at) * 1000.0, 3)
+
+    record_count = package_manifest["record_count"]
+    report = {
+        "cache_input_path": str(cache_input_path),
+        "cache_input_kind": cache_resolution["input_kind"],
+        "cache_path": str(cache_path),
+        "output_dir": str(output_dir),
+        "output_dir_was_default": output_dir_was_default,
+        "cache_resolution": cache_resolution,
+        "cache_selection_reason": cache_resolution["selection_reason"],
+        "resolved_cache_storage": JABO_STORAGE,
+        "artifact_contract_version": HTS2PHRB_ARTIFACT_VERSION,
+        "input_cache_bytes": input_size_bytes(cache_path),
+        "source_input_report": write_source_input_report(output_dir, cache_path, cache_resolution),
+        "package_record_count": record_count,
+        "binary_package_path": str(binary_path),
+        "binary_package": binary_result,
+        "binary_package_bytes": binary_path.stat().st_size,
+        "binary_package_version": read_package_version(binary_path),
+        "conversion_outcome": "promotable-runtime-package" if record_count else "diagnostic-only",
+        "warnings": [] if record_count else ["No Jabo textures were loadable; the package is empty."],
+        "stage_timings_ms": dict(stage_timings_ms),
+        "report_path": str(report_path),
+        "summary_path": str(summary_path),
+    }
+    report["gate_failures"] = evaluate_conversion_gates(args, report)
+    summary_path.write_text(build_jabo_markdown_summary(report) + "\n")
+    report_path.write_text(json.dumps(report, indent=2) + "\n")
+    return report
+
+
+def read_package_version(path: Path):
+    with path.open("rb") as fp:
+        return int.from_bytes(fp.read(8)[4:8], "little")
+
+
+def build_jabo_markdown_summary(report):
+    return "\n".join([
+        "# hts2phrb Jabo Conversion",
+        "",
+        f"- Output dir: `{report['output_dir']}`",
+        f"- Cache input: `{report['cache_input_path']}`",
+        f"- Source input: {format_source_input_summary(report.get('source_input_report'))}",
+        f"- Outcome: `{report['conversion_outcome']}`",
+        f"- Package: `{report['binary_package_path']}` (version {report['binary_package_version']}, "
+        f"{report['package_record_count']} records, {report['binary_package_bytes']} bytes)",
+        f"- Total: `{report['stage_timings_ms'].get('total', 0.0):.1f} ms`",
+    ] + [f"- Warning: {warning}" for warning in report["warnings"]])
+
+
+def build_jabo_stdout_summary(report):
+    lines = [
+        f"output_dir: {report['output_dir']}",
+        f"report: {report['report_path']}",
+        f"summary: {report['summary_path']}",
+        f"source_input: {format_source_input_summary(report.get('source_input_report'))}",
+        f"conversion_outcome: {report['conversion_outcome']}",
+        f"package: {report['binary_package_path']}",
+        f"package_version: {report['binary_package_version']}",
+        f"package_records: {report['package_record_count']}",
+        f"package_bytes: {report['binary_package_bytes']}",
+        f"total_ms: {report['stage_timings_ms'].get('total', 0.0):.3f}",
+    ]
+    lines.extend(f"warning: {warning}" for warning in report["warnings"])
+    return "\n".join(lines) + "\n"
+
+
 def build_conversion(args):
     cache_input_path = Path(args.cache)
     manifest_review_inputs = resolve_manifest_review_inputs(args)
@@ -3858,6 +3960,8 @@ def build_conversion(args):
             workers=args.loose_png_workers,
         )
     stage_timings_ms["resolve_cache_input"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
+    if cache_resolution["resolved_storage"] == JABO_STORAGE:
+        return build_jabo_conversion(args, cache_input_path, cache_resolution, started_at, stage_timings_ms)
     if args.bundle:
         stage_started = time.perf_counter()
         bundle_resolution = resolve_bundle_input_path(
@@ -4895,13 +4999,13 @@ def build_conversion(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert a legacy hi-res texture pack (.hts/.htc cache, loose Rice PNG directory or Glide64 .dat cache) into a structured .phrb package using the current safe import pipeline."
+        description="Convert a legacy hi-res texture pack (.hts/.htc cache, loose Rice PNG directory, Project64/Jabo MD5-named directory or Glide64 .dat cache) into a structured .phrb package using the current safe import pipeline."
     )
-    parser.add_argument("--cache", required=True, help="Path to a GLideN64 .hts/.htc cache, a Glide64 *_HIRESTEXTURES.dat cache, a directory containing one, or a loose Rice-named PNG texture directory (used when the directory holds no cache file).")
+    parser.add_argument("--cache", required=True, help="Path to a GLideN64 .hts/.htc cache, a Glide64 *_HIRESTEXTURES.dat cache, a directory containing one, or a loose texture directory (used when the directory holds no cache file): Rice-named PNGs, or Project64/Jabo textures named by 32-digit MD5, whichever naming the directory mostly uses.")
     parser.add_argument("--rom-name", help="Loose PNG input: ROM internal name that texture file names must start with (GLideN64's texture folder name). Defaults to the most common <name># prefix in the directory.")
     parser.add_argument("--loose-png-alpha", choices=("full", "rice"), default="full", help="Loose PNG input: 'full' keeps artist alpha (GLideN64 txHiresFullAlphaChannel=True, its default); 'rice' applies GLideNHQ's legacy Rice alpha rounding to fmt 0/siz 2 and CI textures (txHiresFullAlphaChannel=False).")
     parser.add_argument("--accept-glide64-pow2-padding", action="store_true", help="Convert a Glide64 .dat cache even though its non-power-of-two textures are stored padded and will render at the wrong scale.")
-    parser.add_argument("--loose-png-workers", type=int, help="Loose PNG input: decoder processes. Defaults to the CPU count.")
+    parser.add_argument("--loose-png-workers", type=int, help="Loose PNG or Jabo input: decoder processes. Defaults to the CPU count.")
     parser.add_argument("--bundle", help="Optional evidence input. Accepts a bundle directory, traces/hires-evidence.json, validation-summary.json, or validation-summary.md.")
     parser.add_argument("--context-bundle", action="append", default=[], help="Optional passed validation-summary.json/.md input used only to enrich sampled/CI context. Pass multiple times. Direct hires-evidence inputs are rejected for enrichment. Does not change requested families unless --bundle is also supplied.")
     parser.add_argument("--context-dir", action="append", default=[], help="Directory to scan recursively for validation-summary.json files. Each discovered input is treated as an implicit --context-bundle input. Pass multiple times.")

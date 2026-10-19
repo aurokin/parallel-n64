@@ -7,6 +7,11 @@ from pathlib import Path
 
 MAGIC = b'PHRB'
 VERSION = 7
+# Version 8 appends a key kind and a 16-byte key to every record. It is only
+# written when a record carries a Jabo MD5, so Rice-only output stays version 7.
+JABO_VERSION = 8
+KEY_KIND_RICE = 0
+KEY_KIND_JABO_MD5 = 1
 RECORD_FLAG_RUNTIME_READY = 1 << 0
 GL_RGBA = 0x1908
 GL_UNSIGNED_BYTE = 0x1401
@@ -66,6 +71,7 @@ def _build_package_tables(package_manifest: dict,
             })
 
     string_blob, string_offsets = encode_string_table(strings)
+    version = JABO_VERSION if any(record.get('jabo_md5') for record in records) else VERSION
 
     record_table = bytearray()
     asset_table = bytearray()
@@ -96,6 +102,13 @@ def _build_package_tables(package_manifest: dict,
             parse_u32_identity(identity.get('sampled_sparse_pcrc')),
             record['asset_candidate_count'],
         ))
+        if version >= JABO_VERSION:
+            jabo_md5 = record.get('jabo_md5')
+            record_table.extend(struct.pack(
+                '<I16s',
+                KEY_KIND_JABO_MD5 if jabo_md5 else KEY_KIND_RICE,
+                bytes.fromhex(jabo_md5) if jabo_md5 else bytes(16),
+            ))
 
     for asset_record in asset_records:
         record_index = asset_record['record_index']
@@ -158,6 +171,7 @@ def _build_package_tables(package_manifest: dict,
     blob_offset = string_table_offset + len(string_blob)
 
     return {
+        'version': version,
         'records': records,
         'asset_records': asset_records,
         'string_blob': string_blob,
@@ -196,7 +210,7 @@ def emit_binary_package_from_manifest(package_manifest: dict,
         fp.write(struct.pack(
             '<4sIIIIIII',
             MAGIC,
-            VERSION,
+            package_tables['version'],
             len(records),
             len(asset_records),
             record_table_offset,

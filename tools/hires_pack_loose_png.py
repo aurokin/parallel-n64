@@ -336,14 +336,14 @@ def _pair_paths(root: Path, rel: Path, listing_for):
     return find(("_rgb.png", "_rgb.bmp")), find(("_a.png", "_a.bmp"))
 
 
-def _map_tasks(tasks, workers):
+def _map_tasks(tasks, workers, loader=load_rice_texture):
     if workers > 1 and len(tasks) > 1:
         # fork needs no importable __main__, so library callers without a
         # main guard work; other platforms keep their default start method.
         context = multiprocessing.get_context("fork") if sys.platform.startswith("linux") else None
         with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
-            return list(pool.map(load_rice_texture, tasks, chunksize=8))
-    return [load_rice_texture(task) for task in tasks]
+            return list(pool.map(loader, tasks, chunksize=8))
+    return [loader(task) for task in tasks]
 
 
 def scan_loose_png_pack(root: Path, rom_name: str | None = None, alpha_mode: str = "full", workers: int | None = None):

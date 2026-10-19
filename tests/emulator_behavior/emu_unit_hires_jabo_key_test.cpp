@@ -191,6 +191,30 @@ void test_memo_palette_hash_covers_only_indexable_entries()
 	tlut[8 * 0xff] = 0x56;
 	check(hires_jabo_palette_hash(tlut, TextureSize::Bpp8, 0) != ci8, "CI8 hashes all 256 entries");
 }
+
+// The Rice checksum skips leading row bytes and the last texel of odd 4-bit
+// rows; the source hash that guards Jabo memo and binding reuse must not.
+void test_source_hash_covers_every_hashed_byte()
+{
+	std::vector<uint8_t> rdram(4096);
+	HiresCompatView view;
+	view.address = 0x100;
+	view.width = 7; // odd 4-bit row: 3.5 bytes, last nibble in byte 3
+	view.height = 2;
+	view.row_stride = 8;
+	auto hash = [&](TextureSize size) { return hires_jabo_source_hash(rdram.data(), rdram.size(), view, size, 0, false); };
+	const uint64_t base = hash(TextureSize::Bpp4);
+	rdram[(0x100 + 8 + 3) ^ 3u] = 0xf0; // second row, high nibble of byte 3 = texel 6
+	check(hash(TextureSize::Bpp4) != base, "the last texel of an odd 4-bit row changes the hash");
+	const uint64_t i8 = hash(TextureSize::Bpp8);
+	rdram[(0x100 + 0) ^ 3u] = 0x01; // first byte of a 7-byte I8 row
+	check(hash(TextureSize::Bpp8) != i8, "leading row bytes change the hash");
+	const uint64_t outside = hash(TextureSize::Bpp8);
+	rdram[(0x100 + 7) ^ 3u] = 0x02; // row padding past the 7 texels
+	check(hash(TextureSize::Bpp8) == outside, "bytes outside the view do not change the hash");
+	check(hires_jabo_source_hash(rdram.data(), rdram.size(), view, TextureSize::Bpp8, 1, false) != outside,
+	      "the palette hash is mixed in");
+}
 }
 
 int main()
@@ -201,6 +225,7 @@ int main()
 	test_palette_bank_type_and_absence();
 	test_unkeyable_formats();
 	test_memo_palette_hash_covers_only_indexable_entries();
+	test_source_hash_covers_every_hashed_byte();
 	std::cout << "emu_unit_hires_jabo_key_test: PASS" << std::endl;
 	return 0;
 }

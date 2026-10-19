@@ -2303,8 +2303,11 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			// the exact source-backed draw key. LoadBlock subview rebasing
 			// retains its established behavior.
 			auto &prior_state = replacement_tiles[resolve_tile];
+			const bool tlut_ia16 = (raster_flags & RASTERIZATION_TLUT_TYPE_BIT) != 0;
 			if (prior_state.hit && prior_state.checksum64 == compat_checksum64 &&
-			    prior_state.formatsize == formatsize_key(resolve_meta.fmt, resolve_meta.size))
+			    prior_state.formatsize == formatsize_key(resolve_meta.fmt, resolve_meta.size) &&
+			    (prior_state.jabo_source_hash == 0 ||
+			     prior_state.jabo_source_hash == hires_jabo_binding_hash(resolve_meta, compat_view, tlut_ia16)))
 				continue;
 			if (prior_state.hit)
 			{
@@ -2328,9 +2331,10 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 					resolve_meta.offset, resolve_meta.stride,
 					0, 0, compat_low32, compat_palette_crc, 0, &compat_resolution);
 				// Jabo packages key by MD5 instead; try them only after the Rice key misses.
+				uint64_t jabo_source_hash = 0;
 				const bool jabo_hit = !compat_hit && hires_jabo_lane_enabled &&
 				    resolve_hires_jabo_draw_candidate(resolve_meta, compat_view, compat_checksum64,
-				        (raster_flags & RASTERIZATION_TLUT_TYPE_BIT) != 0, &compat_resolution);
+				        tlut_ia16, &compat_resolution, &jabo_source_hash);
 				compat_hit = compat_hit || jabo_hit;
 
 				if (compat_hit)
@@ -2359,6 +2363,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 						repl_state.keyed_rdram_addr = hires_rdram_load_addr[resolve_tile];
 						repl_state.ci4_palette = detail::make_hires_ci4_palette_binding(compat_formatsize, resolve_meta.palette);
 						repl_state.source_layout_binding = compat_view.source_layout;
+						repl_state.jabo_source_hash = jabo_hit ? jabo_source_hash : 0;
 						apply_hires_tile_binding(resolve_tile, repl_state);
 						if (jabo_hit)
 							hires_jabo_draw_hits++;
@@ -5081,15 +5086,25 @@ bool Renderer::resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64
 // Keys the draw view the way Jabo named its texture dump and looks the MD5 up.
 // The Rice key computed for the same view gates the memo, so repeated draws of
 // unchanged texels hash once.
+uint64_t Renderer::hires_jabo_binding_hash(const TileMeta &tile_meta, const detail::HiresCompatView &view,
+                                           bool tlut_ia16) const
+{
+	const bool ci = tile_meta.fmt == TextureFormat::CI;
+	const uint32_t palette_hash =
+	    ci ? detail::hires_jabo_palette_hash(tlut_tmem_shadow, tile_meta.size, tile_meta.palette) : 0;
+	return detail::hires_jabo_source_hash(cpu_rdram, rdram_size, view, tile_meta.size, palette_hash, ci && tlut_ia16);
+}
+
 bool Renderer::resolve_hires_jabo_draw_candidate(const TileMeta &tile_meta, const detail::HiresCompatView &view,
-                                                 uint64_t rice_checksum64, bool tlut_ia16, ReplacementResolution *out)
+                                                 uint64_t rice_checksum64, bool tlut_ia16, ReplacementResolution *out,
+                                                 uint64_t *source_hash)
 {
 	const bool ci = tile_meta.fmt == TextureFormat::CI;
 	if (ci && !tlut_shadow_valid)
 		return false;
 
 	detail::HiresJaboMemoKey memo_key;
-	memo_key.rice_checksum64 = rice_checksum64;
+	memo_key.source_hash = *source_hash = hires_jabo_binding_hash(tile_meta, view, tlut_ia16);
 	memo_key.address = view.address;
 	memo_key.width = view.width;
 	memo_key.height = view.height;
@@ -6102,6 +6117,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					lookup_formatsize,
 					lookup_key_w,
 					lookup_key_h);
+			repl_state.jabo_source_hash = 0;
 			repl_state.repl_w = static_cast<uint16_t>(repl_meta.repl_w);
 			repl_state.repl_h = static_cast<uint16_t>(repl_meta.repl_h);
 			repl_state.vk_image_index = repl_meta.vk_image_index;

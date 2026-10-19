@@ -249,9 +249,30 @@ constexpr size_t HIRES_JABO_MEMO_LIMIT = 8192;
 // Draw-time Jabo keys are memoized on the Rice texture key plus everything the
 // Jabo bytes depend on beyond it: view geometry and address, format, palette
 // bank and TLUT type, and a hash of the palette entries the format can index.
+// FNV-1a over exactly the RDRAM bytes compute_hires_jabo_key reads (whole
+// rows, including the last nibble of odd-width 4-bit rows), mixed with the
+// palette inputs. Jabo memoization and binding reuse key on this rather than
+// the Rice checksum, which skips leading row bytes and the last 4-bit texel
+// and is a weak sum, so it can stay equal while the hashed texels change.
+inline uint64_t hires_jabo_source_hash(const uint8_t *rdram, size_t rdram_size, const HiresCompatView &view,
+                                       TextureSize size, uint32_t palette_hash, bool tlut_ia16)
+{
+	const uint32_t mask = uint32_t(rdram_size - 1);
+	const uint32_t row_bytes = ((view.width << unsigned(size)) + 1) >> 1;
+	uint64_t h = 0xcbf29ce484222325ull;
+	for (uint32_t y = 0; y < view.height; y++)
+	{
+		const uint32_t row = view.address + y * view.row_stride;
+		for (uint32_t x = 0; x < row_bytes; x++)
+			h = (h ^ rdram[((row + x) ^ 3u) & mask]) * 0x100000001b3ull;
+	}
+	h = (h ^ palette_hash) * 0x100000001b3ull;
+	return (h ^ uint64_t(tlut_ia16)) * 0x100000001b3ull;
+}
+
 struct HiresJaboMemoKey
 {
-	uint64_t rice_checksum64 = 0;
+	uint64_t source_hash = 0;
 	uint32_t address = 0;
 	uint32_t width = 0;
 	uint32_t height = 0;
@@ -263,7 +284,7 @@ struct HiresJaboMemoKey
 
 	bool operator==(const HiresJaboMemoKey &other) const
 	{
-		return rice_checksum64 == other.rice_checksum64 && address == other.address && width == other.width &&
+		return source_hash == other.source_hash && address == other.address && width == other.width &&
 		       height == other.height && row_stride == other.row_stride && palette_hash == other.palette_hash &&
 		       formatsize == other.formatsize && palette_bank == other.palette_bank && tlut_ia16 == other.tlut_ia16;
 	}
@@ -273,7 +294,7 @@ struct HiresJaboMemoKeyHash
 {
 	size_t operator()(const HiresJaboMemoKey &key) const
 	{
-		uint64_t h = key.rice_checksum64 * 0x9e3779b97f4a7c15ull;
+		uint64_t h = key.source_hash * 0x9e3779b97f4a7c15ull;
 		const uint64_t fields[] = {
 			key.address, uint64_t(key.width) << 32 | key.height, uint64_t(key.row_stride) << 32 | key.palette_hash,
 			uint64_t(key.formatsize) << 16 | uint64_t(key.palette_bank) << 8 | key.tlut_ia16,

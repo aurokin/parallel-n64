@@ -278,7 +278,9 @@ private:
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta);
 	bool resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64_t key_hi, ReplacementMeta &meta);
 	bool resolve_hires_jabo_draw_candidate(const TileMeta &tile_meta, const detail::HiresCompatView &view,
-	                                       uint64_t rice_checksum64, bool tlut_ia16, ReplacementResolution *out);
+	                                       uint64_t rice_checksum64, bool tlut_ia16, ReplacementResolution *out,
+	                                       uint64_t *source_hash);
+	uint64_t hires_jabo_binding_hash(const TileMeta &tile_meta, const detail::HiresCompatView &view, bool tlut_ia16) const;
 	bool resolve_hires_native_checksum_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta, HiresNativeChecksumDetailClass detail_class = HiresNativeChecksumDetailClass::Exact);
 	bool resolve_hires_sampled_replacement_descriptor(uint32_t sampled_fmt,
 	                                                 uint32_t sampled_siz,
@@ -360,6 +362,10 @@ private:
 		// from this address; a differing hires_rdram_load_addr means the
 		// binding describes overwritten texels (stale-binding guard).
 		uint32_t keyed_rdram_addr = 0;
+		// Nonzero for a Jabo binding: hires_jabo_source_hash of the texels and
+		// palette its MD5 was computed from. The binding is kept only while
+		// that hash still matches, since the Rice key does not cover them all.
+		uint64_t jabo_source_hash = 0;
 		detail::HiresCI4PaletteBinding ci4_palette;
 		// The key or live admission depended on qualified LoadTile source rows.
 		bool source_layout_binding = false;

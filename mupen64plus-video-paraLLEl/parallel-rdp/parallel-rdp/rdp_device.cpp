@@ -977,10 +977,11 @@ void CommandProcessor::configure_hires_replacement(bool enable, const char *cach
 	if (detail::should_attach_hires_provider(outcome))
 		renderer.set_replacement_provider(&replacement_provider);
 
+	// Jabo MD5 lookups run inside the draw-time compat lane, after its Rice key misses.
 	const bool compat_crc_auto_enabled = detail::resolve_hires_gliden64_compat_crc_auto_enabled(
-		replacement_provider.has_phrb_compat_entries());
+		replacement_provider.has_phrb_compat_entries() || replacement_provider.has_jabo_entries());
 
-	// Auto-enable compat CRC only for compat-bearing PHRB payloads.
+	// Auto-enable compat CRC only for compat- or Jabo-bearing PHRB payloads.
 	// Explicit env overrides still win, and pure native loads remain compat-disabled by default.
 	renderer.set_hires_gliden64_compat_crc(
 		detail::resolve_hires_gliden64_compat_crc_enabled(hires_gliden64_compat_crc_override,

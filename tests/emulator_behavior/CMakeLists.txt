@@ -187,6 +187,13 @@ target_include_directories(emu_unit_hires_mip_filter_test PRIVATE "${CMAKE_SOURC
 target_compile_features(emu_unit_hires_mip_filter_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.hires_mip_filter COMMAND emu_unit_hires_mip_filter_test)
 
+add_executable(emu_unit_hires_jabo_key_test
+  emu_unit_hires_jabo_key_test.cpp
+)
+target_include_directories(emu_unit_hires_jabo_key_test PRIVATE "${CMAKE_SOURCE_DIR}")
+target_compile_features(emu_unit_hires_jabo_key_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.hires_jabo_key COMMAND emu_unit_hires_jabo_key_test)
+
 add_executable(emu_unit_hires_addressing_test
   emu_unit_hires_addressing_test.cpp
 )

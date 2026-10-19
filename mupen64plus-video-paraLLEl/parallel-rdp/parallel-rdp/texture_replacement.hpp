@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -84,6 +85,7 @@ struct ReplacementProviderStats
 	uint32_t sampled_family_count = 0;
 	uint32_t compat_low32_family_count = 0;
 	uint32_t source_phrb_entry_count = 0;
+	uint32_t jabo_entry_count = 0;
 };
 
 struct SampledDuplicateDiagnostics
@@ -153,6 +155,7 @@ enum class ReplacementResolutionKind
 	CILow32ReplacementDimsUnique,
 	CILow32Unique,
 	CILow32Any,
+	JaboMd5,
 };
 
 struct ReplacementResolution
@@ -176,6 +179,11 @@ public:
 	bool load_cache_dir(const std::string &path);
 	bool has_compat_entries() const;
 	bool has_phrb_compat_entries() const;
+	bool has_jabo_entries() const;
+	// Project64/Jabo packs key replacements by a 16-byte MD5 (rdp_hires_jabo_key.hpp).
+	// A hit reports the key's little-endian halves as resolved checksum/selector.
+	bool resolve_jabo_candidate(const uint8_t md5[16], ReplacementResolution *out) const;
+	bool decode_rgba8_jabo(uint64_t key_lo, uint64_t key_hi, ReplacementImage *out) const;
 	bool lookup(uint64_t checksum64, uint16_t formatsize, ReplacementMeta *out) const;
 	bool probe_lookup(uint32_t texture_crc, uint32_t palette_crc, uint16_t formatsize, ReplacementMeta *out) const;
 	bool lookup_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta *out) const;
@@ -354,6 +362,9 @@ private:
 		uint32_t sampled_sparse_pcrc = 0;
 		bool has_native_sampled_identity = false;
 		bool is_runtime_family_compat = false;
+		// Jabo entries keep their MD5 halves in checksum64/selector_checksum64
+		// and live only in jabo_index_.
+		bool is_jabo = false;
 		bool is_hires = false;
 		bool inline_blob = false;
 		std::vector<uint8_t> blob;
@@ -422,6 +433,17 @@ private:
 	{
 		size_t operator()(const SampledFamilyLookupKey &key) const;
 	};
+
+	using JaboKey = std::array<uint64_t, 2>;
+	struct JaboKeyHash
+	{
+		size_t operator()(const JaboKey &key) const
+		{
+			return size_t(key[0] ^ (key[1] * 0x9e3779b97f4a7c15ull));
+		}
+	};
+
+	const Entry *find_jabo_entry(uint64_t key_lo, uint64_t key_hi) const;
 
 	const Entry *find_any_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const;
 	const Entry *find_native_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const;
@@ -513,6 +535,7 @@ private:
 	std::unordered_map<SampledLookupKey, uint32_t, SampledLookupKeyHash> sampled_duplicate_index_;
 	std::unordered_map<SampledFamilyLookupKey, std::vector<size_t>, SampledFamilyLookupKeyHash> sampled_family_index_;
 	std::unordered_map<uint64_t, std::vector<uint64_t>> ordered_surface_selectors_;
+	std::unordered_map<JaboKey, size_t, JaboKeyHash> jabo_index_;
 	size_t memory_budget_bytes_ = 0;
 };
 }

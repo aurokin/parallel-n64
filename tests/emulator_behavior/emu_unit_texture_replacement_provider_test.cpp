@@ -50,6 +50,13 @@ struct PHRBRecordV4
 	uint32_t asset_candidate_count;
 };
 
+struct PHRBRecordV8
+{
+	PHRBRecordV4 v4;
+	uint32_t key_kind;
+	uint8_t key[16];
+};
+
 struct PHRBAssetV7
 {
 	uint32_t record_index;
@@ -73,6 +80,7 @@ struct PHRBAssetV7
 
 static_assert(sizeof(PHRBHeader) == 32, "PHRBHeader must stay packed on disk.");
 static_assert(sizeof(PHRBRecordV4) == 56, "PHRBRecordV4 must stay packed on disk.");
+static_assert(sizeof(PHRBRecordV8) == 76, "PHRBRecordV8 must stay packed on disk.");
 static_assert(sizeof(PHRBAssetV7) == 76, "PHRBAssetV7 must stay packed on disk.");
 
 constexpr uint16_t GL_RGB = 0x1907;
@@ -287,6 +295,95 @@ static void write_single_asset_phrb(const std::string &path,
 
 	write_file(path, data);
 }
+
+// One version-8 package holding a Rice family record (key kind 0), a Jabo MD5
+// record (kind 1) and a record of an unknown future kind (2), one RGBA8 asset each.
+static void test_phrb_v8_jabo_records()
+{
+	const std::string dir = make_temp_dir();
+	const uint8_t md5[16] = { 0x62, 0x0f, 0x0b, 0x67, 0xa9, 0x1f, 0x7f, 0x74,
+	                          0x15, 0x1b, 0xc5, 0xbe, 0x74, 0x5b, 0x71, 0x10 };
+	const std::string strings = std::string("record") + '\0';
+	const uint32_t kinds[3] = { 0, 1, 2 };
+	const std::vector<uint8_t> pixels[3] = {
+		std::vector<uint8_t>(16, 0x11), std::vector<uint8_t>(16, 0x22), std::vector<uint8_t>(16, 0x33)
+	};
+
+	PHRBHeader header = {};
+	std::memcpy(header.magic, "PHRB", 4);
+	header.version = 8;
+	header.record_count = 3;
+	header.asset_count = 3;
+	header.record_table_offset = sizeof(PHRBHeader);
+	header.asset_table_offset = header.record_table_offset + 3 * sizeof(PHRBRecordV8);
+	header.string_table_offset = header.asset_table_offset + 3 * sizeof(PHRBAssetV7);
+	header.blob_offset = header.string_table_offset + uint32_t(strings.size());
+
+	std::vector<uint8_t> data;
+	append_bytes(data, header);
+	for (uint32_t kind : kinds)
+	{
+		PHRBRecordV8 record = {};
+		record.v4.record_flags = PHRB_RECORD_FLAG_RUNTIME_READY;
+		record.v4.asset_candidate_count = 1;
+		record.key_kind = kind;
+		if (kind != 0)
+			std::memcpy(record.key, md5, sizeof(md5));
+		append_bytes(data, record);
+	}
+	for (uint32_t i = 0; i < 3; i++)
+	{
+		PHRBAssetV7 asset = {};
+		asset.record_index = i;
+		asset.width = 2;
+		asset.height = 2;
+		asset.format = GL_RGBA8;
+		asset.texture_format = GL_RGBA;
+		asset.pixel_type = GL_UNSIGNED_BYTE;
+		asset.legacy_formatsize = kinds[i] == 0 ? 0x0102 : 0;
+		asset.legacy_checksum64 = kinds[i] == 0 ? 0x1234abcdull : 0;
+		asset.rgba_blob_offset = 16 * i;
+		asset.rgba_blob_size = 16;
+		append_bytes(data, asset);
+	}
+	data.insert(data.end(), strings.begin(), strings.end());
+	for (const auto &blob : pixels)
+		data.insert(data.end(), blob.begin(), blob.end());
+	write_file(dir + "/jabo.phrb", data);
+
+	ReplacementProvider provider;
+	check(provider.load_cache_dir(dir), "provider should load a version-8 PHRB");
+	provider.set_enabled(true);
+	const auto stats = provider.get_stats();
+	check(stats.entry_count == 2, "the unknown key kind record is skipped");
+	check(stats.jabo_entry_count == 1 && stats.compat_entry_count == 1,
+	      "Jabo entries are counted apart from Rice compat entries");
+	check(provider.has_jabo_entries(), "a Jabo record enables Jabo lookups");
+	check(provider.compat_checksum_index_.size() == 1 && provider.compat_checksum_low32_index_.size() == 1,
+	      "Jabo entries stay out of the Rice checksum indices");
+
+	ReplacementResolution resolution = {};
+	check(provider.resolve_jabo_candidate(md5, &resolution), "the Jabo MD5 resolves");
+	check(resolution.kind == ReplacementResolutionKind::JaboMd5 && resolution.meta.repl_w == 2,
+	      "a Jabo hit reports its kind and replacement size");
+	check(resolution.resolved_checksum64 == 0x747f1fa9670b0f62ull &&
+	      resolution.resolved_selector_checksum64 == 0x10715b74bec51b15ull,
+	      "a Jabo hit reports the little-endian MD5 halves");
+	ReplacementImage image = {};
+	check(provider.decode_rgba8_jabo(resolution.resolved_checksum64, resolution.resolved_selector_checksum64, &image) &&
+	      image.rgba8 == pixels[1],
+	      "the Jabo asset decodes from the package blob");
+	ReplacementMeta meta = {};
+	check(provider.lookup(0x1234abcdull, 0x0102, &meta) && meta.repl_w == 2, "the Rice record still resolves");
+	uint8_t other[16];
+	std::memcpy(other, md5, sizeof(other));
+	other[15] ^= 1;
+	check(!provider.resolve_jabo_candidate(other, &resolution), "a different MD5 misses");
+
+	provider.set_enabled(false);
+	check(!provider.resolve_jabo_candidate(md5, &resolution), "a disabled provider resolves nothing");
+	remove_tree(dir);
+}
 }
 
 int main()
@@ -310,6 +407,8 @@ int main()
 			<< std::endl;
 		return 0;
 	}
+
+	test_phrb_v8_jabo_records();
 
 	const std::string dir = make_temp_dir();
 	const std::string path = dir + "/sample.phrb";

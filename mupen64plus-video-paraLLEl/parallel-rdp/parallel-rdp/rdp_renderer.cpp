@@ -1189,6 +1189,13 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_compat_draw_time_ci_attempts = 0;
 	hires_compat_draw_time_ci_hits = 0;
 	hires_compat_draw_time_bank0_hits = 0;
+	hires_jabo_lane_enabled = provider && provider->has_jabo_entries();
+	hires_jabo_draw_hits = 0;
+	hires_jabo_draw_misses = 0;
+	hires_jabo_md5_computations = 0;
+	hires_jabo_memo_hits = 0;
+	hires_jabo_memo.clear();
+	hires_jabo_miss_logged.clear();
 	hires_block_shape_probe_logged_hits.clear();
 	hires_block_shape_probe_logged_contexts.clear();
 	hires_ci_palette_probe_logged_hits.clear();
@@ -1413,6 +1420,14 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 		     static_cast<unsigned long long>(hires_descriptor_native_checksum_exact_resolutions),
 		     static_cast<unsigned long long>(hires_descriptor_native_checksum_identity_assisted_resolutions),
 		     static_cast<unsigned long long>(hires_descriptor_native_checksum_generic_fallback_resolutions));
+		if (hires_jabo_lane_enabled)
+			LOGI("Hi-res Jabo summary%s: entries=%u hits=%llu misses=%llu md5=%llu memo_hits=%llu.\n",
+			     label,
+			     provider_stats.jabo_entry_count,
+			     static_cast<unsigned long long>(hires_jabo_draw_hits),
+			     static_cast<unsigned long long>(hires_jabo_draw_misses),
+			     static_cast<unsigned long long>(hires_jabo_md5_computations),
+			     static_cast<unsigned long long>(hires_jabo_memo_hits));
 		if (!include_duplicate_diagnostics)
 			return;
 		for (const auto &diag : replacement_provider->get_sampled_duplicate_diagnostics(10))
@@ -2312,6 +2327,11 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 					uint32_t(resolve_meta.fmt), uint32_t(resolve_meta.size),
 					resolve_meta.offset, resolve_meta.stride,
 					0, 0, compat_low32, compat_palette_crc, 0, &compat_resolution);
+				// Jabo packages key by MD5 instead; try them only after the Rice key misses.
+				const bool jabo_hit = !compat_hit && hires_jabo_lane_enabled &&
+				    resolve_hires_jabo_draw_candidate(resolve_meta, compat_view, compat_checksum64,
+				        (raster_flags & RASTERIZATION_TLUT_TYPE_BIT) != 0, &compat_resolution);
+				compat_hit = compat_hit || jabo_hit;
 
 				if (compat_hit)
 				{
@@ -2340,11 +2360,16 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 						repl_state.ci4_palette = detail::make_hires_ci4_palette_binding(compat_formatsize, resolve_meta.palette);
 						repl_state.source_layout_binding = compat_view.source_layout;
 						apply_hires_tile_binding(resolve_tile, repl_state);
-						hires_compat_draw_time_hits++;
-						if (is_ci_compat_texture)
-							hires_compat_draw_time_ci_hits++;
+						if (jabo_hit)
+							hires_jabo_draw_hits++;
+						else
+						{
+							hires_compat_draw_time_hits++;
+							if (is_ci_compat_texture)
+								hires_compat_draw_time_ci_hits++;
+						}
 
-						if (hires_debug)
+						if (hires_debug && !jabo_hit)
 						{
 							LOGI("Hi-res GlideN64-compat draw-time hit: tile=%u key=%016llx w=%u h=%u stride=%u addr=0x%06x.\n",
 							     resolve_tile,
@@ -4879,6 +4904,16 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 		resolved_meta.orig_h = orig_h;
 		return finalize(HiresProviderDescriptorPathKind::NativeChecksum, "native_checksum", selector_checksum64);
 	};
+	auto try_jabo = [&]() {
+		if (!resolve_hires_jabo_replacement_descriptor(
+			    resolution.resolved_checksum64,
+			    resolution.resolved_selector_checksum64,
+			    resolved_meta))
+			return false;
+		resolved_meta.orig_w = orig_w;
+		resolved_meta.orig_h = orig_h;
+		return finalize(HiresProviderDescriptorPathKind::Jabo, "jabo", resolution.resolved_selector_checksum64);
+	};
 	auto try_compat = [&](uint64_t selector_checksum64) {
 		if (!resolve_hires_compat_replacement_descriptor(
 			    resolution.resolved_checksum64,
@@ -4919,6 +4954,9 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 	case ReplacementResolutionKind::CILow32Unique:
 	case ReplacementResolutionKind::CILow32Any:
 		return try_compat(resolution.resolved_selector_checksum64);
+
+	case ReplacementResolutionKind::JaboMd5:
+		return try_jabo();
 
 	case ReplacementResolutionKind::None:
 		return false;
@@ -4983,6 +5021,120 @@ bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, 
 	meta.repl_w = replacement.meta.repl_w;
 	meta.repl_h = replacement.meta.repl_h;
 	return true;
+}
+
+bool Renderer::resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64_t key_hi, ReplacementMeta &meta)
+{
+	meta.vk_image_index = detail::hires_invalid_descriptor_index();
+
+	if (!replacement_provider || !caps.hires_replacement_shader)
+		return false;
+
+	HiresKey key = {};
+	key.checksum64 = key_lo;
+	key.selector_checksum64 = key_hi;
+	key.source = HiresKeySource::Jabo;
+	auto itr = hires_resources.resident_images.find(key);
+	if (itr != hires_resources.resident_images.end())
+	{
+		meta.vk_image_index = itr->second.descriptor_index;
+		meta.repl_w = itr->second.repl_w;
+		meta.repl_h = itr->second.repl_h;
+		return true;
+	}
+
+	if (!hires_resources.bindless_pool)
+		return false;
+
+	ReplacementImage replacement = {};
+	if (!replacement_provider->decode_rgba8_jabo(key_lo, key_hi, &replacement))
+		return false;
+	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
+		return false;
+
+	const size_t texture_bytes = hires_replacement_mip_chain_bytes(replacement.meta.repl_w, replacement.meta.repl_h);
+	const uint32_t descriptor_index = allocate_hires_descriptor(texture_bytes);
+	if (descriptor_index == 0xffffffffu)
+		return false;
+
+	zero_transparent_replacement_rgb(replacement.rgba8);
+
+	auto image = create_hires_replacement_image_with_mips(replacement);
+	if (!image)
+		return false;
+
+	hires_resources.bindless_pool->set_texture(descriptor_index, image->get_view());
+
+	HiresResidentImage resident = {};
+	resident.image = std::move(image);
+	resident.descriptor_index = descriptor_index;
+	resident.repl_w = static_cast<uint16_t>(replacement.meta.repl_w);
+	resident.repl_h = static_cast<uint16_t>(replacement.meta.repl_h);
+	hires_resources.resident_images.emplace(key, std::move(resident));
+
+	meta.vk_image_index = descriptor_index;
+	meta.repl_w = replacement.meta.repl_w;
+	meta.repl_h = replacement.meta.repl_h;
+	return true;
+}
+
+// Keys the draw view the way Jabo named its texture dump and looks the MD5 up.
+// The Rice key computed for the same view gates the memo, so repeated draws of
+// unchanged texels hash once.
+bool Renderer::resolve_hires_jabo_draw_candidate(const TileMeta &tile_meta, const detail::HiresCompatView &view,
+                                                 uint64_t rice_checksum64, bool tlut_ia16, ReplacementResolution *out)
+{
+	const bool ci = tile_meta.fmt == TextureFormat::CI;
+	if (ci && !tlut_shadow_valid)
+		return false;
+
+	detail::HiresJaboMemoKey memo_key;
+	memo_key.rice_checksum64 = rice_checksum64;
+	memo_key.address = view.address;
+	memo_key.width = view.width;
+	memo_key.height = view.height;
+	memo_key.row_stride = view.row_stride;
+	memo_key.formatsize = formatsize_key(tile_meta.fmt, tile_meta.size);
+	if (ci)
+	{
+		memo_key.palette_bank = tile_meta.palette;
+		memo_key.tlut_ia16 = tlut_ia16;
+		memo_key.palette_hash = detail::hires_jabo_palette_hash(tlut_tmem_shadow, tile_meta.size, tile_meta.palette);
+	}
+
+	std::array<uint8_t, 16> md5;
+	auto memo = hires_jabo_memo.find(memo_key);
+	if (memo != hires_jabo_memo.end())
+	{
+		md5 = memo->second;
+		hires_jabo_memo_hits++;
+	}
+	else
+	{
+		if (!detail::compute_hires_jabo_key(cpu_rdram, rdram_size, view, tile_meta.fmt, tile_meta.size,
+		                                   ci ? tlut_tmem_shadow : nullptr, tile_meta.palette, tlut_ia16,
+		                                   hires_jabo_scratch, md5.data()))
+			return false;
+		hires_jabo_md5_computations++;
+		if (hires_jabo_memo.size() >= detail::HIRES_JABO_MEMO_LIMIT)
+			hires_jabo_memo.clear();
+		hires_jabo_memo.emplace(memo_key, md5);
+	}
+
+	const bool hit = replacement_provider->resolve_jabo_candidate(md5.data(), out);
+	if (!hit)
+		hires_jabo_draw_misses++;
+	if (hires_debug && (hit || hires_jabo_miss_logged.insert(detail::hires_jabo_key_halves(md5.data())[0]).second))
+	{
+		char md5_hex[33];
+		for (unsigned i = 0; i < 16; i++)
+			std::snprintf(md5_hex + 2 * i, 3, "%02X", md5[i]);
+		LOGI("Hi-res Jabo draw-time %s: md5=%s fmt=%u siz=%u pal=%u tlut_ia16=%u wh=%ux%u stride=%u addr=0x%06x rice_key=%016llx.\n",
+		     hit ? "hit" : "miss", md5_hex, unsigned(tile_meta.fmt), unsigned(tile_meta.size),
+		     unsigned(tile_meta.palette), unsigned(tlut_ia16), view.width, view.height, view.row_stride,
+		     view.address & 0x00ffffffu, static_cast<unsigned long long>(rice_checksum64));
+	}
+	return hit;
 }
 
 void Renderer::clear_hires_tile_binding(unsigned tile)

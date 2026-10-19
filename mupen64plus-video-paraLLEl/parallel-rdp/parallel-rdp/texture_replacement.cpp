@@ -110,7 +110,17 @@ struct PHRBRecordV4
 	uint32_t asset_candidate_count = 0;
 };
 
+// Version 8 appends a record key: Rice (the V4 identity fields) or a Jabo MD5.
+struct PHRBRecordV8
+{
+	PHRBRecordV4 v4;
+	uint32_t key_kind = 0;
+	uint8_t key[16] = {};
+};
+
 constexpr uint32_t PHRB_RECORD_FLAG_RUNTIME_READY = 1u << 0;
+constexpr uint32_t PHRB_KEY_KIND_RICE = 0;
+constexpr uint32_t PHRB_KEY_KIND_JABO_MD5 = 1;
 
 struct PHRBAssetV2
 {
@@ -205,6 +215,7 @@ struct PHRBAssetV7
 static_assert(sizeof(PHRBHeader) == 32, "PHRBHeader must stay packed on disk.");
 static_assert(sizeof(PHRBRecordV2) == 52, "PHRBRecordV2 must stay packed on disk.");
 static_assert(sizeof(PHRBRecordV4) == 56, "PHRBRecordV4 must stay packed on disk.");
+static_assert(sizeof(PHRBRecordV8) == 76, "PHRBRecordV8 must stay packed on disk.");
 static_assert(sizeof(PHRBAssetV2) == 48, "PHRBAssetV2 must stay packed on disk.");
 static_assert(sizeof(PHRBAssetV3) == 56, "PHRBAssetV3 must stay packed on disk.");
 static_assert(sizeof(PHRBAssetV5) == 64, "PHRBAssetV5 must stay packed on disk.");
@@ -459,6 +470,12 @@ void ReplacementProvider::add_entry(Entry &&entry)
 	const size_t index = entries_.size();
 	entries_.push_back(std::move(entry));
 	const Entry &stored = entries_.back();
+	if (stored.is_jabo)
+	{
+		// Like the checksum indices, a later package's entry wins.
+		jabo_index_[JaboKey{ stored.checksum64, stored.selector_checksum64 }] = index;
+		return;
+	}
 	if (stored.has_native_sampled_identity)
 		native_checksum_index_[stored.checksum64].push_back(index);
 	else
@@ -520,6 +537,7 @@ void ReplacementProvider::clear()
 	sampled_duplicate_index_.clear();
 	sampled_family_index_.clear();
 	ordered_surface_selectors_.clear();
+	jabo_index_.clear();
 }
 
 size_t ReplacementProvider::entry_count() const
@@ -580,11 +598,42 @@ bool ReplacementProvider::has_phrb_compat_entries() const
 {
 	for (const auto &entry : entries_)
 	{
-		if (!entry.has_native_sampled_identity && is_phrb_cache_path(entry.source_path))
+		if (!entry.has_native_sampled_identity && !entry.is_jabo && is_phrb_cache_path(entry.source_path))
 			return true;
 	}
 
 	return false;
+}
+
+bool ReplacementProvider::has_jabo_entries() const
+{
+	return !jabo_index_.empty();
+}
+
+const ReplacementProvider::Entry *ReplacementProvider::find_jabo_entry(uint64_t key_lo, uint64_t key_hi) const
+{
+	auto it = jabo_index_.find(JaboKey{ key_lo, key_hi });
+	return it != jabo_index_.end() ? &entries_[it->second] : nullptr;
+}
+
+bool ReplacementProvider::resolve_jabo_candidate(const uint8_t md5[16], ReplacementResolution *out) const
+{
+	if (!enabled_ || !out || jabo_index_.empty())
+		return false;
+
+	JaboKey key = {};
+	for (unsigned i = 0; i < 16; i++)
+		key[i >> 3] |= uint64_t(md5[i]) << (8 * (i & 7));
+	return populate_resolution_from_entry(find_jabo_entry(key[0], key[1]), ReplacementResolutionKind::JaboMd5, false, out);
+}
+
+bool ReplacementProvider::decode_rgba8_jabo(uint64_t key_lo, uint64_t key_hi, ReplacementImage *out) const
+{
+	if (!enabled_ || !out)
+		return false;
+
+	const Entry *entry = find_jabo_entry(key_lo, key_hi);
+	return entry && decode_entry_rgba8(*entry, out);
 }
 
 const ReplacementProvider::Entry *ReplacementProvider::find_any_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const
@@ -1963,7 +2012,9 @@ ReplacementProviderStats ReplacementProvider::get_stats() const
 
 	for (const auto &entry : entries_)
 	{
-		if (entry.has_native_sampled_identity)
+		if (entry.is_jabo)
+			stats.jabo_entry_count++;
+		else if (entry.has_native_sampled_identity)
 			stats.native_sampled_entry_count++;
 		else
 			stats.compat_entry_count++;
@@ -2050,7 +2101,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 			return false;
 		memcpy(&header, header_buf.data(), sizeof(PHRBHeader));
 	}
-	if (!phrb_magic_ok(header.magic) || (header.version != 2 && header.version != 3 && header.version != 4 && header.version != 5 && header.version != 6 && header.version != 7))
+	if (!phrb_magic_ok(header.magic) || (header.version != 2 && header.version != 3 && header.version != 4 && header.version != 5 && header.version != 6 && header.version != 7 && header.version != 8))
 		return false;
 	if (header.string_table_offset > header.blob_offset || header.blob_offset > static_cast<size_t>(size))
 		return false;
@@ -2067,6 +2118,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 	const bool version5 = header.version >= 5;
 	const bool version6 = header.version >= 6;
 	const bool version7 = header.version >= 7;
+	const bool version8 = header.version >= 8;
 	const bool phrb_debug = []() {
 		if (const char *env = getenv("PARALLEL_RDP_HIRES_PHRB_DEBUG"))
 			return strtol(env, nullptr, 0) > 0;
@@ -2086,12 +2138,27 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 	{
 		PHRBRecordV2 record = {};
 		uint32_t record_flags = PHRB_RECORD_FLAG_RUNTIME_READY;
+		uint32_t key_kind = PHRB_KEY_KIND_RICE;
+		uint8_t record_key[16] = {};
 		if (version4)
 		{
 			PHRBRecordV4 record_v4 = {};
-			const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV4);
-			if (!read_pod_from_blob(blob, record_offset, record_v4))
-				return false;
+			if (version8)
+			{
+				PHRBRecordV8 record_v8 = {};
+				const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV8);
+				if (!read_pod_from_blob(blob, record_offset, record_v8))
+					return false;
+				record_v4 = record_v8.v4;
+				key_kind = record_v8.key_kind;
+				memcpy(record_key, record_v8.key, sizeof(record_key));
+			}
+			else
+			{
+				const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV4);
+				if (!read_pod_from_blob(blob, record_offset, record_v4))
+					return false;
+			}
 			record.policy_key_offset = record_v4.policy_key_offset;
 			record.sampled_object_id_offset = record_v4.sampled_object_id_offset;
 			record.fmt = record_v4.fmt;
@@ -2121,7 +2188,9 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 		if (!read_c_string_from_blob(string_blob, string_blob_size, record.sampled_object_id_offset, sampled_object_id))
 			sampled_object_id.clear();
 
-		if ((record_flags & PHRB_RECORD_FLAG_RUNTIME_READY) == 0)
+		// Unknown key kinds come from a newer converter; their keys cannot match.
+		if ((record_flags & PHRB_RECORD_FLAG_RUNTIME_READY) == 0 ||
+		    (key_kind != PHRB_KEY_KIND_RICE && key_kind != PHRB_KEY_KIND_JABO_MD5))
 		{
 			if (phrb_debug)
 				LOGI("Hi-res PHRB record skipped: policy=%s runtime_ready=0 asset_candidates=%u.\n",
@@ -2211,6 +2280,34 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 			entry.sampled_sparse_pcrc = record.sampled_sparse_pcrc;
 			entry.has_native_sampled_identity = false;
 			entry.is_runtime_family_compat = true;
+			entry.is_hires = true;
+			entry.inline_blob = false;
+			add_entry(std::move(entry));
+			loaded_count++;
+		};
+		auto add_jabo_entry = [&](const std::string &replacement_id,
+		                          uint32_t width,
+		                          uint32_t height,
+		                          uint32_t format,
+		                          uint32_t texture_format,
+		                          uint32_t pixel_type,
+		                          uint64_t rgba_offset,
+		                          uint32_t rgba_size) {
+			Entry entry = {};
+			entry.source_path = path;
+			entry.phrb_policy_key = policy_key;
+			entry.phrb_replacement_id = replacement_id;
+			entry.phrb_sampled_object_id = sampled_object_id;
+			for (unsigned i = 0; i < 16; i++)
+				(i < 8 ? entry.checksum64 : entry.selector_checksum64) |= uint64_t(record_key[i]) << (8 * (i & 7));
+			entry.data_offset = uint64_t(header.blob_offset) + rgba_offset;
+			entry.data_size = rgba_size;
+			entry.width = width;
+			entry.height = height;
+			entry.format = format;
+			entry.texture_format = texture_format;
+			entry.pixel_type = pixel_type;
+			entry.is_jabo = true;
 			entry.is_hires = true;
 			entry.inline_blob = false;
 			add_entry(std::move(entry));
@@ -2354,6 +2451,13 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 			}
 			else
 				unique_selectors.push_back(selector_checksum64);
+
+			if (key_kind == PHRB_KEY_KIND_JABO_MD5)
+			{
+				add_jabo_entry(replacement_id, width, height, format, texture_format, pixel_type, rgba_offset,
+				               rgba_size_u32);
+				continue;
+			}
 
 			if (family_runtime_record)
 			{

@@ -25,6 +25,7 @@
 #include "rdp_data_structures.hpp"
 #include "rdp_hires_ci_binding_policy.hpp"
 #include "rdp_hires_compat_view.hpp"
+#include "rdp_hires_jabo_key.hpp"
 #include "device.hpp"
 #include "rdp_common.hpp"
 #include "worker_thread.hpp"
@@ -269,11 +270,15 @@ private:
 		Sampled,
 		NativeChecksum,
 		Compat,
+		Jabo,
 	};
 	uint32_t allocate_hires_descriptor(size_t incoming_bytes);
 	Vulkan::ImageHandle create_hires_replacement_image_with_mips(const ReplacementImage &replacement);
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta);
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta);
+	bool resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64_t key_hi, ReplacementMeta &meta);
+	bool resolve_hires_jabo_draw_candidate(const TileMeta &tile_meta, const detail::HiresCompatView &view,
+	                                       uint64_t rice_checksum64, bool tlut_ia16, ReplacementResolution *out);
 	bool resolve_hires_native_checksum_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta, HiresNativeChecksumDetailClass detail_class = HiresNativeChecksumDetailClass::Exact);
 	bool resolve_hires_sampled_replacement_descriptor(uint32_t sampled_fmt,
 	                                                 uint32_t sampled_siz,
@@ -393,6 +398,16 @@ private:
 	// Retired cross-bank fallback; retain its zero-valued summary field.
 	uint64_t hires_compat_draw_time_bank0_hits = 0;
 	std::unordered_set<uint64_t> hires_compat_draw_miss_logged;
+	// Jabo MD5 lane: runs after a draw-time Rice miss, only for packages with
+	// Jabo records. The memo maps draw views to MD5s and is bounded by clearing.
+	bool hires_jabo_lane_enabled = false;
+	uint64_t hires_jabo_draw_hits = 0;
+	uint64_t hires_jabo_draw_misses = 0;
+	uint64_t hires_jabo_md5_computations = 0;
+	uint64_t hires_jabo_memo_hits = 0;
+	std::unordered_map<detail::HiresJaboMemoKey, std::array<uint8_t, 16>, detail::HiresJaboMemoKeyHash> hires_jabo_memo;
+	std::vector<uint8_t> hires_jabo_scratch;
+	std::unordered_set<uint64_t> hires_jabo_miss_logged;
 	std::unordered_set<std::string> hires_block_shape_probe_logged_hits;
 	std::unordered_set<std::string> hires_block_shape_probe_logged_contexts;
 	std::unordered_set<std::string> hires_ci_palette_probe_logged_hits;
@@ -584,7 +599,8 @@ private:
 		Compat = 2,
 		NativeChecksum = 3,
 		GenericNative = 4,
-		GenericCompat = 5
+		GenericCompat = 5,
+		Jabo = 6
 	};
 
 	struct HiresKey

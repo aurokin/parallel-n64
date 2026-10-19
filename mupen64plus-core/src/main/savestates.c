@@ -663,6 +663,14 @@ int savestates_save_m64p(unsigned char *data, size_t size)
    if (!savestates_write_m64p(&writer))
       return 0;
 
+   /* Resume exactly as a load of this state does: jump to the saved PC and drop
+    * recompiled code. Otherwise the saving run keeps executing blocks compiled
+    * from earlier entry points, whose cycle-count updates fall elsewhere than
+    * those of blocks recompiled from the load PC, and a fresh-process load of
+    * the state diverges in interrupt timing (dynamic recompiler only). */
+   savestates_load_set_pc(*r4300_pc());
+   *r4300_last_addr() = *r4300_pc();
+
    /* Deliver callback to indicate completion
     * of state saving operation */
    StateChanged(M64CORE_STATE_SAVECOMPLETE, 1);

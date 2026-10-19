@@ -46,7 +46,8 @@ class RuntimePaths(unittest.TestCase):
         result = self.check_title("--mode", "on", "--check-inputs", env={**self.env, "RUNTIME_ENV_OVERRIDE": str(config)})
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
-        self.assertEqual(report["inputs"]["pack"], {"path": str(pack), "sha256": hashlib.sha256(pack.read_bytes()).hexdigest()})
+        # The check reports the resolved path (macOS temp dirs live behind the /var symlink).
+        self.assertEqual(report["inputs"]["pack"], {"path": str(pack.resolve()), "sha256": hashlib.sha256(pack.read_bytes()).hexdigest()})
         self.assertEqual(report["inputs"]["frontend"]["path"], self.env["RETROARCH_BIN"])
         self.assertFalse(self.bundle.exists())
 

@@ -6,7 +6,31 @@ tracked by their owning systems.
 
 ## Savestate load does not reproduce the saving run
 
-Status: open, October 16, 2026. Cause not yet isolated.
+Status: resolved, October 19, 2026, for states saved by cores with both fixes
+below; states saved earlier keep the gap.
+
+Two causes, found with a probe that saves mid-run, continues, and compares the
+continuation with a fresh-process load of that save (neutral input, hi-res off):
+
+- **RDP noise seed.** ParaLLEl-RDP seeds each primitive's noise from a running
+  primitive count that starts at zero in every process and was not saved. A
+  loaded state drew different dither and combiner noise, so only framebuffer
+  pixels diverged (Ocarina of Time, Majora's Mask). States now end with a
+  12-byte `PRDP` trailer after the event queue carrying the count; states without
+  it load as before.
+- **Dynamic recompiler entry points.** A load jumps to the saved PC and drops
+  recompiled code, but the saving run kept executing blocks compiled from
+  earlier entry points, so cycle-count updates, and with them interrupt timing,
+  fell elsewhere (CP0 Count, `next_interrupt`, the event queue, then game
+  memory; GoldenEye, Paper Mario). The cached and pure interpreters reproduced.
+  Saving now applies the same jump and invalidation, so a run that saves
+  differs in timing from the same run without the save.
+
+With both, nine probe states across Ocarina of Time, Majora's Mask, GoldenEye and
+Paper Mario reproduce, and a seven-chunk Ocarina of Time recording with inputs
+replays chunk for chunk from fresh processes (six chunks start from saves).
+
+Original report (October 16):
 
 Replaying 90 recorded Paper Mario segments with the recording core and
 hi-res disabled reproduced all 9 power-on segments and 69 of 81 segments that

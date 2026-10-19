@@ -56,6 +56,12 @@ replacement no longer reaches RDRAM when upscaling. The on-mode end-state hash
 now gates like the off-mode one, and `compare_modes.py --strict-rdram` requires
 the on-mode end state to equal the off-mode one at upscaled runtime classes.
 
+Amendment (2026-10-19): savestates now carry the RDP noise seed and saving
+resumes like a load (issue log, "Savestate load does not reproduce the saving
+run"), so recordings made by such cores reproduce from their saves. Decision 5
+still applies: recordings made before the fix keep their qualification
+outcome on their recording core.
+
 ## Consequences
 
 - Recorded agent play becomes a durable regression corpus; future play follows the

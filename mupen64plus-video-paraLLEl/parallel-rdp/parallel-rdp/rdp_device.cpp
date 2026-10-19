@@ -1034,6 +1034,18 @@ void *CommandProcessor::get_tmem()
 	return device.map_host_buffer(*tmem, MEMORY_ACCESS_READ_BIT);
 }
 
+uint32_t CommandProcessor::get_noise_state()
+{
+	idle();
+	return renderer.get_base_primitive_index();
+}
+
+void CommandProcessor::set_noise_state(uint32_t base_primitive_index)
+{
+	idle();
+	renderer.set_base_primitive_index(base_primitive_index);
+}
+
 void CommandProcessor::idle()
 {
 	flush();

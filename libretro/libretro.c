@@ -809,7 +809,11 @@ void reinit_gfx_plugin(void)
                 log_cb(RETRO_LOG_ERROR, "Failed to obtain Vulkan interface.\n");
           }
           else
+          {
              parallel_init(vulkan);
+             savestate_rdp_noise_get = parallel_get_noise_state;
+             savestate_rdp_noise_set = parallel_set_noise_state;
+          }
 #endif
           break;
     }
@@ -821,6 +825,8 @@ void deinit_gfx_plugin(void)
     {
        case GFX_PARALLEL:
 #if defined(HAVE_PARALLEL)
+          savestate_rdp_noise_get = NULL;
+          savestate_rdp_noise_set = NULL;
           parallel_deinit();
 #endif
           break;

@@ -131,6 +131,9 @@ public:
 	uint64_t signal_timeline();
 	void wait_for_timeline(uint64_t index);
 	void idle();
+	// Both drain the command ring first so the renderer thread is quiescent.
+	uint32_t get_noise_state();
+	void set_noise_state(uint32_t base_primitive_index);
 	void begin_frame_context();
 
 	// Queues up state and drawing commands.

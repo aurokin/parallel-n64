@@ -11,6 +11,9 @@ extern "C" {
 
 bool parallel_init(const struct retro_hw_render_interface_vulkan *vulkan);
 void parallel_deinit(void);
+/* ParaLLEl-RDP noise-seed counter carried in savestates (see savestates.h). */
+uint32_t parallel_get_noise_state(void);
+void parallel_set_noise_state(uint32_t base_primitive_index);
 bool parallel_frame_is_valid(void);
 unsigned parallel_frame_width(void);
 unsigned parallel_frame_height(void);

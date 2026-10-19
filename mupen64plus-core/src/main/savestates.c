@@ -113,6 +113,47 @@ static int savestate_writer_put_array(savestate_writer *writer,
       WRITEARRAY(writer, &x, type, 1); \
    } while (0)
 
+uint32_t (*savestate_rdp_noise_get)(void) = NULL;
+void (*savestate_rdp_noise_set)(uint32_t) = NULL;
+
+static const char rdp_trailer_magic[4] = { 'P', 'R', 'D', 'P' };
+#define RDP_TRAILER_VERSION 1u
+#define RDP_TRAILER_SIZE 12u
+
+static size_t rdp_trailer_size(void)
+{
+   return savestate_rdp_noise_get ? RDP_TRAILER_SIZE : 0;
+}
+
+/* Trailer fields are little-endian on every host. */
+static uint32_t read_le32(const unsigned char *p)
+{
+   return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static void write_le32(unsigned char *p, uint32_t v)
+{
+   p[0] = v & 0xff; p[1] = (v >> 8) & 0xff; p[2] = (v >> 16) & 0xff; p[3] = (v >> 24) & 0xff;
+}
+
+/* Applies a trailer that follows the event queue starting at `queue`. */
+static void load_rdp_trailer(const unsigned char *queue, size_t remaining)
+{
+   size_t offset = 0;
+   uint32_t version, value;
+   if (!savestate_rdp_noise_set)
+      return;
+   while (offset + 4 <= remaining && memcmp(queue + offset, "\xff\xff\xff\xff", 4) != 0)
+      offset += 8; /* event entries are (type, count) pairs */
+   offset += 4;
+   if (offset + RDP_TRAILER_SIZE > remaining || memcmp(queue + offset, rdp_trailer_magic, 4) != 0)
+      return;
+   version = read_le32(queue + offset + 4);
+   value = read_le32(queue + offset + 8);
+   if (version == RDP_TRAILER_VERSION)
+      savestate_rdp_noise_set(value);
+}
+
 int savestates_load_m64p(const unsigned char *data, size_t size)
 {
    char queue[1024];
@@ -134,7 +175,7 @@ int savestates_load_m64p(const unsigned char *data, size_t size)
    {
       char scratch[1024];
       size_t full = savestates_get_m64p_size();
-      size_t qlen = (size_t)save_eventqueue_infos(scratch);
+      size_t qlen = (size_t)save_eventqueue_infos(scratch) + rdp_trailer_size();
       if (!data || full == 0 || qlen > full || size < full - qlen + 4)
          return 0;
    }
@@ -351,6 +392,7 @@ int savestates_load_m64p(const unsigned char *data, size_t size)
    memcpy(queue, curr, remaining < sizeof(queue) ? remaining : sizeof(queue));
    to_little_endian_buffer(queue, 4, 256);
    load_eventqueue_infos(queue);
+   load_rdp_trailer(curr, remaining);
 
    *r4300_last_addr() = *r4300_pc();
 
@@ -584,6 +626,15 @@ static int savestates_write_m64p(savestate_writer *writer)
 
    to_little_endian_buffer(queue, 4, queuelength/4);
    WRITEARRAY(writer, queue, char, queuelength);
+
+   if (savestate_rdp_noise_get)
+   {
+      unsigned char trailer[RDP_TRAILER_SIZE];
+      memcpy(trailer, rdp_trailer_magic, 4);
+      write_le32(trailer + 4, RDP_TRAILER_VERSION);
+      write_le32(trailer + 8, savestate_rdp_noise_get());
+      WRITEARRAY(writer, trailer, unsigned char, RDP_TRAILER_SIZE);
+   }
 
    return 1;
 }

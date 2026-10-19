@@ -36,5 +36,11 @@ int savestates_load_m64p(const unsigned char *data, size_t size);
 size_t savestates_get_m64p_size(void);
 int savestates_save_m64p(unsigned char *data, size_t size);
 
+/* Optional renderer state carried after the event queue in a tagged trailer
+ * ("PRDP", version, parallel-RDP noise-seed counter). Set while ParaLLEl-RDP is
+ * active; NULL writes no trailer. States without the trailer load unchanged. */
+extern uint32_t (*savestate_rdp_noise_get)(void);
+extern void (*savestate_rdp_noise_set)(uint32_t);
+
 
 #endif /* __SAVESTAVES_H__ */

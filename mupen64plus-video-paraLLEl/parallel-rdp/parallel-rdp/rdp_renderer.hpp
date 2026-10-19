@@ -159,6 +159,10 @@ public:
 	void set_hires_debug_ci_low32_fallback(HiresDebugCILow32FallbackMode mode);
 	void set_hires_gliden64_compat_crc(bool enable);
 	void set_hires_filter(unsigned mode);
+	// Running primitive count that offsets every primitive's noise seed. It is
+	// carried in savestates so a loaded state continues the saving run's noise.
+	uint32_t get_base_primitive_index() const { return base_primitive_index; }
+	void set_base_primitive_index(uint32_t index) { base_primitive_index = index; }
 	// When false, the native pass of an upscaled frame renders without replacements so
 	// RDRAM (color and depth the CPU can read) matches feature-off; the upscaled pass,
 	// which is presented, still replaces. Without upscaling the native pass is presented

@@ -274,7 +274,21 @@ def inspect(data: bytes) -> str:
         f"rsp halted  {bool(u32(raw, SP_STATUS) & SP_STATUS_HALT)}  cp0 status {status:08x} "
         f"(FR={int(bool(status & CP0_STATUS_FR))})",
         "events      " + " ".join(f"{kind:#x}@{count:08x}" for kind, count in events),
+        *([f"rdp noise   base primitive index {rdp_noise}"] if (rdp_noise := rdp_trailer(body, base_size)) is not None else []),
     ])
+
+
+def rdp_trailer(body: bytes, queue_at: int) -> int | None:
+    """The ParaLLEl-RDP noise-seed counter from a "PRDP" trailer after the event queue, if present."""
+    offset = queue_at
+    while offset + 4 <= len(body):
+        if struct.unpack_from("<I", body, offset)[0] == EVENT_END:
+            tail = body[offset + 4:]
+            if len(tail) == 12 and tail[:4] == b"PRDP" and struct.unpack_from("<I", tail, 4)[0] == 1:
+                return struct.unpack_from("<I", tail, 8)[0]
+            return None
+        offset += 8
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:

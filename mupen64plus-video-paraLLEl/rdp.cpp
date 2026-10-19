@@ -474,3 +474,14 @@ const VkApplicationInfo *parallel_get_application_info(void)
 {
 	return ::RDP::detail::parallel_application_info();
 }
+
+extern "C" uint32_t parallel_get_noise_state(void)
+{
+	return RDP::frontend ? RDP::frontend->get_noise_state() : 0;
+}
+
+extern "C" void parallel_set_noise_state(uint32_t base_primitive_index)
+{
+	if (RDP::frontend)
+		RDP::frontend->set_noise_state(base_primitive_index);
+}

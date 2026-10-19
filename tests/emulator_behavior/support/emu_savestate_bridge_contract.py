@@ -190,9 +190,18 @@ def check_cli(source, converted):
         assert not (root / "x.state").exists()
 
 
+def check_rdp_trailer(source):
+    """A PRDP noise trailer after the queue converts like a plain state and is reported."""
+    with_trailer = source + b"PRDP" + struct.pack("<2I", 1, 27087)
+    assert bridge.to_gliden64(with_trailer) == bridge.to_gliden64(source), "the trailer is ours only"
+    assert "rdp noise   base primitive index 27087" in bridge.inspect(with_trailer)
+    assert "rdp noise" not in bridge.inspect(source)
+
+
 def main():
     check_layout_constants()
     source = ours_state()
+    check_rdp_trailer(source)
     converted = check_to_gliden64(source)
     check_to_parallel(source, converted)
     check_cli(source, converted)

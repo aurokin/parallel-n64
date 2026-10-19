@@ -1,7 +1,7 @@
 # ADR-0007: PHRB-Only Runtime Pack Pipeline
 
-- Status: Accepted
-- Date: ratified 2026-06-10; exact-variant sets 2026-06-11
+- Status: Accepted, amended
+- Date: ratified 2026-06-10; exact-variant sets 2026-06-11; Jabo MD5 sources 2026-10-19
 
 ## Context
 
@@ -19,6 +19,16 @@ fallback make replacement behavior hard to review.
 
 Pack-policy changes happen in conversion and curation, not as scene-specific
 runtime rules.
+
+*Amendment (2026-10-19):* decision 3 also accepts Project64/Jabo packs, whose
+textures are named by the MD5 of the draw view as Jabo uploaded it to
+Direct3D. The key conversion was derived offline from ROM data against real
+pack names and is reproduced bug-for-bug, under the strict-identity rule of
+[ADR-0006](0006-replacement-identity.md). PHRB version 8 adds a key kind and
+a 16-byte key to each record; converters write it only for packages holding
+Jabo records, so Rice-only packages stay byte-identical version 7 and older
+cores reject Jabo packages by version. The draw-time compat lane computes the
+Jabo key only after its Rice key misses and only when Jabo records are loaded.
 
 ## Consequences
 

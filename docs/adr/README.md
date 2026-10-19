@@ -23,7 +23,7 @@ Status values:
 | [0004](0004-hires-on-validation-methodology.md) | Hi-res-on validation methodology | Accepted |
 | [0005](0005-gliden64-oracle-policy.md) | GlideN64 oracle policy | Accepted |
 | [0006](0006-replacement-identity.md) | Rice-compatible draw-time identity | Accepted |
-| [0007](0007-pack-pipeline-phrb-only.md) | PHRB-only runtime pack pipeline | Accepted |
+| [0007](0007-pack-pipeline-phrb-only.md) | PHRB-only runtime pack pipeline | Accepted, amended |
 | [0008](0008-fixture-and-evidence-authority.md) | Fixture and evidence authority | Accepted |
 | [0009](0009-interactive-adapter-and-deterministic-play.md) | Bounded stdin control and paused stepping | Accepted, amended |
 | [0010](0010-replacement-sampling-semantics.md) | Replacement sampling semantics | Accepted, amended |

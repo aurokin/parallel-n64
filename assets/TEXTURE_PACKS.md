@@ -16,15 +16,22 @@ record which private host currently stores an artifact.
   - Loose Rice-named PNG directories (Rice and GLideN64 PNG releases). Pass
     the texture folder, normally `hires_texture/<ROM name>`; it is used when
     the directory holds no cache file. See [Loose PNG packs](#loose-png-packs).
+  - Project64/Jabo packs named by 32-digit MD5. Pass the texture folder; it
+    is converted as Jabo when its MD5 names outnumber its Rice names. See
+    [Jabo packs](#jabo-packs).
   - Glide64 `*_HIRESTEXTURES.dat` caches, only with
     `--accept-glide64-pow2-padding`. Glide64 stores every texture padded to
     power-of-two size by edge replication and does not record the original
     size, so non-power-of-two textures convert at the wrong scale. Prefer the
     same pack's Rice PNG or GLideN64 release.
 - Not convertible: Rice `_ci.bmp` textures (they need the game palette at
-  draw time; GLideNHQ skips them as well), Project64/Jabo packs named by
-  32-digit MD5, and port-specific folders such as Dolphin `tex1_*` or rt64
-  names, which the loose PNG loader skips by name.
+  draw time; GLideNHQ skips them as well) and port-specific folders such as
+  Dolphin `tex1_*` or rt64 names, which the loose loaders skip by name.
+- Packages are PHRB version 7, or version 8 when they hold Jabo records.
+  Version 8 appends a key kind (0 Rice, 1 Jabo MD5) and a 16-byte key to
+  every record; Jabo records have zero format, size and view fields and one
+  version-7 asset. Rice-only conversions stay byte-identical version 7.
+  Cores without Jabo support reject version 8 packages.
 - ROMs, pack archives, extracted caches, and generated packages are never
   committed.
 - Record the source URL and archive SHA-256 before promoting a new source.
@@ -74,6 +81,55 @@ GLideNHQ defects:
   downscale them. The report lists them as `oversize`.
 - A wildcard name whose key is zero is skipped. In GLideNHQ it aborts the whole
   load.
+
+## Jabo Packs
+
+```sh
+python3 tools/hts2phrb.py --cache "hires_textures/MARIOKART64" \
+  --output-dir artifacts/hts2phrb/mk64-jabo
+```
+
+Jabo names each texture `<MD5>.<ext>` after the MD5 of the draw view as it
+uploaded the texture to Direct3D: the GLideN64-compat window (SetTileSize
+clamped by the masks, with LoadTile source rows), each texel converted to
+Jabo's surface format and written little-endian, rows packed without padding.
+
+| N64 format | Jabo surface | Texel |
+|------------|--------------|-------|
+| RGBA16 | A1R5G5B5 | N64 value rotated right by one bit |
+| RGBA32 | A8R8G8B8 | bytes B, G, R, A |
+| IA16 | A8R8G8B8 | I, I, I, A |
+| IA8 | A4R4G4B4 | A4, I4, I4, I4 |
+| IA4 | A4R4G4B4 | I4 = I3 << 1 (no low-bit fill), A4 = 0xF or 0 |
+| I8 | A8R8G8B8 | I, I, I, I |
+| I4 | A4R4G4B4 | every nibble = I |
+| CI4/CI8, RGBA16 TLUT | A1R5G5B5 | palette entry, rendering tile's CI4 bank |
+| CI4/CI8, IA16 TLUT | A8R8G8B8 | I, I, I, A of the entry (unverified) |
+
+The key holds no palette field. Mappings were established offline from ROM
+data against real pack names; see the issue log for unverified load shapes.
+
+The converter (`tools/hires_pack_jabo.py`):
+
+- Accepts names of exactly 32 hex digits with `.png`, `.dds`, `.jpg` or
+  `.jpeg`, in any case. Suffixed copies (`<MD5> - Copy.png`, `<MD5>xx.png`),
+  other image formats (`.pspimage`, `.bmp`), `Thumbs.db` and other files are
+  skipped. `pack.xml` and `roms.ini` are only listed in the report.
+- Traverses depth-first in case-insensitive name order without following
+  symlinks. The first loadable file for an MD5 wins; later ones are reported
+  as `duplicate-key`.
+- Decodes by content, not extension: PNG and JPEG through Pillow (RGB gets
+  alpha 255), DDS DXT1/DXT3/DXT5 or uncompressed 32-bit top mip through its
+  own decoder. Alpha is kept verbatim.
+- Emits one record per MD5 with no Rice family migration, sorted by MD5.
+  `--bundle`, `--low32` and the review inputs do not apply and are refused.
+- Writes `source-input-report.json` with every skipped file and its reason.
+
+At runtime the draw-time compat lane computes the Jabo key only after the
+Rice key misses, and only when the loaded packages hold Jabo records. Keys
+are memoized per view. The `Hi-res Jabo summary` log line reports hits,
+misses, MD5 computations and memo hits; Jabo hits are not counted in
+`compat_draw_hits`.
 
 ## Source Catalog
 

@@ -757,6 +757,35 @@ the texture-only key (ADR-0010 rule 7), the form packs carry for non-CI art, so
 both reach the same entries. Only palette-qualified I/IA pack entries would
 differ; none is known.
 
+## Jabo MD5 keys await runtime qualification
+
+Status: implemented in source October 19, 2026; offline-verified only. No
+emulator run has served a Jabo package.
+
+The Jabo key (see [Jabo packs](../assets/TEXTURE_PACKS.md#jabo-packs)) was
+derived offline from ROM data against real SM64, OoT, MK64 and GoldenEye
+pack names. `emu.unit.hires_jabo_key` checks the runtime decoder against that
+reference for every format on strided views and against one real SM64 name.
+Six packs (SM64 Reloaded 2.6.0 Jabo HD, KMan's OoT Hi-Rez, Kerber2k's MK64
+1.2, the AeroGauge DDS pack, a DKR pack and Road Rash 64 Remastered with
+JPEGs) convert, inspect as version 8 and decode identically through the C++
+provider.
+
+A wrong key is a silent miss. Unverified cases:
+
+- LoadTile strided sub-rectangles, views where the mask differs from the
+  tile size, 4-bit transport loads, split RGBA32 loads and LoadBlock views;
+- CI4 with a nonzero palette bank, CI with an IA16 TLUT, and the TMEM palette
+  mirror's byte order, which was read from the load path rather than observed;
+- views whose Rice texture CRC is zero (rows under four bytes), which the
+  compat lane skips before the Jabo key is tried.
+
+Jabo keys are computed only by the draw-time compat lane, so a compat CRC
+override that disables that lane disables Jabo lookups too. Runtime
+qualification should compare SM64 Reloaded's Jabo and GLideN64 releases in
+the same scenes, then OoT Kokiri, the MK64 attract demo and player select
+(strided), a GoldenEye pack and the AeroGauge DDS pack, serially at 4x.
+
 ## Interactive stop leaves RetroArch running after a QUIT timeout
 
 Status: corrected in source October 15, 2026; display-free contracts only.

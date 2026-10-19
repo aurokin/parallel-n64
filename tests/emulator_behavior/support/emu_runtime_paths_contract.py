@@ -16,7 +16,9 @@ class RuntimePaths(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="title inputs ")
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        # Resolved: macOS temp dirs sit behind the /var -> /private/var symlink and
+        # the title check reports resolved paths.
+        self.root = Path(self.temp.name).resolve()
         self.scenarios = self.root / "tools/scenarios"
         (self.scenarios / "lib").mkdir(parents=True)
         for name in ("paper-mario-title-screen.sh", "paper-mario-title-screen.runtime.env", "lib/common.sh"):
@@ -46,8 +48,7 @@ class RuntimePaths(unittest.TestCase):
         result = self.check_title("--mode", "on", "--check-inputs", env={**self.env, "RUNTIME_ENV_OVERRIDE": str(config)})
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
-        # The check reports the resolved path (macOS temp dirs live behind the /var symlink).
-        self.assertEqual(report["inputs"]["pack"], {"path": str(pack.resolve()), "sha256": hashlib.sha256(pack.read_bytes()).hexdigest()})
+        self.assertEqual(report["inputs"]["pack"], {"path": str(pack), "sha256": hashlib.sha256(pack.read_bytes()).hexdigest()})
         self.assertEqual(report["inputs"]["frontend"]["path"], self.env["RETROARCH_BIN"])
         self.assertFalse(self.bundle.exists())
 

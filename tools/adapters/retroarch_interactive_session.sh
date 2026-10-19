@@ -1246,40 +1246,85 @@ cmd_save_slot() {
   acquire_send_lock 25
   refuse_if_step_in_flight "save-slot"
 
-  # STATE_SLOT_PLUS/MINUS are silent keybind events: track the slot locally
-  # and verify the SAVE_STATE log names the expected .state<N> file.
-  local current
-  current="$(cat "$SLOT_FILE" 2>/dev/null || echo 0)"
-  local delta=$(( SLOT - current ))
-  local verb="STATE_SLOT_PLUS"
-  (( delta < 0 )) && verb="STATE_SLOT_MINUS"
-  local i
-  for (( i = 0; i < ${delta#-}; i++ )); do
-    send_fifo "$verb"
-    sleep 0.1
-  done
-  # The slot cursor has moved regardless of whether the save below succeeds;
-  # recording it only on success left the tracker stale after a refused save
-  # and desynced every later save-slot one slot high (IL-10).
-  echo "$SLOT" > "$SLOT_FILE"
+  # STATE_SLOT_PLUS/MINUS are silent keybind events and the frontend can drop
+  # one (a regression run saw a save land a slot short). Track the slot
+  # locally and verify each save against the .state<N> name in the log; when
+  # a save lands in another slot, restore what it overwrote and retry from
+  # the slot it reached.
+  local states_dir="$BUNDLE_DIR/states" backup_dir="$BUNDLE_DIR/save-slot.backup"
+  local attempt current delta verb i k lo hi start_bytes actual file rel
+  for attempt in 1 2 3; do
+    current="$(cat "$SLOT_FILE" 2>/dev/null || echo 0)"
+    delta=$(( SLOT - current ))
+    verb="STATE_SLOT_PLUS"
+    (( delta < 0 )) && verb="STATE_SLOT_MINUS"
+    # A lost slot command leaves the cursor between the tracked slot and the
+    # target, so those slots are the ones a misdirected save can overwrite.
+    if (( delta < 0 )); then lo=$(( SLOT + 1 )); hi=$current; else lo=$current; hi=$(( SLOT - 1 )); fi
+    rm -rf "$backup_dir"
+    mkdir -p "$backup_dir" "$states_dir"
+    find "$states_dir" -type f -name '*.state*' > "$backup_dir/existing"
+    for (( k = lo; k <= hi; k++ )); do
+      while IFS= read -r -d '' file; do
+        rel="${file#"$states_dir"/}"
+        mkdir -p "$backup_dir/$(dirname "$rel")"
+        cp -p "$file" "$backup_dir/$rel"
+      done < <(find "$states_dir" -type f -name "$(slot_state_glob "$k")" -print0)
+    done
+    for (( i = 0; i < ${delta#-}; i++ )); do
+      send_fifo "$verb"
+      sleep "0.$(( attempt * 2 - 1 ))"
+    done
+    # The slot cursor has moved regardless of whether the save below succeeds;
+    # recording it only on success left the tracker stale after a refused save
+    # and desynced every later save-slot one slot high (IL-10).
+    echo "$SLOT" > "$SLOT_FILE"
 
-  local start_bytes
-  start_bytes="$(log_size_bytes)"
-  send_fifo "SAVE_STATE"
-  if ! wait_for_log_pattern_after "$start_bytes" "[State] Saving state" 15; then
-    echo "SAVE_STATE not acknowledged." >&2
-    exit 1
-  fi
-  send_fifo "WAIT_SAVE_STATE"
-  if ! wait_for_log_pattern_after "$start_bytes" "WAIT_SAVE_STATE DONE" 30; then
-    echo "WAIT_SAVE_STATE not acknowledged." >&2
-    exit 1
-  fi
-  if ! tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -q "Saving state.*\.state${SLOT}[\".]"; then
-    echo "Save landed in an unexpected slot; check $RA_LOG (slot tracking desynced?)." >&2
-    exit 1
-  fi
-  echo "[interactive] saved checkpoint slot $SLOT"
+    start_bytes="$(log_size_bytes)"
+    send_fifo "SAVE_STATE"
+    if ! wait_for_log_pattern_after "$start_bytes" "[State] Saving state" 15; then
+      echo "SAVE_STATE not acknowledged." >&2
+      exit 1
+    fi
+    send_fifo "WAIT_SAVE_STATE"
+    if ! wait_for_log_pattern_after "$start_bytes" "WAIT_SAVE_STATE DONE" 30; then
+      echo "WAIT_SAVE_STATE not acknowledged." >&2
+      exit 1
+    fi
+    if ! actual="$(tail -c +"$((start_bytes + 1))" "$RA_LOG" \
+        | rg -o 'Saving state .*\.state([0-9]*)[".]' -r 'slot$1' | tail -n1 | rg 'slot')"; then
+      echo "Save log names no state slot; check $RA_LOG." >&2
+      exit 1
+    fi
+    actual="${actual#slot}"
+    actual="${actual:-0}"
+    if (( actual == SLOT )); then
+      rm -rf "$backup_dir"
+      echo "[interactive] saved checkpoint slot $SLOT"
+      return 0
+    fi
+    while IFS= read -r -d '' file; do
+      rel="${file#"$states_dir"/}"
+      if [[ -f "$backup_dir/$rel" ]]; then
+        cp -p "$backup_dir/$rel" "$file"
+      elif rg -qxF -- "$file" "$backup_dir/existing"; then
+        echo "Save landed in slot $actual instead of $SLOT and overwrote $file, which had no backup." >&2
+        exit 1
+      else
+        rm -f "$file"
+      fi
+    done < <(find "$states_dir" -type f -name "$(slot_state_glob "$actual")" -print0)
+    echo "$actual" > "$SLOT_FILE"
+    echo "[interactive] save landed in slot $actual instead of $SLOT; restored it, retrying" >&2
+  done
+  rm -rf "$backup_dir"
+  echo "Save landed in an unexpected slot after 3 attempts; check $RA_LOG." >&2
+  exit 1
+}
+
+# RetroArch names slot 0 <content>.state and slot N <content>.state<N>.
+slot_state_glob() {
+  if (( $1 == 0 )); then echo '*.state'; else echo "*.state$1"; fi
 }
 
 cmd_load_slot() {

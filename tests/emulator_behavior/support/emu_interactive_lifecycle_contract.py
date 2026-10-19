@@ -57,6 +57,7 @@ lock = threading.Lock()
 paused = "--start-paused" in sys.argv
 frame = 0
 remaining = 0
+slot = 0
 
 def run_frames():
     global frame, remaining, paused
@@ -93,6 +94,23 @@ for line in sys.stdin:
             reply(command)
         elif command.startswith(("SET_INPUT_PORT", "CLEAR_INPUT_PORT")):
             reply(command)
+        elif command in ("STATE_SLOT_PLUS", "STATE_SLOT_MINUS"):
+            # Silent keybind events; a count in drop-slot-commands loses that many.
+            drop_file = state / "drop-slot-commands"
+            drops = int(drop_file.read_text()) if drop_file.exists() else 0
+            if drops:
+                drop_file.write_text(str(drops - 1))
+            else:
+                slot += 1 if command == "STATE_SLOT_PLUS" else -1
+        elif command == "SAVE_STATE":
+            path = Path(os.environ["FAKE_STATE_DIR"]) / "fake core" / (
+                "game.state" + (str(slot) if slot else ""))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"frame={frame}")
+            reply('[INFO] [State] Saving state "RAM", 4 bytes.')
+            reply(f'[INFO] [State] Saving state "{path}", 4 bytes.')
+        elif command == "WAIT_SAVE_STATE":
+            reply("WAIT_SAVE_STATE DONE")
         elif command == "QUIT" and not wedged:
             break
 '''
@@ -262,6 +280,30 @@ class InteractiveLifecycleContract(unittest.TestCase):
                                   ["SET_INPUT_PORT 0 0x1", "frame=10", "paused=1"],
                                   ["STEP_FRAME 2", "frame=10", "paused=1"],
                                   ["CLEAR_INPUT_PORT 0", "frame=12", "paused=1"]])
+
+    def save_slot(self, slot):
+        return self.adapter("save-slot", "--bundle-dir", str(self.bundle), "--slot", str(slot))
+
+    def slot_files(self):
+        return {path.name: path.read_text()
+                for path in (self.bundle / "states").rglob("game.state*")}
+
+    def test_save_slot_restores_and_retries_after_lost_slot_command(self):
+        self.start(600, FAKE_STATE_DIR=str(self.bundle / "states"))
+        self.assertEqual(self.save_slot(1).returncode, 0)
+        self.assertEqual(self.adapter("send", "--bundle-dir", str(self.bundle),
+                                      "--command", "STEP_FRAME 3").returncode, 0)
+        before = self.slot_files()
+        # The frontend drops the next slot command, so the first save lands in slot 1.
+        (self.state / "drop-slot-commands").write_text("1")
+        result = self.save_slot(2)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("landed in slot 1 instead of 2", result.stderr)
+        files = self.slot_files()
+        self.assertEqual(files["game.state1"], before["game.state1"])
+        self.assertEqual(set(files), {"game.state1", "game.state2"})
+        self.assertEqual((self.bundle / "session.state-slot").read_text().strip(), "2")
+        self.assertFalse((self.bundle / "save-slot.backup").exists())
 
 
 if __name__ == "__main__":

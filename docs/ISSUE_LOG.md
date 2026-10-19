@@ -812,6 +812,28 @@ the frontend. After the step finishes, input lands at the target frame. A
 concurrent `input --frames` waits for a running step instead of overwriting it.
 Against the previous adapter, that overlap stalled the first step's waiter.
 
+## Save-slot lands in the wrong slot
+
+Status: mitigated in the interactive adapter October 19, 2026; display-free
+contract only. The root cause in the frontend is not confirmed.
+
+`save-slot` moves RetroArch's slot cursor with silent `STATE_SLOT_PLUS`/`MINUS`
+keybind events and tracks the slot locally. During the October 19 on-mode
+golden run, one save landed a slot short ("Save landed in an unexpected slot"),
+so one slot command never took effect. The adapter verified the slot only after
+saving, by which point the misdirected save had overwritten another
+checkpoint. Before each save, it now copies the state files for the slots a lost
+command could leave the cursor on. If the log names another slot, the adapter
+restores that slot's previous file, or removes it if it did not exist, and
+records the slot actually reached. It then retries with wider command spacing,
+up to three attempts. A save that lands outside the backed-up range still
+fails without retrying. An explicit save-to-slot frontend command would remove
+the race and is not implemented.
+
+`emu.support.interactive_lifecycle_contract` drops one slot command in a fake
+frontend and checks that the overwritten slot is restored and the retry lands
+in the requested slot. The previous adapter failed it.
+
 ## Savestate bridge to mupen64plus-next
 
 Status: tool added October 15, 2026; three Paper Mario states qualified in both

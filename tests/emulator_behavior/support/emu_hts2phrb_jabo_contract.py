@@ -28,10 +28,10 @@ def save(path: Path, size, color, mode='RGBA', fmt=None, **kwargs):
     Image.new(mode, size, color).save(path, format=fmt, **kwargs)
 
 
-def dds(width, height, payload, fourcc=b'', bit_count=0, masks=(0, 0, 0, 0)):
+def dds(width, height, payload, fourcc=b'', bit_count=0, masks=(0, 0, 0, 0), pitch=0):
     header = bytearray(128)
     header[:4] = b'DDS '
-    struct.pack_into('<IIII', header, 4, 124, 0x1007, height, width)
+    struct.pack_into('<IIIII', header, 4, 124, 0x1007 | (0x8 if pitch else 0), height, width, pitch)
     pf_flags = 0x4 if fourcc else 0x40 | (0x1 if masks[3] else 0)
     struct.pack_into('<II4sI4I', header, 76, 32, pf_flags, fourcc.ljust(4, b'\0'), bit_count, *masks)
     return bytes(header) + payload
@@ -146,6 +146,15 @@ class ImageDecoding(unittest.TestCase):
             decode_dds(dds(4, 4, bytes(16), b'ATI2'))
         with self.assertRaises(ValueError):
             decode_dds(dds(8, 8, bytes(8), b'DXT1'))
+        # A header claiming a huge image without its payload fails before allocating it.
+        with self.assertRaises(ValueError):
+            decode_dds(dds(16384, 16384, b'', bit_count=32, masks=masks))
+
+    def test_uncompressed_rows_follow_the_declared_pitch(self):
+        masks = (0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000)
+        row = lambda value: bytes((value, value, value, 255)) * 2 + bytes(8)  # 2 texels + 8 padding bytes
+        _, _, rgba = decode_dds(dds(2, 2, row(1) + row(2), bit_count=32, masks=masks, pitch=16))
+        self.assertEqual(rgba, bytes((1, 1, 1, 255)) * 2 + bytes((2, 2, 2, 255)) * 2)
 
     def test_jpeg_decodes_opaque_by_content(self):
         with tempfile.TemporaryDirectory() as tmp:

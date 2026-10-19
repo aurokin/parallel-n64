@@ -114,7 +114,6 @@ def decode_dds(data: bytes):
     if width == 0 or height == 0 or width > 16384 or height > 16384:
         raise ValueError(f"unsupported DDS size {width}x{height}")
     offset = 128
-    out = bytearray(width * height * 4)
     if pf_flags & 0x4:  # DDPF_FOURCC
         if fourcc not in (b"DXT1", b"DXT3", b"DXT5"):
             raise ValueError(f"unsupported DDS fourcc {fourcc!r}")
@@ -122,6 +121,7 @@ def decode_dds(data: bytes):
         blocks_x, blocks_y = (width + 3) // 4, (height + 3) // 4
         if len(data) < offset + blocks_x * blocks_y * block_size:
             raise ValueError("truncated DDS data")
+        out = bytearray(width * height * 4)
         for by in range(blocks_y):
             for bx in range(blocks_x):
                 block = data[offset:offset + block_size]
@@ -142,8 +142,17 @@ def decode_dds(data: bytes):
                         index = 4 * (y * width + x)
                         out[index:index + 4] = bytes((red, green, blue, opacity if alpha is None else alpha[i]))
     elif pf_flags & 0x40 and bit_count == 32:  # DDPF_RGB
-        if len(data) < offset + width * height * 4:
+        # Rows may be padded: DDSD_PITCH names the row pitch in bytes.
+        flags, pitch = struct.unpack_from("<I", data, 8)[0], struct.unpack_from("<I", data, 20)[0]
+        row_bytes = width * 4
+        if flags & 0x8 and pitch:
+            if pitch < row_bytes:
+                raise ValueError(f"DDS row pitch {pitch} below {row_bytes}")
+        else:
+            pitch = row_bytes
+        if len(data) < offset + pitch * (height - 1) + row_bytes:
             raise ValueError("truncated DDS data")
+        out = bytearray(width * height * 4)
 
         def channel(value, mask):
             if not mask:
@@ -152,9 +161,12 @@ def decode_dds(data: bytes):
             return ((value & mask) >> shift) * 255 // (mask >> shift)
 
         has_alpha = bool(pf_flags & 0x1)
-        for i, (value,) in enumerate(struct.iter_unpack("<I", data[offset:offset + width * height * 4])):
-            out[4 * i:4 * i + 4] = bytes((channel(value, masks[0]), channel(value, masks[1]), channel(value, masks[2]),
-                                          channel(value, masks[3]) if has_alpha else 255))
+        for y in range(height):
+            row = offset + y * pitch
+            for x, (value,) in enumerate(struct.iter_unpack("<I", data[row:row + row_bytes])):
+                i = y * width + x
+                out[4 * i:4 * i + 4] = bytes((channel(value, masks[0]), channel(value, masks[1]),
+                                              channel(value, masks[2]), channel(value, masks[3]) if has_alpha else 255))
     else:
         raise ValueError("unsupported DDS pixel format")
     return width, height, bytes(out)

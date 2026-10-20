@@ -36,6 +36,24 @@ record which private host currently stores an artifact.
   committed.
 - Record the source URL and archive SHA-256 before promoting a new source.
 
+## Memory And Disk
+
+The converter streams texture data, so peak memory does not grow with the
+total size of the pack's textures:
+
+- `.hts` blobs are read by offset from the cache file while the package is
+  written. The cache is never loaded whole.
+- Loose PNG, Jabo, Glide64 `.dat`, and `.htc` inputs are decoded or
+  decompressed in one pass. Each blob goes to an unlinked scratch file in the
+  output directory, which disappears when the process exits. These inputs need
+  free disk space for about the package size twice: once for the scratch file
+  and once for the package.
+- At most two textures per decoder process are in flight. Each process holds
+  about one decoded texture. `--loose-png-workers` lowers the process count.
+
+Per-entry manifests and reports stay in memory, at about 20 KB per cache
+entry. For example, a 43,000-entry pack peaks below 1 GB.
+
 ## Loose PNG Packs
 
 ```sh

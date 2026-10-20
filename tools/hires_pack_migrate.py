@@ -280,42 +280,37 @@ def _exact_nearest_neighbor_scale_match(smaller_rgba, smaller_width, smaller_hei
     return True
 
 
-def _decode_variant_group_representative(source_cache_path, cache_bytes, variant_group, variant_group_entries, decoded_rgba_cache):
+def _decode_variant_group_representative(source_cache_path, variant_group, variant_group_entries):
+    """Decode a variant group's entries and return the shared image, or None if they differ or fail to decode.
+
+    Only the first image is kept; the others are compared by hash and
+    dropped, so memory stays at about one texture per group.
+    """
     group_entries = variant_group_entries.get(variant_group.get("variant_group_id"), [])
     if not group_entries:
         return None
 
-    representative_rgba = None
-    representative_hash = None
-    representative_width = None
-    representative_height = None
-
-    for replacement_id, entry in group_entries:
-        rgba = decoded_rgba_cache.get(replacement_id)
-        if rgba is None:
-            try:
-                rgba = decode_entry_rgba8(source_cache_path, entry, cache_bytes=cache_bytes)
-            except Exception:
-                return None
-            decoded_rgba_cache[replacement_id] = rgba
+    representative = None
+    for _replacement_id, entry in group_entries:
+        try:
+            rgba = decode_entry_rgba8(source_cache_path, entry)
+        except Exception:
+            return None
         rgba_hash = hashlib.sha256(rgba).hexdigest()
-        if representative_hash is None:
-            representative_rgba = rgba
-            representative_hash = rgba_hash
-            representative_width = int(entry.get("width", 0))
-            representative_height = int(entry.get("height", 0))
-        elif rgba_hash != representative_hash:
+        if representative is None:
+            representative = {
+                "rgba": rgba,
+                "pixel_sha256": rgba_hash,
+                "width": int(entry.get("width", 0)),
+                "height": int(entry.get("height", 0)),
+            }
+        elif rgba_hash != representative["pixel_sha256"]:
             return None
 
-    return {
-        "rgba": representative_rgba,
-        "pixel_sha256": representative_hash,
-        "width": representative_width,
-        "height": representative_height,
-    }
+    return representative
 
 
-def build_exact_scale_equivalent_selection(texture_crc, formatsize, variant_group_list, variant_group_entries, source_cache_path, cache_bytes, decoded_rgba_cache):
+def build_exact_scale_equivalent_selection(texture_crc, formatsize, variant_group_list, variant_group_entries, source_cache_path):
     ordered_groups = _resolve_scale_equivalent_group_order(variant_group_list)
     if ordered_groups is None:
         return None
@@ -324,19 +319,15 @@ def build_exact_scale_equivalent_selection(texture_crc, formatsize, variant_grou
     larger_group = variant_group_list[ordered_groups["larger_index"]]
     smaller_representative = _decode_variant_group_representative(
         source_cache_path,
-        cache_bytes,
         smaller_group,
         variant_group_entries,
-        decoded_rgba_cache,
     )
     if smaller_representative is None:
         return None
     larger_representative = _decode_variant_group_representative(
         source_cache_path,
-        cache_bytes,
         larger_group,
         variant_group_entries,
-        decoded_rgba_cache,
     )
     if larger_representative is None:
         return None
@@ -483,8 +474,6 @@ def build_imported_index(entries, requested_pairs, source_cache_path, bundle_con
     bundle_sampled_context = bundle_sampled_context or {}
     import_policy = import_policy or {"families": {}}
     indexed_entries = index_entries_by_texture_crc(entries)
-    cache_bytes = source_cache_path.read_bytes() if source_cache_path.suffix.lower() == ".hts" else None
-    decoded_rgba_cache = {}
 
     def fallback_sampled_candidates(texture_crc, requested_formatsize):
         sampled_candidates = list(bundle_sampled_context.get((texture_crc, requested_formatsize), []))
@@ -609,8 +598,6 @@ def build_imported_index(entries, requested_pairs, source_cache_path, bundle_con
                 variant_group_list,
                 variant_group_entries,
                 source_cache_path,
-                cache_bytes,
-                decoded_rgba_cache,
             )
         family_policy_selection = resolve_family_policy_selection_override(
             texture_crc,

@@ -5,6 +5,8 @@ import json
 import os
 import re
 import struct
+import sys
+import tempfile
 import zlib
 from collections import Counter
 from pathlib import Path
@@ -119,74 +121,84 @@ def resolve_legacy_cache_path(cache_input_path: Path):
     raise ValueError(f"Legacy cache input does not exist or is not supported: {cache_input_path}")
 
 
+HTS_RECORD_HEADER = struct.Struct("<IIIHHB")
+
+
 def parse_hts_entries(cache_path: Path):
-    data = cache_path.read_bytes()
-    if len(data) < 16:
+    """Index a GLideNHQ .hts cache without loading its blobs.
+
+    Only the header, the storage index and each record header are read;
+    entries carry `data_offset` so read_entry_blob() can fetch one blob at a
+    time. Peak memory therefore follows the entry count, not the cache size.
+    """
+    file_size = cache_path.stat().st_size
+    if file_size < 16:
         return []
 
-    version = struct.unpack_from("<i", data, 0)[0]
-    if version == TXCACHE_FORMAT_VERSION:
-        storage_pos = struct.unpack_from("<q", data, 8)[0]
-        old_version = False
-    else:
-        storage_pos = struct.unpack_from("<q", data, 4)[0]
-        old_version = True
+    with cache_path.open("rb") as fp:
+        header = fp.read(16)
+        version = struct.unpack_from("<i", header, 0)[0]
+        if version == TXCACHE_FORMAT_VERSION:
+            storage_pos = struct.unpack_from("<q", header, 8)[0]
+            old_version = False
+        else:
+            storage_pos = struct.unpack_from("<q", header, 4)[0]
+            old_version = True
 
-    if storage_pos <= 0 or storage_pos + 4 > len(data):
-        return []
+        if storage_pos <= 0 or storage_pos + 4 > file_size:
+            return []
 
-    storage_size = struct.unpack_from("<i", data, storage_pos)[0]
-    offset = storage_pos + 4
-    entries = []
+        fp.seek(storage_pos)
+        storage_size = struct.unpack("<i", fp.read(4))[0]
+        index_count = min(max(storage_size, 0), (file_size - storage_pos - 4) // 16)
+        index = fp.read(index_count * 16)
+        # The size word is followed by the format size in new-version records.
+        record_header_size = HTS_RECORD_HEADER.size + (2 if not old_version else 0) + 4
+        entries = []
 
-    for _ in range(storage_size):
-        if offset + 16 > len(data):
-            break
-        checksum64 = struct.unpack_from("<Q", data, offset)[0]
-        packed = struct.unpack_from("<q", data, offset + 8)[0]
-        offset += 16
+        for checksum64, packed in struct.iter_unpack("<Qq", index):
+            record_offset = packed & 0x0000FFFFFFFFFFFF
+            formatsize = (packed >> 48) & 0xFFFF
+            if record_offset + 17 > file_size:
+                continue
 
-        record_offset = packed & 0x0000FFFFFFFFFFFF
-        formatsize = (packed >> 48) & 0xFFFF
-        if record_offset + 17 > len(data):
-            continue
+            fp.seek(record_offset)
+            record_header = fp.read(record_header_size)
+            width, height, fmt, texture_format, pixel_type, is_hires = HTS_RECORD_HEADER.unpack_from(record_header, 0)
+            pos = HTS_RECORD_HEADER.size
+            if not old_version:
+                record_formatsize = struct.unpack_from("<H", record_header, pos)[0]
+                pos += 2
+                if formatsize == 0:
+                    formatsize = record_formatsize
+            data_size = struct.unpack_from("<I", record_header, pos)[0]
 
-        pos = record_offset
-        width, height, fmt, texture_format, pixel_type = struct.unpack_from("<IIIHH", data, pos)
-        pos += struct.calcsize("<IIIHH")
-        is_hires = struct.unpack_from("<B", data, pos)[0]
-        pos += 1
-        if not old_version:
-            record_formatsize = struct.unpack_from("<H", data, pos)[0]
-            pos += 2
-            if formatsize == 0:
-                formatsize = record_formatsize
-        data_size = struct.unpack_from("<I", data, pos)[0]
-
-        entries.append(
-            {
-                "checksum64": checksum64,
-                "palette_crc": (checksum64 >> 32) & 0xFFFFFFFF,
-                "texture_crc": checksum64 & 0xFFFFFFFF,
-                "formatsize": formatsize,
-                "width": width,
-                "height": height,
-                "format": fmt,
-                "texture_format": texture_format,
-                "pixel_type": pixel_type,
-                "is_hires": bool(is_hires),
-                "data_size": data_size,
-                "data_offset": pos + 4,
-                "source_path": str(cache_path),
-                "storage": "hts",
-                "inline_blob": False,
-            }
-        )
+            entries.append(
+                {
+                    "checksum64": checksum64,
+                    "palette_crc": (checksum64 >> 32) & 0xFFFFFFFF,
+                    "texture_crc": checksum64 & 0xFFFFFFFF,
+                    "formatsize": formatsize,
+                    "width": width,
+                    "height": height,
+                    "format": fmt,
+                    "texture_format": texture_format,
+                    "pixel_type": pixel_type,
+                    "is_hires": bool(is_hires),
+                    "data_size": data_size,
+                    "data_offset": record_offset + pos + 4,
+                    "source_path": str(cache_path),
+                    "storage": "hts",
+                    "inline_blob": False,
+                }
+            )
 
     return entries
 
 
-def parse_htc_entries(cache_path: Path):
+def parse_htc_entries(cache_path: Path, spool=None):
+    """Read a gzip .htc cache, moving each payload to `spool` so entries hold offsets, not bytes."""
+    spool = spool if spool is not None else BlobSpool()
     entries = []
     with gzip.open(cache_path, "rb") as fp:
         version_raw = fp.read(4)
@@ -239,8 +251,7 @@ def parse_htc_entries(cache_path: Path):
                     "data_size": data_size,
                     "source_path": str(cache_path),
                     "storage": "htc",
-                    "inline_blob": True,
-                    "blob": payload,
+                    **spool.entry_location(payload),
                 }
             )
 
@@ -254,16 +265,66 @@ def parse_cache_entries(cache_path: Path):
     suffix = cache_path.suffix.lower()
     if suffix == ".hts":
         return parse_hts_entries(cache_path)
-    if suffix == ".htc":
-        return parse_htc_entries(cache_path)
-    if suffix == ".dat":
+    if suffix in (".htc", ".dat"):
         return load_derived_cache_input(cache_path)["entries"]
     raise ValueError(f"Unsupported cache format: {cache_path}")
 
 
-# Loose PNG directories and Glide64 .dat caches are converted to RGBA8 entries
-# once per process; later parse_cache_entries() calls (migration, package
-# materialization, blob streaming) reuse the same entries.
+class BlobSpool:
+    """Append-only scratch file for blobs of inputs that cannot be read back by offset.
+
+    Loose PNG and Jabo folders, Glide64 .dat caches and gzip .htc caches yield
+    their blobs while being decoded or decompressed in one pass. Entries keep
+    an offset into this file instead of the bytes, so a conversion never holds
+    the whole pack in memory; the spool needs about as much disk as the blobs.
+    The file is unlinked on creation and disappears with the process.
+    """
+
+    def __init__(self, directory=None):
+        self._file = tempfile.TemporaryFile(prefix="hires-blob-spool-", dir=directory or _BLOB_SPOOL_DIR)
+        self.size = 0
+
+    def append(self, blob) -> int:
+        offset = self.size
+        self._file.write(blob)
+        self.size += len(blob)
+        return offset
+
+    def entry_location(self, blob):
+        """Entry fields locating `blob` once appended; read_entry_blob() resolves them."""
+        return {"inline_blob": False, "blob_spool": self, "data_offset": self.append(blob), "data_size": len(blob)}
+
+    def read(self, offset: int, size: int) -> bytes:
+        self._file.flush()
+        return _pread_exact(self._file.fileno(), offset, size)
+
+
+def _pread_exact(fd: int, offset: int, size: int) -> bytes:
+    chunks = []
+    while size > 0:
+        # macOS rejects single reads above INT_MAX.
+        chunk = os.pread(fd, min(size, 1 << 30), offset)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        offset += len(chunk)
+        size -= len(chunk)
+    return b"".join(chunks)
+
+
+# Scratch directory for BlobSpool files; None uses the system temporary directory.
+_BLOB_SPOOL_DIR = None
+
+
+def set_blob_spool_dir(directory):
+    """Place later BlobSpool files in `directory` (None restores the system temporary directory)."""
+    global _BLOB_SPOOL_DIR
+    _BLOB_SPOOL_DIR = str(directory) if directory is not None else None
+
+
+# Loose PNG and Jabo directories, Glide64 .dat and .htc caches are decoded once
+# per process; later parse_cache_entries() calls (migration, package
+# materialization, blob streaming) reuse the same entries and spool.
 _DERIVED_INPUT_CACHE = {}
 _LOOSE_PNG_OPTIONS = {}
 
@@ -294,13 +355,19 @@ def configure_loose_png_input(directory: Path, rom_name=None, alpha_mode="full",
 
 
 def load_derived_cache_input(cache_path: Path):
-    """Return {"entries", "report"} for a loose PNG or Jabo directory or a Glide64 .dat cache."""
+    """Return {"entries", "report"} for a loose PNG or Jabo directory, a Glide64 .dat or a .htc cache.
+
+    Entry blobs live in a BlobSpool; read them with read_entry_blob().
+    """
     key = str(Path(cache_path).resolve())
     if key not in _DERIVED_INPUT_CACHE:
+        spool = BlobSpool()
         if Path(cache_path).is_dir() and _classify_loose_directory(Path(cache_path)) == JABO_STORAGE:
             from hires_pack_jabo import scan_jabo_pack
 
-            entries, report = scan_jabo_pack(Path(cache_path), workers=_LOOSE_PNG_OPTIONS.get(key, {}).get("workers"))
+            entries, report = scan_jabo_pack(
+                Path(cache_path), workers=_LOOSE_PNG_OPTIONS.get(key, {}).get("workers"), spool=spool
+            )
         elif Path(cache_path).is_dir():
             from hires_pack_loose_png import scan_loose_png_pack
 
@@ -310,9 +377,12 @@ def load_derived_cache_input(cache_path: Path):
                 rom_name=options.get("rom_name"),
                 alpha_mode=options.get("alpha_mode") or "full",
                 workers=options.get("workers"),
+                spool=spool,
             )
+        elif Path(cache_path).suffix.lower() == ".htc":
+            entries, report = parse_htc_entries(Path(cache_path), spool=spool), None
         else:
-            entries, report = parse_glide64_dat(Path(cache_path))
+            entries, report = parse_glide64_dat(Path(cache_path), spool=spool)
         _DERIVED_INPUT_CACHE[key] = {"entries": entries, "report": report}
     return _DERIVED_INPUT_CACHE[key]
 
@@ -373,13 +443,15 @@ def _glide_texels_to_rgba8(gr_format, width, height, pixels):
     return None
 
 
-def parse_glide64_dat(cache_path: Path):
+def parse_glide64_dat(cache_path: Path, spool=None):
     """Read a Glide64 *_HIRESTEXTURES.dat cache into RGBA8 entries plus a skip report.
 
     The file is one gzip stream: an int32 GlideHQ option word, then records
     until EOF. Unlike GLideN64 caches there is no version word and no
-    formatsize, so entries carry formatsize 0 (match any formatsize).
+    formatsize, so entries carry formatsize 0 (match any formatsize). The
+    zlib RGBA8 blobs go to `spool`.
     """
+    spool = spool if spool is not None else BlobSpool()
     entries = []
     skip_reason_counts = Counter()
     format_counts = Counter()
@@ -437,11 +509,9 @@ def parse_glide64_dat(cache_path: Path):
                     "texture_format": GL_RGBA,
                     "pixel_type": GL_UNSIGNED_BYTE,
                     "is_hires": bool(is_hires),
-                    "data_size": len(blob),
                     "source_path": str(cache_path),
                     "storage": GLIDE64_DAT_STORAGE,
-                    "inline_blob": True,
-                    "blob": blob,
+                    **spool.entry_location(blob),
                 }
             )
     report = {
@@ -578,8 +648,30 @@ def _read_env_file(path: Path):
     return values
 
 
-def _file_sha256(path: Path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def write_json_file(path: Path, value):
+    """Write `value` as indented JSON plus a newline, as path.write_text(json.dumps(value, indent=2) + "\n") would.
+
+    Before Python 3.14, json.dumps with indent uses the pure-Python encoder,
+    which keeps every token in a list before joining; for the per-entry
+    manifests of a large pack that costs several times the file size, so the
+    text is streamed instead. From 3.14 the C encoder handles indent and
+    dumps() is both faster and compact.
+    """
+    if sys.version_info >= (3, 14):
+        Path(path).write_text(json.dumps(value, indent=2) + "\n")
+        return
+    with Path(path).open("w") as fp:
+        json.dump(value, fp, indent=2)
+        fp.write("\n")
+
+
+def file_sha256(path: Path):
+    """SHA-256 of a file read in chunks, so multi-gigabyte caches are never held in memory."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as fp:
+        for chunk in iter(lambda: fp.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _command_log_signature(bundle_path: Path):
@@ -589,8 +681,8 @@ def _command_log_signature(bundle_path: Path):
         raise ValueError(f"Enrichment fixture bundle is missing executed command provenance: {bundle_path}")
     if not expected_log.is_file():
         raise ValueError(f"Enrichment fixture bundle is missing expected command provenance: {bundle_path}")
-    executed_signature = _file_sha256(executed_log)
-    expected_signature = _file_sha256(expected_log)
+    executed_signature = file_sha256(executed_log)
+    expected_signature = file_sha256(expected_log)
     if executed_signature != expected_signature:
         raise ValueError(
             f"Enrichment fixture bundle executed command log does not match expected commands: {bundle_path}"
@@ -670,7 +762,7 @@ def _validate_enrichment_fixture_bundle(
             f"Enrichment hi-res evidence cache SHA does not match bundle provenance: "
             f"{evidence_cache_sha!r} vs {bundle_pack_sha!r}"
         )
-    actual_sha = hashlib.sha256(Path(bundle_pack_path).read_bytes()).hexdigest()
+    actual_sha = file_sha256(Path(bundle_pack_path))
     if actual_sha != bundle_pack_sha:
         raise ValueError(
             f"Enrichment fixture bundle hi-res pack SHA does not match current artifact: {bundle_json_path}"
@@ -724,9 +816,9 @@ def _validate_enrichment_fixture_bundle(
         raise ValueError(f"Enrichment fixture bundle ROM artifact is missing: {rom_path}")
     if not core_path.is_file():
         raise ValueError(f"Enrichment fixture bundle core artifact is missing: {core_path}")
-    if _file_sha256(rom_path) != session["ROM_SHA256"]:
+    if file_sha256(rom_path) != session["ROM_SHA256"]:
         raise ValueError(f"Enrichment fixture bundle ROM SHA does not match current artifact: {bundle_path}")
-    if _file_sha256(core_path) != session["CORE_SHA256"]:
+    if file_sha256(core_path) != session["CORE_SHA256"]:
         raise ValueError(f"Enrichment fixture bundle core SHA does not match current artifact: {bundle_path}")
     for path_key, sha_key in (
         ("BASE_CONFIG", "BASE_CONFIG_SHA256"),
@@ -742,7 +834,7 @@ def _validate_enrichment_fixture_bundle(
         config_path = Path(config_path_value)
         if not config_path.is_file():
             raise ValueError(f"Enrichment fixture bundle config artifact is missing: {config_path}")
-        if _file_sha256(config_path) != config_sha:
+        if file_sha256(config_path) != config_sha:
             raise ValueError(f"Enrichment fixture bundle {sha_key} does not match current artifact: {bundle_path}")
     bundle_rom_path = bundle_inputs.get("rom_path")
     bundle_rom_sha = bundle_inputs.get("rom_sha256")
@@ -1536,6 +1628,19 @@ def build_family_summary(entries, texture_crc, formatsize):
     return summary
 
 
+def index_cache_entries(cache_path: Path):
+    """Index a cache's entries by (checksum64, formatsize), plus formatsize-0 entries by checksum64."""
+    exact_index = {}
+    generic_index = {}
+    for entry in parse_cache_entries(cache_path):
+        checksum64 = int(entry.get("checksum64", 0))
+        formatsize = int(entry.get("formatsize", 0))
+        exact_index[(checksum64, formatsize)] = entry
+        if formatsize == 0 and checksum64 not in generic_index:
+            generic_index[checksum64] = entry
+    return {"cache_path": Path(cache_path), "exact_index": exact_index, "generic_index": generic_index}
+
+
 def collect_family_entries(entries, texture_crc):
     if isinstance(entries, dict):
         return list(entries.get(texture_crc, []))
@@ -1601,21 +1706,21 @@ def expected_decoded_size(entry):
     return width * height * bpp if bpp else 0
 
 
-def read_entry_blob(cache_path: Path, entry, cache_bytes=None):
+def read_entry_blob(cache_path: Path, entry):
+    """Return one entry's stored blob from its spool, inline bytes or `cache_path` offset."""
     if entry.get("inline_blob"):
         return entry.get("blob", b"")
     data_offset = entry.get("data_offset")
     data_size = entry.get("data_size")
     if data_offset is None or data_size is None:
         raise ValueError("Entry is missing blob location metadata.")
-    if cache_bytes is not None:
-        blob = cache_bytes[int(data_offset):int(data_offset) + int(data_size)]
-        if len(blob) != int(data_size):
-            raise ValueError("Failed to read full entry blob from cached bytes.")
-        return blob
-    with cache_path.open("rb") as fp:
-        fp.seek(int(data_offset))
-        blob = fp.read(int(data_size))
+    spool = entry.get("blob_spool")
+    if spool is not None:
+        blob = spool.read(int(data_offset), int(data_size))
+    else:
+        with Path(cache_path).open("rb") as fp:
+            fp.seek(int(data_offset))
+            blob = fp.read(int(data_size))
     if len(blob) != int(data_size):
         raise ValueError("Failed to read full entry blob.")
     return blob
@@ -1721,7 +1826,7 @@ def find_cache_entry(entries, checksum64, formatsize):
     return exact or generic
 
 
-def decode_entry_rgba8(cache_path: Path, entry, cache_bytes=None):
-    blob = read_entry_blob(cache_path, entry, cache_bytes=cache_bytes)
+def decode_entry_rgba8(cache_path: Path, entry):
+    blob = read_entry_blob(cache_path, entry)
     pixel_data = decompress_entry_blob(entry, blob)
     return decode_pixels_rgba8(entry, pixel_data)

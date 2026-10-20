@@ -30,16 +30,17 @@ written from it:
 Known deliberate differences from current GLideNHQ are listed in
 assets/TEXTURE_PACKS.md.
 """
+import itertools
 import multiprocessing
 import os
 import re
 import struct
 import sys
 import zlib
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from pathlib import Path
 
-from hires_pack_common import GL_RGBA, GL_RGBA8, GL_TEXFMT_GZ, GL_UNSIGNED_BYTE, LOOSE_PNG_STORAGE
+from hires_pack_common import GL_RGBA, GL_RGBA8, GL_TEXFMT_GZ, GL_UNSIGNED_BYTE, LOOSE_PNG_STORAGE, BlobSpool
 
 ALPHA_MODES = ("full", "rice")
 GLIDEN64_MAX_TEXTURE_DIM = 4096
@@ -336,19 +337,57 @@ def _pair_paths(root: Path, rel: Path, listing_for):
     return find(("_rgb.png", "_rgb.bmp")), find(("_a.png", "_a.bmp"))
 
 
-def _map_tasks(tasks, workers, loader=load_rice_texture):
-    if workers > 1 and len(tasks) > 1:
-        # fork needs no importable __main__, so library callers without a
-        # main guard work; other platforms keep their default start method.
-        context = multiprocessing.get_context("fork") if sys.platform.startswith("linux") else None
-        with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
-            return list(pool.map(loader, tasks, chunksize=8))
-    return [loader(task) for task in tasks]
+def _imap_tasks_unordered(tasks, workers, loader=load_rice_texture):
+    """Yield (index, loader(task)) for each task as it completes.
+
+    At most two tasks per worker are queued or finished but unconsumed, so
+    decoded textures never accumulate beyond that window whatever the pack
+    size, and a slow texture does not stall the other workers.
+    """
+    if workers <= 1 or len(tasks) <= 1:
+        for index, task in enumerate(tasks):
+            yield index, loader(task)
+        return
+    # fork needs no importable __main__, so library callers without a
+    # main guard work; other platforms keep their default start method.
+    context = multiprocessing.get_context("fork") if sys.platform.startswith("linux") else None
+    task_iter = enumerate(tasks)
+    with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
+        def submit(item):
+            index, task = item
+            return pool.submit(loader, task), index
+
+        in_flight = dict(submit(item) for item in itertools.islice(task_iter, 2 * workers))
+        while in_flight:
+            done, _ = wait(in_flight, return_when=FIRST_COMPLETED)
+            for future in done:
+                index = in_flight.pop(future)
+                next_item = next(task_iter, None)
+                if next_item is not None:
+                    future_next, next_index = submit(next_item)
+                    in_flight[future_next] = next_index
+                yield index, future.result()
 
 
-def scan_loose_png_pack(root: Path, rom_name: str | None = None, alpha_mode: str = "full", workers: int | None = None):
-    """Load a loose PNG pack directory into cache-shaped entries plus a report."""
+def load_tasks_to_spool(tasks, workers, spool, loader=load_rice_texture):
+    """Run `loader` over `tasks`, moving each blob into `spool`; returns results in task order."""
+    results = [None] * len(tasks)
+    for index, result in _imap_tasks_unordered(tasks, workers, loader):
+        if result["ok"]:
+            result.update(spool.entry_location(result.pop("blob")))
+        results[index] = result
+    return results
+
+
+def scan_loose_png_pack(root: Path, rom_name: str | None = None, alpha_mode: str = "full", workers: int | None = None,
+                        spool: BlobSpool | None = None):
+    """Load a loose PNG pack directory into cache-shaped entries plus a report.
+
+    Each texture's zlib RGBA8 blob is written to `spool` as it is decoded;
+    entries locate it there (read it with hires_pack_common.read_entry_blob).
+    """
     root = Path(root)
+    spool = spool if spool is not None else BlobSpool()
     if alpha_mode not in ALPHA_MODES:
         raise ValueError(f"Unsupported loose PNG alpha mode: {alpha_mode}")
     if not root.is_dir():
@@ -406,7 +445,7 @@ def scan_loose_png_pack(root: Path, rom_name: str | None = None, alpha_mode: str
     while pending:
         keys = list(pending)
         tasks = [make_task(*candidates[key][pending[key]]) for key in keys]
-        results = _map_tasks(tasks, workers)
+        results = load_tasks_to_spool(tasks, workers, spool)
         next_pending = {}
         for key, result in zip(keys, results):
             position = pending[key]
@@ -440,7 +479,6 @@ def scan_loose_png_pack(root: Path, rom_name: str | None = None, alpha_mode: str
             })
         if result["oversize"]:
             oversize.append({"path": str(rel), "width": result["width"], "height": result["height"]})
-        blob = result["blob"]
         entries.append({
             "checksum64": fields["checksum64"],
             "palette_crc": fields["palette_crc"],
@@ -452,13 +490,14 @@ def scan_loose_png_pack(root: Path, rom_name: str | None = None, alpha_mode: str
             "texture_format": GL_RGBA,
             "pixel_type": GL_UNSIGNED_BYTE,
             "is_hires": True,
-            "data_size": len(blob),
+            "data_size": result["data_size"],
             "source_path": str(root),
             "source_file": str(rel),
             "wildcard": fields["wildcard"],
             "storage": LOOSE_PNG_STORAGE,
-            "inline_blob": True,
-            "blob": blob,
+            "inline_blob": False,
+            "blob_spool": result["blob_spool"],
+            "data_offset": result["data_offset"],
         })
 
     reason_counts = {}

@@ -14,7 +14,7 @@ from PIL import Image
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / 'tools'))
 
-from hires_pack_common import parse_glide64_dat, resolve_legacy_cache_path  # noqa: E402
+from hires_pack_common import parse_glide64_dat, read_entry_blob, resolve_legacy_cache_path  # noqa: E402
 from hires_pack_loose_png import parse_rice_texture_name, scan_loose_png_pack  # noqa: E402
 
 ROM = 'SUPER MARIO 64'
@@ -26,7 +26,7 @@ def save(path: Path, mode, size, color):
 
 
 def rgba(entry):
-    return zlib.decompress(entry['blob'])
+    return zlib.decompress(read_entry_blob(None, entry))
 
 
 class RiceNameParsing(unittest.TestCase):
@@ -129,6 +129,24 @@ class LoosePngLoad(unittest.TestCase):
             'duplicate-key': 1,
             'hidden-or-skip-prefix': 2,
         })
+
+    def test_parallel_scan_matches_serial_scan(self):
+        # Workers finish out of order and spool blobs as they arrive; the
+        # entries, blobs and skip report must still follow traversal order.
+        for index in range(12):
+            save(self.root / f'{ROM}#{index + 1:08X}#0#2_all.png', 'RGB', (2 + index, 3), (index, 2 * index, 3))
+        (self.root / 'a').mkdir()
+        (self.root / 'a' / f'{ROM}#00000001#0#2_all.png').write_bytes(b'not a png')
+        save(self.root / 'b' / f'{ROM}#00000002#0#2_all.png', 'RGB', (2, 2), (9, 9, 9))
+
+        def loaded(workers):
+            entries, report = scan_loose_png_pack(self.root, workers=workers)
+            located = ('blob_spool', 'data_offset')
+            return [({k: v for k, v in entry.items() if k not in located}, rgba(entry)) for entry in entries], report
+
+        serial = loaded(1)
+        self.assertEqual(loaded(3), serial)
+        self.assertEqual(serial[1]['skip_reason_counts'], {'decode-failed': 1, 'duplicate-key': 1})
 
     def test_sixteen_bit_gray_keeps_its_transparency_key(self):
         image = Image.new('I;16', (2, 2), 0x12FF)

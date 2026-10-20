@@ -14,7 +14,7 @@ from PIL import Image
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / 'tools'))
 
-from hires_pack_common import resolve_legacy_cache_path  # noqa: E402
+from hires_pack_common import read_entry_blob, resolve_legacy_cache_path  # noqa: E402
 from hires_pack_emit_binary_package import emit_binary_package_from_manifest  # noqa: E402
 from hires_pack_inspect_binary_package import inspect_binary_package  # noqa: E402
 from hires_pack_jabo import build_jabo_package_manifest, decode_dds, decode_jabo_image, parse_jabo_texture_name, scan_jabo_pack  # noqa: E402
@@ -88,7 +88,7 @@ class JaboPackScan(unittest.TestCase):
         entries, report = self.scan()
         self.assertEqual(sorted(entries), [MD5_A, MD5_B])
         self.assertEqual(entries[MD5_A]['source_file'], f'A/{MD5_A}.png')
-        self.assertEqual(zlib.decompress(entries[MD5_A]['blob']), bytes((1, 1, 1, 255)) * 4)
+        self.assertEqual(zlib.decompress(read_entry_blob(self.root, entries[MD5_A])), bytes((1, 1, 1, 255)) * 4)
         self.assertEqual(entries[MD5_B]['source_file'], f'a2/{MD5_B.upper()}.JPG')
         self.assertEqual(report['skip_reason_counts'], {
             'decode-failed': 1,

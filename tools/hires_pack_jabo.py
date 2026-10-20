@@ -26,8 +26,8 @@ import struct
 import zlib
 from pathlib import Path
 
-from hires_pack_common import GL_RGBA, GL_RGBA8, GL_TEXFMT_GZ, GL_UNSIGNED_BYTE, JABO_STORAGE
-from hires_pack_loose_png import BLOB_ZLIB_LEVEL, GLIDEN64_MAX_TEXTURE_DIM, _decode_png, _map_tasks
+from hires_pack_common import GL_RGBA, GL_RGBA8, GL_TEXFMT_GZ, GL_UNSIGNED_BYTE, JABO_STORAGE, BlobSpool
+from hires_pack_loose_png import BLOB_ZLIB_LEVEL, GLIDEN64_MAX_TEXTURE_DIM, _decode_png, load_tasks_to_spool
 
 JABO_IMAGE_EXTENSIONS = ("png", "dds", "jpg", "jpeg")
 JABO_NAME_RE = re.compile(r"(?P<md5>[0-9a-f]{32})(?P<suffix>.*)\.(?P<ext>[^./]+)", re.IGNORECASE | re.DOTALL)
@@ -219,9 +219,13 @@ def load_jabo_texture(task):
     }
 
 
-def scan_jabo_pack(root: Path, workers: int | None = None):
-    """Load a Jabo pack directory into entries keyed by `jabo_md5` plus a report."""
+def scan_jabo_pack(root: Path, workers: int | None = None, spool: BlobSpool | None = None):
+    """Load a Jabo pack directory into entries keyed by `jabo_md5` plus a report.
+
+    Blobs are written to `spool` as they are decoded; entries locate them there.
+    """
     root = Path(root)
+    spool = spool if spool is not None else BlobSpool()
     if not root.is_dir():
         raise ValueError(f"Jabo pack is not a directory: {root}")
     if workers is None:
@@ -248,7 +252,7 @@ def scan_jabo_pack(root: Path, workers: int | None = None):
     while pending:
         keys = list(pending)
         tasks = [{"path": str(root / candidates[md5][pending[md5]])} for md5 in keys]
-        results = _map_tasks(tasks, workers, load_jabo_texture)
+        results = load_tasks_to_spool(tasks, workers, spool, load_jabo_texture)
         next_pending = {}
         for md5, result in zip(keys, results):
             position = pending[md5]
@@ -280,13 +284,14 @@ def scan_jabo_pack(root: Path, workers: int | None = None):
             "format": GL_RGBA8 | GL_TEXFMT_GZ,
             "texture_format": GL_RGBA,
             "pixel_type": GL_UNSIGNED_BYTE,
-            "data_size": len(result["blob"]),
+            "data_size": result["data_size"],
             "source_path": str(root),
             "source_file": str(rel),
             "content_format": result["content_format"],
             "storage": JABO_STORAGE,
-            "inline_blob": True,
-            "blob": result["blob"],
+            "inline_blob": False,
+            "blob_spool": result["blob_spool"],
+            "data_offset": result["data_offset"],
         })
     entries.sort(key=lambda entry: entry["jabo_md5"])
 

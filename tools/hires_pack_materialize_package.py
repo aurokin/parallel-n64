@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from hires_pack_common import decode_entry_rgba8, parse_cache_entries
+from hires_pack_common import decode_entry_rgba8, index_cache_entries, write_json_file
 
 
 def load_loader_manifest(path: Path):
@@ -58,7 +58,8 @@ def _build_materialized_package(loader_manifest_path: Path,
                                 include_asset_blobs: bool,
                                 compute_review_hashes: bool,
                                 progress_callback=None,
-                                progress_interval: int = 100):
+                                progress_interval: int = 100,
+                                return_asset_blobs: bool = True):
     manifest = load_loader_manifest(loader_manifest_path)
     if output_dir is not None:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -72,22 +73,7 @@ def _build_materialized_package(loader_manifest_path: Path,
 
     def get_entries(cache_path_str):
         if cache_path_str not in cache_index:
-            cache_path = Path(cache_path_str)
-            entries = parse_cache_entries(cache_path)
-            exact_index = {}
-            generic_index = {}
-            for entry in entries:
-                checksum64 = int(entry.get('checksum64', 0))
-                formatsize = int(entry.get('formatsize', 0))
-                exact_index[(checksum64, formatsize)] = entry
-                if formatsize == 0 and checksum64 not in generic_index:
-                    generic_index[checksum64] = entry
-            cache_index[cache_path_str] = {
-                'entries': entries,
-                'exact_index': exact_index,
-                'generic_index': generic_index,
-                'cache_bytes': cache_path.read_bytes() if cache_path.suffix.lower() == '.hts' else None,
-            }
+            cache_index[cache_path_str] = index_cache_entries(Path(cache_path_str))
         return cache_index[cache_path_str]
 
     package_records = []
@@ -132,7 +118,7 @@ def _build_materialized_package(loader_manifest_path: Path,
                 entry = cache_view['exact_index'].get((checksum64, formatsize)) or cache_view['generic_index'].get(checksum64)
                 if entry is None:
                     raise SystemExit(f"Missing cache entry for {candidate['replacement_id']}")
-                rgba = decode_entry_rgba8(cache_path, entry, cache_bytes=cache_view.get('cache_bytes'))
+                rgba = decode_entry_rgba8(cache_path, entry)
                 if emit_png_assets:
                     image = Image.frombytes('RGBA', (width, height), rgba)
                     if persist_assets:
@@ -140,7 +126,7 @@ def _build_materialized_package(loader_manifest_path: Path,
                 else:
                     if persist_assets:
                         (output_dir / rel_path).write_bytes(rgba)
-                if include_asset_blobs:
+                if include_asset_blobs and return_asset_blobs:
                     asset_blobs[str(rel_path)] = rgba
                 if compute_review_hashes:
                     pixel_sha256 = hashlib.sha256(rgba).hexdigest()
@@ -249,7 +235,7 @@ def _build_materialized_package(loader_manifest_path: Path,
         'unresolved_transport_cases': manifest.get('unresolved_transport_cases', []),
     }
     if output_dir is not None:
-        (output_dir / 'package-manifest.json').write_text(json.dumps(package_manifest, indent=2) + '\n')
+        write_json_file(output_dir / 'package-manifest.json', package_manifest)
     return package_manifest, asset_blobs
 
 
@@ -269,6 +255,8 @@ def materialize_package(loader_manifest_path: Path,
         compute_review_hashes=compute_review_hashes,
         progress_callback=progress_callback,
         progress_interval=progress_interval,
+        # The assets are on disk; returning every decoded image too would hold the whole package in memory.
+        return_asset_blobs=False,
     )
     return package_manifest
 

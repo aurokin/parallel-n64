@@ -16,6 +16,8 @@ from hires_pack_common import (
     LOOSE_PNG_STORAGE,
     configure_loose_png_input,
     decode_entry_rgba8,
+    file_sha256,
+    index_cache_entries,
     input_size_bytes,
     load_derived_cache_input,
     parse_bundle_ci_context,
@@ -28,6 +30,8 @@ from hires_pack_common import (
     resolve_artifact_path,
     resolve_legacy_cache_path,
     resolve_summary_bundle_reference,
+    set_blob_spool_dir,
+    write_json_file,
     _validate_direct_hires_evidence_path,
     _validate_enrichment_fixture_bundle,
 )
@@ -1406,40 +1410,24 @@ def summarize_package_manifest(package_manifest):
 
 
 def make_streaming_asset_blob_loader(package_manifest, asset_storage_mode: str = "rgba"):
+    """Return an emit_binary_package_from_manifest() loader that reads one asset blob per call."""
     cache_views = {}
-
-    def get_cache_view(cache_path_str):
-        if cache_path_str not in cache_views:
-            cache_path = Path(cache_path_str)
-            entries = parse_cache_entries(cache_path)
-            exact_index = {}
-            generic_index = {}
-            for entry in entries:
-                checksum64 = int(entry.get("checksum64", 0))
-                formatsize = int(entry.get("formatsize", 0))
-                exact_index[(checksum64, formatsize)] = entry
-                if formatsize == 0 and checksum64 not in generic_index:
-                    generic_index[checksum64] = entry
-            cache_views[cache_path_str] = {
-                "cache_path": cache_path,
-                "exact_index": exact_index,
-                "generic_index": generic_index,
-                "cache_bytes": cache_path.read_bytes() if cache_path.suffix.lower() == ".hts" else None,
-            }
-        return cache_views[cache_path_str]
 
     def load_asset_blob(record_index, record, candidate):
         if not bool(record.get("runtime_ready", True)):
             return b""
-        cache_view = get_cache_view(candidate["legacy_source_path"])
+        cache_path_str = candidate["legacy_source_path"]
+        if cache_path_str not in cache_views:
+            cache_views[cache_path_str] = index_cache_entries(Path(cache_path_str))
+        cache_view = cache_views[cache_path_str]
         checksum64 = int(str(candidate.get("legacy_checksum64") or "0"), 16)
         formatsize = int(candidate.get("legacy_formatsize") or 0)
         entry = cache_view["exact_index"].get((checksum64, formatsize)) or cache_view["generic_index"].get(checksum64)
         if entry is None:
             raise ValueError(f"Missing cache entry for {candidate['replacement_id']}")
         if asset_storage_mode == "legacy":
-            return read_entry_blob(cache_view["cache_path"], entry, cache_bytes=cache_view.get("cache_bytes"))
-        return decode_entry_rgba8(cache_view["cache_path"], entry, cache_bytes=cache_view.get("cache_bytes"))
+            return read_entry_blob(cache_view["cache_path"], entry)
+        return decode_entry_rgba8(cache_view["cache_path"], entry)
 
     return load_asset_blob
 
@@ -1613,11 +1601,9 @@ def build_family_inventory_payload(report):
 def _get_cache_entry_view(cache_path_str, cache_views):
     if cache_path_str not in cache_views:
         cache_path = Path(cache_path_str)
-        entries = parse_cache_entries(cache_path)
         exact_index = {}
         generic_index = {}
-        cache_bytes = cache_path.read_bytes() if cache_path.suffix.lower() == ".hts" else None
-        for entry in entries:
+        for entry in parse_cache_entries(cache_path):
             checksum64 = int(entry.get("checksum64", 0))
             formatsize = int(entry.get("formatsize", 0))
             exact_index[(checksum64, formatsize)] = entry
@@ -1626,7 +1612,6 @@ def _get_cache_entry_view(cache_path_str, cache_views):
         cache_views[cache_path_str] = {
             "exact_index": exact_index,
             "generic_index": generic_index,
-            "cache_bytes": cache_bytes,
             "cache_path": cache_path,
         }
     return cache_views[cache_path_str]
@@ -1650,7 +1635,7 @@ def _decode_transport_candidate_rgba(candidate, cache_views):
     if entry is None:
         return None, "missing-cache-entry"
     try:
-        rgba = decode_entry_rgba8(cache_view["cache_path"], entry, cache_bytes=cache_view["cache_bytes"])
+        rgba = decode_entry_rgba8(cache_view["cache_path"], entry)
     except Exception as exc:
         return None, f"decode-failed:{type(exc).__name__}"
     return rgba, None
@@ -3762,7 +3747,7 @@ def validate_bundle_resolution_for_cache(bundle_resolution, cache_path: Path):
         {"fixture_id": bundle_resolution.get("fixture_id")},
         Path(bundle_resolution.get("input_path") or bundle_path),
         expected_cache_path=cache_path,
-        expected_cache_sha256=hashlib.sha256(cache_path.read_bytes()).hexdigest(),
+        expected_cache_sha256=file_sha256(cache_path),
     )
 
 
@@ -3846,6 +3831,7 @@ def build_jabo_conversion(args, cache_input_path, cache_resolution, started_at, 
     configure_loose_png_input(cache_path, workers=args.loose_png_workers)
     output_dir, output_dir_was_default = resolve_output_dir(args, cache_input_path, cache_resolution)
     output_dir.mkdir(parents=True, exist_ok=True)
+    set_blob_spool_dir(output_dir)
     report_path = output_dir / "hts2phrb-report.json"
     summary_path = output_dir / "hts2phrb-summary.md"
     binary_path = output_dir / args.package_name
@@ -3856,8 +3842,13 @@ def build_jabo_conversion(args, cache_input_path, cache_resolution, started_at, 
 
     stage_started = time.perf_counter()
     package_manifest = build_jabo_package_manifest(entries)
-    blobs = {f"jabo-{entry['jabo_md5']}": entry["blob"] for entry in entries}
-    binary_result = emit_binary_package_from_manifest(package_manifest, binary_path, blobs, asset_storage_mode="legacy")
+    entries_by_name = {f"jabo-{entry['jabo_md5']}": entry for entry in entries}
+    binary_result = emit_binary_package_from_manifest(
+        package_manifest,
+        binary_path,
+        asset_blob_loader=lambda _index, record, _candidate: read_entry_blob(cache_path, entries_by_name[record["policy_key"]]),
+        asset_storage_mode="legacy",
+    )
     stage_timings_ms["emit_binary_package"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
     stage_timings_ms["total"] = round((time.perf_counter() - started_at) * 1000.0, 3)
 
@@ -4057,6 +4048,8 @@ def build_conversion(args):
     validate_resolved_bundle_inputs(args, cache_path, bundle_resolution=bundle_resolution)
     output_dir, output_dir_was_default = resolve_output_dir(args, cache_input_path, cache_resolution, bundle_resolution=bundle_resolution)
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Decoded inputs spool their blobs beside the package rather than in the system temp directory.
+    set_blob_spool_dir(output_dir)
     progress_path = output_dir / "hts2phrb-progress.json"
     migration_plan_path = output_dir / "migration-plan.json"
     canonical_loader_manifest_path = output_dir / "loader-manifest.json"
@@ -4523,7 +4516,7 @@ def build_conversion(args):
             canonical_family_selection_review_summary=canonical_family_selection_review_summary,
         )
 
-        migration_plan_path.write_text(json.dumps(migrate_result, indent=2) + "\n")
+        write_json_file(migration_plan_path, migrate_result)
 
     if resume_from_progress and canonical_loader_manifest_path.exists():
         canonical_loader_manifest = json.loads(canonical_loader_manifest_path.read_text())
@@ -4548,7 +4541,7 @@ def build_conversion(args):
             args.resolved_alias_group_review_paths,
         )
         stage_timings_ms["build_canonical_loader_manifest"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
-        canonical_loader_manifest_path.write_text(json.dumps(canonical_loader_manifest, indent=2) + "\n")
+        write_json_file(canonical_loader_manifest_path, canonical_loader_manifest)
     write_progress(
         reused_stage_names=reused_stage_names,
         loader_manifest_path=str(canonical_loader_manifest_path),
@@ -4585,7 +4578,7 @@ def build_conversion(args):
         runtime_overlay_built = False
         runtime_overlay_reason = "no-deterministic-bindings"
     if runtime_overlay_built:
-        bindings_path.write_text(json.dumps(bindings, indent=2) + "\n")
+        write_json_file(bindings_path, bindings)
         runtime_overlay_artifacts_emitted = True
     else:
         if bindings_path.exists():
@@ -4612,7 +4605,7 @@ def build_conversion(args):
         runtime_loader_manifest = None
         stage_timings_ms["build_runtime_loader_manifest"] = 0.0
     if runtime_loader_manifest is not None:
-        runtime_loader_manifest_path.write_text(json.dumps(runtime_loader_manifest, indent=2) + "\n")
+        write_json_file(runtime_loader_manifest_path, runtime_loader_manifest)
     elif runtime_loader_manifest_path.exists():
         runtime_loader_manifest_path.unlink()
     write_progress(
@@ -4665,8 +4658,8 @@ def build_conversion(args):
         package_manifest_runtime_ready_record_class=package_manifest.get("runtime_ready_record_class"),
         package_manifest_runtime_deferred_record_class=package_manifest.get("runtime_deferred_record_class"),
     )
+    # materialize_package_in_memory() already wrote package_dir/package-manifest.json.
     stage_started = time.perf_counter()
-    (package_dir / "package-manifest.json").write_text(json.dumps(package_manifest, indent=2) + "\n")
     streaming_asset_blob_loader = make_streaming_asset_blob_loader(package_manifest, asset_storage_mode="legacy")
     binary_result = emit_binary_package_from_manifest(
         package_manifest,

@@ -1,4 +1,5 @@
 """Exercise tools/regression/run_scenarios.py against a fake adapter, without an emulator."""
+import gzip
 import hashlib
 import json
 import os
@@ -44,6 +45,10 @@ if sub == "start":
     if "--state-source" in opts:
         source = Path(opts["--state-source"])
         shutil.copytree(source, bundle / "states" / source.name)
+    if "--savefile-source" in opts:
+        savefiles = bundle / "savefiles/ParaLLEl N64"
+        savefiles.mkdir(parents=True)
+        shutil.copyfile(opts["--savefile-source"], savefiles / (Path(opts["--rom"]).stem + ".srm"))
     st = {"mode": opts["--mode"], "frame": 0, "stem": Path(opts["--rom"]).stem, "body": None, "inputs": []}
     state_file.write_text(json.dumps(st))
     print("[interactive] session ready")
@@ -128,8 +133,8 @@ class RegressionRunnerContract(unittest.TestCase):
         for name in ("core.so", "retroarch", "base.cfg", "pack.phrb"):
             (self.root / name).write_bytes(name.encode())
         rom = b"fake rom"
-        state = b"M64+SAVE" + b"\x01" * 32
-        srm = b"\x00" * 64
+        self.state = state = b"M64+SAVE" + b"\x01" * 32
+        self.srm = srm = b"\x00" * 64
         blobs = self.root / "blobs"
         for kind, data, suffix in (("roms", rom, ".z64"), ("states", state, ".state"), ("savefiles", srm, ".srm")):
             (blobs / kind).mkdir(parents=True)
@@ -355,6 +360,34 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual(len({record["bundle"] for record in records}), 2)
         for record in records:
             self.assertTrue((self.root / "classes" / record["bundle"] / "logs").is_dir(), record["bundle"])
+
+    def compress_blobs(self, kind, content=None):
+        """Replace each raw blob of `kind` with `<name>.gz` holding its bytes (or `content`)."""
+        for path in list((self.root / "blobs" / kind).iterdir()):
+            data = path.read_bytes() if content is None else content
+            path.with_name(f"{path.name}.gz").write_bytes(gzip.compress(data))
+            path.unlink()
+
+    def test_compressed_blobs_stage_their_raw_bytes(self):
+        _, raw = self.run_runner("raw", "--select", "field-state")
+        self.compress_blobs("states")
+        self.compress_blobs("savefiles")
+        result, packed = self.run_runner("packed", "--select", "field-state")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        record = packed["field-state"]
+        self.assertEqual(record["exit_class"], "clean", record["error"])
+        self.assertEqual(record["end_state_sha256"], raw["field-state"]["end_state_sha256"])
+        bundle = self.root / "packed/bundles/field-state__off__fake-4x"
+        self.assertEqual(next((bundle / "states/ParaLLEl N64").glob("*.state1")).read_bytes(), self.state)
+        self.assertEqual(next((bundle / "savefiles/ParaLLEl N64").glob("*.srm")).read_bytes(), self.srm)
+
+    def test_compressed_blob_must_decompress_to_its_name(self):
+        self.compress_blobs("states", content=self.state + b"tampered")
+        result, records = self.run_runner("tampered", "--select", "field-state")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        record = records["field-state"]
+        self.assertEqual(record["exit_class"], "not-run")
+        self.assertIn(".state.gz does not match its name", record["error"])
 
     def test_load_failure_is_classified(self):
         result, records = self.run_runner("load", plan={"fail": "load"})

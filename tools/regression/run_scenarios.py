@@ -18,6 +18,7 @@ import argparse
 import contextlib
 import datetime as dt
 import fnmatch
+import gzip
 import hashlib
 import json
 import os
@@ -28,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -477,13 +479,35 @@ def resolve_rom(scenario: Scenario, ctx: RunContext) -> Path:
     return rom
 
 
-def resolve_blob(blobs: Path | None, kind: str, sha: str, suffix: str) -> Path:
-    path = blobs / kind / f"{sha}{suffix}" if blobs else None
-    if path is None or not path.is_file():
-        raise RunFailure("not-run", f"missing blob {kind}/{sha}{suffix}")
-    if sha256_file(path) != sha:
-        raise RunFailure("not-run", f"blob {kind}/{sha}{suffix} does not match its name")
-    return path
+def resolve_blob(blobs: Path | None, kind: str, sha: str, suffix: str, stage_dir: Path) -> Path:
+    """Path to the blob's raw bytes, which must hash to `sha`.
+
+    A raw `<sha><suffix>` is used in place. Otherwise a gzip `<sha><suffix>.gz`
+    is decompressed into `stage_dir` (streamed, never held in memory), so
+    compressed stores stay content-addressed by their decompressed bytes.
+    """
+    name = f"{sha}{suffix}"
+    raw = blobs / kind / name if blobs else None
+    if raw is not None and raw.is_file():
+        if sha256_file(raw) != sha:
+            raise RunFailure("not-run", f"blob {kind}/{name} does not match its name")
+        return raw
+    packed = raw.with_name(f"{name}.gz") if raw is not None else None
+    if packed is None or not packed.is_file():
+        raise RunFailure("not-run", f"missing blob {kind}/{name}")
+    staged = stage_dir / kind / name
+    staged.parent.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256()
+    try:
+        with gzip.open(packed, "rb") as source, staged.open("wb") as target:
+            for chunk in iter(lambda: source.read(1 << 20), b""):
+                digest.update(chunk)
+                target.write(chunk)
+    except (OSError, EOFError, zlib.error) as error:
+        raise RunFailure("not-run", f"blob {kind}/{name}.gz does not decompress: {error}") from error
+    if digest.hexdigest() != sha:
+        raise RunFailure("not-run", f"blob {kind}/{name}.gz does not match its name")
+    return staged
 
 
 def step_plan(scenario: Scenario, chunk: int) -> list[tuple[str, Any]]:
@@ -565,14 +589,15 @@ class Inputs:
     savefile: Path | None
 
 
-def resolve_inputs(scenario: Scenario, ctx: RunContext) -> Inputs:
+def resolve_inputs(scenario: Scenario, ctx: RunContext, stage_dir: Path) -> Inputs:
     rom = resolve_rom(scenario, ctx)
     if scenario.start["kind"] != "state":
         return Inputs(rom, None, None)
     blobs = ctx.args.blobs
-    state = resolve_blob(blobs, "states", scenario.start["state_sha256"], ".state")
+    state = resolve_blob(blobs, "states", scenario.start["state_sha256"], ".state", stage_dir)
     srm_sha = scenario.start.get("savefile_sha256")
-    return Inputs(rom, state, resolve_blob(blobs, "savefiles", srm_sha, ".srm") if srm_sha else None)
+    savefile = resolve_blob(blobs, "savefiles", srm_sha, ".srm", stage_dir) if srm_sha else None
+    return Inputs(rom, state, savefile)
 
 
 def execute(scenario: Scenario, ctx: RunContext, session: Session, record: dict[str, Any],
@@ -665,7 +690,7 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
     stage_dir = Path(tempfile.mkdtemp(prefix="regression-stage-"))
     launched = False
     try:
-        inputs = resolve_inputs(scenario, ctx)
+        inputs = resolve_inputs(scenario, ctx, stage_dir)
         launched = True
         execute(scenario, ctx, session, record, inputs, stage_dir)
     except RunFailure as failure:
@@ -929,7 +954,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--scenarios", type=Path, nargs="+", required=True, help="scenario files or directories")
-    parser.add_argument("--blobs", type=Path, help="blob store with states/, savefiles/, roms/")
+    parser.add_argument("--blobs", type=Path, help="blob store with states/, savefiles/ (raw or .gz), roms/")
     rom = parser.add_mutually_exclusive_group()
     rom.add_argument("--rom", type=Path, help="ROM for every scenario (sha must match)")
     rom.add_argument("--rom-map", type=Path, help="JSON object mapping ROM sha256 to a path")

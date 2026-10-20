@@ -99,12 +99,16 @@ different capture is nominated for review; it never fails a run.
 
 ## Blob store
 
-- `<blobs>/states/<state_sha256>.state` — raw M64+SAVE body (RetroArch loads raw).
-- `<blobs>/savefiles/<sha256>.srm`.
+- `<blobs>/states/<state_sha256>.state` — raw M64+SAVE body (RetroArch loads raw),
+  or `<state_sha256>.state.gz` — the same body gzip-compressed (~9x smaller).
+- `<blobs>/savefiles/<sha256>.srm`, or `<sha256>.srm.gz`.
 - `<blobs>/roms/<rom_sha256>.<ext>`, or a caller ROM map / single `--rom`.
 
-Builders write blobs; runners only read them and verify each blob's sha256
-against its name before launch.
+A blob's name is always the sha256 of its uncompressed bytes, so scenario and
+expectation hashes do not depend on how a store is compressed. Builders write
+blobs; runners only read them. Before launch the runner uses a raw blob in
+place, or else streams a `.gz` blob into the session's temporary stage
+directory, and verifies the uncompressed sha256 against the name either way.
 
 ## Result record
 

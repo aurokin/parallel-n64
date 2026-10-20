@@ -31,6 +31,10 @@ tools/regression/run_scenarios.py \
   placed only in the base config are overridden by the generated ones.
 - ROMs resolve from `--rom PATH` (one ROM, sha checked), `--rom-map JSON`
   (`{"<rom sha256>": "/path"}`) or `<blobs>/roms/<sha>.*`.
+- State and savefile blobs may be raw or gzip-compressed (`<sha>.state.gz`,
+  `<sha>.srm.gz`); a compressed blob is decompressed per scenario into a
+  temporary stage directory and must hash to its name
+  ([blob store](SCENARIO_SCHEMA.md#blob-store)).
 - `--select` takes an id glob or `tag=value[,value]`; repeated filters must
   all match. `--select tier=smoke --select mode=battle` selects smoke battle
   scenarios.

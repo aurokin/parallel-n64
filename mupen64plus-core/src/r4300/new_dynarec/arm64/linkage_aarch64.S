@@ -442,6 +442,10 @@ GLOBAL_FUNCTION(fp_exception):
     orr    w1, w1, #2
     add    w2, w2, #0x2c
     str    w1, [x29, #g_cp0_regs+48-dynarec_local] /* Status */
+    /* Keep the pending interrupts (IP0-IP7), as set_exception_cause does */
+    ldr    w1, [x29, #g_cp0_regs+52-dynarec_local] /* Cause */
+    and    w1, w1, #0xff00
+    orr    w2, w2, w1
     str    w2, [x29, #g_cp0_regs+52-dynarec_local] /* Cause */
     add    w0, w3, #0x180
     bl     get_addr_ht
@@ -459,6 +463,9 @@ GLOBAL_FUNCTION(jump_syscall):
     orr    w1, w1, #2
     mov    w2, #0x20
     str    w1, [x29, #g_cp0_regs+48-dynarec_local] /* Status */
+    ldr    w1, [x29, #g_cp0_regs+52-dynarec_local] /* Cause */
+    and    w1, w1, #0xff00 /* Keep the pending interrupts */
+    orr    w2, w2, w1
     str    w2, [x29, #g_cp0_regs+52-dynarec_local] /* Cause */
     add    w0, w3, #0x180
     bl     get_addr_ht
@@ -826,6 +833,9 @@ LOCAL_FUNCTION(tlb_exception):
     str    w4, [x29, #g_cp0_regs+48-dynarec_local] /* Status */
     mov    w6, #0x6000000
     movk   w6, #0x22
+    ldr    w9, [x29, #g_cp0_regs+52-dynarec_local] /* Cause */
+    and    w9, w9, #0xff00 /* Keep the pending interrupts */
+    orr    w1, w1, w9
     str    w1, [x29, #g_cp0_regs+52-dynarec_local] /* Cause */
     ldr    w0, [x8, x7, lsl #2]
     add    w4, w8, w1, asr #29

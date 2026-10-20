@@ -392,7 +392,7 @@ static void *dynamic_linker(void * src, u_int vaddr)
   if(r==0) return dynamic_linker(src, vaddr);
   // Execute in unmapped page, generate pagefault exception
   g_cp0_regs[CP0_STATUS_REG]|=2;
-  g_cp0_regs[CP0_CAUSE_REG]=0x8;
+  set_exception_cause(0x8);
   g_cp0_regs[CP0_EPC_REG]=vaddr;
   g_cp0_regs[CP0_BADVADDR_REG]=vaddr;
   g_cp0_regs[CP0_CONTEXT_REG]=(g_cp0_regs[CP0_CONTEXT_REG]&0xFF80000F)|((g_cp0_regs[CP0_BADVADDR_REG]>>9)&0x007FFFF0);
@@ -493,7 +493,7 @@ static void *dynamic_linker_ds(void * src, u_int vaddr)
   if(r==0) return dynamic_linker_ds(src, vaddr);
   // Execute in unmapped page, generate pagefault exception
   g_cp0_regs[CP0_STATUS_REG]|=2;
-  g_cp0_regs[CP0_CAUSE_REG]=0x80000008;
+  set_exception_cause(0x80000008);
   g_cp0_regs[CP0_EPC_REG]=(vaddr&0xFFFFFFF8)-4;
   g_cp0_regs[CP0_BADVADDR_REG]=vaddr&0xFFFFFFF8;
   g_cp0_regs[CP0_CONTEXT_REG]=(g_cp0_regs[CP0_CONTEXT_REG]&0xFF80000F)|((g_cp0_regs[CP0_BADVADDR_REG]>>9)&0x007FFFF0);

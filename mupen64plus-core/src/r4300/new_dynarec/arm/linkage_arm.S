@@ -589,6 +589,10 @@ GLOBAL_FUNCTION(fp_exception):
     orr    r1, #2
     add    r2, r2, #0x2c
     str    r1, [fp, #g_cp0_regs+48-dynarec_local] /* Status */
+    /* Keep the pending interrupts (IP0-IP7), as set_exception_cause does */
+    ldr    r1, [fp, #g_cp0_regs+52-dynarec_local] /* Cause */
+    and    r1, r1, #0xff00
+    orr    r2, r2, r1
     str    r2, [fp, #g_cp0_regs+52-dynarec_local] /* Cause */
     add    r0, r3, #0x180
     bl     get_addr_ht
@@ -605,6 +609,9 @@ GLOBAL_FUNCTION(jump_syscall):
     orr    r1, #2
     mov    r2, #0x20
     str    r1, [fp, #g_cp0_regs+48-dynarec_local] /* Status */
+    ldr    r1, [fp, #g_cp0_regs+52-dynarec_local] /* Cause */
+    and    r1, r1, #0xff00 /* Keep the pending interrupts */
+    orr    r2, r2, r1
     str    r2, [fp, #g_cp0_regs+52-dynarec_local] /* Cause */
     add    r0, r3, #0x180
     bl     get_addr_ht

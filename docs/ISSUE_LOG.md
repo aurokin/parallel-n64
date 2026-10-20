@@ -68,10 +68,26 @@ against the lab expectations:
 
 The recording core reproduces all three recordings.
 
-The ARM `new_dynarec` still writes Cause outright in its own TLB and
-syscall paths (`new_dynarec.c`, `new_dynarec_64.c`, `linkage_*`); it was
-not changed or tested here. A queued `CHECK_INT` also does not recheck IE and
-EXL when it fires; that is unchanged.
+The ARM and AArch64 `new_dynarec` wrote Cause outright in their own paths and
+now follow the same rule. The C refill paths (`TLB_refill_exception_new`, and
+AArch64's `get_addr`, `get_addr_32` and dynamic linkers) call
+`set_exception_cause`. The assembly that raises SYSCALL, coprocessor-unusable
+and AArch64 data refills (`linkage_arm.S`, `linkage_aarch64.S`) keeps the IP
+bits before storing the code. Its ERET calls `check_interrupt` and delivers a
+pending interrupt before translating the return address, so it never had the
+ERET ordering above. It lost an interrupt only when one of these exceptions
+was taken while the interrupt was disabled or masked. MTC0 already used the
+interpreter. SYSCALL stores Cause inside `jump_syscall`, so the entry-point
+bug above does not apply. ARM's assembly `exec_pagefault` is unused, and the
+x86 `new_dynarec` is not built; both are unchanged. The ARM changes compile
+for ARMv7 and AArch64 but have not run on ARM hardware.
+`emu.unit.cp0_exception_cause_new_dynarec` covers the `new_dynarec` delivery
+branch in `interrupt.c`. macOS builds on Apple Silicon (`platform=osx`,
+`uname -p` = `arm`) include no recompiler and use the cached interpreter,
+which the fix above covers.
+
+A queued `CHECK_INT` also does not recheck IE and EXL when it fires; that is
+unchanged.
 
 ## Savestate load does not reproduce the saving run
 

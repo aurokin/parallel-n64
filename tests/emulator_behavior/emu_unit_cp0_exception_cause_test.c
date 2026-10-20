@@ -6,7 +6,10 @@
  * the dynamic recompiler and cached interpreter take the TLB refill inside
  * ERET, before ERET checks for interrupts. The refill exception used to
  * overwrite Cause and lose IP7, so libultra's timer interrupt never arrived and
- * Conker's Bad Fur Day deadlocked under the dynamic recompiler. */
+ * Conker's Bad Fur Day deadlocked under the dynamic recompiler.
+ *
+ * Built a second time with NEW_DYNAREC defined, it also covers the ARM and
+ * AArch64 new_dynarec delivery path in interrupt.c. */
 
 #include "main/device.h"
 #include "r4300/cp0_private.h"
@@ -16,6 +19,9 @@
 #include "r4300/r4300_core.h"
 #include "r4300/recomp.h"
 #include "r4300/tlb.h"
+#ifdef NEW_DYNAREC
+#include "r4300/new_dynarec/new_dynarec.h"
+#endif
 
 #include <boolean.h>
 #include <stdio.h>
@@ -35,6 +41,11 @@ int stop;
 int reset_hard_job;
 int g_gs_vi_counter;
 tlb tlb_e[32];
+#ifdef NEW_DYNAREC
+int pcaddr;
+int pending_exception;
+void invalidate_all_pages(void) {}
+#endif
 
 static struct precomp_instr current_instr;
 static uint32_t jumped_to;
@@ -128,6 +139,41 @@ int main(void)
    expect_eq("nested store refill: cause", g_cp0_regs[CP0_CAUSE_REG],
          CP0_CAUSE_IP7 | CP0_CAUSE_IP2 | CP0_CAUSE_EXCCODE_TLBS);
    expect_eq("nested store refill: vector", jumped_to, UINT32_C(0x80000180));
+
+#ifdef NEW_DYNAREC
+   /* new_dynarec checks for interrupts before its ERET translates the return
+    * address, so IP7 is pending at a refill only while interrupts are
+    * disabled. Compare fires with IE clear, then a delay slot touches an
+    * unmapped page. new_dynarec's C linker and memory handlers record the
+    * refill with set_exception_cause, BD in bit 31; its assembly applies the
+    * same mask. */
+   r4300emu = CORE_DYNAREC;
+   reset_cpu(UINT32_C(0x00008000), CP0_CAUSE_IP7, UINT32_C(0x1502c384));
+   set_exception_cause(CP0_CAUSE_BD | CP0_CAUSE_EXCCODE_TLBL);
+   g_cp0_regs[CP0_STATUS_REG] |= CP0_STATUS_EXL;
+   expect_eq("new_dynarec refill: cause", g_cp0_regs[CP0_CAUSE_REG],
+         CP0_CAUSE_BD | CP0_CAUSE_IP7 | CP0_CAUSE_EXCCODE_TLBL);
+
+   /* The refill handler returns with interrupts still disabled; nothing is
+    * delivered and IP7 stays pending. */
+   g_cp0_regs[CP0_STATUS_REG] &= ~CP0_STATUS_EXL;
+   check_interrupt();
+   expect_eq("new_dynarec eret: ip7", g_cp0_regs[CP0_CAUSE_REG] & CP0_CAUSE_IP7, CP0_CAUSE_IP7);
+
+   /* Re-enabling interrupts (MTC0 Status records the next pcaddr and checks
+    * interrupts) delivers the timer interrupt through new_dynarec's branch of
+    * the delivery code. */
+   g_cp0_regs[CP0_STATUS_REG] = im7_enabled;
+   pcaddr = UINT32_C(0x1502c390);
+   pending_exception = 0;
+   check_interrupt();
+   gen_interrupt();
+   expect_eq("new_dynarec delivery: cause", g_cp0_regs[CP0_CAUSE_REG],
+         CP0_CAUSE_IP7 | CP0_CAUSE_EXCCODE_INT);
+   expect_eq("new_dynarec delivery: epc", g_cp0_regs[CP0_EPC_REG], UINT32_C(0x1502c390));
+   expect_eq("new_dynarec delivery: vector", (uint32_t)pcaddr, UINT32_C(0x80000180));
+   expect_eq("new_dynarec delivery: pending", (uint32_t)pending_exception, 1);
+#endif
 
    if (failures)
       return EXIT_FAILURE;

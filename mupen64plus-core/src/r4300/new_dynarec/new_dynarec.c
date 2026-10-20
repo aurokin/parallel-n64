@@ -52,6 +52,7 @@ extern "C" {
 #include "../cached_interp.h"
 #include "../cp0_private.h"
 #include "../cp1_private.h"
+#include "../exception.h"
 #include "../main/main.h"
 #include "../main/rom.h"
 #include "../interrupt.h"
@@ -11284,9 +11285,9 @@ void *TLB_refill_exception_new(u_int inst_addr,u_int mem_addr,int w)
      return get_addr_ht(0x80000000);
 
    if(w==1)
-      g_cp0_regs[CP0_CAUSE_REG]=(inst_addr<<31)|CP0_CAUSE_EXCCODE_TLBS;
+      set_exception_cause((inst_addr<<31)|CP0_CAUSE_EXCCODE_TLBS);
    else
-      g_cp0_regs[CP0_CAUSE_REG]=(inst_addr<<31)|CP0_CAUSE_EXCCODE_TLBL;
+      set_exception_cause((inst_addr<<31)|CP0_CAUSE_EXCCODE_TLBL);
 
    g_cp0_regs[CP0_BADVADDR_REG]=mem_addr;
    g_cp0_regs[CP0_CONTEXT_REG]=(g_cp0_regs[CP0_CONTEXT_REG]&0xFF80000F)|((mem_addr>>9)&0x007FFFF0);

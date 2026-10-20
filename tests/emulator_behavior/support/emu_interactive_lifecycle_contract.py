@@ -111,6 +111,15 @@ for line in sys.stdin:
             reply(f'[INFO] [State] Saving state "{path}", 4 bytes.')
         elif command == "WAIT_SAVE_STATE":
             reply("WAIT_SAVE_STATE DONE")
+        elif command == "SCREENSHOT":
+            # Like RetroArch: the file exists at once, empty until the encode ends.
+            capture = Path(os.environ["FAKE_CAPTURE_DIR"]) / f"fake-{frame}.png"
+            capture.parent.mkdir(parents=True, exist_ok=True)
+            capture.touch()
+            def encode(path=capture):
+                time.sleep(float(os.environ.get("FAKE_CAPTURE_SECONDS", "0")))
+                path.write_bytes(b"not a real png")
+            threading.Thread(target=encode, daemon=True).start()
         elif command == "QUIT" and not wedged:
             break
 '''
@@ -280,6 +289,23 @@ class InteractiveLifecycleContract(unittest.TestCase):
                                   ["SET_INPUT_PORT 0 0x1", "frame=10", "paused=1"],
                                   ["STEP_FRAME 2", "frame=10", "paused=1"],
                                   ["CLEAR_INPUT_PORT 0", "frame=12", "paused=1"]])
+
+    def screenshot(self, wait_seconds):
+        return self.adapter("screenshot", "--bundle-dir", str(self.bundle),
+                            "--timeout-seconds", str(wait_seconds))
+
+    def test_screenshot_waits_for_a_slow_encode(self):
+        self.start(600, FAKE_CAPTURE_DIR=str(self.bundle / "captures"), FAKE_CAPTURE_SECONDS="3")
+        result = self.screenshot(8)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        capture = Path(result.stdout.strip().splitlines()[-1])
+        self.assertEqual(capture.read_bytes(), b"not a real png")
+
+    def test_screenshot_timeout_names_the_unfinished_capture(self):
+        self.start(600, FAKE_CAPTURE_DIR=str(self.bundle / "captures"), FAKE_CAPTURE_SECONDS="5")
+        result = self.screenshot(1)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("fake-0.png was still being written after 1s (0 bytes)", result.stderr)
 
     def save_slot(self, slot):
         return self.adapter("save-slot", "--bundle-dir", str(self.bundle), "--slot", str(slot))

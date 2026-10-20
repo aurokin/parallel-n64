@@ -124,7 +124,9 @@ baseline.
 
 ## Evidence
 
-- Screenshot completion waits for a non-empty, size-stable PNG.
+- Screenshot completion waits for a non-empty, size-stable PNG, for up to
+  `--timeout-seconds` (default 60). The frontend's PNG encode of a 4x frame
+  can take over 15 s on a loaded host.
 - Uniform-black detection records a warning but does not fail by itself because
   a fade can legitimately be black.
 - State and capture operations fail loudly when acknowledgements or expected

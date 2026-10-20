@@ -32,7 +32,7 @@ Usage:
   retroarch_interactive_session.sh start --bundle-dir D --rom R --core C [options]
   retroarch_interactive_session.sh send --bundle-dir D --command "CMD" [--ack-timeout SEC]
   retroarch_interactive_session.sh input --bundle-dir D --mask HEX [--port N] [--hold-seconds SEC | --frames N] [--analog "lx ly rx ry"]
-  retroarch_interactive_session.sh screenshot --bundle-dir D
+  retroarch_interactive_session.sh screenshot --bundle-dir D [--timeout-seconds SEC]   (default 60)
   retroarch_interactive_session.sh status --bundle-dir D
   retroarch_interactive_session.sh record-start --bundle-dir D [--path FILE]
   retroarch_interactive_session.sh replay-start --bundle-dir D --path FILE
@@ -1072,15 +1072,25 @@ cmd_input() {
   fi
 }
 
+# The frontend names the capture file when SCREENSHOT arrives but fills it only
+# after a single-threaded PNG encode (zlib level 9). A 4x frame took 4-14 s
+# on the hosts measured and longer under CPU contention, so the default wait
+# leaves room well beyond that.
 cmd_screenshot() {
+  local timeout_seconds=60
   while (($#)); do
     case "$1" in
       --bundle-dir) shift; BUNDLE_DIR="${1:-}" ;;
+      --timeout-seconds) shift; timeout_seconds="${1:-}" ;;
       *) echo "Unknown screenshot option: $1" >&2; exit 2 ;;
     esac
     shift
   done
   [[ -z "${BUNDLE_DIR:-}" ]] && { echo "screenshot requires --bundle-dir." >&2; exit 2; }
+  if ! [[ "$timeout_seconds" =~ ^[0-9]+$ ]] || (( timeout_seconds < 1 )); then
+    echo "--timeout-seconds must be a whole number of seconds >= 1." >&2
+    exit 2
+  fi
   require_live_session
   acquire_send_lock 25
   refuse_if_step_in_flight "SCREENSHOT"
@@ -1088,7 +1098,7 @@ cmd_screenshot() {
   local before
   before="$(find "$BUNDLE_DIR/captures" -maxdepth 1 -type f | wc -l)"
   send_fifo "SCREENSHOT"
-  local deadline=$(( $(date +%s) + 15 ))
+  local deadline=$(( $(date +%s) + timeout_seconds ))
   local newest="" last_size=-1
   while (( $(date +%s) < deadline )); do
     local now
@@ -1108,7 +1118,11 @@ cmd_screenshot() {
     fi
     sleep 0.2
   done
-  echo "No completed capture appeared within 15s." >&2
+  if [[ -n "$newest" ]]; then
+    echo "Capture $newest was still being written after ${timeout_seconds}s ($(file_size_bytes "$newest") bytes)." >&2
+  else
+    echo "No capture file appeared within ${timeout_seconds}s." >&2
+  fi
   exit 1
 }
 

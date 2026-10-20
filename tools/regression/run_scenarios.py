@@ -46,6 +46,9 @@ START_SLOT, END_SLOT = 1, 2
 STATE_MAGIC = b"M64+SAVE"
 # Floor used to size step timeouts; 4x headless runs are well above it.
 MIN_FPS = 15.0
+# The adapter's wait for the frontend's asynchronous PNG encode; a 4x capture
+# can exceed 15 s on a loaded host. The call itself also covers the bundle lock.
+CAPTURE_WAIT_SECONDS = 60
 ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 PROGRAM_RES = {
@@ -564,7 +567,8 @@ def take_checkpoint(session: Session, cp: Checkpoint, out: Path) -> dict[str, An
         if error:
             observed["ram_errors"][cue.name] = error
     if cp.capture:
-        reply = session.call("screenshot", timeout=40)
+        reply = session.call("screenshot", "--timeout-seconds", str(CAPTURE_WAIT_SECONDS),
+                             timeout=CAPTURE_WAIT_SECONDS + 30)
         if not reply.ok:
             raise session.fail(reply, "timeout", f"screenshot at {cp.after_frames}")
         capture = Path(reply.stdout.strip().splitlines()[-1])

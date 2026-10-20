@@ -55,6 +55,8 @@ PROGRAM_RES = {
 }
 STATUS_RE = re.compile(r"GET_STATUS\s+(\w+)\b.*?frame=(\d+)\s*$")
 SUMMARY_RE = re.compile(r"Hi-res keying summary[^:]*:\s*(.*)$")
+# Jabo (MD5-keyed) packages report their draw-time hits on a separate line.
+JABO_SUMMARY_RE = re.compile(r"Hi-res Jabo summary:\s*entries=(\d+) hits=(\d+) misses=(\d+)")
 FILTERED_RE = re.compile(r"Hi-res keying filtered: reason=(\S+)")
 CACHE_FAILED = "Hi-res replacement cache load failed"
 STATE_LOAD_FAILED = "[State] Failed to load state"
@@ -405,8 +407,12 @@ def parse_hires(log_text: str) -> dict[str, Any]:
         "summary_lines": lines[-3:], "summary_count": len(lines),
         "cache_load_failed": CACHE_FAILED in log_text,
         "provider": None, "entries": None, "hits": None, "misses": None, "draw_hits": None,
-        "fallback_reasons": {},
+        "jabo": None, "fallback_reasons": {},
     }
+    jabo = JABO_SUMMARY_RE.findall(log_text)
+    if jabo:
+        entries, hits, misses = map(int, jabo[-1])
+        hires["jabo"] = {"entries": entries, "hits": hits, "misses": misses}
     for reason in FILTERED_RE.findall(log_text):
         hires["fallback_reasons"][reason] = hires["fallback_reasons"].get(reason, 0) + 1
     if not lines:
@@ -826,9 +832,12 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
             # report no draw-time hits.
             # A session that looked up no texture at all (a few frames after
             # power-on) has nothing to serve; misses without hits still fail.
-            served = max(hires["hits"] or 0, hires["draw_hits"] or 0)
+            jabo = hires.get("jabo") or {}
+            served = max(hires["hits"] or 0, hires["draw_hits"] or 0) + jabo.get("hits", 0)
             looked_up = served + (hires["misses"] or 0)
             detail = f"hits={hires['hits']} draw_hits={hires['draw_hits']} misses={hires['misses']}"
+            if jabo:
+                detail += f" jabo_hits={jabo['hits']} jabo_misses={jabo['misses']}"
             gates.append(gate("hires.served", "pass" if served >= 1 else "skip" if looked_up == 0 else "fail",
                               detail if looked_up else "no texture lookups"))
         else:

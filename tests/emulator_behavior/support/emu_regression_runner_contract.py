@@ -107,6 +107,8 @@ elif sub == "stop":
              "descriptor_paths(sampled=0 native_checksum=0 generic=0 compat=3) "
              "sampled_detail(family_singleton=0 ordered_surface_singleton=0 exact_selector=0) "
              "generic_detail(identity_assisted=0 plain=0 native=0 compat=0 unknown=0).")
+        if "jabo" in plan:
+            emit(f"[INFO] Hi-res Jabo summary: {plan['jabo']} md5=1 memo_hits=0.")
     if plan.get("fail") == "stop":
         print("[interactive] stop failed.", file=sys.stderr)
         state_file.write_text(json.dumps(st))
@@ -344,6 +346,14 @@ class RegressionRunnerContract(unittest.TestCase):
         _, records = self.run_runner("unserved", "--select", "boot-power-on", mode="on",
                                      plan={"lookups": "lookups=3 hits=0 misses=3", "draw_hits": 0})
         self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], "fail")
+
+    def test_served_gate_counts_jabo_hits(self):
+        _, records = self.run_runner("jabo", "--select", "boot-power-on", mode="on",
+                                     plan={"lookups": "lookups=3 hits=0 misses=3", "draw_hits": 0,
+                                           "jabo": "entries=9 hits=2 misses=1"})
+        record = records["boot-power-on"]
+        self.assertEqual(self.gates(record)["hires.served"], "pass")
+        self.assertEqual(record["hires"]["jabo"], {"entries": 9, "hits": 2, "misses": 1})
 
     def test_failed_stop_fails_the_exit_gate(self):
         result, records = self.run_runner("stop", "--select", "boot-power-on", plan={"fail": "stop"})

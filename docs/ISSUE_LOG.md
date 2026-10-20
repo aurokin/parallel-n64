@@ -759,8 +759,8 @@ differ; none is known.
 
 ## Jabo MD5 keys await runtime qualification
 
-Status: implemented in source October 19, 2026; offline-verified only. No
-emulator run has served a Jabo package.
+Status: implemented in source October 19, 2026; first runtime check October
+20, 2026 (SM64 only).
 
 The Jabo key (see [Jabo packs](../assets/TEXTURE_PACKS.md#jabo-packs)) was
 derived offline from ROM data against real SM64, OoT, MK64 and GoldenEye
@@ -785,6 +785,17 @@ override that disables that lane disables Jabo lookups too. Runtime
 qualification should compare SM64 Reloaded's Jabo and GLideN64 releases in
 the same scenes, then OoT Kokiri, the MK64 attract demo and player select
 (strided), a GoldenEye pack and the AeroGauge DDS pack, serially at 4x.
+
+October 20 runtime check (Mander, 4x, core built from `e1ff0720`): SM64
+Reloaded's Jabo release (2,514 records) on the two SM64 power-on scenarios and
+seven `lab-depth-sm64` segments (castle grounds through Bob-omb Battlefield)
+served Jabo hits in all nine with zero Jabo misses: 175,406 draw hits in the
+90 s attract scenario, against 171,066 for the same pack's GLideN64 `.hts`
+release in the pack sweep. MD5s were computed 16–218 times per scenario; the
+memo served the rest. Every end state matched its feature-off golden. The
+runner's `hires.served` gate counted only Rice hits and failed these sessions;
+it now adds the Jabo summary's hits. OoT, MK64, GoldenEye and AeroGauge Jabo
+packs remain unchecked at runtime.
 
 ## Interactive stop leaves RetroArch running after a QUIT timeout
 

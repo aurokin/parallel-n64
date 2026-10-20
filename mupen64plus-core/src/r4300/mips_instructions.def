@@ -705,7 +705,8 @@ DECLARE_INSTRUCTION(MTC0)
          DebugMessage(M64MSG_ERROR, "MTC0 instruction trying to write Cause register with non-0 value");
          stop = 1;
       }
-      else g_cp0_regs[CP0_CAUSE_REG] = rrt32;
+      /* Only IP0-IP1 are writable; the other IP bits follow interrupt lines. */
+      else g_cp0_regs[CP0_CAUSE_REG] &= ~(CP0_CAUSE_IP0 | CP0_CAUSE_IP1);
       break;
     case CP0_EPC_REG:
       g_cp0_regs[CP0_EPC_REG] = rrt32;
@@ -1466,7 +1467,7 @@ DECLARE_JUMP(JALR, irs32, 1, &rrd,    0, 0)
 
 DECLARE_INSTRUCTION(SYSCALL)
 {
-   g_cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_SYS;
+   set_exception_cause(CP0_CAUSE_EXCCODE_SYS);
    exception_general();
 }
 

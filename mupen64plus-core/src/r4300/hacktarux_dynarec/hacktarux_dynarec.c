@@ -4038,20 +4038,8 @@ void genjalr(void)
 
 void gensyscall(void)
 {
-#ifdef INTERPRET_SYSCALL
+   /* The interpreter sets Cause without dropping pending interrupts. */
    gencallinterp((native_type)cached_interpreter_table.SYSCALL, 0);
-#else
-#ifdef __x86_64__
-   free_registers_move_start();
-
-   mov_m32rel_imm32(&g_cp0_regs[CP0_CAUSE_REG], 8 << 2);
-#else
-   free_all_registers();
-   simplify_access();
-   mov_m32_imm32(&g_cp0_regs[CP0_CAUSE_REG], 8 << 2);
-#endif
-   gencallinterp((native_type)exception_general, 0);
-#endif
 }
 
 void gensync(void)

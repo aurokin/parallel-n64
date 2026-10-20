@@ -32,13 +32,17 @@
 #include "recomph.h"
 #include "tlb.h"
 
+void set_exception_cause(uint32_t cause)
+{
+   g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] & CP0_CAUSE_IP_MASK) | cause;
+}
+
 void TLB_refill_exception(uint32_t address, int w)
 {
    int usual_handler = 0, i;
 
    if (r4300emu != CORE_DYNAREC && w != 2) cp0_update_count();
-   if (w == 1) g_cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_TLBS;
-   else g_cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_TLBL;
+   set_exception_cause(w == 1 ? CP0_CAUSE_EXCCODE_TLBS : CP0_CAUSE_EXCCODE_TLBL);
    g_cp0_regs[CP0_BADVADDR_REG] = address;
    g_cp0_regs[CP0_CONTEXT_REG] = (g_cp0_regs[CP0_CONTEXT_REG] & UINT32_C(0xFF80000F)) | ((address >> 9) & UINT32_C(0x007FFFF0));
    g_cp0_regs[CP0_ENTRYHI_REG] = address & UINT32_C(0xFFFFE000);

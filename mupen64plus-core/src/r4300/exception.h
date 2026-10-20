@@ -24,6 +24,13 @@
 
 #include <stdint.h>
 
+/* Records a synchronous exception's code (and CE bits) in Cause. The
+ * interrupt-pending bits are kept: IP2-IP7 follow the interrupt lines, IP7
+ * latching the Compare timer until Compare is written, and IP0-IP1 are set by
+ * software. An exception taken while an interrupt is pending but not yet
+ * serviced (EXL set or IE clear) must leave it pending. BD is cleared; the
+ * exception entry sets it. */
+void set_exception_cause(uint32_t cause);
 void TLB_refill_exception(uint32_t addresse, int w);
 void exception_general(void);
 

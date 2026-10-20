@@ -4,6 +4,75 @@ This register holds technical details owned by `parallel-n64`.
 Scheduling, priority, fleet rollout, eval operation, and gameplay research are
 tracked by their owning systems.
 
+## Exceptions dropped pending interrupts (Conker deadlock)
+
+Status: resolved, October 20, 2026.
+
+Conker's Bad Fur Day (USA) froze under the dynamic recompiler (CountPerOp 3,
+the ROM-database value): from a state saved near a fence, holding the stick
+froze the game within about 420 frames, and an earlier recording held on a
+cutscene the same way. The cached and pure interpreters kept running, as did
+the dynamic recompiler with CountPerOp 1, 2 or 4. mupen64plus-next with
+HLE RSP also kept running from a converted state.
+
+In the frozen state every game thread is blocked: the main thread waits on
+the SI event queue, the audio thread on its RSP task's done queue, and the
+scheduler has no tasks. CP0 Compare holds a value Count has already passed,
+so libultra's timer list never advances. An event trace showed why:
+
+1. A Compare interrupt fired while an exception handler ran (EXL set), so
+   Cause.IP7 stayed pending.
+2. The handler's ERET returned to a TLB-unmapped page. The dynamic recompiler
+   and cached interpreter translate the jump target inside ERET, so the TLB
+   refill exception was taken before ERET checked for interrupts.
+3. `TLB_refill_exception` assigned Cause outright, clearing IP7. The timer
+   interrupt was lost; Count would have to wrap (about 90 seconds) to reach
+   Compare again.
+
+The pure interpreter faults on the next fetch instead, after ERET has taken
+the interrupt, which is why it escaped. On the VR4300 an exception never
+clears IP2-IP7; IP7 is cleared only by writing Compare.
+
+Fix: synchronous exceptions (TLB refill, SYSCALL, coprocessor unusable) now
+replace only the exception code and keep the IP bits; interrupt delivery sets
+its own exception code instead of inheriting a stale one; and an MTC0 Cause
+write of zero clears only the software bits IP0-IP1. The x86 dynamic
+recompiler's SYSCALL goes through the interpreter so it shares the rule.
+`emu.unit.cp0_exception_cause` covers the refill-then-deliver sequence.
+
+Routing SYSCALL through the interpreter also removes a separate recompiler
+bug. The native SYSCALL stored ExcCode 8 and then called
+`gencallinterp`, whose `free_registers_move_start()` moved the
+instruction's entry point past that store. Code that jumped straight to the
+SYSCALL raised the exception without setting Cause. Banjo-Tooie (USA) hit
+this during boot: its handler saw ExcCode 0 with no pending interrupt and
+returned to the SYSCALL, which repeated about 650,000 times in the first 600
+frames. Core `611f4255` reproduces the `power-on-bt-start` feature-off
+golden, which is black at all eight checkpoints. With the fix, Banjo-Tooie shows the N64
+logo, the title and the intro by those frames. Over the same 600 frames its
+exception profile matches the pure interpreter's: about 4,600 exceptions, and
+every SYSCALL carries ExcCode 8.
+
+Regression replay (feature-off, `linux-radv-headless-vk-4x`, core `e13c6468`)
+against the lab expectations:
+
+- `power-on`: 60 of 62 match. `power-on-bt-start` and `power-on-bt-attract`
+  change, as described above; their goldens need re-recording.
+- `lab-play-goldeneye`: 8 of 8 match. `lab-play`: 65 of 65 match.
+- `lab-depth-conker` has no expectations. 36 of 39 segments reproduce their
+  recorded end states. Three do not:
+  - `053740` and `060845` ended in this deadlock when recorded and now keep
+    running.
+  - `055156` hit one timer interrupt pending at a TLB refill and now differs
+    slightly in timing.
+
+The recording core reproduces all three recordings.
+
+The ARM `new_dynarec` still writes Cause outright in its own TLB and
+syscall paths (`new_dynarec.c`, `new_dynarec_64.c`, `linkage_*`); it was
+not changed or tested here. A queued `CHECK_INT` also does not recheck IE and
+EXL when it fires; that is unchanged.
+
 ## Savestate load does not reproduce the saving run
 
 Status: resolved, October 19, 2026, for states saved by cores with both fixes

@@ -385,8 +385,13 @@ void check_interrupt(void)
    }
 }
 
+/* Delivers an interrupt exception. A synchronous exception taken while the
+ * interrupt was pending left its code in Cause, so the code is reset here
+ * rather than relying on whoever raised the interrupt to clear it. CE is left
+ * as it was, as before. */
 static void wrapped_exception_general(void)
 {
+   g_cp0_regs[CP0_CAUSE_REG] &= ~CP0_CAUSE_EXCCODE_MASK;
 #ifdef NEW_DYNAREC
    if (r4300emu == CORE_DYNAREC)
    {

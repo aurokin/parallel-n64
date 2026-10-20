@@ -77,7 +77,7 @@ int check_cop1_unusable(void)
 {
    if (!(g_cp0_regs[CP0_STATUS_REG] & CP0_STATUS_CU1))
    {
-      g_cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_CPU | CP0_CAUSE_CE1;
+      set_exception_cause(CP0_CAUSE_EXCCODE_CPU | CP0_CAUSE_CE1);
       exception_general();
       return 1;
    }

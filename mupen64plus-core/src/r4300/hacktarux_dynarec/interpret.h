@@ -86,7 +86,6 @@
 //#define INTERPRET_SRAV
 //#define INTERPRET_JR
 //#define INTERPRET_JALR
-//#define INTERPRET_SYSCALL
 //#define INTERPRET_MFHI
 //#define INTERPRET_MTHI
 //#define INTERPRET_MFLO

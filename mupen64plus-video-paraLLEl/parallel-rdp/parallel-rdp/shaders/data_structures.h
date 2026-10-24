@@ -352,8 +352,8 @@ struct GlobalFBInfo
 	int fb_size;
 	uint base_primitive_index;
 	uint hires_filter;
-	// 0 when this pass must not sample replacements (the native pass of an
-	// upscaled frame under PARALLEL_RDP_HIRES_NATIVE_PASS=native).
+	// 0 when this pass must not sample replacements: the native pass, which writes
+	// RDRAM, whenever a separate presented pass exists (ADR-0020).
 	uint hires_replacement;
 };
 

@@ -142,11 +142,11 @@ justification, and keep bundles under the
 
 `compare_modes.py OFF_RUN ON_RUN` compares an off-mode and an on-mode run of the
 same scenarios. Every savestate byte outside RDRAM and every checkpoint RAM cue
-must match; RDRAM differences are listed by address range. At upscaled runtime
-classes the native pass renders without replacements
-([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md)), so RDRAM
-should match too: pass `--strict-rdram` to fail on any RDRAM difference. Without
-upscaling, or with `PARALLEL_RDP_HIRES_NATIVE_PASS=replace`, replacement changes
-the framebuffer and depth-buffer contents written back, and those ranges are
-expected.
+must match; RDRAM differences are listed by address range. The native pass
+renders without replacements at every upscale factor
+([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md); at 1x a
+separate presented pass is added while a pack is loaded), so RDRAM should match
+too: pass `--strict-rdram` to fail on any RDRAM difference. With `PARALLEL_RDP_HIRES_NATIVE_PASS=replace` (or a core older than the
+1x presented pass), replacement changes the framebuffer and depth-buffer contents
+written back, and those ranges are expected.
 

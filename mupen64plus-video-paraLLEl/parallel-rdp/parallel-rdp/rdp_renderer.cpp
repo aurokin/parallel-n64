@@ -28,6 +28,7 @@
 #include "rdp_hires_load_origin_policy.hpp"
 #include "rdp_hires_registry_policy.hpp"
 #include "rdp_hires_runtime_policy.hpp"
+#include "rdp_hires_pass_policy.hpp"
 #include "rdp_hires_state_policy.hpp"
 #include "rdp_hires_texture_layout.hpp"
 #include "texture_replacement.hpp"
@@ -1053,9 +1054,17 @@ bool Renderer::init_internal_upscaling_factor(const RendererOptions &options)
 		upscaling_multisampled_hidden_rdram.reset();
 		upscaling_reference_rdram.reset();
 		upscaling_multisampled_rdram.reset();
+		caps.upscaled_domain = false;
 		return true;
 	}
 
+	allocate_upscaled_domain(factor);
+	caps.upscaled_domain = true;
+	return true;
+}
+
+void Renderer::allocate_upscaled_domain(unsigned factor)
+{
 	Vulkan::BufferCreateInfo info;
 	info.domain = Vulkan::BufferDomain::Device;
 	info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
@@ -1081,8 +1090,30 @@ bool Renderer::init_internal_upscaling_factor(const RendererOptions &options)
 		             VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT);
 		device->submit(cmd);
 	}
+}
 
-	return true;
+// At 1x the native pass is presented and writes RDRAM. While a replacement provider
+// is attached, render a separate presented pass at native resolution through the
+// upscaled-domain path (factor 1) so replacements stay out of RDRAM (ADR-0020).
+// The domain resynchronizes from RDRAM through its reference copy, so enabling it
+// mid-run only needs its buffers.
+void Renderer::update_hires_presented_pass()
+{
+	if (caps.upscaling > 1 || !device || !rdram || !hidden_rdram)
+		return;
+
+	const bool presented_pass = detail::needs_presented_pass(
+			caps.upscaling, replacement_provider && caps.hires_replacement_shader,
+			hires_native_pass_replacement);
+	if (presented_pass == caps.upscaled_domain)
+		return;
+
+	if (need_flush())
+		flush_queues();
+	if (presented_pass && !upscaling_multisampled_rdram)
+		allocate_upscaled_domain(1);
+	caps.upscaled_domain = presented_pass;
+	LOGI("Hi-res 1x presented pass: %s.\n", presented_pass ? "on" : "off");
 }
 
 void Renderer::set_rdram(Vulkan::Buffer *buffer, uint8_t *host_rdram, size_t offset, size_t size, bool coherent)
@@ -1211,6 +1242,8 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 			requested_capacity = unsigned(provider->entry_count()) + 1u;
 		init_hires_resources(std::max(requested_capacity, 1u));
 	}
+
+	update_hires_presented_pass();
 }
 
 void Renderer::set_hires_debug(bool enable)
@@ -1309,7 +1342,8 @@ void Renderer::set_hires_gliden64_compat_crc(bool enable)
 void Renderer::set_hires_native_pass_replacement(bool enable)
 {
 	hires_native_pass_replacement = enable;
-	LOGI("Hi-res native pass: %s.\n", enable ? "replace" : "native (RDRAM matches feature-off when upscaling)");
+	LOGI("Hi-res native pass: %s.\n", enable ? "replace" : "native (RDRAM matches feature-off)");
+	update_hires_presented_pass();
 }
 
 void Renderer::set_hires_filter(unsigned mode)
@@ -3427,8 +3461,8 @@ void Renderer::submit_rasterization(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &
 
 	global_fb_info->base_primitive_index = base_primitive_index;
 	global_fb_info->hires_filter = hires_filter_mode;
-	global_fb_info->hires_replacement =
-			(upscaling || caps.upscaling <= 1 || hires_native_pass_replacement) ? 1u : 0u;
+	global_fb_info->hires_replacement = detail::pass_samples_replacements(
+			upscaling, caps.upscaled_domain, hires_native_pass_replacement) ? 1u : 0u;
 
 #ifdef PARALLEL_RDP_SHADER_DIR
 	cmd.set_program("rdp://rasterizer.comp", {
@@ -3767,8 +3801,8 @@ void Renderer::submit_depth_blend(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &tm
 
 	global_fb_info->base_primitive_index = base_primitive_index;
 	global_fb_info->hires_filter = hires_filter_mode;
-	global_fb_info->hires_replacement =
-			(upscaled || caps.upscaling <= 1 || hires_native_pass_replacement) ? 1u : 0u;
+	global_fb_info->hires_replacement = detail::pass_samples_replacements(
+			upscaled, caps.upscaled_domain, hires_native_pass_replacement) ? 1u : 0u;
 
 	push.depth_addr_index = fb.depth_addr >> 1;
 	unsigned num_primitives_32 = (stream.triangle_setup.size() + 31) / 32;
@@ -3834,7 +3868,7 @@ void Renderer::submit_render_pass(Vulkan::CommandBuffer &cmd)
 	{
 		submit_span_setup_jobs(cmd, false);
 		submit_tile_binning_combined(cmd, false);
-		if (caps.upscaling > 1)
+		if (caps.upscaled_domain)
 			submit_update_upscaled_domain(cmd, ResolveStage::Pre);
 	}
 
@@ -4271,6 +4305,11 @@ unsigned Renderer::get_scaling_factor() const
 	return caps.upscaling;
 }
 
+bool Renderer::has_upscaled_domain() const
+{
+	return caps.upscaled_domain;
+}
+
 const Vulkan::Buffer *Renderer::get_upscaled_rdram_buffer() const
 {
 	return upscaling_multisampled_rdram.get();
@@ -4552,7 +4591,7 @@ void Renderer::flush_queues()
 bool Renderer::render_pass_is_upscaled() const
 {
 	bool need_render_pass = fb.width != 0 && fb.deduced_height != 0 && !stream.span_info_jobs.empty();
-	return caps.upscaling > 1 && need_render_pass && should_render_upscaled();
+	return caps.upscaled_domain && need_render_pass && should_render_upscaled();
 }
 
 bool Renderer::should_render_upscaled() const

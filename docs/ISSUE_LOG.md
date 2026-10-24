@@ -152,6 +152,37 @@ qualified individually: a scenario that does not reproduce its recording on the
 recording core is excluded from gating
 ([ADR-0019](adr/0019-deterministic-emulation-state-gates.md)).
 
+## Replacement reaches RDRAM at the default 1x
+
+Status: resolved, October 25, 2026, by the 1x presented pass
+([ADR-0020](adr/0020-replacement-stays-out-of-rdram.md), decision 2).
+
+ADR-0020 keeps replacement out of the native pass only when an upscaled pass
+exists. At 1x, the core option's default, the native pass is the only pass, so
+it is presented and writes RDRAM. `submit_rasterization()` and
+`submit_depth_blend()` set `hires_replacement` whenever `caps.upscaling <= 1`,
+so a pack can change game state.
+
+Mander, installed core `14d7f317`, `linux-radv-headless-vk-1x`, 44 lab scenarios
+(17 OoT lab-play, 6 OoT lab-depth, 4 MM, 3 SM64, 6 PM lab-play, 4 PM eval, 2 MK64,
+2 GoldenEye) with each game's regression pack:
+
+- Feature-off at 1x does not depend on the upscale factor: all 36 end states with
+  a 4x feature-off golden equal it.
+- Feature-on vs feature-off at 1x, 41 completed: four end states differ outside
+  RDRAM (CPU/RSP state) with wide game-memory RDRAM differences: OoT `084941`,
+  `085500`, `091231` and MM `094149` (71,000-99,000 differing words each). 36
+  differ only in framebuffer/depth RDRAM ranges, which the game can read back.
+  One (GoldenEye power-on) is identical. Checkpoint RAM cues agree in all 41.
+
+Fix: while a replacement provider is attached at 1x, the renderer runs a second,
+presented pass at native resolution through the upscaled-domain path (factor 1);
+the native pass renders without replacements and VI scans out the presented
+copy. On the same 44 scenarios all feature-on end states now equal feature-off
+byte for byte (`compare_modes.py --strict-rdram`), presented captures still show
+pack art (43 of 44 scenarios differ from feature-off), and summed scenario time
+changed by +0.2%.
+
 ## Replacement changes the native RDRAM render targets
 
 Status: resolved, October 18, 2026, by

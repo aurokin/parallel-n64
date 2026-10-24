@@ -10,10 +10,11 @@ same scenarios, compare each scenario's end savestate and checkpoint RAM cues:
 * a scenario present in only one run fails, so an interrupted run cannot pass,
   unless its scenario file declares `modes` without the missing mode;
 * RDRAM differences are reported as address ranges. With `--strict-rdram` any
-  RDRAM difference fails: at upscaled runtime classes replacement stays out of
-  the RDRAM render targets (ADR-0020), so the whole end state must match.
-  Without it, framebuffer and depth-buffer ranges are expected (no upscaling, or
-  PARALLEL_RDP_HIRES_NATIVE_PASS=replace) and anything else is for review.
+  RDRAM difference fails: replacement stays out of the RDRAM render targets at
+  every upscale factor (ADR-0020), so the whole end state must match. Without
+  it, framebuffer and depth-buffer ranges are expected
+  (PARALLEL_RDP_HIRES_NATIVE_PASS=replace, or cores without the 1x presented
+  pass) and anything else is for review.
 
 Exit status is nonzero when any scenario fails.
 """
@@ -120,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("on_run", type=Path)
     parser.add_argument("--json", type=Path, help="write the full report here")
     parser.add_argument("--strict-rdram", action="store_true",
-                        help="fail on any RDRAM difference (upscaled runtime classes, ADR-0020)")
+                        help="fail on any RDRAM difference (ADR-0020)")
     args = parser.parse_args(argv)
     report = compare(args.off_run, args.on_run, args.strict_rdram)
     for entry in report:

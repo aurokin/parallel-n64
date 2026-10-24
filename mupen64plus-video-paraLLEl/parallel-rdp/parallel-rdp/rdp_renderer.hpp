@@ -164,10 +164,11 @@ public:
 	// carried in savestates so a loaded state continues the saving run's noise.
 	uint32_t get_base_primitive_index() const { return base_primitive_index; }
 	void set_base_primitive_index(uint32_t index) { base_primitive_index = index; }
-	// When false, the native pass of an upscaled frame renders without replacements so
-	// RDRAM (color and depth the CPU can read) matches feature-off; the upscaled pass,
-	// which is presented, still replaces. Without upscaling the native pass is presented
-	// and always replaces.
+	// When false (the default), the native pass renders without replacements so RDRAM
+	// (color and depth the CPU can read) matches feature-off; only the presented pass
+	// replaces. Without upscaling, a 1x presented pass is added while a replacement
+	// provider is attached. When true, the native pass replaces too and 1x keeps a
+	// single pass (the pre-ADR-0020 behavior, for comparison).
 	void set_hires_native_pass_replacement(bool enable);
 	void set_hires_gpu_budget_bytes(size_t bytes);
 	// Final summary, emitted once at teardown. Its line format is parsed by
@@ -198,6 +199,9 @@ public:
 	void submit_update_upscaled_domain_external(Vulkan::CommandBuffer &cmd,
 	                                            unsigned addr, unsigned length, unsigned pixel_size_log2);
 	unsigned get_scaling_factor() const;
+	// True when framebuffers keep a presented copy that VI scans out: always when
+	// upscaling, and at 1x while hi-res replacement needs a separate presented pass.
+	bool has_upscaled_domain() const;
 
 	const Vulkan::Buffer *get_upscaled_rdram_buffer() const;
 	const Vulkan::Buffer *get_upscaled_hidden_rdram_buffer() const;
@@ -257,6 +261,8 @@ private:
 	void init_blender_lut();
 	void init_buffers(const RendererOptions &options);
 	bool init_internal_upscaling_factor(const RendererOptions &options);
+	void allocate_upscaled_domain(unsigned factor);
+	void update_hires_presented_pass();
 	bool init_hires_resources(unsigned requested_capacity);
 	enum class HiresNativeChecksumDetailClass : uint8_t
 	{
@@ -581,6 +587,8 @@ private:
 		bool subgroup_tile_binning = false;
 		bool hires_replacement_shader = false;
 		unsigned upscaling = 1;
+		// Framebuffers have an upscaled-domain copy rendered by a second, presented pass.
+		bool upscaled_domain = false;
 		unsigned max_num_tile_instances = Limits::MaxTileInstances;
 		unsigned max_tiles_x = ImplementationConstants::MaxTilesX;
 		unsigned max_tiles_y = ImplementationConstants::MaxTilesY;

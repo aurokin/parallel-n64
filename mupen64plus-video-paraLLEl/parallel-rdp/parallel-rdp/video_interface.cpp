@@ -218,8 +218,11 @@ Vulkan::ImageHandle VideoInterface::vram_fetch_stage(const Registers &regs, unsi
 	Vulkan::ImageHandle vram_image;
 	Vulkan::QueryPoolHandle start_ts, end_ts;
 	bool divot = (regs.status & VI_CONTROL_DIVOT_ENABLE_BIT) != 0;
+	// Scan out the presented copy whenever one exists. At 1x it exists only for
+	// hi-res replacement (Renderer::has_upscaled_domain()), so scaling_factor is 1.
+	const bool upscaled_domain = renderer->has_upscaled_domain();
 
-	if (scaling_factor > 1)
+	if (upscaled_domain)
 	{
 		unsigned pixel_size_log2 = ((regs.status & VI_CONTROL_TYPE_MASK) == VI_CONTROL_TYPE_RGBA8888_BIT) ? 2 : 1;
 		unsigned offset, length;
@@ -260,7 +263,7 @@ Vulkan::ImageHandle VideoInterface::vram_fetch_stage(const Registers &regs, unsi
 #endif
 	async_cmd->set_storage_texture(0, 0, vram_image->get_view());
 
-	if (scaling_factor > 1)
+	if (upscaled_domain)
 	{
 		async_cmd->set_storage_buffer(0, 1, *renderer->get_upscaled_rdram_buffer());
 		async_cmd->set_storage_buffer(0, 2, *renderer->get_upscaled_hidden_rdram_buffer());

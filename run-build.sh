@@ -27,8 +27,8 @@ Options:
   -h, --help              Show this help
 
 Notes:
-  - Defaults match the Makefile and the runtime test profile:
-    HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=0
+  - Defaults match the runtime test profile: HAVE_PARALLEL=1
+    HAVE_PARALLEL_RSP=0. A plain `make` defaults to HAVE_PARALLEL=0.
   - Automatically runs `make clean` when effective build flags change.
     Set `RUN_BUILD_AUTO_CLEAN=0` to disable this behavior.
   - Additional make args can be passed after `--`.

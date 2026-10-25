@@ -40,6 +40,9 @@
 uint32_t g_cp0_regs[CP0_REGS_COUNT];
 #endif
 
+/* Nonexistent CP0 slots read the source latched by the last MTC0. */
+uint64_t cp0_latch;
+
 void init_cp0(unsigned int _count_per_op)
 {
 #if 0

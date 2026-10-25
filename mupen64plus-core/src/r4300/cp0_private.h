@@ -25,6 +25,7 @@
 #include "cp0.h"
 
 extern uint32_t g_cp0_regs[CP0_REGS_COUNT];
+extern uint64_t cp0_latch;
 
 int check_cop1_unusable(void);
 

@@ -1471,6 +1471,12 @@ DECLARE_INSTRUCTION(SYSCALL)
    exception_general();
 }
 
+DECLARE_INSTRUCTION(BREAK)
+{
+   set_exception_cause(CP0_CAUSE_EXCCODE_BP);
+   exception_general();
+}
+
 DECLARE_INSTRUCTION(SYNC)
 {
    ADD_TO_PC(1);
@@ -1770,15 +1776,36 @@ DECLARE_INSTRUCTION(DSUBU)
    ADD_TO_PC(1);
 }
 
-DECLARE_INSTRUCTION(TEQ)
-{
-   if (rrs == rrt)
-   {
-     DebugMessage(M64MSG_ERROR, "trap exception in TEQ");
-     stop=1;
-   }
-   ADD_TO_PC(1);
+/* Taken traps use the normal exception path without advancing the faulting PC.
+ * The unsigned immediate forms sign-extend the immediate before comparing. */
+#define DECLARE_TRAP(name, cond) \
+DECLARE_INSTRUCTION(name) \
+{ \
+   if (cond) \
+   { \
+      set_exception_cause(CP0_CAUSE_EXCCODE_TR); \
+      exception_general(); \
+   } \
+   else \
+   { \
+      ADD_TO_PC(1); \
+   } \
 }
+
+DECLARE_TRAP(TGE,   rrs >= rrt)
+DECLARE_TRAP(TGEU,  (uint64_t)rrs >= (uint64_t)rrt)
+DECLARE_TRAP(TLT,   rrs < rrt)
+DECLARE_TRAP(TLTU,  (uint64_t)rrs < (uint64_t)rrt)
+DECLARE_TRAP(TEQ,   rrs == rrt)
+DECLARE_TRAP(TNE,   rrs != rrt)
+DECLARE_TRAP(TGEI,  irs >= iimmediate)
+DECLARE_TRAP(TGEIU, (uint64_t)irs >= (uint64_t)(int64_t)iimmediate)
+DECLARE_TRAP(TLTI,  irs < iimmediate)
+DECLARE_TRAP(TLTIU, (uint64_t)irs < (uint64_t)(int64_t)iimmediate)
+DECLARE_TRAP(TEQI,  irs == iimmediate)
+DECLARE_TRAP(TNEI,  irs != iimmediate)
+
+#undef DECLARE_TRAP
 
 DECLARE_INSTRUCTION(DSLL)
 {

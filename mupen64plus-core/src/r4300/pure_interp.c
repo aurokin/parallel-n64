@@ -216,8 +216,8 @@ void InterpretOpcode(void)
 			JALR(op);
 			break;
 		case 12: SYSCALL(op); break;
-		case 13: /* SPECIAL opcode 13: BREAK (Not implemented) */
-			NI(op);
+		case 13: /* SPECIAL opcode 13: BREAK */
+			BREAK(op);
 			break;
 		case 15: SYNC(op); break;
 		case 16: /* SPECIAL opcode 16: MFHI */
@@ -306,16 +306,12 @@ void InterpretOpcode(void)
 			if (RD_OF(op) != 0) DSUBU(op);
 			else                NOP(0);
 			break;
-		case 48: /* SPECIAL opcode 48: TGE (Not implemented) */
-		case 49: /* SPECIAL opcode 49: TGEU (Not implemented) */
-		case 50: /* SPECIAL opcode 50: TLT (Not implemented) */
-		case 51: /* SPECIAL opcode 51: TLTU (Not implemented) */
-			NI(op);
-			break;
+		case 48: TGE(op); break;
+		case 49: TGEU(op); break;
+		case 50: TLT(op); break;
+		case 51: TLTU(op); break;
 		case 52: TEQ(op); break;
-		case 54: /* SPECIAL opcode 54: TNE (Not implemented) */
-			NI(op);
-			break;
+		case 54: TNE(op); break;
 		case 56: /* SPECIAL opcode 56: DSLL */
 			if (RD_OF(op) != 0) DSLL(op);
 			else                NOP(0);
@@ -364,14 +360,12 @@ void InterpretOpcode(void)
 			if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BGEZL_IDLE(op);
 			else                                     BGEZL(op);
 			break;
-		case 8: /* REGIMM opcode 8: TGEI (Not implemented) */
-		case 9: /* REGIMM opcode 9: TGEIU (Not implemented) */
-		case 10: /* REGIMM opcode 10: TLTI (Not implemented) */
-		case 11: /* REGIMM opcode 11: TLTIU (Not implemented) */
-		case 12: /* REGIMM opcode 12: TEQI (Not implemented) */
-		case 14: /* REGIMM opcode 14: TNEI (Not implemented) */
-			NI(op);
-			break;
+		case 8: TGEI(op); break;
+		case 9: TGEIU(op); break;
+		case 10: TLTI(op); break;
+		case 11: TLTIU(op); break;
+		case 12: TEQI(op); break;
+		case 14: TNEI(op); break;
 		case 16: /* REGIMM opcode 16: BLTZAL */
 			if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BLTZAL_IDLE(op);
 			else                                     BLTZAL(op);

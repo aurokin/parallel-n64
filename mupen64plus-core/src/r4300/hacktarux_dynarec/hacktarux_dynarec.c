@@ -4393,52 +4393,14 @@ void genmultu(void)
 
 void gendiv(void)
 {
-#ifdef INTERPRET_DIV
+   /* Share the interpreter's overflow and divide-by-zero results. */
    gencallinterp((native_type)cached_interpreter_table.DIV, 0);
-#else
-   int rs, rt;
-#ifdef __x86_64__
-   allocate_register_32_manually_w(EAX, (unsigned int *)&lo);
-   allocate_register_32_manually_w(EDX, (unsigned int *)&hi);
-   rs = allocate_register_32((unsigned int*)dst->f.r.rs);
-   rt = allocate_register_32((unsigned int*)dst->f.r.rt);
-#else
-   allocate_register_manually_w(EAX, (unsigned int *)&lo, 0);
-   allocate_register_manually_w(EDX, (unsigned int *)&hi, 0);
-   rs = allocate_register((unsigned int*)dst->f.r.rs);
-   rt = allocate_register((unsigned int*)dst->f.r.rt);
-#endif
-   cmp_reg32_imm32(rt, 0);
-   je_rj((rs == EAX ? 0 : 2) + 1 + 2);
-   mov_reg32_reg32(EAX, rs); // 0 or 2
-   cdq(); // 1
-   idiv_reg32(rt); // 2
-#endif
 }
 
 void gendivu(void)
 {
-#ifdef INTERPRET_DIVU
+   /* Share the interpreter's overflow and divide-by-zero results. */
    gencallinterp((native_type)cached_interpreter_table.DIVU, 0);
-#else
-   int rs, rt;
-#ifdef __x86_64__
-   allocate_register_32_manually_w(EAX, (unsigned int *)&lo);
-   allocate_register_32_manually_w(EDX, (unsigned int *)&hi);
-   rs = allocate_register_32((unsigned int*)dst->f.r.rs);
-   rt = allocate_register_32((unsigned int*)dst->f.r.rt);
-#else
-   allocate_register_manually_w(EAX, (unsigned int *)&lo, 0);
-   allocate_register_manually_w(EDX, (unsigned int *)&hi, 0);
-   rs = allocate_register((unsigned int*)dst->f.r.rs);
-   rt = allocate_register((unsigned int*)dst->f.r.rt);
-#endif
-   cmp_reg32_imm32(rt, 0);
-   je_rj((rs == EAX ? 0 : 2) + 2 + 2);
-   mov_reg32_reg32(EAX, rs); // 0 or 2
-   xor_reg32_reg32(EDX, EDX); // 2
-   div_reg32(rt); // 2
-#endif
 }
 
 void gendmult(void)

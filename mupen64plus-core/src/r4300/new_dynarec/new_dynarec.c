@@ -918,15 +918,31 @@ static void alloc_all(struct regstat *cur,int i)
 
 static void div64(int64_t dividend,int64_t divisor)
 {
-  lo=dividend/divisor;
-  hi=dividend%divisor;
+  if(divisor == -1) {
+    lo=(int64_t)(0-(uint64_t)dividend);
+    hi=0;
+  }
+  else if(divisor) {
+    lo=dividend/divisor;
+    hi=dividend%divisor;
+  }
+  else {
+    lo=dividend<0 ? 1 : -1;
+    hi=dividend;
+  }
   //DebugMessage(M64MSG_VERBOSE, "TRACE: ddiv %8x%8x %8x%8x" ,(int)reg[HIREG],(int)(reg[HIREG]>>32)
   //                                     ,(int)reg[LOREG],(int)(reg[LOREG]>>32));
 }
 static void divu64(uint64_t dividend,uint64_t divisor)
 {
-  lo=dividend/divisor;
-  hi=dividend%divisor;
+  if(divisor) {
+    lo=dividend/divisor;
+    hi=dividend%divisor;
+  }
+  else {
+    lo=-1;
+    hi=dividend;
+  }
   //DebugMessage(M64MSG_VERBOSE, "TRACE: ddivu %8x%8x %8x%8x",(int)reg[HIREG],(int)(reg[HIREG]>>32)
   //                                     ,(int)reg[LOREG],(int)(reg[LOREG]>>32));
 }

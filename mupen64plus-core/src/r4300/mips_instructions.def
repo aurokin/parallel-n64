@@ -56,10 +56,13 @@ DECLARE_INSTRUCTION(NI)
    stop=1;
 }
 
+/* Reserved encodings raise a Reserved Instruction exception, as on hardware.
+ * Valid instructions this core does not implement use NI and still halt. */
 DECLARE_INSTRUCTION(RESERVED)
 {
-   DebugMessage(M64MSG_ERROR, "reserved opcode: %" PRIX32 ":%" PRIX32, PCADDR, *fast_mem_access(PCADDR));
-   stop=1;
+   DebugMessage(M64MSG_WARNING, "reserved opcode: %" PRIX32 ":%" PRIX32, PCADDR, *fast_mem_access(PCADDR));
+   set_exception_cause(CP0_CAUSE_EXCCODE_RI);
+   exception_general();
 }
 
 /* R4300 */

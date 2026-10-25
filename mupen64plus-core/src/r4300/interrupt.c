@@ -354,7 +354,7 @@ void check_interrupt(void)
    struct node* event;
 
    if (g_dev.r4300.mi.regs[MI_INTR_REG] & g_dev.r4300.mi.regs[MI_INTR_MASK_REG])
-      g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] | CP0_CAUSE_IP2) & ~CP0_CAUSE_EXCCODE_MASK;
+      g_cp0_regs[CP0_CAUSE_REG] |= CP0_CAUSE_IP2;
    else
       g_cp0_regs[CP0_CAUSE_REG] &= ~CP0_CAUSE_IP2;
    if ((g_cp0_regs[CP0_STATUS_REG] & (CP0_STATUS_IE | CP0_STATUS_EXL | CP0_STATUS_ERL)) != CP0_STATUS_IE) return;
@@ -415,7 +415,8 @@ static void wrapped_exception_general(void)
 
 void raise_maskable_interrupt(uint32_t cause)
 {
-   g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] | cause) & ~CP0_CAUSE_EXCCODE_MASK;
+   /* Asserting a line is not an exception; delivery sets ExcCode below. */
+   g_cp0_regs[CP0_CAUSE_REG] |= cause;
 
    if (!(g_cp0_regs[CP0_STATUS_REG] & g_cp0_regs[CP0_CAUSE_REG] & UINT32_C(0xff00)))
       return;

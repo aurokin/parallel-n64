@@ -110,6 +110,52 @@ int main(void)
 {
    const uint32_t im7_enabled = UINT32_C(0x00008001); /* IM7 | IE */
 
+   const uint32_t blocked_status[] = {
+      UINT32_C(0x0000ff00), /* IE clear */
+      UINT32_C(0x0000ff01) | CP0_STATUS_EXL,
+      UINT32_C(0x0000ff01) | CP0_STATUS_ERL
+   };
+   const uint32_t handler_cause = CP0_CAUSE_CE1 | CP0_CAUSE_EXCCODE_CPU | CP0_CAUSE_IP7;
+   size_t i;
+
+   /* A device may assert a line while an exception handler is about to read
+    * Cause. Disabled or blocked interrupts must not rewrite that exception. */
+   for (i = 0; i < sizeof(blocked_status) / sizeof(blocked_status[0]); i++)
+   {
+      reset_cpu(blocked_status[i], handler_cause, UINT32_C(0x80001000));
+      g_dev.r4300.mi.regs[MI_INTR_REG] = 1;
+      g_dev.r4300.mi.regs[MI_INTR_MASK_REG] = 1;
+      check_interrupt();
+      expect_eq("blocked RCP assertion: cause", g_cp0_regs[CP0_CAUSE_REG],
+            handler_cause | CP0_CAUSE_IP2);
+      expect_eq("blocked RCP assertion: no exception", jumped_to, 0);
+      g_dev.r4300.mi.regs[MI_INTR_REG] = 0;
+      check_interrupt();
+      expect_eq("RCP deassertion: cause", g_cp0_regs[CP0_CAUSE_REG], handler_cause);
+
+      raise_maskable_interrupt(CP0_CAUSE_IP2);
+      expect_eq("blocked direct assertion: cause", g_cp0_regs[CP0_CAUSE_REG],
+            handler_cause | CP0_CAUSE_IP2);
+      expect_eq("blocked direct assertion: no exception", jumped_to, 0);
+   }
+
+   /* Scheduling an enabled interrupt still leaves ExcCode alone until the
+    * CHECK_INT event delivers the actual exception. */
+   reset_cpu(UINT32_C(0x00000401), CP0_CAUSE_EXCCODE_TR, UINT32_C(0x80001000));
+   g_dev.r4300.mi.regs[MI_INTR_REG] = 1;
+   g_dev.r4300.mi.regs[MI_INTR_MASK_REG] = 1;
+   check_interrupt();
+   expect_eq("scheduled interrupt: cause", g_cp0_regs[CP0_CAUSE_REG],
+         CP0_CAUSE_EXCCODE_TR | CP0_CAUSE_IP2);
+   gen_interrupt();
+   expect_eq("scheduled interrupt delivered: cause", g_cp0_regs[CP0_CAUSE_REG], CP0_CAUSE_IP2);
+   expect_eq("scheduled interrupt delivered: vector", jumped_to, UINT32_C(0x80000180));
+
+   reset_cpu(UINT32_C(0x00000401), CP0_CAUSE_EXCCODE_BP, UINT32_C(0x80001000));
+   raise_maskable_interrupt(CP0_CAUSE_IP2);
+   expect_eq("direct interrupt delivered: cause", g_cp0_regs[CP0_CAUSE_REG], CP0_CAUSE_IP2);
+   expect_eq("direct interrupt delivered: vector", jumped_to, UINT32_C(0x80000180));
+
    /* The Conker sequence: Compare fired during a handler (IP7 pending), the
     * handler's ERET cleared EXL and its jump to an unmapped page took the
     * refill exception before any interrupt check. */

@@ -8,6 +8,18 @@ tracked by their owning systems.
 
 Status: open, October 25, 2026.
 
+Update, October 25 (branch `cpu-correctness`): division by zero and
+INT_MIN/-1 give hardware results without crashing the host, traps and
+BREAK raise exceptions, MTC0 to Cause and to unusual CP0 registers no
+longer halts, and SRA/SRAV shift the full source. CPUDIV, CPUDDIV,
+CPUDIVU, CPUDDIVU and Dillon `sra`/`srav` pass on all three engines.
+COP0Cause and the TEQ Status row still fail on boot state (Cause CE and
+Status after IPL; see below). `PI_DRAM_ADDR` is now masked to a 24-bit
+halfword address, which was what stopped libdragon's IPL3, and reserved
+encodings raise Reserved Instruction exceptions: n64-systemtest now
+boots and passes its emulator-extension probe, but does not reach its
+results within the frame budget.
+
 The pinned ROMs in [tools/conformance](../tools/conformance/README.md) run
 from power-on with hi-res off at 4x (`linux-anv-headless-vk-4x`). On fixed core
 `b9d8a6ab`, the dynamic recompiler passes 130 of 172 ROMs; the cached and pure

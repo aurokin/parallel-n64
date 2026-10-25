@@ -221,13 +221,9 @@
     {"id": "systemtest.base", "suite": "systemtest", "path": "n64-systemtest.z64", "sha256": "d2336eb976c366f67f1369c42275483e854e719289fd1f38f063b6d43707ba60"}
   ],
   "known_failures": [
-    {"test": "krom.COP0Cause", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Non-zero Cause writes set stop=1 instead of updating the software interrupt bits."},
+    {"test": "krom.COP0Cause", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boot leaves Cause CE at 0; hardware reads CE=3 after IPL, so every masked Cause check fails (Cause writes themselves no longer halt)."},
     {"test": "krom.COP0Register", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boot Status is 0x34000000 instead of hardware 0x241000E0; COP0 register checks fail."},
     {"test": "krom.CP1ROUND", "cpucores": ["cached_interpreter", "pure_interpreter"], "reason": "Cached and pure interpreter ROUND results fail 8 of 28 reference cells; the dynamic recompiler passes."},
-    {"test": "krom.CPUDDIV", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Signed INT_MIN/-1 division crashes the host process."},
-    {"test": "krom.CPUDDIVU", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Unsigned division fails 2 reference cells and leaves 2 undrawn; the cause is not yet diagnosed."},
-    {"test": "krom.CPUDIV", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Signed INT_MIN/-1 division crashes the host process."},
-    {"test": "krom.CPUDIVU", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Unsigned division fails 2 reference cells and leaves 2 undrawn; the cause is not yet diagnosed."},
     {"test": "krom.ExceptionCompareRegisters", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boot Status is 0x34000000 instead of hardware 0x241000E0; exception register checks fail."},
     {"test": "krom.ExceptionSyscall", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boot Status is 0x34000000 instead of hardware 0x241000E0; exception register checks fail."},
     {"test": "krom.ExceptionSyscallDelay", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boot Status is 0x34000000 instead of hardware 0x241000E0; exception register checks fail."},
@@ -239,8 +235,8 @@
     {"test": "krom.ExceptionTLBReadMissNestedDelay", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boot Status is 0x34000000 instead of hardware 0x241000E0; exception register checks fail."},
     {"test": "krom.ExceptionTLBWriteMiss", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boot Status is 0x34000000 instead of hardware 0x241000E0; exception register checks fail."},
     {"test": "krom.ExceptionTLBWriteMissDelay", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boot Status is 0x34000000 instead of hardware 0x241000E0; exception register checks fail."},
-    {"test": "krom.ExceptionTEQ", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Taken TEQ sets stop=1 instead of raising a trap exception."},
-    {"test": "krom.ExceptionTEQDelay", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Taken TEQ sets stop=1 instead of raising a trap exception."},
+    {"test": "krom.ExceptionTEQ", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "The trap is taken correctly; the Status row fails because boot Status is 0x34000000 instead of hardware 0x241000E0."},
+    {"test": "krom.ExceptionTEQDelay", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "The trap is taken correctly; the Status row fails because boot Status is 0x34000000 instead of hardware 0x241000E0."},
     {"test": "krom.ExceptionUnaligned", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Unaligned loads/stores do not raise address-error exceptions."},
     {"test": "krom.ExceptionUnalignedDelay", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Unaligned loads/stores do not raise address-error exceptions."},
     {"test": "krom.RDPTestCPU", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "RDP CPU-path checks fail all 4 reference cells under the default RSP/RDP configuration."},
@@ -261,8 +257,6 @@
     {"test": "krom.RSPCP2VSUBB", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Reserved vector opcode behavior differs from hardware under the default RSP."},
     {"test": "krom.RSPCP2VSUT", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Reserved vector opcode behavior differs from hardware under the default RSP."},
     {"test": "krom.RSPCP2VNOP", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "VNOP fails 3 of 8 reference cells under the default RSP."},
-    {"test": "dillon.sra", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "SRA shifts only the low 32 bits; case 1501 fails."},
-    {"test": "dillon.srav", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "SRAV shifts only the low 32 bits; case 201 fails."},
-    {"test": "systemtest.base", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Libdragon boot fetches from an unmapped address, so the suite never boots."}
+    {"test": "systemtest.base", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boots through libdragon IPL3 and its reserved-instruction probe, but does not reach the results summary within the frame budget; not yet diagnosed."}
   ]
 }

@@ -3656,19 +3656,15 @@ void gensrl(void)
 
 void gensra(void)
 {
-#ifdef INTERPRET_SRA
+#if defined(INTERPRET_SRA) || !defined(__x86_64__)
    gencallinterp((native_type)cached_interpreter_table.SRA, 0);
 #else
-#ifdef __x86_64__
-   int rt = allocate_register_32((unsigned int *)dst->f.r.rt);
-   int rd = allocate_register_32_w((unsigned int *)dst->f.r.rd);
-#else
-   int rt = allocate_register((unsigned int *)dst->f.r.rt);
-   int rd = allocate_register_w((unsigned int *)dst->f.r.rd);
-#endif
+   int rt = allocate_register_64((uint64_t *)dst->f.r.rt);
+   int rd = allocate_register_64_w((uint64_t *)dst->f.r.rd);
 
-   mov_reg32_reg32(rd, rt);
-   sar_reg32_imm8(rd, dst->f.r.sa);
+   mov_reg64_reg64(rd, rt);
+   sar_reg64_imm8(rd, dst->f.r.sa);
+   movsxd_reg64_reg32(rd, rd);
 #endif
 }
 
@@ -3742,34 +3738,33 @@ void gensrlv(void)
 
 void gensrav(void)
 {
-#ifdef INTERPRET_SRAV
+#if defined(INTERPRET_SRAV) || !defined(__x86_64__)
    gencallinterp((native_type)cached_interpreter_table.SRAV, 0);
 #else
    int rt, rd;
-#ifdef __x86_64__
    allocate_register_32_manually(ECX, (unsigned int *)dst->f.r.rs);
 
-   rt = allocate_register_32((unsigned int *)dst->f.r.rt);
-   rd = allocate_register_32_w((unsigned int *)dst->f.r.rd);
-#else
-   allocate_register_manually(ECX, (unsigned int *)dst->f.r.rs);
-
-   rt = allocate_register((unsigned int *)dst->f.r.rt);
-   rd = allocate_register_w((unsigned int *)dst->f.r.rd);
-#endif
+   rt = allocate_register_64((uint64_t *)dst->f.r.rt);
+   rd = allocate_register_64_w((uint64_t *)dst->f.r.rd);
 
    if (rd != ECX)
    {
-      mov_reg32_reg32(rd, rt);
-      sar_reg32_cl(rd);
+      mov_reg64_reg64(rd, rt);
+      /* A 64-bit host shift uses six count bits; SRAV uses only five.
+       * Flush the cached source before masking its scratch copy in ECX. */
+      free_register(ECX);
+      and_reg32_imm32(ECX, 0x1F);
+      sar_reg64_cl(rd);
+      movsxd_reg64_reg32(rd, rd);
    }
    else
    {
       int temp = lru_register();
       free_register(temp);
-      mov_reg32_reg32(temp, rt);
-      sar_reg32_cl(temp);
-      mov_reg32_reg32(rd, temp);
+      mov_reg64_reg64(temp, rt);
+      and_reg32_imm32(ECX, 0x1F);
+      sar_reg64_cl(temp);
+      movsxd_reg64_reg32(rd, temp);
    }
 #endif
 }

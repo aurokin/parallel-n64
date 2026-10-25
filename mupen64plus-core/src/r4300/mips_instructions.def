@@ -1466,7 +1466,7 @@ DECLARE_INSTRUCTION(SRL)
 
 DECLARE_INSTRUCTION(SRA)
 {
-   rrd = SE32((int32_t) rrt32 >> rsa);
+   rrd = SE32(rrt >> rsa);
    ADD_TO_PC(1);
 }
 
@@ -1484,7 +1484,7 @@ DECLARE_INSTRUCTION(SRLV)
 
 DECLARE_INSTRUCTION(SRAV)
 {
-   rrd = SE32((int32_t) rrt32 >> (rrs32 & 0x1F));
+   rrd = SE32(rrt >> (rrs32 & 0x1F));
    ADD_TO_PC(1);
 }
 

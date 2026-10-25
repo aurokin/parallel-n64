@@ -4,6 +4,60 @@ This register holds technical details owned by `parallel-n64`.
 Scheduling, priority, fleet rollout, eval operation, and gameplay research are
 tracked by their owning systems.
 
+## Public conformance ROMs expose CPU, boot and RSP failures
+
+Status: open, October 25, 2026.
+
+The pinned ROMs in [tools/conformance](../tools/conformance/README.md) run
+from power-on with hi-res off at 4x (`linux-anv-headless-vk-4x`). On fixed core
+`b9d8a6ab`, the dynamic recompiler passes 130 of 172 ROMs; the cached and pure
+interpreters each pass 129. The manifest lists exactly the failing ROMs for
+each engine: 39/40/40 krom, two Dillon and one systemtest. CP1ROUND passes on
+the dynamic recompiler and is listed only for the two interpreters.
+
+The most serious failures are a host crash and two paths that stop emulation.
+Any ROM can trigger them:
+
+- Signed division of INT_MIN by -1 crashes the host process (`CPUDIV` and
+  `CPUDDIV`).
+- A non-zero Cause write sets `stop=1` instead of updating the software
+  interrupt bits (`COP0Cause`).
+- A taken TEQ sets `stop=1` instead of raising a trap exception
+  (`ExceptionTEQ` and `ExceptionTEQDelay`).
+
+Other CPU and boot failures:
+
+- Unaligned loads/stores do not raise address-error exceptions
+  (`ExceptionUnaligned` and `ExceptionUnalignedDelay`).
+- Boot leaves Status at `0x34000000`, while hardware leaves `0x241000E0`.
+  COP0 register, SYSCALL and TLB exception rows therefore fail register
+  checks; nested exception rows have additional failing register checks.
+- SRA/SRAV shift only the low 32 bits. Dillon's `sra` fails at case 1501
+  and `srav` at case 201; krom's shift ROMs pass.
+- Unsigned DIVU/DDIVU each draw two FAIL cells and leave two reference PASS
+  cells undrawn. Interpreter CP1ROUND draws eight FAIL cells out of 28.
+  These two causes have not been diagnosed.
+- `systemtest.base` never boots: libdragon boot code fetches from an unmapped
+  address. No individual systemtest result has been verified.
+
+Under the default RSP, 12 reserved vector opcode ROMs fail, along with VNOP,
+LWV and both matrix transpose ROMs. `RDPTestCPU` fails all four reference
+cells and `RDPTestRSP` fails two of four. These results identify failing
+checks; the individual RSP/RDP causes have not been diagnosed.
+
+Known failures include crashes, hangs and unfinished tests, and remain visible
+in the conformance reports. No emulator bug is fixed by listing them. The
+pre-fix core `1db888ec` has the same verdicts and failing-check details across
+all 172 ROMs on each of the three engines.
+
+The three `emu.conformance.test_roms_*` suite wrappers each exit 0 on the
+fixed core across all three engines: 388 passes and 128 known failures, with
+no unlisted failures. The fresh results reproduce the corrected fixed-core
+matrix, including the passing rows whose historical raw results predate the
+decoder correction. `emu.support.conformance_roms_contract` passes without
+a display. The boot failure still prevents verification of individual
+systemtest cases.
+
 ## Exceptions dropped pending interrupts (Conker deadlock)
 
 Status: resolved, October 20, 2026.

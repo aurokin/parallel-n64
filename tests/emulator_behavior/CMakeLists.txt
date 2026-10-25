@@ -43,6 +43,11 @@ add_test(
   COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_regression_compare_modes_contract.py"
 )
 
+add_test(
+  NAME emu.support.conformance_roms_contract
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_roms_contract.py"
+)
+
 set(EMU_BEHAVIOR_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/support")
 
 add_test(
@@ -628,3 +633,13 @@ add_test(
 )
 set_tests_properties(emu.conformance.oot_hires_title_fixture PROPERTIES SKIP_RETURN_CODE 77)
 
+# Public conformance test ROMs (tools/conformance), one test per suite. Opt-in
+# runtime lanes: they skip unless EMU_ENABLE_RUNTIME_CONFORMANCE=1 and the
+# suite's ROMs are staged, and run every CPU engine serially.
+foreach(suite krom dillon systemtest)
+  add_test(
+    NAME emu.conformance.test_roms_${suite}
+    COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_test_roms.sh" ${suite}
+  )
+  set_tests_properties(emu.conformance.test_roms_${suite} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 7200 RUN_SERIAL TRUE)
+endforeach()

@@ -25,7 +25,7 @@ Options:
                         libretro core rebuild for the runtime profile)
   --list                List tests without running them
   --build-dir PATH      Override build dir (default: ./build/ctest)
-  --profile NAME        Test profile: all|emu-required|emu-conformance|emu-runtime-conformance|emu-tsan
+  --profile NAME        Test profile: all|emu-required|emu-conformance|emu-runtime-conformance|emu-conformance-roms|emu-tsan
   -R REGEX              Pass test regex to ctest
   -h, --help            Show this help
 
@@ -33,6 +33,7 @@ Examples:
   ./run-tests.sh
   ./run-tests.sh --profile emu-required
   ./run-tests.sh --profile emu-runtime-conformance
+  ./run-tests.sh --profile emu-conformance-roms
   ./run-tests.sh --profile emu-tsan
   ./run-tests.sh --list
   ./run-tests.sh -R emu.unit.smoke
@@ -147,6 +148,10 @@ case "$selected_profile" in
   emu-runtime-conformance)
     enable_runtime_conformance=1
     ctest_args+=(-R "^emu\\.conformance\\.(runtime_smoke_lavapipe|paper_mario_full_cache_phrb_authorities)$")
+    ;;
+  emu-conformance-roms)
+    enable_runtime_conformance=1
+    ctest_args+=(-R "^emu\\.conformance\\.test_roms_")
     ;;
   emu-tsan)
     enable_tsan=1

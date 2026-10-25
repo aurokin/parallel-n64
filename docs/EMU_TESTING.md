@@ -20,6 +20,9 @@ provided.
   This is the required change gate.
 - `emu-runtime-conformance`: lavapipe smoke plus the Paper Mario
   authority lane. It enables runtime opt-in and rebuilds the live core.
+- `emu-conformance-roms`: public CPU, COP0, COP1, exception and RSP test
+  ROMs on each CPU engine ([Conformance Test ROMs](#conformance-test-roms)).
+  It enables runtime opt-in and rebuilds the live core.
 - `emu-conformance`: every conformance test, including opt-in lanes.
 - `emu-tsan`: ThreadSanitizer coverage for the command ring and worker
   thread, with a capability preflight.
@@ -41,7 +44,8 @@ The required profile covers:
 - renderer-policy and data-structure unit tests;
 - fixture, converter, and capability shell contracts;
 - GlideN64 oracle guardrails;
-- static VI and RDP conformance checks.
+- static VI and RDP conformance checks;
+- conformance-ROM decoder, manifest and runner contracts.
 
 It does not launch an emulator or prove runtime rendering.
 
@@ -92,7 +96,8 @@ capabilities:
 - lavapipe smoke without a lavapipe ICD;
 - full-cache converter coverage without the local Paper Mario source cache;
 - TSAN when the preflight proves it unsupported;
-- on-demand breadth lanes with unstaged inputs.
+- on-demand breadth lanes with unstaged inputs;
+- conformance-ROM suites with no staged ROM (a partially staged suite fails).
 
 Once a gating runtime lane is opted in, missing ROMs, packs, states, core, or
 frontend are failures with staging guidance.
@@ -109,6 +114,23 @@ EMU_ENABLE_RUNTIME_CONFORMANCE=1 ./run-tests.sh \
 
 MK64 and MM remain manual breadth checks unless a behavior-backed test is
 added.
+
+## Conformance Test ROMs
+
+`emu.conformance.test_roms_krom`, `_dillon` and `_systemtest` run pinned public
+test ROMs ([tools/conformance](../tools/conformance/README.md)) on the dynamic
+recompiler and both interpreters and read each verdict from the saved end
+state: PASS/FAIL cells in the framebuffer, a result register, or the suite's
+summary text. ROMs are fetched or built by sha256 into
+`assets/conformance-roms/`; none is tracked. Failures the manifest lists as
+known, with a diagnosis, are reported without gating; anything else fails,
+including a crash, a hang or a session on the wrong engine.
+
+```sh
+tools/conformance/fetch_test_roms.py
+EMU_CONFORMANCE_RUNTIME_CLASS=<class> RETROARCH_BIN=... RETROARCH_BASE_CONFIG=... \
+  ./run-tests.sh --profile emu-conformance-roms
+```
 
 ## Runtime Constraints
 

@@ -358,6 +358,11 @@ int write_pi_regs(void* opaque, uint32_t address,
 
    switch (reg)
    {
+      case PI_DRAM_ADDR_REG:
+         /* PI exposes a 24-bit, halfword-aligned RDRAM address. */
+         pi->regs[reg] = MASKED_WRITE(&pi->regs[reg], value, mask) & 0x00fffffe;
+         return 0;
+
       case PI_CART_ADDR_REG:
       {
          if (value == 0x05000000)

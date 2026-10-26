@@ -46,6 +46,7 @@ bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, in
 bool hires_textures = false;
 unsigned hires_filter = 2;
 string hires_cache_path;
+string hires_rom_name;
 
 static bool hires_shader_disabled_by_env()
 {
@@ -255,7 +256,8 @@ bool init()
 	quirks.set_native_resolution_tex_rect(native_tex_rect);
 	frontend->set_quirks(quirks);
 
-	hires_cache_path = detail::resolve_hires_cache_path(hires_cache_path, getenv("PARALLEL_RDP_HIRES_CACHE_PATH"));
+	const auto cache_paths = detail::resolve_hires_cache_path(hires_cache_path, hires_rom_name,
+	                                                        getenv("PARALLEL_RDP_HIRES_CACHE_PATH"));
 	if (hires_textures)
 	{
 		log_cb(RETRO_LOG_INFO,
@@ -267,7 +269,7 @@ bool init()
 		       hires_support.descriptor_binding_partially_bound ? 1u : 0u,
 		       hires_support.descriptor_binding_update_after_bind ? 1u : 0u,
 		       max_hires_update_after_bind_sampled_images,
-		       hires_cache_path.empty() ? "<empty>" : hires_cache_path.c_str());
+		       cache_paths.empty() ? "<empty>" : cache_paths.front().c_str());
 	}
 
 	if (hires_textures && !hires_capabilities_ok)
@@ -283,10 +285,10 @@ bool init()
 	{
 		log_cb(RETRO_LOG_INFO,
 		       "Hi-res textures enabled (path=%s, filter=%u).\n",
-		       hires_cache_path.c_str(), hires_filter);
+		       cache_paths.empty() ? "<empty>" : cache_paths.front().c_str(), hires_filter);
 	}
 
-	frontend->configure_hires_replacement(hires_capabilities_ok, hires_cache_path.c_str());
+	frontend->configure_hires_replacement(hires_capabilities_ok, cache_paths);
 	frontend->set_hires_filter(hires_filter);
 
 	timeline_value = 0;

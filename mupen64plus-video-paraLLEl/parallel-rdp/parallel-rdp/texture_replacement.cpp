@@ -545,9 +545,11 @@ size_t ReplacementProvider::entry_count() const
 	return entries_.size();
 }
 
-bool ReplacementProvider::load_cache_dir(const std::string &path)
+bool ReplacementProvider::load_cache_dir(const std::string &path, bool append)
 {
-	clear();
+	if (!append)
+		clear();
+	const auto previous_entries = entries_.size();
 	cache_dir_ = path;
 
 	std::vector<std::string> files;
@@ -586,7 +588,7 @@ bool ReplacementProvider::load_cache_dir(const std::string &path)
 		if (is_phrb_cache_path(file))
 			load_phrb(file);
 
-	return !entries_.empty();
+	return entries_.size() > previous_entries;
 }
 
 bool ReplacementProvider::has_compat_entries() const

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace RDP
 {
@@ -15,13 +16,19 @@ enum class HiresConfigureOutcome
 	LoadSucceeded
 };
 
-inline std::string resolve_hires_cache_path(const std::string &configured_path, const char *env_path)
+inline std::vector<std::string> resolve_hires_cache_path(const std::string &system_dir,
+                                                         std::string rom_name, const char *env_path)
 {
 	if (env_path && *env_path)
-		return env_path;
-	if (!configured_path.empty())
-		return configured_path;
-	return "";
+		return { env_path };
+
+	// Only the header field's trailing spaces and NUL padding are removed.
+	rom_name.erase(rom_name.find_last_not_of(std::string(" \0", 2)) + 1);
+	if (system_dir.empty() || rom_name.empty())
+		return {};
+
+	const auto game_path = system_dir + "/parallel-n64/hires/" + rom_name;
+	return { game_path + ".phrb", game_path };
 }
 
 inline HiresConfigureOutcome classify_hires_configure_outcome(bool enable, const char *cache_path, bool load_ok)

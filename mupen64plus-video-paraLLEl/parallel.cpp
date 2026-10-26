@@ -226,6 +226,11 @@ void parallel_set_hires_cache_path(const char *path)
 	RDP::hires_cache_path = path ? path : "";
 }
 
+void parallel_set_hires_rom_name(const char *name)
+{
+	RDP::hires_rom_name.assign(name, 20);
+}
+
 void parallel_set_overscan_crop(unsigned pixels)
 {
 	RDP::overscan = pixels;

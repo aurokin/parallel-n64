@@ -176,7 +176,8 @@ class ReplacementProvider
 public:
 	bool enabled() const;
 	void set_enabled(bool enable);
-	bool load_cache_dir(const std::string &path);
+	// Append lets a game's standalone package and package directory share one provider.
+	bool load_cache_dir(const std::string &path, bool append = false);
 	bool has_compat_entries() const;
 	bool has_phrb_compat_entries() const;
 	bool has_jabo_entries() const;

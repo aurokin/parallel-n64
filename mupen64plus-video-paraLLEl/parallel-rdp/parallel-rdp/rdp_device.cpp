@@ -947,14 +947,15 @@ void CommandProcessor::set_hires_filter(unsigned mode)
 	renderer.set_hires_filter(mode);
 }
 
-void CommandProcessor::configure_hires_replacement(bool enable, const char *cache_path)
+void CommandProcessor::configure_hires_replacement(bool enable, const std::vector<std::string> &cache_paths)
 {
 	replacement_provider.clear();
 	replacement_provider.set_enabled(enable);
 	renderer.set_replacement_provider(nullptr);
 	renderer.set_hires_gliden64_compat_crc(false);
 
-	auto outcome = detail::classify_hires_configure_outcome(enable, cache_path, false);
+	const char *first_path = cache_paths.empty() ? nullptr : cache_paths.front().c_str();
+	auto outcome = detail::classify_hires_configure_outcome(enable, first_path, false);
 	if (outcome == detail::HiresConfigureOutcome::Disabled)
 		return;
 
@@ -964,16 +965,22 @@ void CommandProcessor::configure_hires_replacement(bool enable, const char *cach
 		return;
 	}
 
-	const bool load_ok = replacement_provider.load_cache_dir(cache_path);
-	outcome = detail::classify_hires_configure_outcome(enable, cache_path, load_ok);
+	for (const auto &path : cache_paths)
+	{
+		const auto previous_entries = replacement_provider.entry_count();
+		if (replacement_provider.load_cache_dir(path, true))
+			LOGI("Hi-res replacement cache loaded: %zu entries from %s\n",
+			     replacement_provider.entry_count() - previous_entries, path.c_str());
+		else
+			LOGW("Hi-res replacement cache load failed for path: %s\n", path.c_str());
+	}
+	outcome = detail::classify_hires_configure_outcome(enable, first_path,
+	                                                replacement_provider.entry_count() != 0);
 	if (outcome == detail::HiresConfigureOutcome::LoadFailed)
 	{
-		LOGW("Hi-res replacement cache load failed for path: %s\n", cache_path);
+		LOGI("Hi-res replacement disabled: no entries in checked paths.\n");
 		return;
 	}
-
-	LOGI("Hi-res replacement cache loaded: %zu entries from %s\n",
-	     replacement_provider.entry_count(), cache_path);
 	if (detail::should_attach_hires_provider(outcome))
 		renderer.set_replacement_provider(&replacement_provider);
 

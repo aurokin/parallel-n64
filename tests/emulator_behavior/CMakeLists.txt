@@ -209,6 +209,11 @@ target_include_directories(emu_unit_rdp_hires_summary_interval_test PRIVATE "${C
 target_compile_features(emu_unit_rdp_hires_summary_interval_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.rdp_hires_summary_interval COMMAND emu_unit_rdp_hires_summary_interval_test)
 
+add_executable(emu_unit_hires_cache_path_test emu_unit_hires_cache_path_test.cpp)
+target_include_directories(emu_unit_hires_cache_path_test PRIVATE "${CMAKE_SOURCE_DIR}")
+target_compile_features(emu_unit_hires_cache_path_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.hires_cache_path COMMAND emu_unit_hires_cache_path_test)
+
 add_executable(emu_unit_texture_replacement_provider_test
   emu_unit_texture_replacement_provider_test.cpp
   "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/texture_replacement.cpp"

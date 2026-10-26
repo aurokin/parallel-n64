@@ -1799,7 +1799,7 @@ void gentestl(void)
 
    jump_end_rel32();
 
-   genupdate_count(dst->addr-4);
+   genupdate_count(dst->addr+4);
    mov_m32rel_imm32((void*)(&last_addr), dst->addr + 4);
 #else
    cmp_m32_imm32((unsigned int *)(&branch_taken), 0);
@@ -1859,7 +1859,7 @@ void gentestl_out(void)
 
    jump_end_rel32();
 
-   genupdate_count(dst->addr-4);
+   genupdate_count(dst->addr+4);
    mov_m32rel_imm32((void*)(&last_addr), dst->addr + 4);
 #else
    cmp_m32_imm32((unsigned int *)(&branch_taken), 0);

@@ -160,6 +160,15 @@ if(UNIX)
 endif()
 add_test(NAME emu.unit.input_analog COMMAND emu_unit_input_analog_test)
 
+add_executable(emu_unit_vi_refresh_rate_test
+  emu_unit_vi_refresh_rate_test.c
+)
+target_include_directories(emu_unit_vi_refresh_rate_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+)
+target_compile_features(emu_unit_vi_refresh_rate_test PRIVATE c_std_99)
+add_test(NAME emu.unit.vi_refresh_rate COMMAND emu_unit_vi_refresh_rate_test)
+
 add_executable(emu_unit_cp0_exception_cause_test
   emu_unit_cp0_exception_cause_test.c
   "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/r4300/exception.c"

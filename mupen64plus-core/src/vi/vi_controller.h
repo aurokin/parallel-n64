@@ -73,6 +73,16 @@ void init_vi(struct vi_controller* vi,
 unsigned int vi_clock_from_tv_standard(m64p_system_type tv_standard);
 unsigned int vi_expected_refresh_rate_from_tv_standard(m64p_system_type tv_standard);
 
+/* Emulated VI refresh rate in Hz, or 0 before V_SYNC is programmed.
+ * The fork seeds delay with a nonzero boot interval, not a frame period. */
+static inline double vi_actual_refresh_rate(const struct vi_controller* vi)
+{
+   if (vi == 0 || vi->regs[VI_V_SYNC_REG] == 0 || vi->delay == 0)
+      return 0.0;
+
+   return (double)vi->clock / (double)vi->delay;
+}
+
 void poweron_vi(struct vi_controller* vi);
 
 int read_vi_regs(void* opaque, uint32_t address, uint32_t* value);

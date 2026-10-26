@@ -17,6 +17,7 @@
 #include "r4300/r4300.h"
 #include "memory/memory.h"
 #include "main/main.h"
+#include "main/device.h"
 #include "main/cheat.h"
 #include "main/version.h"
 #include "main/savestates.h"
@@ -965,7 +966,23 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.max_width    = screen_width;
    info->geometry.max_height   = screen_height;
    info->geometry.aspect_ratio = 4.0 / 3.0;
-   info->timing.fps = (region == SYSTEM_PAL) ? 50.0 : (60.13);                /* TODO: Actual timing  */
+   /* Use the emulated VI period once V_SYNC is programmed. Until then,
+    * estimate it from the standard region V_SYNC, as upstream does. */
+   {
+      double fps = vi_actual_refresh_rate(&g_dev.vi);
+
+      if (fps <= 0.0)
+      {
+         const unsigned int clock = vi_clock_from_tv_standard(region);
+         const unsigned int rr    = vi_expected_refresh_rate_from_tv_standard(region);
+         const unsigned int vsync = (region == SYSTEM_PAL) ? 625u : 525u;
+         const unsigned int delay = vsync * ((clock / rr) / vsync);
+
+         fps = (delay != 0) ? (double)clock / (double)delay : (double)rr;
+      }
+
+      info->timing.fps = fps;
+   }
    info->timing.sample_rate = 44100.0;
 }
 

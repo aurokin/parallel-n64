@@ -801,16 +801,17 @@ static void RERET(void)
    recomp_func = generet;
 }
 
+/* Reserved CO=1 functions are no-ops, except RFE (function 0x10). */
 static void (*const recomp_tlb[64])(void) =
 {
-   RSV  , RTLBR, RTLBWI, RSV, RSV, RSV, RTLBWR, RSV, 
-   RTLBP, RSV  , RSV   , RSV, RSV, RSV, RSV   , RSV, 
-   RSV  , RSV  , RSV   , RSV, RSV, RSV, RSV   , RSV, 
-   RERET, RSV  , RSV   , RSV, RSV, RSV, RSV   , RSV, 
-   RSV  , RSV  , RSV   , RSV, RSV, RSV, RSV   , RSV, 
-   RSV  , RSV  , RSV   , RSV, RSV, RSV, RSV   , RSV, 
-   RSV  , RSV  , RSV   , RSV, RSV, RSV, RSV   , RSV, 
-   RSV  , RSV  , RSV   , RSV, RSV, RSV, RSV   , RSV
+   RNOP , RTLBR, RTLBWI, RNOP, RNOP, RNOP, RTLBWR, RNOP,
+   RTLBP, RNOP , RNOP , RNOP, RNOP, RNOP, RNOP , RNOP,
+   RSV  , RNOP , RNOP , RNOP, RNOP, RNOP, RNOP , RNOP,
+   RERET, RNOP , RNOP , RNOP, RNOP, RNOP, RNOP , RNOP,
+   RNOP , RNOP , RNOP , RNOP, RNOP, RNOP, RNOP , RNOP,
+   RNOP , RNOP , RNOP , RNOP, RNOP, RNOP, RNOP , RNOP,
+   RNOP , RNOP , RNOP , RNOP, RNOP, RNOP, RNOP , RNOP,
+   RNOP , RNOP , RNOP , RNOP, RNOP, RNOP, RNOP , RNOP
 };
 
 //-------------------------------------------------------------------------
@@ -844,8 +845,8 @@ static void (*const recomp_cop0[32])(void) =
 {
    RMFC0, RSV, RSV, RSV, RMTC0, RSV, RSV, RSV,
    RSV  , RSV, RSV, RSV, RSV  , RSV, RSV, RSV,
-   RTLB , RSV, RSV, RSV, RSV  , RSV, RSV, RSV,
-   RSV  , RSV, RSV, RSV, RSV  , RSV, RSV, RSV
+   RTLB , RTLB, RTLB, RTLB, RTLB , RTLB, RTLB, RTLB,
+   RTLB , RTLB, RTLB, RTLB, RTLB , RTLB, RTLB, RTLB
 };
 
 //-------------------------------------------------------------------------

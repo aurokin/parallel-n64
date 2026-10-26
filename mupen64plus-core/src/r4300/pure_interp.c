@@ -451,21 +451,21 @@ void InterpretOpcode(void)
 			else                NOP(0);
 			break;
 		case 4: MTC0(op); break;
-		case 16: /* Coprocessor 0 opcode 16: TLB */
+		case 16: case 17: case 18: case 19:
+		case 20: case 21: case 22: case 23:
+		case 24: case 25: case 26: case 27:
+		case 28: case 29: case 30: case 31: /* COP0 CO=1 */
 			switch (op & 0x3F) {
 			case 1: TLBR(op); break;
 			case 2: TLBWI(op); break;
 			case 6: TLBWR(op); break;
 			case 8: TLBP(op); break;
 			case 24: ERET(op); break;
-			default: /* TLB sub-opcodes 0, 3..5, 7, 9..23, 25..63:
-			            Reserved Instructions */
-				RESERVED(op);
-				break;
+			case 16: RESERVED(op); break; /* RFE raises RI on VR4300. */
+			default: NOP(0); break; /* Other reserved CO=1 functions are inert. */
 			} /* switch (op & 0x3F) for Coprocessor 0 TLB opcodes */
 			break;
-		default: /* Coprocessor 0 opcodes 1..3, 4..15, 17..31:
-		            Reserved Instructions */
+		default: /* Other unrecognized COP0 encodings raise RI. */
 			RESERVED(op);
 			break;
 		} /* switch ((op >> 21) & 0x1F) for the Coprocessor 0 prefix */

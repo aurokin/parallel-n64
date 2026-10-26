@@ -171,6 +171,7 @@ void gendmult(void);
 void gendsll(void);
 void genabs_s(void);
 void gensc(void);
+void genscd(void);
 void gennotcompiled(void);
 void genjal_idle(void);
 void genjal_out(void);

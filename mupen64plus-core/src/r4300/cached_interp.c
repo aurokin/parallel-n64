@@ -259,6 +259,7 @@ const cpu_instruction_table cached_interpreter_table = {
    LLD,
    LWU,
    SC,
+   SCD,
    SD,
    SDL,
    SDR,

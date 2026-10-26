@@ -716,8 +716,9 @@ void InterpretOpcode(void)
 		else                NOP(0);
 		break;
 	case 57: SWC1(op); break;
-	case 60: /* Major opcode 60: SCD (Not implemented) */
-		NI(op);
+	case 60: /* Major opcode 60: SCD */
+		if (RT_OF(op) != 0) SCD(op);
+		else                NOP(0);
 		break;
 	case 61: SDC1(op); break;
 	case 63: SD(op); break;

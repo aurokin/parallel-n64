@@ -594,6 +594,26 @@ DECLARE_INSTRUCTION(SC)
    }
 }
 
+DECLARE_INSTRUCTION(SCD)
+{
+   const uint32_t lsaddr = (uint32_t)irs32 + (uint32_t)iimmediate;
+   int64_t *lsrtp = &irt;
+   ADD_TO_PC(1);
+   if(llbit)
+   {
+      address = lsaddr;
+      cpu_dword = *lsrtp;
+      write_dword_in_memory();
+      CHECK_MEMORY();
+      llbit = 0;
+      *lsrtp = 1;
+   }
+   else
+   {
+      *lsrtp = 0;
+   }
+}
+
 DECLARE_INSTRUCTION(SWC1)
 {
    const unsigned char lslfft = lfft;

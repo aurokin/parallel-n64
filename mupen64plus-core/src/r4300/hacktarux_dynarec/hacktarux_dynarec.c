@@ -379,6 +379,11 @@ void genmfc0(void)
    gencallinterp((native_type)cached_interpreter_table.MFC0, 0);
 }
 
+void genscd(void)
+{
+   gencallinterp((native_type)cached_interpreter_table.SCD, 0);
+}
+
 void genlld(void)
 {
    gencallinterp((native_type)cached_interpreter_table.LLD, 0);

@@ -2140,9 +2140,10 @@ static void RSWC1(void)
 
 static void RSCD(void)
 {
-   dst->ops = current_instruction_table.NI;
-   recomp_func = genni;
+   dst->ops = current_instruction_table.SCD;
+   recomp_func = genscd;
    recompile_standard_i_type();
+   if (dst->f.i.rt == reg) RNOP();
 }
 
 static void RSDC1(void)

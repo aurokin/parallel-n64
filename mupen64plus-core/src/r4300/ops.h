@@ -55,6 +55,7 @@ typedef struct _cpu_instruction_table
 	void (*LLD)(void);
 	void (*LWU)(void);
 	void (*SC)(void);
+	void (*SCD)(void);
 	void (*SD)(void);
 	void (*SDL)(void);
 	void (*SDR)(void);

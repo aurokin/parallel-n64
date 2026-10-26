@@ -6,11 +6,21 @@ record which private host currently stores an artifact.
 
 ## Format Contract
 
-- Runtime input is `.phrb` only. The cache path (`PARALLEL_RDP_HIRES_CACHE_PATH`,
-  otherwise the frontend system directory) must be a directory whose top-level
-  `*.phrb` files are loaded, or a file whose name ends in `.phrb`. Any other path,
-  including an extension-less file, logs `Hi-res replacement cache load failed`
-  and renders native textures.
+- Runtime input is `.phrb` only. Enable hi-res textures in the core options,
+  then install packs under the frontend's system directory:
+  - `parallel-n64/hires/<ROM name>.phrb` for a single package, and/or
+  - `parallel-n64/hires/<ROM name>/` for multiple top-level `*.phrb` files,
+    loaded in sorted order. If both exist, the single package loads first.
+  `<ROM name>` is the ROM header's 20-byte internal Name field, with only
+  trailing spaces and NULs removed; spelling and case must match. For example,
+  use `parallel-n64/hires/SUPER MARIO 64.phrb` for Super Mario 64. Other games'
+  packs and loose `.phrb` files in the system directory root are ignored.
+  If neither game path loads entries, hi-res stays off and the log lists the
+  two checked paths.
+- `PARALLEL_RDP_HIRES_CACHE_PATH` overrides game scoping. It loads only the
+  named `.phrb` file, or the sorted top-level `*.phrb` files in the named
+  directory. Any other path, including an extension-less file, logs
+  `Hi-res replacement cache load failed` and renders native textures.
 - `tools/hts2phrb.py --cache <input>` converts these inputs offline:
   - GlideN64/GLideNHQ `.hts` or `.htc` caches, or a directory holding one.
   - Loose Rice-named PNG directories (Rice and GLideN64 PNG releases). Pass

@@ -48,7 +48,11 @@ profiles, prerequisites, and skip policy.
 ROMs, texture packs, savestates, binaries, and generated evidence are not
 tracked. Scenario runners accept repository-relative inputs and existing
 environment overrides; the primary pack override is
-`PARALLEL_RDP_HIRES_CACHE_PATH`. Do not add machine names or personal
+`PARALLEL_RDP_HIRES_CACHE_PATH`. Without that override, packs load only from
+`<system>/parallel-n64/hires/<ROM name>.phrb` and/or the matching
+`<ROM name>/` directory. Use the ROM header's internal name (trailing spaces
+and NULs removed). See [pack setup](assets/TEXTURE_PACKS.md#format-contract).
+Do not add machine names or personal
 checkout roots as product defaults.
 
 RetroArch is discovered on `PATH` unless explicitly selected. Deterministic

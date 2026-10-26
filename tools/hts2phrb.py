@@ -3666,6 +3666,13 @@ def build_stdout_summary(report):
     ]
     if report.get("family_inventory_markdown_path"):
         lines.append(f"family_inventory: {report['family_inventory_markdown_path']}")
+    cache_name = Path(report.get("cache_path") or "").name
+    for suffix in ("_HIRESTEXTURES.hts", "_HIRESTEXTURES.htc"):
+        if cache_name.endswith(suffix):
+            rom_name = cache_name[:-len(suffix)].rstrip(" \0")
+            if rom_name:
+                lines.append(f"suggested_install_path: <system>/parallel-n64/hires/{rom_name}.phrb")
+            break
     return "\n".join(lines) + "\n"
 
 

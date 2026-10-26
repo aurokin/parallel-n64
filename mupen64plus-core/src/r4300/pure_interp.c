@@ -450,7 +450,13 @@ void InterpretOpcode(void)
 			if (RT_OF(op) != 0) MFC0(op);
 			else                NOP(0);
 			break;
-		case 4: MTC0(op); break;
+		case 1: /* Coprocessor 0 opcode 1: DMFC0 */
+			if (RT_OF(op) != 0) DMFC0(op);
+			else                NOP(0);
+			break;
+		case 4:
+		case 5: /* DMTC0 shares the low-word MTC0 write path. */
+			MTC0(op); break;
 		case 16: case 17: case 18: case 19:
 		case 20: case 21: case 22: case 23:
 		case 24: case 25: case 26: case 27:

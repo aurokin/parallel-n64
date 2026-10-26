@@ -828,6 +828,15 @@ static void RMFC0(void)
    if (dst->f.r.rt == reg) RNOP();
 }
 
+static void RDMFC0(void)
+{
+   dst->ops = current_instruction_table.DMFC0;
+   recomp_func = gendmfc0;
+   recompile_standard_r_type();
+   dst->f.r.nrd = (src >> 11) & 0x1F;
+   if (dst->f.r.rt == reg) RNOP();
+}
+
 static void RMTC0(void)
 {
    dst->ops = current_instruction_table.MTC0;
@@ -843,7 +852,7 @@ static void RTLB(void)
 
 static void (*const recomp_cop0[32])(void) =
 {
-   RMFC0, RSV, RSV, RSV, RMTC0, RSV, RSV, RSV,
+   RMFC0, RDMFC0, RSV, RSV, RMTC0, RMTC0, RSV, RSV,
    RSV  , RSV, RSV, RSV, RSV  , RSV, RSV, RSV,
    RTLB , RTLB, RTLB, RTLB, RTLB , RTLB, RTLB, RTLB,
    RTLB , RTLB, RTLB, RTLB, RTLB , RTLB, RTLB, RTLB

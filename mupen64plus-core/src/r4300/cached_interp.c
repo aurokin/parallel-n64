@@ -390,6 +390,7 @@ const cpu_instruction_table cached_interpreter_table = {
 
    MTC0,
    MFC0,
+   DMFC0,
 
    TLBR,
    TLBWI,

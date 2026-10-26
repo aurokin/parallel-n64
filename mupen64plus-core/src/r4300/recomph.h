@@ -83,6 +83,7 @@ void genbgezal(void);
 void gentlbwi(void);
 void generet(void);
 void genmfc0(void);
+void gendmfc0(void);
 void genadd_s(void);
 void genmult(void);
 void genmultu(void);

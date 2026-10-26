@@ -190,6 +190,7 @@ typedef struct _cpu_instruction_table
 	// COP0 instructions
 	void (*MTC0)(void);
 	void (*MFC0)(void);
+	void (*DMFC0)(void);
 
 	void (*TLBR)(void);
 	void (*TLBWI)(void);

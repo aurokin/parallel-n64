@@ -647,6 +647,38 @@ DECLARE_INSTRUCTION(MFC0)
    ADD_TO_PC(1);
 }
 
+DECLARE_INSTRUCTION(DMFC0)
+{
+   switch(rfs)
+   {
+      case CP0_RANDOM_REG:
+         cp0_update_count();
+         g_cp0_regs[CP0_RANDOM_REG] = (g_cp0_regs[CP0_COUNT_REG]/2 % (32 - g_cp0_regs[CP0_WIRED_REG]))
+            + g_cp0_regs[CP0_WIRED_REG];
+         break;
+      case CP0_COUNT_REG:
+         cp0_update_count();
+         break;
+      case CP0_EPC_REG:
+         rrt = SE32(g_cp0_regs[rfs]);
+         ADD_TO_PC(1);
+         return;
+      case 7:
+      case 21:
+      case 22:
+      case 23:
+      case 24:
+      case 25:
+      case 31:
+         rrt = (int64_t)cp0_latch;
+         ADD_TO_PC(1);
+         return;
+   }
+
+   rrt = g_cp0_regs[rfs];
+   ADD_TO_PC(1);
+}
+
 DECLARE_INSTRUCTION(MTC0)
 {
   /* Every MTC0 updates the latch, even for nonexistent registers. */

@@ -257,6 +257,6 @@
     {"test": "krom.RSPCP2VSUBB", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Reserved vector opcode behavior differs from hardware under the default RSP."},
     {"test": "krom.RSPCP2VSUT", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Reserved vector opcode behavior differs from hardware under the default RSP."},
     {"test": "krom.RSPCP2VNOP", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "VNOP fails 3 of 8 reference cells under the default RSP."},
-    {"test": "systemtest.base", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boots through libdragon IPL3 and its reserved-instruction probe, but does not reach the results summary within the frame budget; not yet diagnosed."}
+    {"test": "systemtest.base", "cpucores": ["dynamic_recompiler", "cached_interpreter", "pure_interpreter"], "reason": "Boots through IPL3 and the emulator-extension probe (reserved COP0 functions are no-ops); then the interpreters stop on repeated COP2 move exceptions and the recompiler loops on TLB refills, so the results summary is never reached."}
   ]
 }

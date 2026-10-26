@@ -21,7 +21,11 @@ same flashcart state. These rows stay listed; the boot state is not
 changed. `PI_DRAM_ADDR` is now masked to a 24-bit halfword address, which was what stopped libdragon's IPL3, and reserved
 encodings raise Reserved Instruction exceptions: n64-systemtest now
 boots and passes its emulator-extension probe, but does not reach its
-results within the frame budget.
+results within the frame budget. Branch `homebrew-cpu` (October 26) makes
+reserved COP0 CO=1 functions no-ops (RFE raises RI), and adds DMFC0/DMTC0
+(32-bit storage, as upstream), LLD/SCD and writable LLAddr; systemtest
+then stops on repeated COP2 move exceptions (interpreters) and a TLB-refill
+loop (recompiler), not yet diagnosed.
 
 The pinned ROMs in [tools/conformance](../tools/conformance/README.md) run
 from power-on with hi-res off at 4x (`linux-anv-headless-vk-4x`). On fixed core

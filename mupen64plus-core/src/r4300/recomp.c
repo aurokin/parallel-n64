@@ -2102,9 +2102,10 @@ static void RLWC1(void)
 
 static void RLLD(void)
 {
-   dst->ops = current_instruction_table.NI;
-   recomp_func = genni;
+   dst->ops = current_instruction_table.LLD;
+   recomp_func = genlld;
    recompile_standard_i_type();
+   if (dst->f.i.rt == reg) RNOP();
 }
 
 static void RLDC1(void)

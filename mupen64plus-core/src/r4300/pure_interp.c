@@ -702,8 +702,9 @@ void InterpretOpcode(void)
 		else                NOP(0);
 		break;
 	case 49: LWC1(op); break;
-	case 52: /* Major opcode 52: LLD (Not implemented) */
-		NI(op);
+	case 52: /* Major opcode 52: LLD */
+		if (RT_OF(op) != 0) LLD(op);
+		else                NOP(0);
 		break;
 	case 53: LDC1(op); break;
 	case 55: /* Major opcode 55: LD */

@@ -299,6 +299,7 @@ void gentestl(void);
 void gentestl_out(void);
 void gencheck_cop1_unusable(void);
 void genll(void);
+void genlld(void);
 
 #endif /* M64P_R4300_RECOMPH_H */
 

@@ -228,6 +228,39 @@ class InteractiveLifecycleContract(unittest.TestCase):
         self.assertNotEqual(status.returncode, 0)
         self.assertIn("is not running", status.stderr)
 
+    def test_status_bounds_fifo_open_and_write(self):
+        # Keep a real zombie group leader until cleanup: kill -0 succeeds,
+        # just as it can between TTL teardown and the detached chain's reap.
+        leader = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+        self.addCleanup(leader.wait, 5)
+        self.wait_dead([leader.pid], 5)
+        os.killpg(leader.pid, 0)
+        (self.bundle / "logs").mkdir(parents=True)
+        (self.bundle / "session.pid").write_text(f"{leader.pid}\n")
+        fifo = self.bundle / "retroarch.stdin"
+        os.mkfifo(fifo)
+
+        for blocked in ("no reader", "full pipe"):
+            with self.subTest(blocked=blocked):
+                reader = None
+                try:
+                    if blocked == "full pipe":
+                        # Model a frontend which still owns stdin but has
+                        # stopped draining commands. Fill without blocking.
+                        reader = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
+                        while True:
+                            try:
+                                os.write(reader, b"x" * 4096)
+                            except BlockingIOError:
+                                break
+                    status = self.adapter("status", "--bundle-dir", str(self.bundle), timeout=10)
+                    self.assertNotEqual(status.returncode, 0)
+                    self.assertIn("FIFO write failed or timed out", status.stderr)
+                    self.assertFalse((self.bundle / "logs/interactive.commands.log").exists())
+                finally:
+                    if reader is not None:
+                        os.close(reader)
+
     def background_step(self, frames):
         process = subprocess.Popen(["bash", str(ADAPTER), "send", "--bundle-dir", str(self.bundle),
                                     "--command", f"STEP_FRAME {frames}"],

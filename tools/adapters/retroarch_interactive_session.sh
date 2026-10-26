@@ -287,7 +287,13 @@ wait_for_log_pattern_after() {
 }
 
 send_fifo() {
-  printf '%s\n' "$1" > "$FIFO_PATH"
+  # A group probe can still see an unreaped zombie after the frontend exits,
+  # or the frontend can die just after the probe. Bound both FIFO open (no
+  # reader) and write (a wedged reader with a full pipe), before any ack wait.
+  if ! timeout 5 bash -c 'printf "%s\n" "$1" > "$2"' _ "$1" "$FIFO_PATH"; then
+    echo "Session is not running or not accepting commands: FIFO write failed or timed out after 5s ($FIFO_PATH)." >&2
+    return 1
+  fi
   printf '%s\n' "$1" >> "$BUNDLE_DIR/logs/interactive.commands.log"
 }
 

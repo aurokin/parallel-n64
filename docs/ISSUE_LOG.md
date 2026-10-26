@@ -13,9 +13,12 @@ INT_MIN/-1 give hardware results without crashing the host, traps and
 BREAK raise exceptions, MTC0 to Cause and to unusual CP0 registers no
 longer halts, and SRA/SRAV shift the full source. CPUDIV, CPUDDIV,
 CPUDIVU, CPUDDIVU and Dillon `sra`/`srav` pass on all three engines.
-COP0Cause and the TEQ Status row still fail on boot state (Cause CE and
-Status after IPL; see below). `PI_DRAM_ADDR` is now masked to a 24-bit
-halfword address, which was what stopped libdragon's IPL3, and reserved
+COP0Cause and the TEQ Status row still fail on boot state; krom's
+references were captured on an EverDrive64, which boots with Status
+0x241000E0 where hardware leaves 0x34000000 (n64-systemtest
+`src/tests/startup/mod.rs`), as this core does. Cause CE=3 is probably the
+same flashcart state. These rows stay listed; the boot state is not
+changed. `PI_DRAM_ADDR` is now masked to a 24-bit halfword address, which was what stopped libdragon's IPL3, and reserved
 encodings raise Reserved Instruction exceptions: n64-systemtest now
 boots and passes its emulator-extension probe, but does not reach its
 results within the frame budget.
@@ -41,7 +44,8 @@ Other CPU and boot failures:
 
 - Unaligned loads/stores do not raise address-error exceptions
   (`ExceptionUnaligned` and `ExceptionUnalignedDelay`).
-- Boot leaves Status at `0x34000000`, while hardware leaves `0x241000E0`.
+- krom's references expect Status `0x241000E0`, the EverDrive64's post-boot
+  value; hardware and this core leave `0x34000000` (see the update above).
   COP0 register, SYSCALL and TLB exception rows therefore fail register
   checks; nested exception rows have additional failing register checks.
 - SRA/SRAV shift only the low 32 bits. Dillon's `sra` fails at case 1501

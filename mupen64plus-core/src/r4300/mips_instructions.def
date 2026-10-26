@@ -530,7 +530,8 @@ DECLARE_INSTRUCTION(LL)
 DECLARE_INSTRUCTION(LLD)
 {
    const uint32_t lsaddr = (uint32_t)irs32 + (uint32_t)iimmediate;
-   int64_t *lsrtp = &irt;
+   int64_t discard = 0;
+   int64_t *lsrtp = &irt == &reg[0] ? &discard : &irt;
    ADD_TO_PC(1);
    address = lsaddr;
    rdword = (uint64_t*) lsrtp;
@@ -597,7 +598,8 @@ DECLARE_INSTRUCTION(SC)
 DECLARE_INSTRUCTION(SCD)
 {
    const uint32_t lsaddr = (uint32_t)irs32 + (uint32_t)iimmediate;
-   int64_t *lsrtp = &irt;
+   int64_t discard = 0;
+   int64_t *lsrtp = &irt == &reg[0] ? &discard : &irt;
    ADD_TO_PC(1);
    if(llbit)
    {

@@ -702,10 +702,7 @@ void InterpretOpcode(void)
 		else                NOP(0);
 		break;
 	case 49: LWC1(op); break;
-	case 52: /* Major opcode 52: LLD */
-		if (RT_OF(op) != 0) LLD(op);
-		else                NOP(0);
-		break;
+	case 52: LLD(op); break;
 	case 53: LDC1(op); break;
 	case 55: /* Major opcode 55: LD */
 		if (RT_OF(op) != 0) LD(op);
@@ -716,10 +713,7 @@ void InterpretOpcode(void)
 		else                NOP(0);
 		break;
 	case 57: SWC1(op); break;
-	case 60: /* Major opcode 60: SCD */
-		if (RT_OF(op) != 0) SCD(op);
-		else                NOP(0);
-		break;
+	case 60: SCD(op); break;
 	case 61: SDC1(op); break;
 	case 63: SD(op); break;
 	default: /* Major opcodes 18..19, 28..31, 50..51, 54, 58..59, 62:

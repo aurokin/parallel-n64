@@ -73,7 +73,8 @@ static uint32_t get_remaining_dma_length(struct ai_controller* ai)
       return 0;
 
    cp0_regs = r4300_cp0_regs();
-   if (next_ai_event <= cp0_regs[CP0_COUNT_REG])
+   /* Compare cycle deltas across CP0 COUNT wraparound. */
+   if ((int)(cp0_regs[CP0_COUNT_REG] - next_ai_event) >= 0)
       return 0;
 
    remaining_dma_duration = next_ai_event - cp0_regs[CP0_COUNT_REG];
@@ -88,7 +89,14 @@ static unsigned int get_dma_duration(struct ai_controller* ai)
    unsigned int bytes_per_sample = 4; /* XXX: assume 16bit stereo - should depends on bitrate instead */
    unsigned int cpu_counts_per_sec = ai->vi->delay * ai->vi->expected_refresh_rate; /* estimate cpu counts/sec using VI */
 
-   return ai->regs[AI_LEN_REG] * (cpu_counts_per_sec / (bytes_per_sample * samples_per_sec));
+   uint64_t bytes_per_sec = (uint64_t)bytes_per_sample * samples_per_sec;
+
+   if (bytes_per_sec == 0)
+      return 0;
+
+   /* Scale before dividing so the per-byte rounding error is not amplified. */
+   return (unsigned int)(((uint64_t)ai->regs[AI_LEN_REG] * cpu_counts_per_sec)
+         / bytes_per_sec);
 }
 
 static void do_dma(struct ai_controller* ai, const struct ai_dma* dma)

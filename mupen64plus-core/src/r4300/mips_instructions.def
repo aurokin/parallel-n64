@@ -586,8 +586,13 @@ DECLARE_INSTRUCTION(SC)
       cpu_word = (uint32_t) *lsrtp;
       write_word_in_memory();
       CHECK_MEMORY();
-      llbit = 0;
-      *lsrtp = 1;
+      /* A faulting store (address cleared by the TLB miss) raised an
+       * exception; the instruction did not complete, so rt is unchanged. */
+      if (address)
+      {
+         llbit = 0;
+         *lsrtp = 1;
+      }
    }
    else
    {
@@ -607,8 +612,13 @@ DECLARE_INSTRUCTION(SCD)
       cpu_dword = *lsrtp;
       write_dword_in_memory();
       CHECK_MEMORY();
-      llbit = 0;
-      *lsrtp = 1;
+      /* A faulting store (address cleared by the TLB miss) raised an
+       * exception; the instruction did not complete, so rt is unchanged. */
+      if (address)
+      {
+         llbit = 0;
+         *lsrtp = 1;
+      }
    }
    else
    {

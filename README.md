@@ -8,6 +8,10 @@ The renderer is the correctness authority. External orchestration may supply
 paths and launch parameters, but this repository remains buildable and testable
 without a fleet controller or private workspace.
 
+The shipped core uses Mupen64Plus with Vulkan paraLLEl-RDP. Angrylion, Rice,
+Glide64/Glitch64 and gln64 renderers are not included. CXD4, HLE and optional
+paraLLEl-RSP remain available; Vulkan graphics uses an LLE RSP.
+
 ## Current Capabilities
 
 - GlideN64/Rice-compatible draw-time texture identity.

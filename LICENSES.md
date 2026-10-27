@@ -8,14 +8,10 @@ assert a new license for the repository as a whole.
 |-----------|----------------------|
 | Mupen64Plus core | [`mupen64plus-core/LICENSES`](mupen64plus-core/LICENSES): GNU GPL version 2, with separately identified bundled components |
 | Mupen64Plus HLE RSP | [`mupen64plus-rsp-hle/LICENSES`](mupen64plus-rsp-hle/LICENSES): GNU GPL version 2 |
-| gles2n64 imported tree | [`gles2n64/src/COPYING`](gles2n64/src/COPYING) records GNU LGPL version 3 for the port, while individual files may differ; for example, `glN64Config.c` declares GPL-2-or-later |
 | CXD4 RSP | [`mupen64plus-rsp-cxd4/COPYING`](mupen64plus-rsp-cxd4/COPYING): CC0 1.0 Universal |
 | ParaLLEl RSP | [`mupen64plus-rsp-paraLLEl/LICENSE`](mupen64plus-rsp-paraLLEl/LICENSE): dual MIT or LGPLv3 |
 | GNU Lightning bundled with ParaLLEl RSP | [`lightning/COPYING`](mupen64plus-rsp-paraLLEl/lightning/COPYING) and [`lightning/COPYING.LESSER`](mupen64plus-rsp-paraLLEl/lightning/COPYING.LESSER): GPLv3 or LGPLv3 as described by the component |
 | Vendored paraLLEl-RDP project-owned code | [`mupen64plus-video-paraLLEl/parallel-rdp/LICENSE`](mupen64plus-video-paraLLEl/parallel-rdp/LICENSE): MIT; imported headers and third-party code retain their own notices, including Apache-2.0 SPIRV-Cross/Vulkan material and MIT-licensed volk |
-| Rice inherited code | Headed source such as [`Video.cpp`](gles2rice/src/Video.cpp) declares GPL-2-or-later; metadata, unheaded imports and contribution rights have separately recorded limits |
-| Glide64/Glitch64 inherited renderer code | Headed sources declare GPL-2-or-later; the imported Glide API header has separate [3dfx terms](glide2gl/LICENSE.glide), not a blanket GNU GPL declaration |
-| Angrylion imported rasterizer/Plus ancestry | Recovered [MAME terms](<mupen64plus-video-angrylion/MAME License.txt>) and [credits](mupen64plus-video-angrylion/CREDITS.txt), including noncommercial, complete-source and notice conditions; aggregate/build compatibility remains unresolved |
 
 The fork lineage is
 [libretro/parallel-n64](https://github.com/libretro/parallel-n64) followed by

@@ -1,5 +1,9 @@
 # Recovered component provenance
 
+This is a historical import audit. Angrylion, Rice and Glide64/Glitch64 were
+removed during release preparation; the paths below describe the audited
+revision. See [LICENSES.md](../LICENSES.md) for the retained component map.
+
 Checked September 29, 2026 against source `45b754769fc7367e68a0062f874b2378dfa978ff`.
 This records actual inherited declarations and restores missing notices. It
 does not select an aggregate license, establish contributor rights or clear

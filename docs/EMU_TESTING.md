@@ -8,8 +8,8 @@ provided.
 
 - CMake 3.16 or newer and `make`.
 - A C and C++ compiler.
-- OpenGL and zlib development libraries; the core links `-lGL` and `-lz`,
-  and the texture-replacement provider test links `z`.
+- zlib development libraries; the Vulkan core and texture-replacement
+  provider test link `z`. No OpenGL development library is required.
 - `python3` on `PATH` with Pillow. `tools/hires_pack_materialize_package.py`
   imports `PIL`, and the `hts2phrb` support tests in `emu-required` fail
   without it.

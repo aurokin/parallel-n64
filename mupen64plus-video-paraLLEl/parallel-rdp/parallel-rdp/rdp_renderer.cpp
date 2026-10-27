@@ -1216,6 +1216,9 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_descriptor_generic_compat_plain_resolutions = 0;
 	hires_descriptor_generic_unknown_plain_resolutions = 0;
 	hires_descriptor_compat_resolutions = 0;
+	for (auto &memo : hires_strong_memo)
+		memo = {};
+	hires_strong_draw_hits = 0;
 	hires_compat_draw_time_hits = 0;
 	hires_compat_draw_time_ci_attempts = 0;
 	hires_compat_draw_time_ci_hits = 0;
@@ -1416,6 +1419,15 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 
 	if (replacement_provider)
 	{
+		uint64_t strong_computations = 0, strong_memo_hits = 0;
+		for (const auto &memo : hires_strong_memo)
+		{
+			strong_computations += memo.computations;
+			strong_memo_hits += memo.hits;
+		}
+		LOGI("Hi-res strong-hash summary%s: draw_hits=%llu computations=%llu memo_hits=%llu.\n",
+		     label, static_cast<unsigned long long>(hires_strong_draw_hits),
+		     static_cast<unsigned long long>(strong_computations), static_cast<unsigned long long>(strong_memo_hits));
 		ReplacementProviderStats provider_stats = replacement_provider->get_stats();
 		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu filtered=%llu block_probe_hits=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
 		     label,
@@ -2365,17 +2377,37 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			if (is_ci_compat_texture)
 				hires_compat_draw_time_ci_attempts++;
 
-			if (compat_checksum64 != 0)
 			{
 				const uint16_t compat_formatsize = formatsize_key(resolve_meta.fmt, resolve_meta.size);
 				const uint32_t compat_low32 = uint32_t(compat_checksum64 & 0xffffffffu);
 				const uint32_t compat_palette_crc = uint32_t(compat_checksum64 >> 32u);
 				ReplacementResolution compat_resolution = {};
-				bool compat_hit = replacement_provider->resolve_upload_candidate(
+				bool compat_hit = compat_checksum64 != 0 && replacement_provider->resolve_upload_candidate(
 					compat_formatsize,
 					uint32_t(resolve_meta.fmt), uint32_t(resolve_meta.size),
 					resolve_meta.offset, resolve_meta.stride,
 					0, 0, compat_low32, compat_palette_crc, 0, &compat_resolution);
+				// GLideN64 tries StrongCRC32 only after the Rice source-view miss.
+				uint64_t lookup_checksum64 = compat_checksum64;
+				bool strong_hit = false;
+				if (!compat_hit)
+				{
+					size_t texture_bytes = 0;
+					if (detail::pack_hires_strong_source(cpu_rdram, rdram_size, compat_view,
+					        resolve_meta.fmt, resolve_meta.size, tlut_shadow_valid ? tlut_shadow : nullptr,
+					        resolve_meta.palette, hires_strong_scratch, texture_bytes))
+					{
+						const uint64_t strong = hires_strong_memo[resolve_tile].resolve(
+							compat_checksum64, hires_strong_scratch, texture_bytes);
+						strong_hit = replacement_provider->resolve_upload_candidate(
+							compat_formatsize, uint32_t(resolve_meta.fmt), uint32_t(resolve_meta.size),
+							resolve_meta.offset, resolve_meta.stride, 0, 0,
+							uint32_t(strong), uint32_t(strong >> 32), 0, &compat_resolution);
+						if (strong_hit)
+							lookup_checksum64 = strong;
+					}
+					compat_hit = strong_hit;
+				}
 				// Jabo packages key by MD5 instead; try them only after the Rice key misses.
 				uint64_t jabo_source_hash = 0;
 				const bool jabo_hit = !compat_hit && hires_jabo_lane_enabled &&
@@ -2406,7 +2438,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 					{
 						auto &repl_state = replacement_tiles[resolve_tile];
 						detail::write_hires_lookup_tile_state(
-							repl_state, true, compat_checksum64, compat_checksum64,
+							repl_state, true, lookup_checksum64, compat_checksum64,
 							0, compat_formatsize, compat_w, compat_h);
 						repl_state.repl_w = static_cast<uint16_t>(compat_repl_meta.repl_w);
 						repl_state.repl_h = static_cast<uint16_t>(compat_repl_meta.repl_h);
@@ -2417,6 +2449,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 						repl_state.jabo_source_hash = jabo_hit ? jabo_source_hash : 0;
 						repl_state.indexed_palette_hash = compat_resolution.meta.indexed ? palette.hash() : 0;
 						apply_hires_tile_binding(resolve_tile, repl_state);
+						if (strong_hit)
+							hires_strong_draw_hits++;
 						if (jabo_hit)
 							hires_jabo_draw_hits++;
 						else
@@ -2430,7 +2464,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 						{
 							LOGI("Hi-res GlideN64-compat draw-time hit: tile=%u key=%016llx w=%u h=%u stride=%u addr=0x%06x.\n",
 							     resolve_tile,
-							     static_cast<unsigned long long>(compat_checksum64),
+							     static_cast<unsigned long long>(lookup_checksum64),
 							     compat_w, compat_h, compat_view.row_stride,
 							     compat_view.address & 0x00ffffffu);
 						}

@@ -25,6 +25,7 @@
 #include "rdp_data_structures.hpp"
 #include "rdp_hires_ci_binding_policy.hpp"
 #include "rdp_hires_compat_view.hpp"
+#include "rdp_hires_strong_hash.hpp"
 #include "rdp_hires_jabo_key.hpp"
 #include "device.hpp"
 #include "rdp_common.hpp"
@@ -407,6 +408,9 @@ private:
 	uint64_t hires_descriptor_generic_compat_plain_resolutions = 0;
 	uint64_t hires_descriptor_generic_unknown_plain_resolutions = 0;
 	uint64_t hires_descriptor_compat_resolutions = 0;
+	detail::HiresStrongHashMemo hires_strong_memo[Limits::MaxNumTiles];
+	std::vector<uint8_t> hires_strong_scratch;
+	uint64_t hires_strong_draw_hits = 0;
 	uint64_t hires_compat_draw_time_hits = 0;
 	uint64_t hires_compat_draw_time_ci_attempts = 0;
 	uint64_t hires_compat_draw_time_ci_hits = 0;

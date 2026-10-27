@@ -664,3 +664,8 @@ foreach(suite krom dillon systemtest)
   )
   set_tests_properties(emu.conformance.test_roms_${suite} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 7200 RUN_SERIAL TRUE)
 endforeach()
+
+add_executable(emu_unit_hires_strong_hash_test emu_unit_hires_strong_hash_test.cpp)
+target_include_directories(emu_unit_hires_strong_hash_test PRIVATE "${CMAKE_SOURCE_DIR}")
+target_compile_features(emu_unit_hires_strong_hash_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.hires_strong_hash COMMAND emu_unit_hires_strong_hash_test)

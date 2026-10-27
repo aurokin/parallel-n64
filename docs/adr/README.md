@@ -39,6 +39,8 @@ Status values:
 | [0020](0020-replacement-stays-out-of-rdram.md) | Replacement stays out of RDRAM render targets | Accepted |
 | [0021](0021-indexed-replacements-resolve-against-live-palette.md) | Indexed replacements resolve against the live palette | Accepted |
 
+| [0022](0022-strong-hash-lookup-after-rice-miss.md) | Strong-hash lookup after a Rice miss | Accepted |
+
 ## Decision Spine
 
 Read [0002](0002-protected-feature-off-property.md),

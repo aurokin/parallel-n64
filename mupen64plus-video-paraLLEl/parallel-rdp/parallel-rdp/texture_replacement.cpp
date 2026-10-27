@@ -858,7 +858,9 @@ ReplacementPalette ReplacementPalette::from_tmem(const uint8_t *tmem, size_t siz
 	for (unsigned i = 0; i < count; i++)
 	{
 		const auto *entry = tmem + (first + i) * 8u;
-		palette.words[i] = uint16_t(entry[0]) | (uint16_t(entry[1]) << 8);
+		// The identity mirror stores emulate_load_tlut_entry_word() byte pairs.
+		// Native vram16 reads the RDRAM halfword little-endian before TMEM upload.
+		palette.words[i] = uint16_t(entry[1]) | (uint16_t(entry[0]) << 8);
 	}
 	return palette;
 }

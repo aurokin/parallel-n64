@@ -29,7 +29,9 @@ Monopoly 64 (A011) consists only of valid CI BMPs and converted to an empty pack
 3. On a hit for an indexed record, the runtime expands indices to RGBA8 with the
    palette that the draw uses — the TMEM TLUT shadow already available at identity
    time (`tlut_tmem_shadow`, not the separate GLideN64 keying shadow): CI8 uses
-   all 256 entries; CI4 uses the tile's 16-entry bank. Entries are
+   all 256 entries; CI4 uses the tile's 16-entry bank. The mirror's byte pairs
+   are normalized to the native shader's `vram16` halfword order without changing
+   the identity mirror or its key hashes. Entries are
    decoded by the TLUT type in othermode (RGBA16 or IA16), with the same conversion
    the native texture path uses for that TLUT type.
 4. Indexed decode is deferred from upload to the draw, where the render tile

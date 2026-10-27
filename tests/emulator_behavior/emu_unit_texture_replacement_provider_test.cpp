@@ -401,8 +401,8 @@ static void test_indexed_replacements()
 	const auto dir = make_temp_dir();
 	std::array<uint8_t, 2048> tmem = {};
 	auto set_word = [&](unsigned index, uint16_t word) {
-		tmem[index * 8] = uint8_t(word);
-		tmem[index * 8 + 1] = uint8_t(word >> 8);
+		tmem[index * 8] = uint8_t(word >> 8);
+		tmem[index * 8 + 1] = uint8_t(word);
 	};
 	set_word(0, 0xf801); // Red, opaque.
 	set_word(1, 0x07c0); // Green, transparent.
@@ -411,6 +411,16 @@ static void test_indexed_replacements()
 	set_word(49, 0x8421); // Half intensity, opaque.
 	set_word(63, 0);
 	set_word(255, 0x1234);
+	// tmem_update.comp reads vram16[(addr >> 1) ^ 1] from word-swapped RDRAM.
+	// The CPU identity mirror instead writes the byte-swapped emulated word.
+	const uint8_t rdram[] = {0xc0, 0x07, 0x01, 0xf8};
+	const uint16_t native_red = uint16_t(rdram[2]) | (uint16_t(rdram[3]) << 8);
+	const uint16_t mirrored_red = (uint16_t(rdram[2]) << 8) | uint16_t(rdram[3]);
+	auto mirror = tmem;
+	mirror[0] = uint8_t(mirrored_red);
+	mirror[1] = uint8_t(mirrored_red >> 8);
+	check(ReplacementPalette::from_tmem(mirror.data(), mirror.size(), true, 0, false).words[0] == native_red,
+		  "palette mirror byte order must reproduce native vram16 TLUT words");
 	for (unsigned siz = 0; siz < 2; siz++)
 	{
 		const uint16_t fs = uint16_t(2 | (siz << 8));

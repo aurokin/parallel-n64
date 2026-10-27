@@ -61,8 +61,12 @@ inline uint32_t compute_ci8_max_index(const uint8_t *rdram, size_t rdram_size, u
 	uint32_t largest = 0;
 	for (uint32_t row = 0; row < height; ++row)
 		for (uint32_t column = 0; column < width; ++column)
+		{
 			largest = std::max(largest, uint32_t(wrapped_read_u8(
 				rdram, rdram_size, base_addr + row * row_stride + column)));
+			if (largest == 0xffu) // nothing can exceed it
+				return largest;
+		}
 	return largest;
 }
 
@@ -80,6 +84,8 @@ inline uint32_t compute_ci4_max_index(const uint8_t *rdram, size_t rdram_size, u
 			const uint32_t pair = wrapped_read_u8(
 				rdram, rdram_size, base_addr + row * row_stride + column);
 			largest = std::max(largest, std::max(pair >> 4u, pair & 15u));
+			if (largest == 15u) // nothing can exceed it
+				return largest;
 		}
 	return largest;
 }

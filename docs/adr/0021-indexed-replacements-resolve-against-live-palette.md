@@ -19,7 +19,7 @@ Monopoly 64 (A011) consists only of valid CI BMPs and converted to an empty pack
    0–15, CI8 0–255), width and height, plus the key fields from the name (texture
    CRC, format CI, size CI4/CI8, palette CRC when the name has one). The BMP palette
    is discarded. PHRB uses its existing v7 asset encoding fields:
-   `format=GL_COLOR_INDEX8_EXT (0x80e5)` plus the existing zlib flag,
+   `format=GL_COLOR_INDEX8_EXT (0x80e5)` (with the zlib flag when compressed, as for RGBA assets),
    `texture_format=GL_COLOR_INDEX (0x1900)`, `pixel_type=GL_UNSIGNED_BYTE (0x1401)`.
    There is no layout or version change; Rice packages remain v7 (v8 with Jabo).
 2. The Rice key (texture CRC, and palette CRC only when the record carries one)

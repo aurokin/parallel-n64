@@ -37,7 +37,7 @@ record which private host currently stores an artifact.
 - Rice `_ci.bmp` textures keep one byte per palette index (CI4 or CI8); the
   renderer colours them with the live TMEM TLUT, ignoring the BMP preview palette.
   In the existing v7 asset fields, `format=GL_COLOR_INDEX8_EXT (0x80e5)`
-  (plus the existing zlib flag), `texture_format=GL_COLOR_INDEX (0x1900)`, and
+  (with the zlib flag when compressed, as for RGBA), `texture_format=GL_COLOR_INDEX (0x1900)`, and
   `pixel_type=GL_UNSIGNED_BYTE (0x1401)` identify this encoding.
   Older cores cannot decode indexed assets.
 - Not convertible: port-specific folders such as Dolphin `tex1_*` or rt64

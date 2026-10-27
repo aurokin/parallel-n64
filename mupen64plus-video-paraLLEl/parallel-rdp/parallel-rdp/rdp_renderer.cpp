@@ -2286,6 +2286,18 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				hires_load_tile_source[t] = origin.source;
 			}
 			const auto &state = replacement_tiles[t];
+			if (sampled_slots[slot] && state.indexed_palette_hash != 0)
+			{
+				const auto palette = ReplacementPalette::from_tmem(
+					tlut_shadow_valid ? tlut_tmem_shadow : nullptr, sizeof(tlut_tmem_shadow),
+					meta.size == TextureSize::Bpp4, meta.palette,
+					(raster_flags & RASTERIZATION_TLUT_TYPE_BIT) != 0);
+				if (!(raster_flags & RASTERIZATION_TLUT_BIT) || state.indexed_palette_hash != palette.hash())
+				{
+					replacement_tiles[t] = {};
+					clear_hires_tile_binding(t);
+				}
+			}
 			if (state.hit && !detail::hires_ci4_binding_matches(
 				state.ci4_palette, meta.fmt, meta.size, meta.palette, sampled_slots[slot]))
 			{
@@ -2381,9 +2393,14 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 					HiresProviderDescriptorPathKind compat_desc_path = HiresProviderDescriptorPathKind::None;
 					uint64_t compat_selector = 0;
 					const char *compat_desc_class = nullptr;
+					const auto palette = ReplacementPalette::from_tmem(
+						tlut_shadow_valid && (raster_flags & RASTERIZATION_TLUT_BIT) ? tlut_tmem_shadow : nullptr,
+						sizeof(tlut_tmem_shadow), resolve_meta.size == TextureSize::Bpp4,
+						resolve_meta.palette, tlut_ia16);
 					compat_hit = resolve_hires_provider_resolution_descriptor(
 						compat_resolution, compat_formatsize, compat_w, compat_h,
-						compat_repl_meta, &compat_desc_path, &compat_selector, &compat_desc_class);
+						compat_repl_meta, &compat_desc_path, &compat_selector, &compat_desc_class,
+						palette.count ? &palette : nullptr);
 
 					if (compat_hit)
 					{
@@ -2398,6 +2415,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 						repl_state.ci4_palette = detail::make_hires_ci4_palette_binding(compat_formatsize, resolve_meta.palette);
 						repl_state.source_layout_binding = compat_view.source_layout;
 						repl_state.jabo_source_hash = jabo_hit ? jabo_source_hash : 0;
+						repl_state.indexed_palette_hash = compat_resolution.meta.indexed ? palette.hash() : 0;
 						apply_hires_tile_binding(resolve_tile, repl_state);
 						if (jabo_hit)
 							hires_jabo_draw_hits++;
@@ -4888,7 +4906,8 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
                                                             ReplacementMeta &meta,
                                                             Renderer::HiresProviderDescriptorPathKind *resolved_path_kind,
                                                             uint64_t *resolved_selector_checksum64,
-                                                            const char **resolved_path_class)
+                                                            const char **resolved_path_class,
+                                                            const ReplacementPalette *palette)
 {
 	meta.vk_image_index = detail::hires_invalid_descriptor_index();
 	if (resolved_path_kind)
@@ -4901,6 +4920,9 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 	if (!replacement_provider || !caps.hires_replacement_shader || !resolution.available)
 		return false;
 
+	// Indexed assets must be coloured with the rendering tile, never the load tile.
+	if (resolution.meta.indexed && !palette)
+		return false;
 	ReplacementMeta resolved_meta = resolution.meta;
 	resolved_meta.orig_w = orig_w;
 	resolved_meta.orig_h = orig_h;
@@ -4963,7 +4985,7 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 			    resolution.resolved_checksum64,
 			    formatsize,
 			    selector_checksum64,
-			    resolved_meta))
+			    resolved_meta, resolution.meta.indexed ? palette : nullptr))
 			return false;
 		resolved_meta.orig_w = orig_w;
 		resolved_meta.orig_h = orig_h;
@@ -5009,7 +5031,7 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 	return false;
 }
 
-bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta)
+bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta, const ReplacementPalette *palette)
 {
 	meta.vk_image_index = detail::hires_invalid_descriptor_index();
 
@@ -5021,6 +5043,7 @@ bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, 
 	key.formatsize = formatsize;
 	key.selector_checksum64 = selector_checksum64;
 	key.source = HiresKeySource::Compat;
+	key.indexed_palette_hash = palette ? palette->hash() : 0;
 	auto itr = hires_resources.resident_images.find(key);
 	if (itr != hires_resources.resident_images.end())
 	{
@@ -5035,7 +5058,7 @@ bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, 
 		return false;
 
 	ReplacementImage replacement = {};
-	if (!replacement_provider->decode_rgba8_compat_with_selector(checksum64, formatsize, selector_checksum64, &replacement))
+	if (!replacement_provider->decode_rgba8_compat_with_selector(checksum64, formatsize, selector_checksum64, &replacement, palette))
 		return false;
 	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
 		return false;

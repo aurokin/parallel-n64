@@ -232,6 +232,13 @@ target_include_directories(emu_unit_texture_replacement_provider_test PRIVATE
   "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp"
   "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/util"
 )
+# Exercise the renderer's resident-image key without constructing a Vulkan device.
+target_include_directories(emu_unit_texture_replacement_provider_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/vulkan"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/volk"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/vulkan-headers/include"
+)
+target_compile_options(emu_unit_texture_replacement_provider_test PRIVATE -fno-access-control)
 target_compile_features(emu_unit_texture_replacement_provider_test PRIVATE cxx_std_17)
 target_link_libraries(emu_unit_texture_replacement_provider_test PRIVATE z)
 add_test(NAME emu.unit.texture_replacement_provider COMMAND emu_unit_texture_replacement_provider_test)

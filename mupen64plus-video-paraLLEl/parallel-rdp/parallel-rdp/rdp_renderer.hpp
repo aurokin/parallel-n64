@@ -40,6 +40,7 @@ struct CoherencyOperation;
 struct ReplacementMeta;
 struct ReplacementResolution;
 struct ReplacementImage;
+struct ReplacementPalette;
 struct CILow32DimsSelector;
 class ReplacementProvider;
 
@@ -281,7 +282,7 @@ private:
 	uint32_t allocate_hires_descriptor(size_t incoming_bytes);
 	Vulkan::ImageHandle create_hires_replacement_image_with_mips(const ReplacementImage &replacement);
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta);
-	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta);
+	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta, const ReplacementPalette *palette = nullptr);
 	bool resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64_t key_hi, ReplacementMeta &meta);
 	bool resolve_hires_jabo_draw_candidate(const TileMeta &tile_meta, const detail::HiresCompatView &view,
 	                                       uint64_t rice_checksum64, bool tlut_ia16, ReplacementResolution *out,
@@ -307,7 +308,8 @@ private:
 	                                                  ReplacementMeta &meta,
 	                                                  Renderer::HiresProviderDescriptorPathKind *resolved_path_kind = nullptr,
 	                                                  uint64_t *resolved_selector_checksum64 = nullptr,
-	                                                  const char **resolved_path_class = nullptr);
+	                                                  const char **resolved_path_class = nullptr,
+	                                                  const ReplacementPalette *palette = nullptr);
 	void apply_hires_tile_binding(unsigned tile, const ReplacementTileState &state);
 	void clear_hires_tile_binding(unsigned tile);
 
@@ -372,6 +374,7 @@ private:
 		// palette its MD5 was computed from. The binding is kept only while
 		// that hash still matches, since the Rice key does not cover them all.
 		uint64_t jabo_source_hash = 0;
+		uint64_t indexed_palette_hash = 0;
 		detail::HiresCI4PaletteBinding ci4_palette;
 		// The key or live admission depended on qualified LoadTile source rows.
 		bool source_layout_binding = false;
@@ -622,6 +625,7 @@ private:
 		uint64_t checksum64 = 0;
 		uint16_t formatsize = 0;
 		uint64_t selector_checksum64 = 0;
+		uint64_t indexed_palette_hash = 0;
 		HiresKeySource source = HiresKeySource::Generic;
 		uint32_t sampled_fmt = 0;
 		uint32_t sampled_siz = 0;
@@ -636,6 +640,7 @@ private:
 		{
 			return checksum64 == other.checksum64 && formatsize == other.formatsize &&
 			       selector_checksum64 == other.selector_checksum64 &&
+			       indexed_palette_hash == other.indexed_palette_hash &&
 			       source == other.source &&
 			       sampled_fmt == other.sampled_fmt &&
 			       sampled_siz == other.sampled_siz &&
@@ -653,7 +658,7 @@ private:
 		size_t operator()(const HiresKey &key) const
 		{
 			return size_t(key.checksum64 ^ (uint64_t(key.formatsize) << 48) ^
-			              key.selector_checksum64 ^ (uint64_t(key.source) << 60) ^
+			              key.selector_checksum64 ^ key.indexed_palette_hash ^ (uint64_t(key.source) << 60) ^
 			              (uint64_t(key.sampled_fmt) << 2) ^
 			              (uint64_t(key.sampled_siz) << 6) ^
 			              (uint64_t(key.sampled_tex_offset) << 10) ^

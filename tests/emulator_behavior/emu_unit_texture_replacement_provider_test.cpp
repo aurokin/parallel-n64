@@ -1,6 +1,7 @@
 #define private public
 #include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/texture_replacement.hpp"
 #undef private
+#include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_renderer.hpp"
 
 #include <array>
 #include <cstdint>
@@ -386,8 +387,122 @@ static void test_phrb_v8_jabo_records()
 }
 }
 
+static std::vector<uint8_t> compress_zlib(const std::vector<uint8_t> &bytes)
+{
+	std::vector<uint8_t> compressed(compressBound(bytes.size()));
+	uLongf size = compressed.size();
+	check(compress2(compressed.data(), &size, bytes.data(), bytes.size(), 6) == Z_OK, "zlib fixture compression");
+	compressed.resize(size);
+	return compressed;
+}
+
+static void test_indexed_replacements()
+{
+	const auto dir = make_temp_dir();
+	std::array<uint8_t, 2048> tmem = {};
+	auto set_word = [&](unsigned index, uint16_t word) {
+		tmem[index * 8] = uint8_t(word);
+		tmem[index * 8 + 1] = uint8_t(word >> 8);
+	};
+	set_word(0, 0xf801); // Red, opaque.
+	set_word(1, 0x07c0); // Green, transparent.
+	set_word(15, 0x003f); // Blue, opaque.
+	set_word(48, 0xffff); // Bank 3: white, opaque.
+	set_word(49, 0x8421); // Half intensity, opaque.
+	set_word(63, 0);
+	set_word(255, 0x1234);
+	for (unsigned siz = 0; siz < 2; siz++)
+	{
+		const uint16_t fs = uint16_t(2 | (siz << 8));
+		const std::vector<uint8_t> indices = {0, 1, uint8_t(siz ? 255 : 15), 0};
+		const auto path = dir + (siz ? "/ci8.phrb" : "/ci4.phrb");
+		write_single_asset_phrb(path, "ci", "ci", "family", 0, 0, 0, 0, 0, 0,
+								fs, 0x12345678, 0, 0, 2, 2, compress_zlib(indices),
+								PHRB_RECORD_FLAG_RUNTIME_READY, 0x12345678,
+								0x800080e5u, 0x1900, GL_UNSIGNED_BYTE);
+		ReplacementProvider provider;
+		provider.set_enabled(true);
+		check(provider.load_cache_dir(path), "indexed PHRB should load");
+		ReplacementResolution resolution;
+		check(provider.resolve_upload_candidate(fs, 2, siz, 0, 0, 2, 2, 0x12345678, 0xaabbccdd, 0, &resolution),
+			  "texture-only indexed key should resolve with a live palette CRC");
+		check(resolution.meta.indexed, "indexed metadata must reach the renderer");
+		ReplacementImage image;
+		check(!provider.decode_rgba8_compat_with_selector(0x12345678, fs, 0, &image),
+			  "indexed decode without a live palette must fail");
+		auto palette = ReplacementPalette::from_tmem(tmem.data(), tmem.size(), siz == 0, 0, false);
+		check(provider.decode_rgba8_compat_with_selector(0x12345678, fs, 0, &image, &palette),
+			  "CI4/CI8 RGBA16 expansion should decode");
+		check(std::vector<uint8_t>(image.rgba8.begin(), image.rgba8.begin() + 8) ==
+				  std::vector<uint8_t>({255, 0, 0, 255, 0, 255, 0, 0}),
+			  "RGBA16 TLUT must use native bit replication and alpha");
+		const auto first = image.rgba8;
+		const auto first_hash = palette.hash();
+		Renderer::HiresKey cache_key;
+		cache_key.source = Renderer::HiresKeySource::Compat;
+		cache_key.checksum64 = 0x12345678;
+		cache_key.formatsize = fs;
+		cache_key.indexed_palette_hash = first_hash;
+		std::unordered_map<Renderer::HiresKey, std::vector<uint8_t>, Renderer::HiresKeyHasher> cache;
+		cache.emplace(cache_key, first);
+		auto changed = palette;
+		changed.words[0] = 0x003f;
+		check(changed.hash() != first_hash, "palette bytes must distinguish cached expansions");
+		check(provider.decode_rgba8_compat_with_selector(0x12345678, fs, 0, &image, &changed) && image.rgba8 != first,
+			  "one indexed record and two palettes must produce two images");
+		auto changed_key = cache_key;
+		changed_key.indexed_palette_hash = changed.hash();
+		check(cache.find(changed_key) == cache.end(), "a changed TLUT must miss the resident-image cache");
+		cache.emplace(changed_key, image.rgba8);
+		check(cache.size() == 2 && cache.at(cache_key) == first && cache.at(changed_key) == image.rgba8,
+			  "the actual renderer cache key must retain distinct palette expansions");
+		check(ReplacementPalette::from_tmem(tmem.data(), tmem.size(), siz == 0, 0, false).hash() == first_hash,
+			  "the same palette should reuse its cache identity");
+		palette.ia16 = true;
+		check(palette.hash() != first_hash, "TLUT type must distinguish cached expansions");
+		check(provider.decode_rgba8_compat_with_selector(0x12345678, fs, 0, &image, &palette), "IA16 TLUT should decode");
+		check(std::vector<uint8_t>(image.rgba8.begin(), image.rgba8.begin() + 4) ==
+				  std::vector<uint8_t>({248, 248, 248, 1}), "IA16 must use high-byte intensity and low-byte alpha");
+		if (siz)
+			check(std::vector<uint8_t>(image.rgba8.begin() + 8, image.rgba8.begin() + 12) ==
+					  std::vector<uint8_t>({18, 18, 18, 52}), "CI8 should address entry 255");
+		else
+		{
+			auto bank = ReplacementPalette::from_tmem(tmem.data(), tmem.size(), true, 3, false);
+			check(bank.hash() != first_hash, "CI4 bank selection must affect the cache identity");
+			check(provider.decode_rgba8_compat_with_selector(0x12345678, fs, 0, &image, &bank), "CI4 bank 3 should decode");
+			check(std::vector<uint8_t>(image.rgba8.begin(), image.rgba8.begin() + 8) ==
+					  std::vector<uint8_t>({255, 255, 255, 255, 132, 132, 132, 255}), "CI4 must select the nonzero bank");
+			bank.ia16 = true;
+			check(provider.decode_rgba8_compat_with_selector(0x12345678, fs, 0, &image, &bank) && image.rgba8[4] == 132 && image.rgba8[7] == 33,
+				  "CI4 nonzero bank should also use IA16");
+		}
+		auto invalid = ReplacementPalette::from_tmem(nullptr, 0, siz == 0, 0, false);
+		check(!provider.decode_rgba8_compat_with_selector(0x12345678, fs, 0, &image, &invalid), "invalid TLUT must fail");
+	}
+	const auto qualified_path = dir + "/qualified.phrb";
+	write_single_asset_phrb(qualified_path, "ci-pal", "ci-pal", "family", 0, 0, 0, 0, 0, 0,
+							2, 0x87654321, 0xaabbccdd, 0, 2, 2, {0, 1, 0, 1},
+							PHRB_RECORD_FLAG_RUNTIME_READY, 0xaabbccdd87654321ull, 0x80e5, 0x1900);
+	ReplacementProvider qualified;
+	qualified.set_enabled(true);
+	check(qualified.load_cache_dir(qualified_path), "palette-qualified indexed package should load");
+	ReplacementMeta meta;
+	check(qualified.probe_lookup(0x87654321, 0xaabbccdd, 2, &meta), "qualified indexed key must match its palette CRC");
+	check(!qualified.probe_lookup(0x87654321, 0x11223344, 2, &meta), "qualified indexed key must not ignore its palette CRC");
+	const auto coloured_path = dir + "/coloured.phrb";
+	write_single_asset_phrb(coloured_path, "coloured", "coloured", "family", 0, 0, 0, 0, 0, 0,
+							2, 0x87654321, 0, 0, 2, 2, std::vector<uint8_t>(16, 255));
+	ReplacementProvider coloured;
+	coloured.set_enabled(true);
+	check(coloured.load_cache_dir(coloured_path), "pre-coloured CI package should load");
+	check(!coloured.probe_lookup(0x87654321, 0xaabbccdd, 2, &meta), "pre-coloured CI lookup policy must remain unchanged");
+	remove_tree(dir);
+}
+
 int main()
 {
+	test_indexed_replacements();
 	if (const char *load_path = std::getenv("PARALLEL_N64_PROVIDER_LOAD_CACHE_PATH"))
 	{
 		ReplacementProvider provider;

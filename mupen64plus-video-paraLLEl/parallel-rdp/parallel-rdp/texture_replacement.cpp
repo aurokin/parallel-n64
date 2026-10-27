@@ -16,6 +16,7 @@ namespace
 {
 constexpr uint32_t GL_TEXFMT_GZ = 0x80000000u;
 
+constexpr uint16_t GL_COLOR_INDEX = 0x1900;
 constexpr uint16_t GL_RGB = 0x1907;
 constexpr uint16_t GL_RGBA = 0x1908;
 constexpr uint16_t GL_LUMINANCE = 0x1909;
@@ -691,7 +692,17 @@ const ReplacementProvider::Entry *ReplacementProvider::find_native_entry(uint64_
 
 const ReplacementProvider::Entry *ReplacementProvider::find_compat_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const
 {
-	return find_indexed_entry(compat_checksum_index_, checksum64, formatsize, selector_checksum64);
+	if (const auto *entry = find_indexed_entry(compat_checksum_index_, checksum64, formatsize, selector_checksum64))
+		return entry;
+	// Rice _ci.bmp names without PALCRC intentionally use the draw's live palette.
+	// Keep the existing exact-checksum policy for pre-coloured assets.
+	if ((formatsize == 2 || formatsize == 258) && (checksum64 >> 32) != 0)
+	{
+		const auto *entry = find_indexed_entry(compat_checksum_index_, uint32_t(checksum64), formatsize, selector_checksum64);
+		if (entry && entry->texture_format == GL_COLOR_INDEX)
+			return entry;
+	}
+	return nullptr;
 }
 
 const ReplacementProvider::Entry *ReplacementProvider::find_sampled_entry(uint32_t sampled_fmt,
@@ -835,6 +846,39 @@ const ReplacementProvider::Entry *ReplacementProvider::find_singleton_sampled_fa
 	return entry;
 }
 
+ReplacementPalette ReplacementPalette::from_tmem(const uint8_t *tmem, size_t size, bool ci4, unsigned bank, bool ia16)
+{
+	ReplacementPalette palette;
+	const unsigned first = ci4 ? (bank & 15u) * 16u : 0u;
+	const unsigned count = ci4 ? 16u : 256u;
+	if (!tmem || size < (first + count) * 8u)
+		return palette;
+	palette.count = count;
+	palette.ia16 = ia16;
+	for (unsigned i = 0; i < count; i++)
+	{
+		const auto *entry = tmem + (first + i) * 8u;
+		palette.words[i] = uint16_t(entry[0]) | (uint16_t(entry[1]) << 8);
+	}
+	return palette;
+}
+
+uint64_t ReplacementPalette::hash() const
+{
+	if (count != 16 && count != 256)
+		return 0;
+	uint64_t hash = 0xcbf29ce484222325ull;
+	auto add = [&](uint8_t byte) { hash = (hash ^ byte) * 0x100000001b3ull; };
+	add(ia16 ? 1 : 0);
+	add(count == 16 ? 4 : 8);
+	for (unsigned i = 0; i < count; i++)
+	{
+		add(uint8_t(words[i]));
+		add(uint8_t(words[i] >> 8));
+	}
+	return hash ? hash : 1;
+}
+
 void ReplacementProvider::populate_meta_from_entry(const Entry &entry, ReplacementMeta *out) const
 {
 	if (!out)
@@ -847,6 +891,7 @@ void ReplacementProvider::populate_meta_from_entry(const Entry &entry, Replaceme
 	out->vk_image_index = 0xffffffffu;
 	out->has_mips = false;
 	out->srgb = false;
+	out->indexed = entry.texture_format == GL_COLOR_INDEX;
 }
 
 void ReplacementProvider::populate_identity_from_entry(const Entry &entry, NativeSampledIdentity *out) const
@@ -1771,7 +1816,9 @@ bool ReplacementProvider::describe_ci_low32_family(uint32_t checksum_low32,
 uint32_t ReplacementProvider::expected_decoded_size(const Entry &entry)
 {
 	uint64_t bpp = 0;
-	if (entry.texture_format == GL_RGBA && entry.pixel_type == GL_UNSIGNED_BYTE)
+	if (entry.texture_format == GL_COLOR_INDEX && entry.pixel_type == GL_UNSIGNED_BYTE)
+		bpp = 1;
+	else if (entry.texture_format == GL_RGBA && entry.pixel_type == GL_UNSIGNED_BYTE)
 		bpp = 4;
 	else if (entry.texture_format == GL_RGB && entry.pixel_type == GL_UNSIGNED_BYTE)
 		bpp = 3;
@@ -1965,7 +2012,7 @@ bool ReplacementProvider::decode_rgba8_native_with_selector(uint64_t checksum64,
 	return decode_entry_rgba8(*entry, out);
 }
 
-bool ReplacementProvider::decode_rgba8_compat_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementImage *out) const
+bool ReplacementProvider::decode_rgba8_compat_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementImage *out, const ReplacementPalette *palette) const
 {
 	if (!enabled_ || !out)
 		return false;
@@ -1974,10 +2021,10 @@ bool ReplacementProvider::decode_rgba8_compat_with_selector(uint64_t checksum64,
 	if (!entry)
 		return false;
 
-	return decode_entry_rgba8(*entry, out);
+	return decode_entry_rgba8(*entry, out, palette);
 }
 
-bool ReplacementProvider::decode_entry_rgba8(const Entry &entry, ReplacementImage *out) const
+bool ReplacementProvider::decode_entry_rgba8(const Entry &entry, ReplacementImage *out, const ReplacementPalette *palette) const
 {
 	if (!out)
 		return false;
@@ -1994,7 +2041,38 @@ bool ReplacementProvider::decode_entry_rgba8(const Entry &entry, ReplacementImag
 	image.meta.repl_w = entry.width;
 	image.meta.repl_h = entry.height;
 	image.meta.vk_image_index = 0xffffffffu;
-	if (!decode_pixels_rgba8(entry, pixels, image.rgba8))
+	if (entry.texture_format == GL_COLOR_INDEX)
+	{
+		const bool ci4 = entry.formatsize == 2;
+		const uint32_t count = ci4 ? 16u : 256u;
+		const uint64_t pixel_count = uint64_t(entry.width) * entry.height;
+		if (!palette || palette->count != count || entry.pixel_type != GL_UNSIGNED_BYTE ||
+			(entry.formatsize != 2 && entry.formatsize != 258) ||
+			pixels.size() != pixel_count || pixel_count > SIZE_MAX / 4)
+			return false;
+		image.meta.indexed = true;
+		image.rgba8.resize(size_t(pixel_count) * 4);
+		for (size_t i = 0; i < pixels.size(); i++)
+		{
+			if (pixels[i] >= count)
+				return false;
+			const uint16_t word = palette->words[pixels[i]];
+			auto *rgba = image.rgba8.data() + i * 4;
+			if (palette->ia16)
+			{
+				rgba[0] = rgba[1] = rgba[2] = uint8_t(word >> 8);
+				rgba[3] = uint8_t(word);
+			}
+			else
+			{
+				rgba[0] = expand_5_to_8((word >> 11) & 31);
+				rgba[1] = expand_5_to_8((word >> 6) & 31);
+				rgba[2] = expand_5_to_8((word >> 1) & 31);
+				rgba[3] = (word & 1) ? 255 : 0;
+			}
+		}
+	}
+	else if (!decode_pixels_rgba8(entry, pixels, image.rgba8))
 		return false;
 
 	*out = std::move(image);

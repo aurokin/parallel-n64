@@ -9,6 +9,17 @@
 
 namespace RDP
 {
+// A draw's selected TMEM TLUT bank, in native 16-bit words. count=0 is invalid.
+struct ReplacementPalette
+{
+	std::array<uint16_t, 256> words = {};
+	uint32_t count = 0;
+	bool ia16 = false;
+
+	static ReplacementPalette from_tmem(const uint8_t *tmem, size_t size, bool ci4, unsigned bank, bool ia16);
+	uint64_t hash() const;
+};
+
 struct ReplacementMeta
 {
 	uint32_t repl_w = 0;
@@ -18,6 +29,7 @@ struct ReplacementMeta
 	uint32_t vk_image_index = 0xffffffffu;
 	bool has_mips = false;
 	bool srgb = false;
+	bool indexed = false;
 };
 
 struct ReplacementImage
@@ -327,7 +339,7 @@ public:
 	bool decode_rgba8(uint64_t checksum64, uint16_t formatsize, ReplacementImage *out) const;
 	bool decode_rgba8_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementImage *out) const;
 	bool decode_rgba8_native_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementImage *out) const;
-	bool decode_rgba8_compat_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementImage *out) const;
+	bool decode_rgba8_compat_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementImage *out, const ReplacementPalette *palette = nullptr) const;
 	ReplacementProviderStats get_stats() const;
 	std::vector<SampledDuplicateDiagnostics> get_sampled_duplicate_diagnostics(size_t limit = 0) const;
 	void trim_to_budget(size_t bytes);
@@ -494,7 +506,7 @@ private:
 	                                 bool *matched_preferred_palette = nullptr) const;
 	bool load_phrb(const std::string &path);
 	bool read_blob(const Entry &entry, std::vector<uint8_t> &blob) const;
-	bool decode_entry_rgba8(const Entry &entry, ReplacementImage *out) const;
+	bool decode_entry_rgba8(const Entry &entry, ReplacementImage *out, const ReplacementPalette *palette = nullptr) const;
 	void populate_meta_from_entry(const Entry &entry, ReplacementMeta *out) const;
 	void populate_identity_from_entry(const Entry &entry, NativeSampledIdentity *out) const;
 	bool populate_resolution_from_entry(const Entry *entry,

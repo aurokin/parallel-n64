@@ -37,6 +37,7 @@ Status values:
 | [0018](0018-hires-composition-pack-contract.md) | HLE pack composition contract | Accepted |
 | [0019](0019-deterministic-emulation-state-gates.md) | Deterministic emulation-state gates | Accepted, amended |
 | [0020](0020-replacement-stays-out-of-rdram.md) | Replacement stays out of RDRAM render targets | Accepted |
+| [0021](0021-indexed-replacements-resolve-against-live-palette.md) | Indexed replacements resolve against the live palette | Accepted |
 
 ## Decision Spine
 

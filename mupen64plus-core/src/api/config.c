@@ -40,14 +40,6 @@
 /* Cxd4 RSP */
 #include "../../../mupen64plus-rsp-cxd4/config.h"
 
-/* TODO/FIXME - put this in some header */
-
-#define GFX_GLIDE64     0
-#define GFX_RICE        1 
-#define GFX_GLN64       2
-#define GFX_ANGRYLION   3
-#define GFX_PARALLEL    4
-
 /* local types */
 #define MUPEN64PLUS_CFG_NAME "mupen64plus.cfg"
 
@@ -1083,11 +1075,7 @@ EXPORT int CALL ConfigGetParamInt(m64p_handle ConfigSectionHandle, const char *P
    };
 
    if (!strcmp(ParamName, "AnisoFilter"))
-#ifdef HAVE_OPENGLES
-      return 0;
-#else
    return 1;
-#endif
 
    for (i = 0; libretro_translate[i].ParamName; i ++)
    {
@@ -1236,13 +1224,6 @@ EXPORT int CALL ConfigGetParamBool(m64p_handle ConfigSectionHandle, const char *
    {
       return false;
    }
-#ifdef HAVE_THR_AL
-   {
-      extern unsigned angrylion_get_vi(void);
-      if (!strcmp(ParamName, "VIOverlay"))
-         return (int)angrylion_get_vi();
-   }
-#endif
 
    if (!strcmp(ParamName, "Fullscreen"))
       return true;
@@ -1251,11 +1232,7 @@ EXPORT int CALL ConfigGetParamBool(m64p_handle ConfigSectionHandle, const char *
    if (!strcmp(ParamName, "FBO"))
       return true;
    if (!strcmp(ParamName, "AnisotropicFiltering"))
-#ifdef HAVE_OPENGLES
-      return false;
-#else
    return true;
-#endif
 
    /* check input conditions */
    if (!l_ConfigInit || ConfigSectionHandle == NULL || ParamName == NULL)

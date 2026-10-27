@@ -95,16 +95,6 @@ static m64p_error EmptyGetVersionFunc(m64p_plugin_type *PluginType, int *PluginV
         X##FBGetFrameBufferInfo \
     }
 
-DEFINE_GFX(angrylion);
-#ifdef HAVE_RICE
-DEFINE_GFX(rice);
-#endif
-#ifdef HAVE_GLN64
-DEFINE_GFX(gln64);
-#endif
-#ifdef HAVE_GLIDE64
-DEFINE_GFX(glide64);
-#endif
 #ifdef HAVE_PARALLEL
 DEFINE_GFX(parallel);
 #endif
@@ -114,10 +104,8 @@ GFX_INFO gfx_info;
 
 static void plugin_select_default_gfx(void)
 {
-#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
-   gfx = gfx_glide64;
-#elif defined(HAVE_THR_AL)
-   gfx = gfx_angrylion;
+#ifdef HAVE_PARALLEL
+   gfx = gfx_parallel;
 #endif
 }
 
@@ -286,26 +274,11 @@ void plugin_connect_all(enum gfx_plugin_type gfx_plugin, enum rsp_plugin_type rs
 {
    switch (gfx_plugin)
    {
-      case GFX_ANGRYLION:
-#ifdef HAVE_THR_AL
-         gfx = gfx_angrylion;
-#endif
-         break;
       case GFX_PARALLEL:
 #ifdef HAVE_PARALLEL
          gfx = gfx_parallel;
 #endif
          break;
-      case GFX_RICE:
-#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
-         gfx = gfx_rice;
-         break;
-#endif
-      case GFX_GLN64:
-#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
-         gfx = gfx_gln64;
-         break;
-#endif
       default:
          plugin_select_default_gfx();
          break;

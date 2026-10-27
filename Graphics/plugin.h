@@ -7,12 +7,7 @@ extern "C" {
 
 enum gfx_plugin_type
 {
-   GFX_GLIDE64 = 0,
-   GFX_RICE,
-   GFX_GLN64,
-   GFX_ANGRYLION,
-   GFX_PARALLEL,
-   GFX_GLIDEN64,
+   GFX_PARALLEL = 4,
 };
 
 enum rsp_plugin_type

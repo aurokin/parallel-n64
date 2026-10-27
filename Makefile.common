@@ -4,39 +4,8 @@ CORE_DIR           = $(ROOT_DIR)/mupen64plus-core
 LIBRETRO_COMM_DIR  = $(ROOT_DIR)/libretro-common
 LIBRETRO_DIR       = $(ROOT_DIR)/libretro
 AUDIO_LIBRETRO_DIR = $(CORE_DIR)/src/plugin/audio_libretro
-VIDEODIR_RICE      = $(ROOT_DIR)/gles2rice/src
-VIDEODIR_GLN64     = $(ROOT_DIR)/gles2n64/src
-VIDEODIR_ANGRYLION = $(ROOT_DIR)/mupen64plus-video-angrylion
 VIDEODIR_PARALLEL  = $(ROOT_DIR)/mupen64plus-video-paraLLEl
 RSPDIR_PARALLEL    = $(ROOT_DIR)/mupen64plus-rsp-paraLLEl
-VIDEODIR_GLIDE     = $(ROOT_DIR)/glide2gl/src
-VIDEODIR_GLIDEN64  = $(ROOT_DIR)/mupen64plus-video-gliden64
-
-ifeq ($(HAVE_OPENGL),0)
-	HAVE_GLN64    =0
-	HAVE_GLIDE64  =0
-	HAVE_GLIDEN64 =0
-	HAVE_RICE     =0
-else
-ifneq ($(platform), vita)
-	HAVE_GLIDE64 = 1
-ifeq ($(GLIDEN64),1)
-	HAVE_GLIDEN64 =1
-	HAVE_GLN64    =0
-else
-	HAVE_GLN64    =1
-	HAVE_GLIDEN64 =0
-endif
-	HAVE_RICE     = 1
-else
-	HAVE_GLIDE64 = 0
-	HAVE_GLN64    = 0
-	HAVE_GLIDEN64 = 0
-	HAVE_RICE     = 0
-endif
-
-INCFLAGS += -I$(VIDEODIR_GLIDE)/Glitch64/inc
-endif
 
 INCFLAGS += \
 	-I$(CORE_DIR)/src \
@@ -218,49 +187,8 @@ endif
 
 ### VIDEO PLUGINS ###
 
-# Rice
-
-ifeq ($(HAVE_RICE),1)
-CFLAGS   += -DHAVE_RICE
-CXXFLAGS += -DHAVE_RICE
-SOURCES_CXX += $(VIDEODIR_RICE)/Blender.cpp \
-				$(VIDEODIR_RICE)/gSP_rice.cpp \
-				$(VIDEODIR_RICE)/gDP_rice.cpp \
-            $(VIDEODIR_RICE)/Combiner.cpp \
-            $(VIDEODIR_RICE)/RiceConfig.cpp \
-            $(VIDEODIR_RICE)/ConvertImage16.cpp \
-            $(VIDEODIR_RICE)/ConvertImage.cpp \
-            $(VIDEODIR_RICE)/RiceDebugger.cpp \
-            $(VIDEODIR_RICE)/DecodedMux.cpp \
-            $(VIDEODIR_RICE)/DeviceBuilder.cpp \
-            $(VIDEODIR_RICE)/FrameBuffer.cpp \
-            $(VIDEODIR_RICE)/GraphicsContext.cpp \
-            $(VIDEODIR_RICE)/OGLCombiner.cpp \
-            $(VIDEODIR_RICE)/OGLDecodedMux.cpp \
-            $(VIDEODIR_RICE)/OGLES2FragmentShaders.cpp \
-            $(VIDEODIR_RICE)/OGLExtCombiner.cpp \
-            $(VIDEODIR_RICE)/OGLExtRender.cpp \
-            $(VIDEODIR_RICE)/OGLGraphicsContext.cpp \
-            $(VIDEODIR_RICE)/OGLRender.cpp \
-            $(VIDEODIR_RICE)/OGLRenderExt.cpp \
-            $(VIDEODIR_RICE)/OGLTexture.cpp \
-            $(VIDEODIR_RICE)/RenderBase.cpp \
-            $(VIDEODIR_RICE)/Render.cpp \
-            $(VIDEODIR_RICE)/RenderExt.cpp \
-            $(VIDEODIR_RICE)/RenderTexture.cpp \
-            $(VIDEODIR_RICE)/RSP_Parser.cpp \
-            $(VIDEODIR_RICE)/RSP_S2DEX.cpp \
-            $(VIDEODIR_RICE)/Texture.cpp \
-            $(VIDEODIR_RICE)/TextureManager.cpp \
-            $(VIDEODIR_RICE)/VectorMath.cpp \
-            $(VIDEODIR_RICE)/Video.cpp
-endif
-
 # Libretro
 
-ifeq ($(HAVE_OPENGL),1)
-SOURCES_C += $(LIBRETRO_COMM_DIR)/glsm/glsm.c
-endif
 
 SOURCES_C += $(LIBRETRO_DIR)/libretro.c \
 				 $(CORE_DIR)/src/plugin/emulate_game_controller_via_libretro.c \
@@ -297,108 +225,12 @@ SOURCES_C += $(LIBRETRO_COMM_DIR)/streams/file_stream.c \
 				 $(LIBRETRO_COMM_DIR)/string/stdstring.c \
 				 $(LIBRETRO_COMM_DIR)/file/file_path.c
 
-ifeq ($(HAVE_OPENGL),1)
-SOURCES_C += $(LIBRETRO_COMM_DIR)/gfx/gl_capabilities.c
-endif
 endif
 
 ifeq ($(WITH_CRC),brumme)
    SOURCES_C += $(LIBRETRO_DIR)/brumme_crc.c
 else
    SOURCES_C += $(LIBRETRO_DIR)/libretro_crc.c
-endif
-
-ifeq ($(HAVE_GLIDEN64),1)
-CFLAGS   += -DHAVE_GLIDEN64
-CXXFLAGS += -DHAVE_GLIDEN64
-SOURCES_C     += $(VIDEODIR_GLN64)/3DMath.c
-SOURCES_CXX   += \
-					 $(VIDEODIR_GLIDEN64)/src/mupenplus/CommonAPIImpl_mupenplus.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/mupenplus/Config_mupenplus.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/common/CommonAPIImpl_common.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/FrameBuffer_gliden64.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/FrameBufferInfo.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/DepthBuffer.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/TxFilterStub.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/Combiner_gliden64.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/F3DEX2CBFD.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/F3DEX2.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/gln64Config.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/CRC.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/F3D.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/GBI.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/gDP_gliden64.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/gSP.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/N64.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/F3DDKR.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/F3DEX.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/F3DPD.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/F3DSWSE.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/F3DWRUS.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/L3D.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/L3DEX.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/L3DEX2.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/S2DEX.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/S2DEX2.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/ZSort.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/OpenGL.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/RDP.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/RSP_gliden64.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/Turbo3D.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/Textures.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/PostProcessor.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/VI.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/ShaderUtils.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/mupenplus/OpenGL_mupenplus.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/MupenPlusPluginAPI.cpp
-
-ifeq ($(GLIDEN64ES),1)
-SOURCES_CXX	 += $(VIDEODIR_GLIDEN64)/src/GLES2/GLSLCombiner_gles2.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/GLES2/UniformSet.cpp
-else
-SOURCES_CXX  += $(VIDEODIR_GLIDEN64)/src/OGL3X/GLSLCombiner_ogl3x.cpp \
-					 $(VIDEODIR_GLIDEN64)/src/OGL3X/UniformBlock.cpp
-endif
-
-SOURCES_CXX +=  $(VIDEODIR_GLIDEN64)/src/CommonPluginAPI.cpp
-endif
-
-ifeq ($(HAVE_GLN64),1)
-CFLAGS   += -DHAVE_GLN64
-CXXFLAGS += -DHAVE_GLN64
-
-SOURCES_C += $(VIDEODIR_GLN64)/3DMath.c \
-            $(VIDEODIR_GLN64)/glN64Config.c \
-				$(VIDEODIR_GLN64)/Combiner_gles2n64.c \
-            $(VIDEODIR_GLN64)/FrameBuffer_gles2n64.c \
-            $(VIDEODIR_GLN64)/Hash.c \
-            $(VIDEODIR_GLN64)/DepthBuffer.c \
-            $(VIDEODIR_GLN64)/F3DEX2CBFD.c \
-            $(VIDEODIR_GLN64)/F3D.c \
-            $(VIDEODIR_GLN64)/F3DDKR.c \
-            $(VIDEODIR_GLN64)/F3DEX2.c \
-            $(VIDEODIR_GLN64)/F3DEX.c \
-            $(VIDEODIR_GLN64)/F3DPD.c \
-            $(VIDEODIR_GLN64)/F3DSWSE.c \
-            $(VIDEODIR_GLN64)/F3DWRUS.c \
-            $(VIDEODIR_GLN64)/GBI.c \
-            $(VIDEODIR_GLN64)/gDP_gles2n64.c \
-            $(VIDEODIR_GLN64)/gles2N64.c \
-            $(VIDEODIR_GLN64)/gSP_gles2n64.c \
-            $(VIDEODIR_GLN64)/L3D.c \
-            $(VIDEODIR_GLN64)/L3DEX2.c \
-            $(VIDEODIR_GLN64)/L3DEX.c \
-            $(VIDEODIR_GLN64)/N64.c \
-            $(VIDEODIR_GLN64)/OpenGL.c \
-            $(VIDEODIR_GLN64)/RDP.c \
-            $(VIDEODIR_GLN64)/gles2n64_rsp.c \
-            $(VIDEODIR_GLN64)/S2DEX2.c \
-            $(VIDEODIR_GLN64)/S2DEX.c \
-            $(VIDEODIR_GLN64)/ShaderCombiner.c \
-            $(VIDEODIR_GLN64)/Textures.c \
-            $(VIDEODIR_GLN64)/Turbo3D.c \
-            $(VIDEODIR_GLN64)/ZSort.c \
-            $(VIDEODIR_GLN64)/VI.c
 endif
 
 ifeq ($(HAVE_NEON),1)
@@ -408,56 +240,7 @@ ifeq ($(HAVE_NEON),1)
 endif
 
 
-SOURCES_C   += $(ROOT_DIR)/Graphics/RSP/gSP_funcs_C.c \
-					$(ROOT_DIR)/Graphics/RSP/gSP_state.c \
-				 	$(ROOT_DIR)/Graphics/RDP/gDP_funcs_C.c \
-					$(ROOT_DIR)/Graphics/RDP/gDP_state.c \
-					$(ROOT_DIR)/Graphics/RDP/RDP_state.c \
-					$(ROOT_DIR)/Graphics/RSP/RSP_state.c \
-					$(ROOT_DIR)/Graphics/3dmaths.c \
-					$(ROOT_DIR)/Graphics/HLE/Microcode/Fast3D.c
-SOURCES_CXX += $(ROOT_DIR)/Graphics/RSP/gSP_funcs.cpp \
-				 $(ROOT_DIR)/Graphics/RDP/gDP_funcs.cpp
-
 SOURCES_C += $(ROOT_DIR)/Graphics/plugins.c
-
-ifeq ($(HAVE_GLIDE64),1)
-CFLAGS   += -DHAVE_GLIDE64
-CXXFLAGS += -DHAVE_GLIDE64
-SOURCES_C += $(VIDEODIR_GLIDE)/Glide64/glide64_3dmath.c \
-            $(VIDEODIR_GLIDE)/Glide64/Framebuffer_glide64.c \
-            $(VIDEODIR_GLIDE)/Glide64/Glide64_Ini.c \
-            $(VIDEODIR_GLIDE)/Glide64/glidemain.c \
-            $(VIDEODIR_GLIDE)/Glide64/glide64_util.c \
-				$(VIDEODIR_GLIDE)/Glide64/Glide64_UCode.c \
-            $(VIDEODIR_GLIDE)/Glide64/glide64_gSP.c \
-            $(VIDEODIR_GLIDE)/Glide64/glide64_gDP.c \
-            $(VIDEODIR_GLIDE)/Glide64/Combine.c \
-            $(VIDEODIR_GLIDE)/Glide64/TexCache.c \
-				$(VIDEODIR_GLIDE)/Glide64/MiClWr.c \
-            $(VIDEODIR_GLIDE)/Glide64/TexLoad.c \
-				$(VIDEODIR_GLIDE)/Glide64/glide64_rdp.c
-
-# Glitch64
-SOURCES_C   += $(VIDEODIR_GLIDE)/Glitch64/glitch64_combiner.c \
-            $(VIDEODIR_GLIDE)/Glitch64/geometry.c \
-            $(VIDEODIR_GLIDE)/Glitch64/glitchmain.c \
-            $(VIDEODIR_GLIDE)/Glitch64/glitch64_textures.c
-endif
-
-ifeq ($(HAVE_THR_AL), 1)
-CFLAGS      += -DHAVE_THR_AL
-CXXFLAGS    += -DHAVE_THR_AL
-### Angrylion's renderer ###
-SOURCES_CXX += $(VIDEODIR_ANGRYLION)/parallel_al.cpp
-SOURCES_C   += $(VIDEODIR_ANGRYLION)/interface.c \
-				   $(VIDEODIR_ANGRYLION)/n64video.c
-ifeq ($(HAVE_RDP_DUMP), 1)
-	SOURCES_C += $(VIDEODIR_ANGRYLION)/rdp_dump.c
-	CFLAGS   += -DHAVE_RDP_DUMP
-	CXXFLAGS += -DHAVE_RDP_DUMP
-endif
-endif
 
 ifeq ($(HAVE_PARALLEL),1)
 	PARALLEL_RDP_IMPLEMENTATION = $(VIDEODIR_PARALLEL)/parallel-rdp
@@ -507,18 +290,4 @@ endif
 	CXXFLAGS += -I$(RSPDIR_PARALLEL)/arch/$(PARALLEL_RSP_ARCH)/rsp -I$(RSPDIR_PARALLEL)/lightning/include
 	CFLAGS += -DHAVE_PARALLEL_RSP -DPARALLEL_INTEGRATION -I$(RSPDIR_PARALLEL)/lightning/include
 	CXXFLAGS += -DHAVE_PARALLEL_RSP -DPARALLEL_INTEGRATION
-endif
-
-ifeq ($(HAVE_OPENGL),1)
-ifeq ($(GLES),1)
-	GLFLAGS += -DHAVE_OPENGLES -DHAVE_OPENGLES2 -DDISABLE_3POINT
-	SOURCES_C += $(LIBRETRO_COMM_DIR)/glsym/glsym_es2.c
-else
-	#Texture sampling enhancements.
-	GLFLAGS += -DENABLE_3POINT -DENABLE_TEXTURE_SAMPLING
-
-	GLFLAGS += -DHAVE_OPENGL
-	SOURCES_C += $(LIBRETRO_COMM_DIR)/glsym/glsym_gl.c
-endif
-SOURCES_C += $(LIBRETRO_COMM_DIR)/glsym/rglgen.c
 endif

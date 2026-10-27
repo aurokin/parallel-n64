@@ -406,6 +406,7 @@ def input_size_bytes(path: Path):
 # untiled_width, untiled_height, is_hires_tex, dataSize.
 GLIDE64_DAT_RECORD = struct.Struct("<QiiHiiiiiiBi")
 GR_TEXFMT_GZ = 0x8000
+GR_TEXFMT_ALPHA_8 = 0x02
 GR_TEXFMT_INTENSITY_8 = 0x03
 GR_TEXFMT_RGB_565 = 0x0A
 GR_TEXFMT_ARGB_1555 = 0x0B
@@ -425,6 +426,10 @@ def _glide_texels_to_rgba8(gr_format, width, height, pixels):
         return Image.frombytes("RGBA", size, pixels, "raw", "BGRA").tobytes()
     if gr_format == GR_TEXFMT_ALPHA_INTENSITY_88:
         return Image.frombytes("LA", size, pixels).convert("RGBA").tobytes()
+    if gr_format == GR_TEXFMT_ALPHA_8:
+        # GLideNHQ TxQuantize::A8_ARGB8888 replicates A8 into all four channels.
+        channel = Image.frombytes("L", size, pixels)
+        return Image.merge("RGBA", (channel, channel, channel, channel)).tobytes()
     if gr_format == GR_TEXFMT_INTENSITY_8:
         return Image.frombytes("L", size, pixels).convert("RGBA").tobytes()
     if gr_format in (GR_TEXFMT_RGB_565, GR_TEXFMT_ARGB_1555, GR_TEXFMT_ARGB_4444):

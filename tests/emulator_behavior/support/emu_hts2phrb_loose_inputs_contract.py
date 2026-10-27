@@ -282,6 +282,34 @@ class Glide64DatAndConverter(unittest.TestCase):
             capture_output=True, text=True,
         )
 
+    def test_glide64_alpha8_survives_binary_package_conversion(self):
+        from hires_pack_inspect_binary_package import inspect_binary_package
+
+        dat = self.dir / f'{ROM}_HIRESTEXTURES.dat'
+        pixels = bytes((0, 17, 128, 255))
+        expected = b''.join(bytes((value,)) * 4 for value in pixels)
+        write_glide64_dat(dat, 0x40820000, [(0xAABBCCDD12345678, 2, 2, 0x02, pixels)])
+        entries, source = parse_glide64_dat(dat)
+        self.assertEqual(source['record_count'], 1)
+        self.assertEqual(source['skipped_count'], 0)
+        self.assertEqual(rgba(entries[0]), expected)
+        self.assertEqual(entries[0]['formatsize'], 0)
+
+        out = self.dir / 'alpha8'
+        result = self.run_hts2phrb(dat, out, '--accept-glide64-pow2-padding')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        package_path = out / 'package.phrb'
+        package = inspect_binary_package(package_path)
+        self.assertEqual(package['record_count'], 1)
+        candidate, = package['records'][0]['asset_candidates']
+        self.assertEqual(candidate['legacy_checksum64'], 'aabbccdd12345678')
+        self.assertEqual(candidate['legacy_formatsize'], 0)
+        raw = package_path.read_bytes()
+        blobs = raw[len(raw) - package['blob_bytes']:]
+        start = candidate['rgba_blob_offset']
+        blob = blobs[start:start + candidate['rgba_blob_size']]
+        self.assertEqual(zlib.decompress(blob), expected)
+
     def test_hts2phrb_converts_loose_png_directory(self):
         pack = self.dir / 'hires_texture' / ROM
         save(pack / f'{ROM}#11111111#0#2_all.png', 'RGBA', (4, 4), (10, 20, 30, 128))

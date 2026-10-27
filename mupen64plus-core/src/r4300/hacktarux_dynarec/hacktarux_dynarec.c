@@ -6227,7 +6227,8 @@ void gentlbwi(void)
 
 void generet(void)
 {
-   gencallinterp((native_type)cached_interpreter_table.ERET, 1);
+   /* ERET redirects through generic_jump_to; its native continuation is bypassed. */
+   gencallinterp((native_type)cached_interpreter_table.ERET, 0);
 }
 
 /* COP1 D instructions */

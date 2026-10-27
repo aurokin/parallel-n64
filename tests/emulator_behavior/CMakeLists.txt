@@ -669,3 +669,8 @@ add_executable(emu_unit_hires_strong_hash_test emu_unit_hires_strong_hash_test.c
 target_include_directories(emu_unit_hires_strong_hash_test PRIVATE "${CMAKE_SOURCE_DIR}")
 target_compile_features(emu_unit_hires_strong_hash_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.hires_strong_hash COMMAND emu_unit_hires_strong_hash_test)
+
+add_executable(emu_unit_compat_checksum_test emu_unit_compat_checksum_test.cpp)
+target_include_directories(emu_unit_compat_checksum_test PRIVATE "${CMAKE_SOURCE_DIR}")
+target_compile_features(emu_unit_compat_checksum_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.compat_checksum COMMAND emu_unit_compat_checksum_test)

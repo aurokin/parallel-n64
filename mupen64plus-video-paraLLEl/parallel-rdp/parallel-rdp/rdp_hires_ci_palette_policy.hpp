@@ -36,24 +36,18 @@ inline uint32_t legacy_hash_calculate_words(uint32_t hash, const uint8_t *data, 
 	if (!data)
 		return hash;
 
-	const size_t count = size / 4;
-	for (size_t i = 0; i < count; i++)
+	// Decode explicitly so diagnostic words have the same order on every host.
+	for (size_t word = 0; word < size / 4u; ++word)
 	{
-		const size_t offset = i * 4;
-		const uint32_t word =
-				(uint32_t(data[offset + 0]) << 0) |
-				(uint32_t(data[offset + 1]) << 8) |
-				(uint32_t(data[offset + 2]) << 16) |
-				(uint32_t(data[offset + 3]) << 24);
-		hash += word;
-		hash += (hash << 10);
-		hash ^= (hash >> 6);
+		const uint8_t *bytes = data + word * 4u;
+		const uint32_t value = uint32_t(bytes[0]) | (uint32_t(bytes[1]) << 8u) |
+		                       (uint32_t(bytes[2]) << 16u) | (uint32_t(bytes[3]) << 24u);
+		hash = (hash + value) * 1025u;
+		hash ^= hash >> 6u;
 	}
-
-	hash += (hash << 3);
-	hash ^= (hash >> 11);
-	hash += (hash << 15);
-	return hash;
+	hash *= 9u;
+	hash ^= hash >> 11u;
+	return hash * 32769u;
 }
 
 inline uint32_t legacy_crc32_reflected(uint32_t crc, const uint8_t *data, size_t size)

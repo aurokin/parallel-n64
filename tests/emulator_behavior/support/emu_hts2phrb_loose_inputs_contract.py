@@ -15,7 +15,12 @@ REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / 'tools'))
 
 from hires_pack_common import parse_glide64_dat, read_entry_blob, resolve_legacy_cache_path  # noqa: E402
-from hires_pack_loose_png import parse_rice_texture_name, scan_loose_png_pack  # noqa: E402
+from hires_pack_loose_png import (  # noqa: E402
+    _apply_rice_alpha_fixup,
+    load_rice_texture,
+    parse_rice_texture_name,
+    scan_loose_png_pack,
+)
 
 ROM = 'SUPER MARIO 64'
 
@@ -88,6 +93,58 @@ class RiceNameParsing(unittest.TestCase):
         }
         for name, reason in cases.items():
             self.assertEqual(self.parse(name), (None, reason), name)
+
+
+class RiceAlphaPreparation(unittest.TestCase):
+    def test_behavior_spec_vectors(self):
+        cases = (
+            ((2, 2),
+             [(90, 0, 0, 255), (0, 90, 0, 254), (0, 0, 90, 255), (9, 8, 7, 0)],
+             [(90, 0, 0, 255), (45, 0, 45, 0), (0, 0, 90, 255), (45, 0, 45, 0)]),
+            ((2, 1),
+             [(7, 8, 9, 254), (30, 40, 50, 0)],
+             [(7, 8, 9, 0), (30, 40, 50, 0)]),
+            ((1, 3),
+             [(10, 20, 30, 255), (200, 201, 202, 127), (50, 60, 70, 255)],
+             [(10, 20, 30, 255), (30, 40, 50, 0), (50, 60, 70, 255)]),
+        )
+        for size, pixels, expected in cases:
+            with self.subTest(size=size):
+                data = bytearray(channel for pixel in pixels for channel in pixel)
+                _apply_rice_alpha_fixup(data, *size)
+                self.assertEqual(data, bytes(channel for pixel in expected for channel in pixel))
+
+    def test_only_alpha_255_is_opaque(self):
+        for alpha in range(256):
+            with self.subTest(alpha=alpha):
+                data = bytearray((7, 80, 209, alpha))
+                _apply_rice_alpha_fixup(data, 1, 1)
+                self.assertEqual(data, bytes((7, 80, 209, 255 if alpha == 255 else 0)))
+
+    def test_all_eight_neighbors_contribute_with_floor_division(self):
+        pixels = [(value + 1, value + 10, value + 30, 255) for value in range(8)]
+        pixels.insert(4, (200, 201, 202, 254))
+        data = bytearray(channel for pixel in pixels for channel in pixel)
+        expected = data[:]
+        expected[16:20] = bytes((4, 13, 33, 0))
+        _apply_rice_alpha_fixup(data, 3, 3)
+        self.assertEqual(data, expected)
+
+    def test_image_edges_do_not_wrap(self):
+        data = bytearray((9, 8, 7, 0)) * 8
+        data[12:16] = bytes((20, 40, 60, 255))
+        expected = data[:]
+        for pixel in (2, 6, 7):
+            expected[4 * pixel:4 * pixel + 4] = bytes((20, 40, 60, 0))
+        _apply_rice_alpha_fixup(data, 4, 2)
+        self.assertEqual(data, expected)
+
+    def test_color_does_not_propagate_through_nonopaque_pixels(self):
+        data = bytearray((100, 110, 120, 255, 1, 2, 3, 254, 4, 5, 6, 0,
+                          7, 8, 9, 128, 10, 11, 12, 1))
+        _apply_rice_alpha_fixup(data, 5, 1)
+        self.assertEqual(data, bytes((100, 110, 120, 255, 100, 110, 120, 0, 4, 5, 6, 0,
+                                      7, 8, 9, 0, 10, 11, 12, 0)))
 
 
 class LoosePngLoad(unittest.TestCase):
@@ -168,6 +225,39 @@ class LoosePngLoad(unittest.TestCase):
         rice, _ = self.scan(alpha_mode='rice')
         # Rice mode rounds alpha to 0/255 and fills the hole with the opaque neighbours' average.
         self.assertEqual(rgba(rice[(0xAAAAAAAA22222222, 258)])[12:], bytes((200, 100, 50, 0)))
+
+    def test_rice_alpha_caller_gate(self):
+        source = bytes((90, 0, 0, 255, 0, 90, 0, 254, 0, 0, 90, 255, 9, 8, 7, 0))
+        prepared = bytes((90, 0, 0, 255, 45, 0, 45, 0, 0, 0, 90, 255, 45, 0, 45, 0))
+        path = Path(self.tmp.name) / 'gate.png'
+        Image.frombytes('RGBA', (2, 2), source).save(path)
+        for mode in ('full', 'rice'):
+            for fmt in range(5):
+                for siz in range(4):
+                    with self.subTest(mode=mode, fmt=fmt, siz=siz):
+                        loaded = load_rice_texture({
+                            'path': str(path), 'kind': 'all', 'fmt': fmt, 'siz': siz, 'alpha_mode': mode,
+                        })
+                        self.assertTrue(loaded['ok'])
+                        expected = prepared if mode == 'rice' and (fmt == 2 or (fmt, siz) == (0, 2)) else source
+                        self.assertEqual(zlib.decompress(loaded['blob']), expected)
+
+    def test_rice_alpha_runs_after_png_or_bmp_pairing(self):
+        self.root.mkdir(parents=True)
+        for crc, extension in ((0x11111111, 'png'), (0x22222222, 'bmp')):
+            stem = self.root / f'{ROM}#{crc:08X}#0#2'
+            Image.frombytes('RGB', (2, 2), bytes((90, 0, 0, 0, 90, 0, 0, 0, 90, 9, 8, 7))).save(
+                f'{stem}_rgb.{extension}')
+            Image.frombytes('RGB', (2, 2), bytes((255, 17, 18, 254, 17, 18, 255, 17, 18, 0, 17, 18))).save(
+                f'{stem}_a.{extension}')
+        full, _ = self.scan(alpha_mode='full')
+        rice, _ = self.scan(alpha_mode='rice')
+        for crc in (0x11111111, 0x22222222):
+            with self.subTest(crc=crc):
+                self.assertEqual(rgba(full[(crc, 512)]),
+                                 bytes((90, 0, 0, 255, 0, 90, 0, 254, 0, 0, 90, 255, 9, 8, 7, 0)))
+                self.assertEqual(rgba(rice[(crc, 512)]),
+                                 bytes((90, 0, 0, 255, 45, 0, 45, 0, 0, 0, 90, 255, 45, 0, 45, 0)))
 
     def test_first_loadable_file_wins_in_case_insensitive_depth_first_order(self):
         save(self.root / 'a' / f'{ROM}#11111111#0#2_all.png', 'RGB', (2, 2), (1, 1, 1))

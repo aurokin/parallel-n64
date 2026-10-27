@@ -266,32 +266,32 @@ def _try_decode(paths):
     return None
 
 
-_BINARY_ALPHA = bytes(0xFF if value == 0xFF else 0 for value in range(256))
-
-
 def _apply_rice_alpha_fixup(rgba: bytearray, width: int, height: int):
-    """GLideNHQ's !LET_TEXARTISTS_FLY path: binary alpha plus opaque-neighbour colour fill."""
-    rgba[3::4] = bytes(rgba[3::4]).translate(_BINARY_ALPHA)
-    source = bytes(rgba)
-    for y in range(height):
-        for x in range(width):
-            index = y * width + x
-            if source[4 * index + 3] == 0xFF:
-                continue
-            red = green = blue = count = 0
-            for dy, dx in ((-1, 0), (-1, -1), (-1, 1), (1, 0), (1, -1), (1, 1), (0, -1), (0, 1)):
-                ny, nx = y + dy, x + dx
-                if 0 <= ny < height and 0 <= nx < width:
-                    neighbour = 4 * (ny * width + nx)
-                    if source[neighbour + 3] == 0xFF:
-                        red += source[neighbour]
-                        green += source[neighbour + 1]
-                        blue += source[neighbour + 2]
-                        count += 1
-            if count:
-                rgba[4 * index] = red // count
-                rgba[4 * index + 1] = green // count
-                rgba[4 * index + 2] = blue // count
+    """Binarize alpha and borrow RGB from originally opaque adjacent pixels."""
+    original_alpha = rgba[3::4]
+    for pixel, alpha in enumerate(original_alpha):
+        if alpha == 255:
+            continue
+
+        offset = 4 * pixel
+        rgba[offset + 3] = 0
+        row, column = divmod(pixel, width)
+        left = max(0, column - 1)
+        right = min(width, column + 2)
+        red = green = blue = count = 0
+        for adjacent_row in range(max(0, row - 1), min(height, row + 2)):
+            row_start = adjacent_row * width
+            for adjacent in range(row_start + left, row_start + right):
+                if original_alpha[adjacent] != 255:
+                    continue
+                # Contributors keep their RGB, so earlier writes cannot propagate.
+                source = 4 * adjacent
+                red += rgba[source]
+                green += rgba[source + 1]
+                blue += rgba[source + 2]
+                count += 1
+        if count:
+            rgba[offset:offset + 3] = bytes((red // count, green // count, blue // count))
 
 
 def load_rice_texture(task):

@@ -30,69 +30,57 @@ inline uint32_t wrapped_read_u32(const uint8_t *rdram, size_t rdram_size, uint32
 inline uint32_t rice_crc32_wrapped(const uint8_t *rdram, size_t rdram_size, uint32_t base_addr,
                                    uint32_t width, uint32_t height, uint32_t size, uint32_t row_stride)
 {
-	if (!rdram || rdram_size == 0 || width == 0 || height == 0)
+	// Compatibility checksum specified by the pack format; this is not CRC-32.
+	if (!rdram || !rdram_size || !width || !height)
+		return 0;
+	const uint32_t row_bytes = (width << size) / 2u;
+	if (row_bytes < 4u)
 		return 0;
 
-	const uint32_t bytes_per_line = (width << size) >> 1;
-	if (bytes_per_line < 4)
-		return 0;
-
-	uint32_t crc = 0;
-	uint32_t line = 0;
-	for (int y = int(height) - 1; y >= 0; y--, line++)
+	uint32_t checksum = 0;
+	for (uint32_t row = 0; row < height; ++row)
 	{
-		uint32_t esi = 0;
-		uint32_t row_addr = (base_addr + line * row_stride) & uint32_t(rdram_size - 1);
-		for (int x = int(bytes_per_line) - 4; x >= 0; x -= 4)
+		const uint32_t address = base_addr + row * row_stride;
+		uint32_t final_sample = 0;
+		for (uint32_t remaining = row_bytes; remaining >= 4u; remaining -= 4u)
 		{
-			esi = wrapped_read_u32(rdram, rdram_size, row_addr + uint32_t(x));
-			esi ^= uint32_t(x);
-			crc = (crc << 4) + ((crc >> 28) & 15);
-			crc += esi;
+			const uint32_t offset = remaining - 4u;
+			final_sample = wrapped_read_u32(rdram, rdram_size, address + offset) ^ offset;
+			checksum = ((checksum << 4u) | (checksum >> 28u)) + final_sample;
 		}
-
-		esi ^= uint32_t(y);
-		crc += esi;
+		checksum += final_sample ^ (height - row - 1u);
 	}
-
-	return crc;
+	return checksum;
 }
 
 inline uint32_t compute_ci8_max_index(const uint8_t *rdram, size_t rdram_size, uint32_t base_addr,
                                       uint32_t width, uint32_t height, uint32_t row_stride)
 {
-	uint32_t cimax = 0;
-	for (uint32_t y = 0; y < height; y++)
-	{
-		const uint32_t row_addr = (base_addr + y * row_stride) & uint32_t(rdram_size - 1);
-		for (uint32_t x = 0; x < width; x++)
-		{
-			const uint32_t idx = wrapped_read_u8(rdram, rdram_size, row_addr + x);
-			cimax = std::max(cimax, idx);
-			if (cimax == 0xff)
-				return cimax;
-		}
-	}
-	return cimax;
+	if (!rdram || !rdram_size)
+		return 0;
+	uint32_t largest = 0;
+	for (uint32_t row = 0; row < height; ++row)
+		for (uint32_t column = 0; column < width; ++column)
+			largest = std::max(largest, uint32_t(wrapped_read_u8(
+				rdram, rdram_size, base_addr + row * row_stride + column)));
+	return largest;
 }
 
 inline uint32_t compute_ci4_max_index(const uint8_t *rdram, size_t rdram_size, uint32_t base_addr,
                                       uint32_t width, uint32_t height, uint32_t row_stride)
 {
-	uint32_t cimax = 0;
-	const uint32_t row_bytes = (width + 1) >> 1;
-	for (uint32_t y = 0; y < height; y++)
-	{
-		const uint32_t row_addr = (base_addr + y * row_stride) & uint32_t(rdram_size - 1);
-		for (uint32_t x = 0; x < row_bytes; x++)
+	if (!rdram || !rdram_size)
+		return 0;
+	// Rice includes both nibbles of the last byte for an odd texel count.
+	const uint32_t byte_count = (width + 1u) / 2u;
+	uint32_t largest = 0;
+	for (uint32_t row = 0; row < height; ++row)
+		for (uint32_t column = 0; column < byte_count; ++column)
 		{
-			const uint8_t v = wrapped_read_u8(rdram, rdram_size, row_addr + x);
-			cimax = std::max<uint32_t>(cimax, (v >> 4) & 0xf);
-			cimax = std::max<uint32_t>(cimax, v & 0xf);
-			if (cimax == 0xf)
-				return cimax;
+			const uint32_t pair = wrapped_read_u8(
+				rdram, rdram_size, base_addr + row * row_stride + column);
+			largest = std::max(largest, std::max(pair >> 4u, pair & 15u));
 		}
-	}
-	return cimax;
+	return largest;
 }
 }

@@ -744,7 +744,7 @@ NOSSE=1
 # Windows
 else ifneq (,$(findstring win,$(platform)))
    TARGET := $(TARGET_NAME)_libretro.dll
-   LDFLAGS += -shared -static-libgcc -static-libstdc++ -Wl,--version-script=$(LIBRETRO_DIR)/link.T -lwinmm -lgdi32 
+   LDFLAGS += -shared -static-libgcc -static-libstdc++ -lwinmm -lgdi32
    PLATFORM_EXT := win32
    CC ?= gcc
    CXX ?= g++

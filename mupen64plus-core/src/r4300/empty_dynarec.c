@@ -97,6 +97,10 @@ void genmfc0()
 {
 }
 
+void gendmfc0(void)
+{
+}
+
 void genmtc0()
 {
 }
@@ -715,7 +719,15 @@ void genll()
 {
 }
 
+void genlld(void)
+{
+}
+
 void gensc()
+{
+}
+
+void genscd(void)
 {
 }
 

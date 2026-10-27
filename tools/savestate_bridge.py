@@ -164,7 +164,7 @@ def to_gliden64(data: bytes) -> bytes:
     """Convert one of this core's states to mupen64plus-next version 1.1."""
     version, md5, body = parse(data)
     if version != OURS_VERSION or len(body) < OURS_BASE_SIZE + 4:
-        raise BridgeError("expected a ParaLLEl N64 version 1.0 state")
+        raise BridgeError("expected a ParaLLEish version 1.0 state")
     raw = MAGIC + struct.pack(">I", version) + md5 + body
     if not u32(raw, SP_STATUS) & SP_STATUS_HALT:
         raise BridgeError("RSP was running when the state was saved; save again at another frame")
@@ -294,8 +294,8 @@ def rdp_trailer(body: bytes, queue_at: int) -> int | None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
-    for name, help_text in (("to-gliden64", "convert a ParaLLEl N64 state for mupen64plus-next"),
-                            ("to-parallel", "convert a mupen64plus-next state for ParaLLEl N64")):
+    for name, help_text in (("to-gliden64", "convert a ParaLLEish state for mupen64plus-next"),
+                            ("to-parallel", "convert a mupen64plus-next state for ParaLLEish")):
         command = sub.add_parser(name, help=help_text)
         command.add_argument("source", type=Path)
         command.add_argument("destination", type=Path)

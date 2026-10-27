@@ -74,7 +74,7 @@ One engine directly:
 
 ```sh
 tools/conformance/run_test_roms.py --roms assets/conformance-roms \
-  --core parallel_n64_libretro.so --retroarch-bin "$RETROARCH_BIN" \
+  --core paralleish_libretro.so --retroarch-bin "$RETROARCH_BIN" \
   --base-config "$RETROARCH_BASE_CONFIG" --runtime-class linux-radv-headless-vk-4x \
   --cpucore cached_interpreter --select suite=krom --out artifacts/conformance-roms/krom-cached
 ```

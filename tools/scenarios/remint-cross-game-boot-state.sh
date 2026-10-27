@@ -16,7 +16,7 @@ EXPECTED_VERIFY_CAPTURE_SHA256=""
 ALLOW_UNVERIFIED=0
 RETROARCH_BIN="${RETROARCH_BIN:-$(command -v retroarch || true)}"
 RETROARCH_BASE_CONFIG="${RETROARCH_BASE_CONFIG:-}"
-CORE_PATH="${CORE_PATH:-$REPO_ROOT/parallel_n64_libretro.so}"
+CORE_PATH="${CORE_PATH:-$REPO_ROOT/paralleish_libretro.so}"
 RUNTIME_ADAPTER="${RUNTIME_ADAPTER:-$REPO_ROOT/tools/adapters/retroarch_stdin_session.sh}"
 
 usage() {
@@ -128,7 +128,7 @@ esac
 
 BOOTSTRAP_BUNDLE="$BUNDLE_ROOT/bootstrap"
 VERIFY_BUNDLE="$BUNDLE_ROOT/verify"
-BOOTSTRAP_STATE="$BOOTSTRAP_BUNDLE/states/ParaLLEl N64/${rom_stem}.state"
+BOOTSTRAP_STATE="$BOOTSTRAP_BUNDLE/states/ParaLLEish/${rom_stem}.state"
 CANDIDATE_OUTPUT_PATH="$BUNDLE_ROOT/candidate/${rom_stem}.state"
 
 rm -rf "$BOOTSTRAP_BUNDLE" "$VERIFY_BUNDLE" "$BUNDLE_ROOT/candidate"
@@ -267,8 +267,8 @@ fi
 mkdir -p "$(dirname -- "$CANDIDATE_OUTPUT_PATH")"
 cp "$BOOTSTRAP_STATE" "$CANDIDATE_OUTPUT_PATH"
 
-mkdir -p "$VERIFY_BUNDLE/states/ParaLLEl N64"
-cp "$CANDIDATE_OUTPUT_PATH" "$VERIFY_BUNDLE/states/ParaLLEl N64/${rom_stem}.state"
+mkdir -p "$VERIFY_BUNDLE/states/ParaLLEish"
+cp "$CANDIDATE_OUTPUT_PATH" "$VERIFY_BUNDLE/states/ParaLLEish/${rom_stem}.state"
 
 rm -rf "$VERIFY_BUNDLE/captures"
 set +e
@@ -324,7 +324,7 @@ VERIFY_CAPTURE="${VERIFY_CAPTURES[0]}"
 STATE_SHA256="$(scenario_sha256_file "$CANDIDATE_OUTPUT_PATH")"
 VERIFY_SHA256="$(scenario_sha256_file "$VERIFY_CAPTURE")"
 
-VERIFY_STAGED_STATE="$VERIFY_BUNDLE/states/ParaLLEl N64/${rom_stem}.state"
+VERIFY_STAGED_STATE="$VERIFY_BUNDLE/states/ParaLLEish/${rom_stem}.state"
 
 python3 - "$GAME_ID" "$ROM_PATH" "$OUTPUT_PATH" "$CANDIDATE_OUTPUT_PATH" "$VERIFY_STAGED_STATE" "$CORE_PATH" "$BUNDLE_ROOT" "$BOOTSTRAP_BUNDLE" "$VERIFY_BUNDLE" \
   "$BOOT_WAIT_SECONDS" "$VERIFY_SETTLE_FRAMES" "$VERIFY_CAPTURE" "$STATE_SHA256" \

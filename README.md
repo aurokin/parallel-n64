@@ -1,7 +1,7 @@
-# parallel-n64
+# ParaLLEish
 
-This fork extends the ParaLLEl video core in the libretro Parallel N64 emulator
-with GlideN64-compatible high-resolution texture replacement, replacement-aware
+ParaLLEish is a libretro N64 core based on Mupen64Plus and paraLLEl-RDP, with
+GlideN64-compatible high-resolution texture replacement, replacement-aware
 scaling, deterministic fixture tooling, and renderer-focused conformance tests.
 
 The renderer is the correctness authority. External orchestration may supply
@@ -46,6 +46,16 @@ copyrighted inputs:
 
 Run runtime tests serially. See [Emulator Testing](docs/EMU_TESTING.md) for
 profiles, prerequisites, and skip policy.
+
+## Existing Saves And States
+
+The core now reports `ParaLLEish` and builds as `paralleish_libretro.<ext>`.
+With RetroArch closed, copy existing files from `ParaLLEl N64/` to
+`ParaLLEish/` under your savefile and savestate directories. Copy per-core
+configuration/override folders in the same way, and update any explicit
+core paths from `parallel_n64_libretro.<ext>`. Keep backups of the old
+folders. Savestate bytes and core-option keys (`parallel-n64-*`) are unchanged;
+texture packs still use `system/parallel-n64/hires/`.
 
 ## Runtime Inputs
 

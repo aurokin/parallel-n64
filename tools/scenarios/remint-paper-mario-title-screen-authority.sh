@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 RUNTIME_ENV="${RUNTIME_ENV_OVERRIDE:-$SCRIPT_DIR/paper-mario-title-screen.runtime.env}"
 
 EXPECTED_SCREENSHOT_SHA256="351cf9793639872400a5eaa99a75ec608a24243b988369111a9e9f471491d714"
-OUTPUT_PATH="$REPO_ROOT/assets/states/paper-mario-title-screen/ParaLLEl N64/Paper Mario (USA).state"
+OUTPUT_PATH="$REPO_ROOT/assets/states/paper-mario-title-screen/ParaLLEish/Paper Mario (USA).state"
 BUNDLE_ROOT=""
 
 usage() {
@@ -104,10 +104,10 @@ PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
   --command "QUIT"
 
 mkdir -p "$(dirname -- "$OUTPUT_PATH")"
-cp "$BOOTSTRAP_BUNDLE/states/ParaLLEl N64/Paper Mario (USA).state" "$OUTPUT_PATH"
+cp "$BOOTSTRAP_BUNDLE/states/ParaLLEish/Paper Mario (USA).state" "$OUTPUT_PATH"
 
-mkdir -p "$VERIFY_BUNDLE/states/ParaLLEl N64"
-cp "$OUTPUT_PATH" "$VERIFY_BUNDLE/states/ParaLLEl N64/Paper Mario (USA).state"
+mkdir -p "$VERIFY_BUNDLE/states/ParaLLEish"
+cp "$OUTPUT_PATH" "$VERIFY_BUNDLE/states/ParaLLEish/Paper Mario (USA).state"
 if (( SAVEFILE_PRESENT )); then
   scenario_stage_optional_savefile "$SAVEFILE_PATH" "$VERIFY_BUNDLE" "Paper Mario (USA)"
 fi

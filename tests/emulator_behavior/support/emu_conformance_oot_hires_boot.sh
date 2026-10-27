@@ -29,7 +29,7 @@ if [[ ! -f "$ROM_PATH" ]]; then
   exit 77
 fi
 
-CORE_PATH="$REPO_ROOT/parallel_n64_libretro.so"
+CORE_PATH="$REPO_ROOT/paralleish_libretro.so"
 if [[ ! -f "$CORE_PATH" ]]; then
   echo "SKIP: libretro core not found at $CORE_PATH."
   exit 77

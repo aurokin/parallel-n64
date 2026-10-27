@@ -64,7 +64,7 @@ def find_state(bundle_dir: Path, session: dict[str, str], slot: int) -> Path:
     expected = (
         bundle_dir
         / "states"
-        / "ParaLLEl N64"
+        / "ParaLLEish"
         / f"{rom_stem(session)}.state{suffix}"
     )
     if expected.exists():
@@ -173,7 +173,7 @@ def main() -> int:
     if output_dir.exists():
         shutil.rmtree(output_dir)
 
-    state_dir = output_dir / "state" / "ParaLLEl N64"
+    state_dir = output_dir / "state" / "ParaLLEish"
     capture_dir = output_dir / "captures"
     log_dir = output_dir / "logs"
     config_dir = output_dir / "config"
@@ -235,7 +235,7 @@ def main() -> int:
             "state_sha256": sha256_file(normalized_state),
             "capture_path": str(promoted_capture),
             "capture_sha256": sha256_file(promoted_capture),
-            "state_source_layout": "ParaLLEl N64 slot-0 normalized",
+            "state_source_layout": "ParaLLEish slot-0 normalized",
             "load_hint": f"--state-source {output_dir / 'state'} then load-slot --slot 0 --paused",
         },
         "scene_identity": {

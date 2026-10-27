@@ -12,7 +12,7 @@ CACHE_PATH_DEFAULT="$REPO_ROOT/artifacts/hts2phrb/oot-reloaded/package.phrb"
 CACHE_PATH="${EMU_RUNTIME_OOT_PHRB:-$CACHE_PATH_DEFAULT}"
 ROM_PATH_DEFAULT="$REPO_ROOT/assets/Legend of Zelda, The - Ocarina of Time (USA).zip"
 ROM_PATH="${EMU_RUNTIME_OOT_ROM:-$ROM_PATH_DEFAULT}"
-STATE_PATH_DEFAULT="$REPO_ROOT/assets/states/oot-title-boot/ParaLLEl N64/Legend of Zelda, The - Ocarina of Time (USA).state"
+STATE_PATH_DEFAULT="$REPO_ROOT/assets/states/oot-title-boot/ParaLLEish/Legend of Zelda, The - Ocarina of Time (USA).state"
 STATE_PATH="${EMU_RUNTIME_OOT_TITLE_STATE:-$STATE_PATH_DEFAULT}"
 BUNDLE_DIR="${EMU_RUNTIME_OOT_TITLE_FIXTURE_BUNDLE_DIR:-}"
 EXPECTED_STATE_SHA256="${EMU_RUNTIME_OOT_TITLE_STATE_SHA256:-c56658a8bdf738fec5e275d1a932366b538d5ed4ac14dd13d68a9ed10922afe0}"
@@ -37,7 +37,7 @@ if [[ ! -f "$STATE_PATH" ]]; then
   exit 77
 fi
 
-CORE_PATH="$REPO_ROOT/parallel_n64_libretro.so"
+CORE_PATH="$REPO_ROOT/paralleish_libretro.so"
 if [[ ! -f "$CORE_PATH" ]]; then
   echo "SKIP: libretro core not found at $CORE_PATH."
   exit 77

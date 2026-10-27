@@ -10,7 +10,7 @@ FIXTURE_RUNTIME_ENV="$SCRIPT_DIR/paper-mario-kmr-03-entry-2.runtime.env"
 RUNTIME_ENV="${RUNTIME_ENV_OVERRIDE:-$FIXTURE_RUNTIME_ENV}"
 
 SOURCE_STATE_PATH="${AUTHORITY_SOURCE_STATE_PATH:-}"
-OUTPUT_PATH="$REPO_ROOT/assets/states/paper-mario-kmr-03-entry-2/ParaLLEl N64/Paper Mario (USA).state"
+OUTPUT_PATH="$REPO_ROOT/assets/states/paper-mario-kmr-03-entry-2/ParaLLEish/Paper Mario (USA).state"
 BUNDLE_ROOT=""
 
 usage() {

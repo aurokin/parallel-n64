@@ -119,8 +119,8 @@ scenario_stage_optional_savefile() {
     return 1
   fi
 
-  mkdir -p "$bundle_dir/savefiles/ParaLLEl N64"
-  cp "$savefile_path" "$bundle_dir/savefiles/ParaLLEl N64/${rom_basename}.srm"
+  mkdir -p "$bundle_dir/savefiles/ParaLLEish"
+  cp "$savefile_path" "$bundle_dir/savefiles/ParaLLEish/${rom_basename}.srm"
 }
 
 scenario_extract_hires_log_evidence() {

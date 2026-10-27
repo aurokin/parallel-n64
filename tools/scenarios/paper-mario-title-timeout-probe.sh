@@ -164,8 +164,8 @@ if [[ -z "${AUTHORITATIVE_STATE_PATH:-}" || ! -f "${AUTHORITATIVE_STATE_PATH:-}"
   exit 1
 fi
 
-mkdir -p "$BUNDLE_DIR/states/ParaLLEl N64"
-cp "$AUTHORITATIVE_STATE_PATH" "$BUNDLE_DIR/states/ParaLLEl N64/Paper Mario (USA).state"
+mkdir -p "$BUNDLE_DIR/states/ParaLLEish"
+cp "$AUTHORITATIVE_STATE_PATH" "$BUNDLE_DIR/states/ParaLLEish/Paper Mario (USA).state"
 
 scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"scenario_state": "bundle_initialized"|"scenario_state": "runtime_prepared"|g'
 

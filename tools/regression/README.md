@@ -66,7 +66,7 @@ failed, 2 for invalid scenarios or a busy host.
 ## Per-scenario sequence
 
 1. `start --start-paused` in a fresh process, with the start state staged as
-   `ParaLLEl N64/<content basename>.state1` and the `.srm` passed as the
+   `ParaLLEish/<content basename>.state1` and the `.srm` passed as the
    savefile source.
 2. State starts: step one bootstrap frame, then `load-slot --paused`, which
    waits for `WAIT_LOAD_STATE DONE` and checks the load log

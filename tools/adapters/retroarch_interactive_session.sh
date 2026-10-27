@@ -542,7 +542,7 @@ cmd_start() {
       echo "State source not found: $STATE_SOURCE" >&2
       exit 1
     fi
-    if [[ "$(basename "$STATE_SOURCE")" == "ParaLLEl N64" ]] &&
+    if [[ "$(basename "$STATE_SOURCE")" == "ParaLLEish" ]] &&
         find "$STATE_SOURCE" -maxdepth 1 -type f -name '*.state*' -print -quit | rg -q .; then
       mkdir -p "$BUNDLE_DIR/states/$(basename "$STATE_SOURCE")"
       cp -r "$STATE_SOURCE"/. "$BUNDLE_DIR/states/$(basename "$STATE_SOURCE")/"
@@ -552,10 +552,10 @@ cmd_start() {
   fi
   if [[ -n "$SAVEFILE_SOURCE" ]]; then
     if [[ -f "$SAVEFILE_SOURCE" ]]; then
-      mkdir -p "$BUNDLE_DIR/savefiles/ParaLLEl N64"
-      cp "$SAVEFILE_SOURCE" "$BUNDLE_DIR/savefiles/ParaLLEl N64/$(basename "${ROM_PATH%.*}").srm"
+      mkdir -p "$BUNDLE_DIR/savefiles/ParaLLEish"
+      cp "$SAVEFILE_SOURCE" "$BUNDLE_DIR/savefiles/ParaLLEish/$(basename "${ROM_PATH%.*}").srm"
     elif [[ -d "$SAVEFILE_SOURCE" ]]; then
-      if [[ "$(basename "$SAVEFILE_SOURCE")" == "ParaLLEl N64" ]] &&
+      if [[ "$(basename "$SAVEFILE_SOURCE")" == "ParaLLEish" ]] &&
           find "$SAVEFILE_SOURCE" -maxdepth 1 -type f -name '*.srm' -print -quit | rg -q .; then
         mkdir -p "$BUNDLE_DIR/savefiles/$(basename "$SAVEFILE_SOURCE")"
         cp -r "$SAVEFILE_SOURCE"/. "$BUNDLE_DIR/savefiles/$(basename "$SAVEFILE_SOURCE")/"
@@ -1463,7 +1463,7 @@ session_chain_pids() {
   # dies and must not be group-killed: it may share the caller's group.
   {
     pgrep -f 'flock .*parallel-n64-retroarch-runtime\.lock' || true
-    pgrep -f -- '-L .*parallel_n64_libretro' || true
+    pgrep -f -- '-L .*(paralleish|parallel_n64)_libretro' || true
   } | sort -un
 }
 

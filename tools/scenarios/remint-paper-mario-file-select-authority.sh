@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 RUNTIME_ENV="${RUNTIME_ENV_OVERRIDE:-$SCRIPT_DIR/paper-mario-file-select.runtime.env}"
 
 EXPECTED_SCREENSHOT_SHA256="4b517fba6aa46afac587b776a3adf0a5fdfc9ebfcd91ba086e27e72b6ceb5011"
-OUTPUT_PATH="$REPO_ROOT/assets/states/paper-mario-file-select/ParaLLEl N64/Paper Mario (USA).state"
+OUTPUT_PATH="$REPO_ROOT/assets/states/paper-mario-file-select/ParaLLEish/Paper Mario (USA).state"
 BUNDLE_ROOT=""
 
 usage() {
@@ -79,9 +79,9 @@ fi
 
 BOOTSTRAP_BUNDLE="$BUNDLE_ROOT/bootstrap"
 VERIFY_BUNDLE="$BUNDLE_ROOT/verify"
-BOOTSTRAP_STATE_COPY="$BOOTSTRAP_BUNDLE/states/ParaLLEl N64/Paper Mario (USA).state"
+BOOTSTRAP_STATE_COPY="$BOOTSTRAP_BUNDLE/states/ParaLLEish/Paper Mario (USA).state"
 
-mkdir -p "$BOOTSTRAP_BUNDLE/states/ParaLLEl N64"
+mkdir -p "$BOOTSTRAP_BUNDLE/states/ParaLLEish"
 cp "$BOOTSTRAP_STATE_PATH" "$BOOTSTRAP_STATE_COPY"
 if (( SAVEFILE_PRESENT )); then
   scenario_stage_optional_savefile "$SAVEFILE_PATH" "$BOOTSTRAP_BUNDLE" "Paper Mario (USA)"
@@ -124,8 +124,8 @@ PARALLEL_N64_GFX_PLUGIN_OVERRIDE="parallel" \
 mkdir -p "$(dirname -- "$OUTPUT_PATH")"
 cp "$BOOTSTRAP_STATE_COPY" "$OUTPUT_PATH"
 
-mkdir -p "$VERIFY_BUNDLE/states/ParaLLEl N64"
-cp "$OUTPUT_PATH" "$VERIFY_BUNDLE/states/ParaLLEl N64/Paper Mario (USA).state"
+mkdir -p "$VERIFY_BUNDLE/states/ParaLLEish"
+cp "$OUTPUT_PATH" "$VERIFY_BUNDLE/states/ParaLLEish/Paper Mario (USA).state"
 if (( SAVEFILE_PRESENT )); then
   scenario_stage_optional_savefile "$SAVEFILE_PATH" "$VERIFY_BUNDLE" "Paper Mario (USA)"
 fi

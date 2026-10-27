@@ -8,7 +8,7 @@
 #   EMU_ENABLE_RUNTIME_CONFORMANCE=1   opt in (otherwise skip)
 #   EMU_CONFORMANCE_ROMS               staged ROMs (default assets/conformance-roms;
 #                                      stage with tools/conformance/fetch_test_roms.py)
-#   EMU_CONFORMANCE_CORE               core (default ./parallel_n64_libretro.so)
+#   EMU_CONFORMANCE_CORE               core (default ./paralleish_libretro.so)
 #   EMU_CONFORMANCE_CPUCORES           engines (default: all three)
 #   EMU_CONFORMANCE_RUNTIME_CLASS      runtime class label (default local-4x)
 #   EMU_CONFORMANCE_OUT                output root (default artifacts/conformance-roms)
@@ -25,7 +25,7 @@ if [[ "${EMU_ENABLE_RUNTIME_CONFORMANCE:-0}" != "1" ]]; then
 fi
 
 ROMS="${EMU_CONFORMANCE_ROMS:-$REPO_ROOT/assets/conformance-roms}"
-CORE_PATH="${EMU_CONFORMANCE_CORE:-$REPO_ROOT/parallel_n64_libretro.so}"
+CORE_PATH="${EMU_CONFORMANCE_CORE:-$REPO_ROOT/paralleish_libretro.so}"
 CPUCORES="${EMU_CONFORMANCE_CPUCORES:-dynamic_recompiler cached_interpreter pure_interpreter}"
 RUNTIME_CLASS="${EMU_CONFORMANCE_RUNTIME_CLASS:-local-4x}"
 OUT_ROOT="${EMU_CONFORMANCE_OUT:-$REPO_ROOT/artifacts/conformance-roms}"

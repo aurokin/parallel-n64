@@ -69,7 +69,7 @@ require_runtime_env_prereqs() {
   fi
   if [[ -z "$core_path" || ! -f "$core_path" ]]; then
     fail_missing "libretro core for $label" "$core_path" \
-      "build it with: make -j4 HAVE_PARALLEL=1 parallel_n64_libretro.so"
+      "build it with: make -j4 HAVE_PARALLEL=1 paralleish_libretro.so"
   fi
   if [[ -z "$rom_path" || ! -f "$rom_path" ]]; then
     fail_missing "Paper Mario ROM for $label" "$rom_path" \

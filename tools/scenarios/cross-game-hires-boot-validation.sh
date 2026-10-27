@@ -20,7 +20,7 @@ EXPECTED_SOURCE_MODE="phrb-only"
 EXPECTED_ENTRY_CLASS=""
 RETROARCH_BIN="${RETROARCH_BIN:-$(command -v retroarch || true)}"
 RETROARCH_BASE_CONFIG="${RETROARCH_BASE_CONFIG:-}"
-CORE_PATH="${CORE_PATH:-$REPO_ROOT/parallel_n64_libretro.so}"
+CORE_PATH="${CORE_PATH:-$REPO_ROOT/paralleish_libretro.so}"
 REUSE=0
 
 usage() {

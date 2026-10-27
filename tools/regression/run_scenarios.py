@@ -41,7 +41,7 @@ from savestate_bridge import unwrap  # noqa: E402
 SCENARIO_SCHEMA = "n64-regression-scenario/1"
 EXPECT_SCHEMA = "n64-regression-expectations/1"
 DEFAULT_ADAPTER = TOOLS_DIR / "adapters" / "retroarch_interactive_session.sh"
-CORE_STATE_DIR = "ParaLLEl N64"
+CORE_STATE_DIR = "ParaLLEish"
 START_SLOT, END_SLOT = 1, 2
 STATE_MAGIC = b"M64+SAVE"
 # Floor used to size step timeouts; 4x headless runs are well above it.
@@ -620,7 +620,7 @@ def execute(scenario: Scenario, ctx: RunContext, session: Session, record: dict[
     if args.extra_append_config:
         start += ["--extra-append-config", str(args.extra_append_config)]
     if inputs.state:
-        # The adapter copies a "ParaLLEl N64" source into the core's sorted
+        # The adapter copies a "ParaLLEish" source into the core's sorted
         # state directory; RetroArch names slots after the content basename.
         state_dir = stage_dir / CORE_STATE_DIR
         state_dir.mkdir(parents=True)

@@ -109,7 +109,7 @@ class RuntimePaths(unittest.TestCase):
                 command = ['bash', '-c', 'source "$1"; printf "%s\\n" "$CORE_PATH" "$ROM_PATH" "$RETROARCH_BIN" "$RETROARCH_BASE_CONFIG"', 'fixture', str(fixture)]
                 env = {"PATH": os.environ["PATH"], "RETROARCH_BIN": "/test/frontend", "RETROARCH_BASE_CONFIG": "/test/base config"}
                 result = subprocess.run(command, env=env, cwd="/", text=True, capture_output=True, check=True)
-                self.assertEqual(result.stdout.splitlines(), [str(root / "parallel_n64_libretro.so"), str(root / "assets/Paper Mario (USA).zip"), "/test/frontend", "/test/base config"])
+                self.assertEqual(result.stdout.splitlines(), [str(root / "paralleish_libretro.so"), str(root / "assets/Paper Mario (USA).zip"), "/test/frontend", "/test/base config"])
                 env.update(CORE_PATH="/caller/core", ROM_PATH="/caller/rom")
                 result = subprocess.run(command, env=env, cwd="/", text=True, capture_output=True, check=True)
                 self.assertEqual(result.stdout.splitlines()[:2], ["/caller/core", "/caller/rom"])

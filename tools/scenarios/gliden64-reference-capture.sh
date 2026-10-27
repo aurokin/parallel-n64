@@ -9,7 +9,7 @@
 # tests/emulator_behavior/support/emu_gliden64_reference_guardrails.sh).
 #
 # The title scene reaches its frame by boot + timed input, so its framing is
-# approximate. `--state` opens a ParaLLEl N64 savestate at the same game moment
+# approximate. `--state` opens a ParaLLEish savestate at the same game moment
 # instead: tools/savestate_bridge.py converts it to the mupen64plus-next layout,
 # and the session loads it paused, steps `--frames` frames and captures.
 set -euo pipefail
@@ -27,7 +27,7 @@ Required:
 
 Options:
   --scene NAME        Scene recipe: title (default: title, or state with --state)
-  --state PATH        ParaLLEl N64 savestate to open in GlideN64
+  --state PATH        ParaLLEish savestate to open in GlideN64
   --savefile PATH     Matching .srm save file to stage (optional)
   --frames N          Frames to step after loading --state (default: 3)
   --rom PATH          ROM (default: assets/Paper Mario (USA).zip)

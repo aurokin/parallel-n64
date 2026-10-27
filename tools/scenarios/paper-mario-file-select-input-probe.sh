@@ -222,8 +222,8 @@ if [[ -n "${SAVEFILE_PATH:-}" && -f "${SAVEFILE_PATH:-}" ]]; then
   scenario_stage_optional_savefile "$SAVEFILE_PATH" "$BUNDLE_DIR" "Paper Mario (USA)"
 fi
 
-mkdir -p "$BUNDLE_DIR/states/ParaLLEl N64"
-cp "$AUTHORITATIVE_STATE_PATH" "$BUNDLE_DIR/states/ParaLLEl N64/Paper Mario (USA).state"
+mkdir -p "$BUNDLE_DIR/states/ParaLLEish"
+cp "$AUTHORITATIVE_STATE_PATH" "$BUNDLE_DIR/states/ParaLLEish/Paper Mario (USA).state"
 
 scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"scenario_state": "bundle_initialized"|"scenario_state": "runtime_prepared"|g'
 scenario_patch_file "$BUNDLE_DIR/bundle.json" 's|"savefile_path": ""|"savefile_path": "'"${SAVEFILE_PATH:-}"'"|g; s|"savefile_present": false|"savefile_present": '"$(scenario_json_bool "$SAVEFILE_PRESENT")"'|g; s|"savefile_sha256": "missing"|"savefile_sha256": "'"${SAVEFILE_SHA256:-missing}"'"|g'

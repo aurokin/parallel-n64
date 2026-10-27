@@ -20,7 +20,7 @@ def write_run(root: Path, mode: str, state: bytes, cue: str, scenarios=("probe",
         scenario_file = root / f"{scenario}.json"
         scenario_file.write_text(json.dumps({"id": scenario, **({"modes": ["off"]} if scenario.startswith("off-only") else {})}))
         bundle = f"bundles/{scenario}__{mode}__probe-class"
-        states = run / bundle / "states" / "ParaLLEl N64"
+        states = run / bundle / "states" / "ParaLLEish"
         states.mkdir(parents=True)
         (states / "Game.state2").write_bytes(state)
         records.append(json.dumps({"scenario": scenario, "bundle": bundle, "scenario_file": str(scenario_file),

@@ -22,7 +22,7 @@ EXPECTED_SOURCE_MODE="phrb-only"
 EXPECTED_ENTRY_CLASS=""
 RETROARCH_BIN="${RETROARCH_BIN:-$(command -v retroarch || true)}"
 RETROARCH_BASE_CONFIG="${RETROARCH_BASE_CONFIG:-}"
-CORE_PATH="${CORE_PATH:-$REPO_ROOT/parallel_n64_libretro.so}"
+CORE_PATH="${CORE_PATH:-$REPO_ROOT/paralleish_libretro.so}"
 REUSE=0
 
 usage() {
@@ -192,9 +192,9 @@ case "${rom_stem,,}" in
 esac
 
 if (( ! REUSE )); then
-  rm -rf "$BUNDLE_DIR"/captures "$BUNDLE_DIR"/logs "$BUNDLE_DIR"/traces "$BUNDLE_DIR"/savefiles "$BUNDLE_DIR/states/ParaLLEl N64"
+  rm -rf "$BUNDLE_DIR"/captures "$BUNDLE_DIR"/logs "$BUNDLE_DIR"/traces "$BUNDLE_DIR"/savefiles "$BUNDLE_DIR/states/ParaLLEish"
 fi
-mkdir -p "$BUNDLE_DIR"/captures "$BUNDLE_DIR"/logs "$BUNDLE_DIR"/traces "$BUNDLE_DIR/states/ParaLLEl N64"
+mkdir -p "$BUNDLE_DIR"/captures "$BUNDLE_DIR"/logs "$BUNDLE_DIR"/traces "$BUNDLE_DIR/states/ParaLLEish"
 CACHE_SHA256="$(scenario_sha256_file "$CACHE_PATH")"
 if (( ! REUSE )); then
   python3 - "$BUNDLE_DIR" "$GAME_ID" "$ROM_PATH" "$CACHE_PATH" "$CACHE_SHA256" "$STATE_PATH" "$CORE_PATH" "$POST_LOAD_SETTLE_FRAMES" "$EXPECTED_SOURCE_MODE" "$EXPECTED_ENTRY_CLASS" <<'PY'
@@ -227,7 +227,7 @@ elif [[ ! -f "$BUNDLE_DIR/bundle.json" ]]; then
   echo "Reused bundle manifest missing: $BUNDLE_DIR/bundle.json" >&2
   exit 2
 fi
-STAGED_STATE_PATH="$BUNDLE_DIR/states/ParaLLEl N64/${rom_stem}.state"
+STAGED_STATE_PATH="$BUNDLE_DIR/states/ParaLLEish/${rom_stem}.state"
 if (( REUSE )); then
   if [[ ! -f "$STAGED_STATE_PATH" ]]; then
     echo "Staged savestate missing in reused bundle: $STAGED_STATE_PATH" >&2

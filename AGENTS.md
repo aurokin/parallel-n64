@@ -16,7 +16,7 @@
 | Required gate | `./run-tests.sh --profile emu-required` |
 | Runtime gate | `./run-tests.sh --profile emu-runtime-conformance` |
 | Clean profile build | `./run-tests.sh --clean --profile <profile>` |
-| Rebuild live ParaLLEl core | `make -j4 -B HAVE_PARALLEL=1 parallel_n64_libretro.so` |
+| Rebuild live ParaLLEl core | `make -j4 -B HAVE_PARALLEL=1 paralleish_libretro.so` |
 
 No package manager is used.
 

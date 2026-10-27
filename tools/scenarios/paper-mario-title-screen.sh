@@ -286,8 +286,8 @@ else
   if [[ -n "${AUTHORITATIVE_STATE_PATH:-}" && -f "${AUTHORITATIVE_STATE_PATH:-}" ]]; then
     AUTHORITATIVE_STATE_PRESENT=1
     AUTHORITATIVE_STATE_SHA256="$(scenario_sha256_file "$AUTHORITATIVE_STATE_PATH")"
-    mkdir -p "$BUNDLE_DIR/states/ParaLLEl N64"
-    cp "$AUTHORITATIVE_STATE_PATH" "$BUNDLE_DIR/states/ParaLLEl N64/Paper Mario (USA).state"
+    mkdir -p "$BUNDLE_DIR/states/ParaLLEish"
+    cp "$AUTHORITATIVE_STATE_PATH" "$BUNDLE_DIR/states/ParaLLEish/Paper Mario (USA).state"
     AUTHORITY_MODE_USED="authoritative"
   fi
 

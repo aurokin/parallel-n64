@@ -33,7 +33,7 @@ if sub == "doctor":
     raise SystemExit(0)
 bundle = Path(opts["--bundle-dir"])
 state_file, log = bundle / "fake.json", bundle / "logs/retroarch.log"
-core_states = bundle / "states/ParaLLEl N64"
+core_states = bundle / "states/ParaLLEish"
 
 def emit(line):
     with log.open("a") as out:
@@ -46,7 +46,7 @@ if sub == "start":
         source = Path(opts["--state-source"])
         shutil.copytree(source, bundle / "states" / source.name)
     if "--savefile-source" in opts:
-        savefiles = bundle / "savefiles/ParaLLEl N64"
+        savefiles = bundle / "savefiles/ParaLLEish"
         savefiles.mkdir(parents=True)
         shutil.copyfile(opts["--savefile-source"], savefiles / (Path(opts["--rom"]).stem + ".srm"))
     st = {"mode": opts["--mode"], "frame": 0, "stem": Path(opts["--rom"]).stem, "body": None, "inputs": []}
@@ -201,7 +201,7 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual(set(entry["checkpoints"]), {"42", "150"})
         self.assertIn("capture_sha256", entry["checkpoints"]["42"])
         self.assertRegex(entry["checkpoints"]["42"]["ram"]["cue"], r"^[0-9a-f]{16}$")
-        saved = self.root / "golden-off/bundles/field-state__off__fake-4x/states/ParaLLEl N64"
+        saved = self.root / "golden-off/bundles/field-state__off__fake-4x/states/ParaLLEish"
         rzip = next(saved.glob("*.state2")).read_bytes()
         self.assertEqual(entry["end_state_sha256"], sha256(zlib.decompress(rzip[24:])))
 
@@ -388,8 +388,8 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual(record["exit_class"], "clean", record["error"])
         self.assertEqual(record["end_state_sha256"], raw["field-state"]["end_state_sha256"])
         bundle = self.root / "packed/bundles/field-state__off__fake-4x"
-        self.assertEqual(next((bundle / "states/ParaLLEl N64").glob("*.state1")).read_bytes(), self.state)
-        self.assertEqual(next((bundle / "savefiles/ParaLLEl N64").glob("*.srm")).read_bytes(), self.srm)
+        self.assertEqual(next((bundle / "states/ParaLLEish").glob("*.state1")).read_bytes(), self.state)
+        self.assertEqual(next((bundle / "savefiles/ParaLLEish").glob("*.srm")).read_bytes(), self.srm)
 
     def test_compressed_blob_must_decompress_to_its_name(self):
         self.compress_blobs("states", content=self.state + b"tampered")

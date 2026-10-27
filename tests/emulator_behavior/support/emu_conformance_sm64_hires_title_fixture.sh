@@ -12,7 +12,7 @@ CACHE_PATH_DEFAULT="$REPO_ROOT/artifacts/hts2phrb/sm64-reloaded/package.phrb"
 CACHE_PATH="${EMU_RUNTIME_SM64_PHRB:-$CACHE_PATH_DEFAULT}"
 ROM_PATH_DEFAULT="$REPO_ROOT/assets/Super Mario 64 (USA).zip"
 ROM_PATH="${EMU_RUNTIME_SM64_ROM:-$ROM_PATH_DEFAULT}"
-STATE_PATH_DEFAULT="$REPO_ROOT/assets/states/sm64-title-boot/ParaLLEl N64/Super Mario 64 (USA).state"
+STATE_PATH_DEFAULT="$REPO_ROOT/assets/states/sm64-title-boot/ParaLLEish/Super Mario 64 (USA).state"
 STATE_PATH="${EMU_RUNTIME_SM64_TITLE_STATE:-$STATE_PATH_DEFAULT}"
 BUNDLE_DIR="${EMU_RUNTIME_SM64_TITLE_FIXTURE_BUNDLE_DIR:-}"
 EXPECTED_STATE_SHA256="${EMU_RUNTIME_SM64_TITLE_STATE_SHA256:-8d56038ab4616c652632689b5d662e4fc66d686cf76a23f9670d0ec199c5ca03}"
@@ -37,7 +37,7 @@ if [[ ! -f "$STATE_PATH" ]]; then
   exit 77
 fi
 
-CORE_PATH="$REPO_ROOT/parallel_n64_libretro.so"
+CORE_PATH="$REPO_ROOT/paralleish_libretro.so"
 if [[ ! -f "$CORE_PATH" ]]; then
   echo "SKIP: libretro core not found at $CORE_PATH."
   exit 77

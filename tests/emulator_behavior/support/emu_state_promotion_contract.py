@@ -14,7 +14,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="state-promotion-") as directory:
         root = Path(directory)
         bundle = root / "session"
-        states = bundle / "states/ParaLLEl N64"
+        states = bundle / "states/ParaLLEish"
         states.mkdir(parents=True)
         state = states / "Super Mario 64 (USA).state4"
         state.write_bytes(b"offline state bytes; no runtime qualification")

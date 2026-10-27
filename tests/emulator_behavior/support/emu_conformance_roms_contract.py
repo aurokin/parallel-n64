@@ -203,7 +203,7 @@ elif sub == "send":
         st["frame"] += int(args[0])
     print(opts["--command"])
 elif sub == "save-slot":
-    target = bundle / "states/ParaLLEl N64" / f"{st['stem']}.state{opts['--slot']}"
+    target = bundle / "states/ParaLLEish" / f"{st['stem']}.state{opts['--slot']}"
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(plan["bodies"][st["stem"]], target)
 elif sub == "stop":

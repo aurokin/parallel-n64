@@ -39,7 +39,7 @@ ifneq ($(GIT_VERSION)," unknown")
 endif
 
 include $(CLEAR_VARS)
-LOCAL_MODULE       := retro
+LOCAL_MODULE       := paralleish_libretro
 LOCAL_SRC_FILES    := $(SOURCES_CXX) $(SOURCES_C) $(SOURCES_ASM)
 LOCAL_CFLAGS       := $(COREFLAGS) $(CFLAGS)
 LOCAL_CXXFLAGS     := -std=c++11 $(COREFLAGS) $(CXXFLAGS)

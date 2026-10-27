@@ -775,7 +775,7 @@ void retro_set_environment(retro_environment_t cb)
 
 void retro_get_system_info(struct retro_system_info *info)
 {
-   info->library_name = "ParaLLEl N64";
+   info->library_name = "ParaLLEish";
 #ifndef GIT_VERSION
 #define GIT_VERSION ""
 #endif
@@ -903,6 +903,9 @@ void retro_init(void)
       log_cb = log.log;
    else
       log_cb = NULL;
+
+   if (log_cb)
+      log_cb(RETRO_LOG_INFO, "ParaLLEish: Vulkan paraLLEl-RDP core.\n");
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_PERF_INTERFACE, &perf_cb))
       perf_get_cpu_features_cb = perf_cb.get_cpu_features;

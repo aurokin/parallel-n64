@@ -7,7 +7,7 @@
 # Core definitions
 .core-defs:
   variables:
-    CORENAME: parallel_n64
+    CORENAME: paralleish
 
 # Inclusion templates, required for the build to work
 include:

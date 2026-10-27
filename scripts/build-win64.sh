@@ -9,4 +9,4 @@ CC=x86_64-w64-mingw32-gcc \
 CXX=x86_64-w64-mingw32-g++ \
 WINDRES=x86_64-w64-mingw32-windres \
 make WITH_DYNAREC=x86_64 HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=1 -j $((`nproc`-1))
-strip --strip-unneeded ./parallel_n64_libretro.dll
+strip --strip-unneeded ./paralleish_libretro.dll

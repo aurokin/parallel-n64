@@ -121,4 +121,4 @@ make -j"$JOBS" \
 
 printf '%s\n' "$BUILD_FINGERPRINT" > "$STATE_FILE"
 
-echo "[build] output: $SCRIPT_DIR/parallel_n64_libretro.so"
+echo "[build] output: $SCRIPT_DIR/paralleish_libretro.so"

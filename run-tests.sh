@@ -214,8 +214,8 @@ if (( enable_runtime_conformance )); then
   if (( clean_build )); then
     core_make_args+=(-B)
   fi
-  echo "[tests] build runtime libretro core: $SCRIPT_DIR/parallel_n64_libretro.so"
-  make -C "$SCRIPT_DIR" "${core_make_args[@]}" HAVE_PARALLEL=1 parallel_n64_libretro.so
+  echo "[tests] build runtime libretro core: $SCRIPT_DIR/paralleish_libretro.so"
+  make -C "$SCRIPT_DIR" "${core_make_args[@]}" HAVE_PARALLEL=1 paralleish_libretro.so
 fi
 
 if (( list_only )); then

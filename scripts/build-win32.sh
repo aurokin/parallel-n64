@@ -9,4 +9,4 @@ CC=i686-w64-mingw32-gcc \
 CXX=i686-w64-mingw32-g++ \
 WINDRES=i686-w64-mingw32-windres \
 make WITH_DYNAREC=i686 HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=1 -j $((`nproc`-1))
-strip --strip-unneeded ./parallel_n64_libretro.dll
+strip --strip-unneeded ./paralleish_libretro.dll

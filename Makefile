@@ -88,9 +88,9 @@ else ifeq ($(ARCH), $(filter $(ARCH), aarch64))
 endif
 
 ifeq ($(HAVE_VULKAN_DEBUG),1)
-TARGET_NAME := parallel_n64_debug
+TARGET_NAME := paralleish_debug
 else
-TARGET_NAME := parallel_n64
+TARGET_NAME := paralleish
 endif
 
 CC_AS ?= $(CC)

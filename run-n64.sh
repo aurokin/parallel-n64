@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_RETROARCH="$(command -v retroarch || true)"
 DEFAULT_ROM_DIR="$SCRIPT_DIR/assets"
 DEFAULT_ROM_NAME="Paper Mario (USA).zip"
-REFERENCE_CORE="$SCRIPT_DIR/builds/parallel_n64_libretro.reference.so"
+REFERENCE_CORE="$SCRIPT_DIR/builds/paralleish_libretro.reference.so"
 
 use_reference=0
 menu_mode=0
@@ -21,7 +21,7 @@ Usage:
   run-n64.sh [options] [ROM_PATH] [-- RETROARCH_ARGS...]
 
 Options:
-  --reference         Use reference core build (builds/parallel_n64_libretro.reference.so)
+  --reference         Use reference core build (builds/paralleish_libretro.reference.so)
   --core PATH         Use an explicit core path
   --retroarch PATH    Use an explicit RetroArch binary path
   --rom-dir PATH      ROM base directory for relative ROM paths (default: assets/ under this checkout)
@@ -30,7 +30,7 @@ Options:
   -h, --help          Show this help
 
 Behavior:
-  - Default core: newest non-reference parallel_n64_libretro*.so under this repo/builds.
+  - Default core: newest non-reference paralleish_libretro*.so under this repo/builds.
   - If ROM_PATH is omitted, defaults to "Paper Mario (USA).zip" in ROM dir.
 EOF
 }
@@ -41,7 +41,7 @@ list_non_reference_cores() {
     roots+=("$SCRIPT_DIR/builds")
   fi
 
-  find "${roots[@]}" -maxdepth 2 -type f -name 'parallel_n64_libretro*.so' \
+  find "${roots[@]}" -maxdepth 2 -type f -name 'paralleish_libretro*.so' \
     ! -name '*reference*' -printf '%T@ %p\n' 2>/dev/null | sort -nr | awk '{ $1=""; sub(/^ /, ""); print }'
 }
 

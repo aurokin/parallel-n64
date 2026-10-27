@@ -50,6 +50,7 @@
 unsigned int r4300emu = 0;
 unsigned int count_per_op = COUNT_PER_OP_DEFAULT;
 unsigned int llbit;
+uint64_t cop2_latch;
 int stop;
 #if NEW_DYNAREC < NEW_DYNAREC_ARM
 int64_t reg[32], hi, lo;

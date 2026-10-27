@@ -328,6 +328,7 @@ typedef struct _cpu_instruction_table
 
 	// Emulator helper functions
 	void (*NOP)(void);          // No operation (used to nullify R0 writes)
+	void (*COP2)(void);
 	void (*RESERVED)(void);     // Reserved instruction handler
 	void (*NI)(void);	        // Not implemented instruction handler
 

@@ -65,6 +65,28 @@ DECLARE_INSTRUCTION(RESERVED)
    exception_general();
 }
 
+/* VR4300 COP2 moves share one 64-bit latch, independent of rd. */
+DECLARE_INSTRUCTION(COP2)
+{
+   uint32_t instruction = *fast_mem_access(PCADDR);
+   unsigned int rs = (instruction >> 21) & 31, rt = (instruction >> 16) & 31;
+   if (!(g_cp0_regs[CP0_STATUS_REG] & CP0_STATUS_CU2))
+   {
+      set_exception_cause(CP0_CAUSE_EXCCODE_CPU | (2u << 28));
+      exception_general();
+      return;
+   }
+   if (rs > 6 || rs == 3)
+   {
+      set_exception_cause(CP0_CAUSE_EXCCODE_RI | (2u << 28));
+      exception_general();
+      return;
+   }
+   if (rs >= 4) cop2_latch = reg[rt];
+   else if (rt) reg[rt] = rs == 1 ? (int64_t)cop2_latch : SE32(cop2_latch);
+   ADD_TO_PC(1);
+}
+
 /* R4300 */
 DECLARE_JUMP(J,   (jinst_index<<2) | ((PCADDR+4) & UINT32_C(0xF0000000)), 1, &reg[0],  0, 0)
 DECLARE_JUMP(JAL, (jinst_index<<2) | ((PCADDR+4) & UINT32_C(0xF0000000)), 1, &reg[31], 0, 0)

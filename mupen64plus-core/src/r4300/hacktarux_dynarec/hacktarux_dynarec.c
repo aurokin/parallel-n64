@@ -1012,6 +1012,11 @@ void genni(void)
    gencallinterp((native_type)cached_interpreter_table.NI, 0);
 }
 
+void gencop2(void)
+{
+   gencallinterp((native_type)cached_interpreter_table.COP2, 0);
+}
+
 void genreserved(void)
 {
    gencallinterp((native_type)cached_interpreter_table.RESERVED, 0);

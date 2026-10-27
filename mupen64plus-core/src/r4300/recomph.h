@@ -98,6 +98,7 @@ void gensubu(void);
 void genand(void);
 void genor(void);
 void genxor(void);
+void gencop2(void);
 void genreserved(void);
 void gennop(void);
 void gensll(void);

@@ -625,6 +625,7 @@ void InterpretOpcode(void)
 			break;
 		} /* switch ((op >> 21) & 0x1F) for the Coprocessor 1 prefix */
 		break;
+	case 18: COP2(op); break;
 	case 20: /* Major opcode 20: BEQL */
 		if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BEQL_IDLE(op);
 		else                                     BEQL(op);

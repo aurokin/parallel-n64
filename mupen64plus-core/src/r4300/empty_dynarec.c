@@ -445,6 +445,8 @@ void genni()
 {
 }
 
+void gencop2(void) {}
+
 void genreserved()
 {
 }

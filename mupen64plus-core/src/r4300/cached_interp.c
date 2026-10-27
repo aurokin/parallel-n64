@@ -524,6 +524,7 @@ const cpu_instruction_table cached_interpreter_table = {
    TLTIU,
 
    NOP,
+   COP2,
    RESERVED,
    NI,
 

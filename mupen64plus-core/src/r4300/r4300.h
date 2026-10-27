@@ -31,6 +31,7 @@
 extern struct precomp_instr *PC;
 extern int stop;
 extern unsigned int llbit;
+extern uint64_t cop2_latch;
 extern int64_t reg[32], hi, lo;
 extern long long int local_rs;
 extern uint32_t skip_jump;

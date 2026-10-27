@@ -2158,11 +2158,17 @@ static void RSD(void)
    recompile_standard_i_type();
 }
 
+static void RCOP2(void)
+{
+   dst->ops = current_instruction_table.COP2;
+   recomp_func = gencop2;
+}
+
 static void (*const recomp_ops[64])(void) =
 {
    RSPECIAL, RREGIMM, RJ   , RJAL  , RBEQ , RBNE , RBLEZ , RBGTZ ,
    RADDI   , RADDIU , RSLTI, RSLTIU, RANDI, RORI , RXORI , RLUI  ,
-   RCOP0   , RCOP1  , RSV  , RSV   , RBEQL, RBNEL, RBLEZL, RBGTZL,
+   RCOP0   , RCOP1  , RCOP2, RSV   , RBEQL, RBNEL, RBLEZL, RBGTZL,
    RDADDI  , RDADDIU, RLDL , RLDR  , RSV  , RSV  , RSV   , RSV   ,
    RLB     , RLH    , RLWL , RLW   , RLBU , RLHU , RLWR  , RLWU  ,
    RSB     , RSH    , RSWL , RSW   , RSDL , RSDR , RSWR  , RCACHE,

@@ -13,6 +13,8 @@ JABO_VERSION = 8
 KEY_KIND_RICE = 0
 KEY_KIND_JABO_MD5 = 1
 RECORD_FLAG_RUNTIME_READY = 1 << 0
+GL_COLOR_INDEX = 0x1900
+GL_COLOR_INDEX8_EXT = 0x80E5
 GL_RGBA = 0x1908
 GL_UNSIGNED_BYTE = 0x1401
 GL_RGBA8 = 0x8058
@@ -122,13 +124,14 @@ def _build_package_tables(package_manifest: dict,
                 stored_texture_format = int(candidate.get('texture_format') or GL_RGBA)
                 stored_pixel_type = int(candidate.get('pixel_type') or GL_UNSIGNED_BYTE)
             else:
+                indexed = int(candidate.get('texture_format') or 0) == GL_COLOR_INDEX
                 rgba_bytes = asset_rgba_blobs.get(rgba_rel_path)
                 if rgba_bytes is not None:
                     blob_size = len(rgba_bytes)
                 else:
-                    blob_size = int(candidate['width']) * int(candidate['height']) * 4
-                stored_format = GL_RGBA8
-                stored_texture_format = GL_RGBA
+                    blob_size = int(candidate['width']) * int(candidate['height']) * (1 if indexed else 4)
+                stored_format = GL_COLOR_INDEX8_EXT if indexed else GL_RGBA8
+                stored_texture_format = GL_COLOR_INDEX if indexed else GL_RGBA
                 stored_pixel_type = GL_UNSIGNED_BYTE
         else:
             blob_size = 0
@@ -258,7 +261,10 @@ def emit_binary_package(package_dir: Path, output_path: Path):
         for candidate in record.get('asset_candidates', []):
             asset_path = package_dir / candidate['materialized_path']
             rgba_path = asset_path.with_suffix('.rgba')
-            if rgba_path.exists():
+            if int(candidate.get('texture_format') or 0) == GL_COLOR_INDEX:
+                rgba_bytes = asset_path.read_bytes()
+                rgba_rel_path = str(asset_path.relative_to(package_dir))
+            elif rgba_path.exists():
                 rgba_bytes = rgba_path.read_bytes()
                 rgba_rel_path = str(rgba_path.relative_to(package_dir))
             else:

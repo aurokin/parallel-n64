@@ -13,7 +13,7 @@ written from it:
   fmt and siz, or one of the `$` wildcard forms `<ROM>#<CRC>#<fmt>#<siz>#$_`
   and `<ROM>#$#<fmt>#<siz>#<PALCRC>_`. Accepted suffixes are `_all.png`,
   `_allciByRGBA.png`, `_ciByRGBA.png`, `_rgb.png`, `_rgb.bmp`, `_a.png` and
-  `_a.bmp`. Matching is case-insensitive, as GLideNHQ does on Windows.
+  `_a.bmp` and `_ci.bmp`. Matching is case-insensitive, as GLideNHQ does on Windows.
 - The key is `PALCRC << 32 | CRC`, or `PALCRC` alone for the `#$#` form; the
   formatsize is `fmt | siz << 8` (N64FormatSize).
 - Entries and hidden (`.`) or `~!~`-prefixed names are skipped; directories
@@ -40,14 +40,14 @@ import zlib
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from pathlib import Path
 
-from hires_pack_common import GL_RGBA, GL_RGBA8, GL_TEXFMT_GZ, GL_UNSIGNED_BYTE, LOOSE_PNG_STORAGE, BlobSpool
+from hires_pack_common import GL_COLOR_INDEX, GL_COLOR_INDEX8_EXT, GL_RGBA, GL_RGBA8, GL_TEXFMT_GZ, GL_UNSIGNED_BYTE, LOOSE_PNG_STORAGE, BlobSpool
 
 ALPHA_MODES = ("full", "rice")
 GLIDEN64_MAX_TEXTURE_DIM = 4096
 BLOB_ZLIB_LEVEL = 6
 
 # GLideNHQ supported_ends, compared case-insensitively.
-SUPPORTED_ENDS = ("all.png", "allciByRGBA.png", "ciByRGBA.png", "rgb.png", "rgb.bmp", "a.png", "a.bmp")
+SUPPORTED_ENDS = ("all.png", "allciByRGBA.png", "ciByRGBA.png", "rgb.png", "rgb.bmp", "a.png", "a.bmp", "ci.bmp")
 _SUPPORTED_ENDS_LOWER = {end.lower() for end in SUPPORTED_ENDS}
 _IMAGE_SUFFIXES = (".png", ".bmp")
 
@@ -81,8 +81,6 @@ def parse_rice_texture_name(filename: str, ident: str):
         return None, "not-rice-naming"
     end = f"{match.group('end')}.{match.group('ext')}".lower()
     if end not in _SUPPORTED_ENDS_LOWER:
-        if end == "ci.bmp":
-            return None, "rice-ci-bmp-unsupported"
         return None, "unsupported-suffix"
 
     if match.group("crc") is not None:
@@ -103,6 +101,8 @@ def parse_rice_texture_name(filename: str, ident: str):
         siz = int(match.group("wsiz"), 16)
         palette_crc = int(match.group("wpal"), 16)
 
+    if end == "ci.bmp" and (fmt != 2 or siz not in (0, 1)):
+        return None, "invalid-ci-formatsize"
     if texture_crc == 0 and wildcard is None:
         return None, "zero-crc"
     # TxHiResCache composes the key this way; a `#$#` name keys on PALCRC alone.
@@ -216,6 +216,39 @@ def _decode_bmp(path: Path):
         return image.convert("RGBA")
 
 
+def _decode_ci_bmp(path: Path, siz: int):
+    """Read packed Rice indices directly, ignoring the BMP preview colour table."""
+    with path.open("rb") as source:
+        header = source.read(54)
+        if len(header) < 54 or header[:2] != b"BM" or struct.unpack_from("<I", header, 14)[0] < 40:
+            raise ValueError("unsupported indexed BMP header")
+        width, signed_height, planes, bits, compression = struct.unpack_from("<iiHHI", header, 18)
+        if planes != 1 or bits not in (4, 8) or compression != 0 or width <= 0 or signed_height == 0:
+            raise ValueError("expected an uncompressed 4- or 8-bit BMP")
+        height = abs(signed_height)
+        stride = ((width * bits + 31) // 32) * 4
+        offset = struct.unpack_from("<I", header, 10)[0]
+        if offset < 14 + struct.unpack_from("<I", header, 14)[0]:
+            raise ValueError("invalid indexed BMP pixel offset")
+        if offset + stride * height > path.stat().st_size:
+            raise ValueError("truncated indexed BMP")
+        source.seek(offset)
+        rows = []
+        for _ in range(height):
+            row = source.read(stride)
+            if len(row) != stride:
+                raise ValueError("truncated indexed BMP row")
+            if bits == 4:
+                row = bytes((row[x >> 1] >> (4 if x % 2 == 0 else 0)) & 15 for x in range(width))
+            rows.append(row[:width])
+        if signed_height > 0:
+            rows.reverse()
+        indices = b"".join(rows)
+        if siz == 0 and max(indices, default=0) > 15:
+            raise ValueError("CI4 index exceeds 15")
+        return (width, height), indices
+
+
 def _decode_image(path: Path):
     if path.suffix.lower() == ".bmp":
         return _decode_bmp(path)
@@ -262,7 +295,7 @@ def _apply_rice_alpha_fixup(rgba: bytearray, width: int, height: int):
 
 
 def load_rice_texture(task):
-    """Load one GLideNHQ texture and return a compressed RGBA8 blob.
+    """Load one texture and return compressed RGBA8 or Rice indices.
 
     `task` is a dict so it can cross a process boundary. Returns
     {"ok": True, width, height, blob, ...} or {"ok": False, "reason": ...}.
@@ -271,6 +304,15 @@ def load_rice_texture(task):
     fmt = task["fmt"]
     siz = task["siz"]
     try:
+        if kind == "ci":
+            (width, height), indices = _decode_ci_bmp(Path(task["path"]), siz)
+            if width * height < 4:
+                return {"ok": False, "reason": "too-small"}
+            return {
+                "ok": True, "width": width, "height": height,
+                "blob": zlib.compress(indices, BLOB_ZLIB_LEVEL),
+                "oversize": width > GLIDEN64_MAX_TEXTURE_DIM or height > GLIDEN64_MAX_TEXTURE_DIM,
+            }
         if kind in ("rgb", "a"):
             rgb_paths = [Path(path) for path in task["rgb_paths"]]
             alpha_paths = [Path(path) for path in task["alpha_paths"]]
@@ -486,8 +528,8 @@ def scan_loose_png_pack(root: Path, rom_name: str | None = None, alpha_mode: str
             "formatsize": fields["formatsize"],
             "width": result["width"],
             "height": result["height"],
-            "format": GL_RGBA8 | GL_TEXFMT_GZ,
-            "texture_format": GL_RGBA,
+            "format": (GL_COLOR_INDEX8_EXT if fields["kind"] == "ci" else GL_RGBA8) | GL_TEXFMT_GZ,
+            "texture_format": GL_COLOR_INDEX if fields["kind"] == "ci" else GL_RGBA,
             "pixel_type": GL_UNSIGNED_BYTE,
             "is_hires": True,
             "data_size": result["data_size"],

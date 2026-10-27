@@ -29,6 +29,27 @@ def rgba(entry):
     return zlib.decompress(read_entry_blob(None, entry))
 
 
+def save_ci_bmp(path, bits, pixels, top_down=False, grayscale=False):
+    width, height = 3, 2
+    palette_count = 1 << bits
+    stride = ((width * bits + 31) // 32) * 4
+    offset = 54 + palette_count * 4
+    rows = [pixels[y * width:(y + 1) * width] for y in range(height)]
+    if not top_down:
+        rows.reverse()
+    data = bytearray()
+    for row in rows:
+        packed = bytes(row) if bits == 8 else bytes(((row[0] << 4) | row[1], row[2] << 4))
+        data.extend(packed + bytes(stride - len(packed)))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(
+        struct.pack('<2sIHHI', b'BM', offset + len(data), 0, 0, offset)
+        + struct.pack('<IiiHHIIiiII', 40, width, -height if top_down else height, 1, bits, 0,
+                      len(data), 0, 0, palette_count, 0)
+        + (b"".join(bytes((i, i, i, 0)) for i in range(palette_count)) if grayscale
+           else bytes((55, 66, 77, 0)) * palette_count) + data)
+
+
 class RiceNameParsing(unittest.TestCase):
     def parse(self, name, ident=ROM):
         return parse_rice_texture_name(name, ident)
@@ -59,7 +80,7 @@ class RiceNameParsing(unittest.TestCase):
             f'{ROM}#1234ABCD#00#2_all.png': 'not-rice-naming',
             f'{ROM}#1234ABCD#0#2_all - Copy.png': 'unsupported-suffix',
             f'{ROM}#1234ABCD#0#2_all.bmp': 'unsupported-suffix',
-            f'{ROM}#1234ABCD#2#0#89ABCDEF_ci.bmp': 'rice-ci-bmp-unsupported',
+            f'{ROM}#1234ABCD#0#0#89ABCDEF_ci.bmp': 'invalid-ci-formatsize',
             f'{ROM}#00000000#0#2_all.png': 'zero-crc',
             f'MARIOKART64#1234ABCD#0#2_all.png': 'rom-name-mismatch',
             f'{ROM}#1234ABCD#0#2_all.dds': 'not-png-or-bmp',
@@ -80,6 +101,42 @@ class LoosePngLoad(unittest.TestCase):
     def scan(self, **kwargs):
         entries, report = scan_loose_png_pack(self.root, workers=1, **kwargs)
         return {(entry['checksum64'], entry['formatsize']): entry for entry in entries}, report
+
+    def test_ci_bmp_indices_survive_conversion(self):
+        from hires_pack_common import GL_COLOR_INDEX, GL_COLOR_INDEX8_EXT
+        from hires_pack_inspect_binary_package import inspect_binary_package
+        for bits, siz, pixels, top_down in ((4, 0, [0, 15, 3, 2, 1, 4], False),
+                                            (8, 1, [0, 255, 16, 7, 8, 9], True)):
+            save_ci_bmp(self.root / f'{ROM}#11111111#2#{siz}#AABBCCDD_ci.bmp', bits, pixels, top_down)
+        entries, _ = self.scan(alpha_mode='rice')
+        for siz, pixels in ((0, [0, 15, 3, 2, 1, 4]), (1, [0, 255, 16, 7, 8, 9])):
+            entry = entries[(0xAABBCCDD11111111, 2 | (siz << 8))]
+            self.assertEqual(rgba(entry), bytes(pixels))
+            self.assertEqual(entry['texture_format'], GL_COLOR_INDEX)
+            self.assertEqual(entry['format'] & 0x7FFFFFFF, GL_COLOR_INDEX8_EXT)
+        output = Path(self.tmp.name) / 'converted'
+        subprocess.run([sys.executable, str(REPO / 'tools/hts2phrb.py'), '--cache', str(self.root),
+                        '--output-dir', str(output), '--all-families', '--loose-png-workers', '1'],
+                       check=True, capture_output=True)
+        package_path = output / 'package.phrb'
+        package = inspect_binary_package(package_path)
+        self.assertEqual(package['version'], 7)
+        self.assertEqual(package['record_count'], 2)
+        raw = package_path.read_bytes()
+        blob_offset = struct.unpack_from('<4s7I', raw)[-1]
+        for asset in (asset for record in package['records'] for asset in record['asset_candidates']):
+            self.assertEqual(asset['texture_format'], GL_COLOR_INDEX)
+            start = blob_offset + asset['rgba_blob_offset']
+            data = zlib.decompress(raw[start:start + asset['rgba_blob_size']])
+            expected = [0, 15, 3, 2, 1, 4] if asset['legacy_formatsize'] == 2 else [0, 255, 16, 7, 8, 9]
+            self.assertEqual(data, bytes(expected))
+
+    def test_ci_bmp_grayscale_preview_keeps_indices(self):
+        pixels = [0, 255, 17, 3, 4, 5]
+        save_ci_bmp(self.root / f'{ROM}#11111111#2#1_ci.bmp', 8, pixels, grayscale=True)
+        entries, report = self.scan()
+        self.assertEqual(report['entry_count'], 1)
+        self.assertEqual(rgba(entries[(0x11111111, 258)]), bytes(pixels))
 
     def test_rgb_alpha_pair_takes_alpha_from_red_channel(self):
         save(self.root / f'{ROM}#11111111#0#2_rgb.png', 'RGB', (2, 2), (10, 20, 30))

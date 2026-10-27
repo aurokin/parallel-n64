@@ -14,6 +14,8 @@ from hires_pack_apply_duplicate_review import dedupe_loader_manifest
 from hires_pack_common import (
     JABO_STORAGE,
     LOOSE_PNG_STORAGE,
+    GL_COLOR_INDEX,
+    decompress_entry_blob,
     configure_loose_png_input,
     decode_entry_rgba8,
     file_sha256,
@@ -1427,6 +1429,8 @@ def make_streaming_asset_blob_loader(package_manifest, asset_storage_mode: str =
             raise ValueError(f"Missing cache entry for {candidate['replacement_id']}")
         if asset_storage_mode == "legacy":
             return read_entry_blob(cache_view["cache_path"], entry)
+        if int(entry.get("texture_format") or 0) == GL_COLOR_INDEX:
+            return decompress_entry_blob(entry, read_entry_blob(cache_view["cache_path"], entry))
         return decode_entry_rgba8(cache_view["cache_path"], entry)
 
     return load_asset_blob

@@ -7,7 +7,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from hires_pack_common import decode_entry_rgba8, index_cache_entries, write_json_file
+from hires_pack_common import (GL_COLOR_INDEX, decode_entry_rgba8, decompress_entry_blob,
+                               index_cache_entries, read_entry_blob, write_json_file)
 
 
 def load_loader_manifest(path: Path):
@@ -91,7 +92,10 @@ def _build_materialized_package(loader_manifest_path: Path,
         for candidate in record.get('asset_candidates', []):
             width = int(candidate['width'])
             height = int(candidate['height'])
-            if emit_png_assets:
+            indexed = int(candidate.get("texture_format") or 0) == GL_COLOR_INDEX
+            if indexed:
+                filename = f"{candidate['replacement_id']}.indices"
+            elif emit_png_assets:
                 filename = f"{candidate['replacement_id']}.png"
             else:
                 filename = f"{candidate['replacement_id']}.rgba"
@@ -118,8 +122,9 @@ def _build_materialized_package(loader_manifest_path: Path,
                 entry = cache_view['exact_index'].get((checksum64, formatsize)) or cache_view['generic_index'].get(checksum64)
                 if entry is None:
                     raise SystemExit(f"Missing cache entry for {candidate['replacement_id']}")
-                rgba = decode_entry_rgba8(cache_path, entry)
-                if emit_png_assets:
+                rgba = (decompress_entry_blob(entry, read_entry_blob(cache_path, entry)) if indexed
+                        else decode_entry_rgba8(cache_path, entry))
+                if emit_png_assets and not indexed:
                     image = Image.frombytes('RGBA', (width, height), rgba)
                     if persist_assets:
                         image.save(output_dir / rel_path)
@@ -131,7 +136,7 @@ def _build_materialized_package(loader_manifest_path: Path,
                 if compute_review_hashes:
                     pixel_sha256 = hashlib.sha256(rgba).hexdigest()
                     normalized = bytearray(rgba)
-                    for i in range(0, len(normalized), 4):
+                    for i in range(0, 0 if indexed else len(normalized), 4):
                         if normalized[i + 3] == 0:
                             normalized[i + 0] = 0
                             normalized[i + 1] = 0

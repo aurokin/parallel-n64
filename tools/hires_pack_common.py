@@ -1656,6 +1656,8 @@ def index_entries_by_texture_crc(entries):
 
 GL_TEXFMT_GZ = 0x80000000
 GL_RGB = 0x1907
+GL_COLOR_INDEX = 0x1900
+GL_COLOR_INDEX8_EXT = 0x80E5
 GL_RGBA = 0x1908
 GL_LUMINANCE = 0x1909
 GL_UNSIGNED_BYTE = 0x1401
@@ -1689,7 +1691,9 @@ def expected_decoded_size(entry):
     if width <= 0 or height <= 0:
         return 0
     bpp = 0
-    if fmt == GL_RGBA and pixel_type == GL_UNSIGNED_BYTE:
+    if fmt == GL_COLOR_INDEX and pixel_type == GL_UNSIGNED_BYTE:
+        bpp = 1
+    elif fmt == GL_RGBA and pixel_type == GL_UNSIGNED_BYTE:
         bpp = 4
     elif fmt == GL_RGB and pixel_type == GL_UNSIGNED_BYTE:
         bpp = 3

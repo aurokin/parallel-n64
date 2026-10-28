@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Load a Project64/Jabo texture pack and build its PHRB records.
 
 Jabo names each replacement `<MD5>.<ext>`: 32 hex digits for the MD5 of the

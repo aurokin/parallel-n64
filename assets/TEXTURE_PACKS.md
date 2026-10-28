@@ -4,6 +4,11 @@ Texture packs and generated packages are local, untracked inputs. This file
 records portable source provenance and the conversion contract; it does not
 record which private host currently stores an artifact.
 
+The converter, PHRB format and this conversion documentation are MIT; see
+[`tools/LICENSE-hires-converter`](../tools/LICENSE-hires-converter) and the
+[covered converter files](../tools/README.md#license). Texture artwork retains
+its own rights.
+
 ## Format Contract
 
 - Runtime input is `.phrb` only. Enable hi-res textures in the core options,

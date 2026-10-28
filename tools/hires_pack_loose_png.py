@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Load a loose Rice-named PNG texture pack the way GLideNHQ does.
 
 GLideNHQ (GLideN64 src/GLideNHQ/TxHiResCache.cpp, TxHiResLoader.cpp) loads

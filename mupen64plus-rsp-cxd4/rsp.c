@@ -15,8 +15,12 @@
 
 #define LIBRETRO
 
-#if defined(USE_SSE2NEON) && defined(__ARM_NEON__)
+/* AArch64 has NEON; 32-bit ARM retains the explicit opt-in. */
+#if (defined(USE_SSE2NEON) || defined(__aarch64__)) && \
+    (defined(__ARM_NEON) || defined(__ARM_NEON__))
 #include "sse2neon/SSE2NEON.h"
+/* Keep the scalar decoder's x86-only shortcuts disabled on ARM. */
+#define SSE2NEON 1
 #define ARCH_MIN_SSE2
 #endif
 

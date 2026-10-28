@@ -14,7 +14,9 @@ HAVE_NEON     := 0
 WITH_DYNAREC  :=
 
 HAVE_PARALLEL := 1
-HAVE_PARALLEL_RSP := 1
+# paraLLEl-RSP bundles GNU Lightning (GPLv3/LGPLv3), which cannot ship in the
+# GPLv2 core; see docs/RELEASE.md.
+HAVE_PARALLEL_RSP := 0
 
 ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
   WITH_DYNAREC := aarch64

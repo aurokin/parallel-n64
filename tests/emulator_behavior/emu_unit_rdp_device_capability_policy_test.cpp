@@ -32,6 +32,8 @@ static void test_small_types_driver_policy_matrix()
 	using RDP::detail::SmallTypesDriverPolicy;
 	using RDP::detail::small_types_driver_policy;
 	constexpr uint32_t unknown_driver_id = 0u;
+	// Bundled Vulkan headers predate the Mesa Turnip driver ID.
+	constexpr uint32_t mesa_turnip_driver_id = 18u;
 
 	check(small_types_driver_policy(VK_DRIVER_ID_AMD_PROPRIETARY_KHR) ==
 	              SmallTypesDriverPolicy::DisableAmdProprietary,
@@ -48,6 +50,11 @@ static void test_small_types_driver_policy_matrix()
 	check(small_types_driver_policy(VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS_KHR) ==
 	              SmallTypesDriverPolicy::DisableIntelProprietaryWindows,
 	      "Intel proprietary Windows should disable small types");
+	check(small_types_driver_policy(VK_DRIVER_ID_QUALCOMM_PROPRIETARY_KHR) ==
+	              SmallTypesDriverPolicy::DisableQualcommProprietary,
+	      "Qualcomm proprietary should avoid failing small-integer shader pipelines");
+	check(small_types_driver_policy(mesa_turnip_driver_id) == SmallTypesDriverPolicy::Allow,
+	      "Mesa Turnip should retain small integer arithmetic");
 	check(small_types_driver_policy(unknown_driver_id) == SmallTypesDriverPolicy::Allow,
 	      "non-special-case drivers should keep small types allowed");
 }

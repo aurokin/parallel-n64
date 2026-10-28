@@ -22,6 +22,7 @@ enum class SmallTypesDriverPolicy
 	DisableAmdOpenSource,
 	DisableNvidiaProprietary,
 	DisableIntelProprietaryWindows,
+	DisableQualcommProprietary,
 };
 
 struct RendererEnvOverrides
@@ -93,6 +94,8 @@ inline SmallTypesDriverPolicy small_types_driver_policy(uint32_t driver_id)
 		return SmallTypesDriverPolicy::DisableAmdOpenSource;
 	case VK_DRIVER_ID_NVIDIA_PROPRIETARY_KHR:
 		return SmallTypesDriverPolicy::DisableNvidiaProprietary;
+	case VK_DRIVER_ID_QUALCOMM_PROPRIETARY_KHR:
+		return SmallTypesDriverPolicy::DisableQualcommProprietary;
 	case VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS_KHR:
 		return SmallTypesDriverPolicy::DisableIntelProprietaryWindows;
 	default:

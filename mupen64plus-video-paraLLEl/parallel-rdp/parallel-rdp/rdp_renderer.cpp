@@ -698,6 +698,12 @@ bool Renderer::init_caps()
 			LOGW("Current proprietary Intel Windows driver is tested to perform much better without 8/16-bit integer support.\n");
 			allow_small_types = false;
 			break;
+		case detail::SmallTypesDriverPolicy::DisableQualcommProprietary:
+			// Adreno 830's proprietary compiler rejects SMALL_TYPES rasterizer and
+			// writeback pipelines, causing repeated blocking compilation attempts.
+			LOGW("Disabling 8/16-bit integer arithmetic on the proprietary Qualcomm driver to avoid shader compilation failures.\n");
+			allow_small_types = false;
+			break;
 		case detail::SmallTypesDriverPolicy::Allow:
 			break;
 		}

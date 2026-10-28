@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include "texture_replacement.hpp"
 #include "logging.hpp"
 #include <algorithm>

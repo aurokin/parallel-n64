@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #ifndef HIRES_ADDRESSING_H_
 #define HIRES_ADDRESSING_H_
 

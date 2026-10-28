@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #ifndef HIRES_CUTOUT_POLICY_H_
 #define HIRES_CUTOUT_POLICY_H_
 

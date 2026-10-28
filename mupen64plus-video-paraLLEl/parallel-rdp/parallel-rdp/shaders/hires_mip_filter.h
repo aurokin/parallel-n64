@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #ifndef HIRES_MIP_FILTER_H_
 #define HIRES_MIP_FILTER_H_
 

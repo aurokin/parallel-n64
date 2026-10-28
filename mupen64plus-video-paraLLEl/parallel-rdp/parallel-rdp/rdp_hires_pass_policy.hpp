@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 // Which rasterization passes sample hi-res replacements (ADR-0020).

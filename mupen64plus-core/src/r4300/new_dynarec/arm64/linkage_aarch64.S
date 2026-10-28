@@ -452,7 +452,6 @@ GLOBAL_FUNCTION(fp_exception):
     br     x0
     
 GLOBAL_FUNCTION(fp_exception_ds):
-    brk    0
     mov    w2, #0x90000000 /* Set high bit if delay slot */
     b      .F1
     

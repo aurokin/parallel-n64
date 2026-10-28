@@ -1903,7 +1903,10 @@ static void emit_andimm64(int rs,int64_t imm,int rt)
   assert(rs!=29);
   assert(rt!=29);
   u_int armval;
-  assert(genimm((uint64_t)imm,64,&armval));
+  /* genimm() computes the encoding, so it must run when NDEBUG removes assert(). */
+  const int encodable=genimm((uint64_t)imm,64,&armval);
+  assert(encodable);
+  (void)encodable;
   assem_debug("and %s,%s,#%d",regname64[rt],regname64[rs],imm);
   output_w32(0x92000000|armval<<10|rs<<5|rt);
 }

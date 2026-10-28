@@ -100,7 +100,7 @@ material. Agent-specific commands and invariants are in [AGENTS.md](AGENTS.md).
   their respective external systems.
 - Nothing here may require a private orchestration repository to build or run.
 
-## Upstream And Licensing
+## Upstream
 
 This repository descends from
 [libretro/parallel-n64](https://github.com/libretro/parallel-n64) through the
@@ -109,6 +109,13 @@ That edition credits Matt Pharoah, Wiseguy, Aglab2, and devwizard64 for its
 fork-specific work. Additional component authors and licenses remain recorded
 beside their source.
 
-The tree contains components under multiple existing licenses. No new
-tree-wide license is asserted here; see [LICENSES.md](LICENSES.md) for the
-factual component map.
+## License
+
+The combined ParaLLEish libretro core is distributed under **GPLv2** because
+it includes the Mupen64Plus core. See [LICENSE](LICENSE).
+
+The hi-res renderer (paraLLEl-RDP and our replacement additions) and the pack
+converter, including the PHRB format, are **MIT** and can be used separately
+from the GPL core. Third-party dependencies retain their own licenses. See
+[LICENSES.md](LICENSES.md), the [MIT file inventory](docs/MIT_COMPONENTS.md),
+and the [converter license and file list](tools/README.md#license).

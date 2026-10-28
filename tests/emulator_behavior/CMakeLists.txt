@@ -675,6 +675,13 @@ target_include_directories(emu_unit_hires_strong_hash_test PRIVATE "${CMAKE_SOUR
 target_compile_features(emu_unit_hires_strong_hash_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.hires_strong_hash COMMAND emu_unit_hires_strong_hash_test)
 
+add_executable(emu_unit_encoding_crc32_test emu_unit_encoding_crc32_test.c
+  "${CMAKE_SOURCE_DIR}/libretro-common/encodings/encoding_crc32.c")
+target_include_directories(emu_unit_encoding_crc32_test PRIVATE
+  "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/libretro-common/include")
+target_link_libraries(emu_unit_encoding_crc32_test PRIVATE z)
+add_test(NAME emu.unit.encoding_crc32 COMMAND emu_unit_encoding_crc32_test)
+
 add_executable(emu_unit_compat_checksum_test emu_unit_compat_checksum_test.cpp)
 target_include_directories(emu_unit_compat_checksum_test PRIVATE "${CMAKE_SOURCE_DIR}")
 target_compile_features(emu_unit_compat_checksum_test PRIVATE cxx_std_17)

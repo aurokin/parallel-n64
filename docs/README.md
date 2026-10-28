@@ -26,6 +26,7 @@
 - [Scenarios](../tools/scenarios/)
 - [Adapters](../tools/adapters/)
 - [Regression scenario runner](../tools/regression/)
+- [Throughput benchmark](../tools/benchmark/)
 - [Conformance test ROMs](../tools/conformance/)
 - [RetroArch patch set](../tools/retroarch-patches/)
 - [GlideN64 txDump patch](../tools/gliden64-txdump-patch/)

@@ -1,0 +1,62 @@
+{
+  "schema": "paralleish-benchmark-scenes/1",
+  "scenes": [
+    {
+      "scene": "oot",
+      "label": "Kokiri Forest, shallow pond beside bridge",
+      "rom_sha256": "a4a7221d80c8d81b4c1c3a5e076caf3e3f03f724d4a62393b29257a1e7774c61",
+      "state_sha256": "36312f9013263595e3487bb8c028a79a9127f05101951d09c0efa43e8d5a0b25",
+      "scenario": "lab-depth-oot/oot-lab-20261020-021448-141c7baa-drive-seg01.json"
+    },
+    {
+      "scene": "mm",
+      "label": "Termina forest/tunnel, Deku flower",
+      "rom_sha256": "87f73b7be7357e26771e54bf37ed9ddb72306a2dad136ae9aa2d2afdfdce0ae7",
+      "state_sha256": "573b5d50919321e88838d1066b420c41d2a658f43734865bb01d3c1fad46ce53",
+      "scenario": "lab-depth-mm/mm-lab-20261020-023924-e000b3dd-drive-seg01.json"
+    },
+    {
+      "scene": "sm64",
+      "label": "Peach castle grounds, bridge and moat",
+      "rom_sha256": "ad1f99f90113dae68163950e0985872a7deff47379aafe83c8cc4579d86e2eaa",
+      "state_sha256": "4968d1e50ac49d45513577f719e77a6c27d56f8628890f74b292fb9812bc9945",
+      "scenario": "lab-depth-sm64/sm64-lab-20261019-224433-21f4c063-drive-seg01.json"
+    },
+    {
+      "scene": "mk64",
+      "label": "Luigi Raceway, lap 1, stationary against wall",
+      "rom_sha256": "8a99917068dc60251e025d1034f0161a185ebc2fd33d796158ed4dd3c9ad1d9f",
+      "state_sha256": "75fde522342ed2ce6f718876e01bd5b7e55cad7957cc88bf856362e7146c0dcd",
+      "scenario": "lab-depth-mk64/mk64-lab-20261019-221737-6578fe98-drive-seg01.json"
+    },
+    {
+      "scene": "bk",
+      "label": "Grassy cliffside (visual scene label)",
+      "rom_sha256": "82bad63ee016763fb4fcb6e66b2b766fca9b7e05f9875a778f43ca6a53187ea7",
+      "state_sha256": "eb4bd37f1cf9ab427a55e4d3025802da5384e6cd964c909e661d33d6b59f0610",
+      "scenario": "lab-depth-bk/bk-lab-20261019-213843-c3b65ad5-drive-seg01.json"
+    },
+    {
+      "scene": "conker",
+      "label": "outdoor stream and waterfall",
+      "rom_sha256": "44921498a0aee437441b7370defbb9425bb893ad3465aef7319294ed04f83117",
+      "state_sha256": "28eda1eecda3fb544ce5e4ce2b11ebc1038a078ef7f8e76110d70bccd749904a",
+      "scenario": "lab-depth-conker/conker-lab-20261020-055851-027950ed-drive-seg01.json"
+    },
+    {
+      "scene": "pm",
+      "label": "Koopa Bros. fortress exterior (kmr_11)",
+      "rom_sha256": "96b7073561ff8ac5ed5168df91fe480352d5de07b738422309e95936bd4c5c64",
+      "state_sha256": "068c0cf553d544396fe3be49408b83c0e2f6a736cba6e3b0f27dfaec3dc030d4",
+      "scenario": "matrix/pm-matrix-42-kmr-11-e0-field.json",
+      "savefile_sha256": "8bb7bf5a8a380f7510560936bd01e2c79ed49059cb64452048e6cb0d09908430"
+    },
+    {
+      "scene": "goldeneye",
+      "label": "Dam flyover to gameplay",
+      "rom_sha256": "f216def82be7c8d3e6924eaad34409c9df94cf96e5cdef41daa539b49ef7415f",
+      "state_sha256": "6b689fa4fd667c30047c7705dfad9b397c6a3635366faf412444008d32be8e1c",
+      "scenario": "lab-play-goldeneye/goldeneye-lab-20261018-094920-a6345bf7-drive-seg01.json"
+    }
+  ]
+}

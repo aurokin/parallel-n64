@@ -1,4 +1,9 @@
 add_test(
+  NAME emu.support.benchmark_contract
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_benchmark_contract.py"
+)
+
+add_test(
   NAME emu.support.state_promotion_contract
   COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_state_promotion_contract.py"
 )

@@ -57,6 +57,9 @@ core paths from `parallel_n64_libretro.<ext>`. Keep backups of the old
 folders. Savestate bytes and core-option keys (`parallel-n64-*`) are unchanged;
 texture packs still use `system/parallel-n64/hires/`.
 
+If you build from an existing checkout, run `make clean` once after updating:
+the removed renderers' headers are still listed in old dependency files.
+
 ## Runtime Inputs
 
 ROMs, texture packs, savestates, binaries, and generated evidence are not

@@ -865,16 +865,17 @@ else
 ifeq ($(HAVE_PARALLEL), 1)
    WANT_CXX11=1
    ifeq (,$(findstring msvc,$(platform)))
-     CFLAGS   += -MMD
-     CXXFLAGS += -MMD
+     # -MP keeps a deleted header from breaking incremental builds.
+     CFLAGS   += -MMD -MP
+     CXXFLAGS += -MMD -MP
    else
      CFLAGS   += -MT
      CXXFLAGS += -MT
    endif
 else ifeq (,$(findstring msvc,$(platform)))
-    CFLAGS   += -MMD
+    CFLAGS   += -MMD -MP
     ifneq ($(platform),ios-arm64)
-        CXXFLAGS += -std=c++98 -MMD
+        CXXFLAGS += -std=c++98 -MMD -MP
     endif
 endif
 endif

@@ -96,11 +96,29 @@ PY
 
 hts2phrb_write_synthetic_runtime_provenance "$BUNDLE_DIR" "$CACHE_PATH" "synthetic-hts2phrb-smoke"
 
-python3 "$ROOT_DIR/tools/hts2phrb.py" \
+python3 - "$ROOT_DIR" \
   --cache "$CACHE_PATH" \
   --bundle "$BUNDLE_DIR" \
   --stdout-format json \
-  --output-dir "$OUTPUT_DIR"
+  --output-dir "$OUTPUT_DIR" <<'PY'
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(sys.argv[1]) / "tools"))
+import hts2phrb
+
+sys.argv = sys.argv[1:]
+# Fresh conversion must derive the package summary once while still refreshing
+# review, overlay and gate fields at all three synchronization points.
+with patch.object(hts2phrb, "summarize_package_manifest", wraps=hts2phrb.summarize_package_manifest) as summarize, \
+     patch.object(hts2phrb, "_load_runtime_manifest_stats", wraps=hts2phrb._load_runtime_manifest_stats) as load, \
+     patch.object(hts2phrb, "synchronize_report_summary_fields", wraps=hts2phrb.synchronize_report_summary_fields) as synchronize:
+    hts2phrb.main()
+    assert summarize.call_count == 1, summarize.call_count
+    load.assert_not_called()
+    assert synchronize.call_count == 3, synchronize.call_count
+PY
 
 python3 - "$OUTPUT_DIR" <<'PY'
 import json
@@ -268,6 +286,95 @@ if len(records) != 1:
 package_path = Path(report["binary_package"]["output_path"])
 if not package_path.exists():
     raise SystemExit(f"missing emitted package: {package_path}")
+PY
+
+python3 - "$ROOT_DIR" "$CACHE_PATH" "$BUNDLE_DIR" "$OUTPUT_DIR" <<'PY'
+import copy
+import json
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(sys.argv[1]) / "tools"))
+import hts2phrb
+
+cache, bundle, out_dir = map(Path, sys.argv[2:])
+report_path = out_dir / "hts2phrb-report.json"
+original = json.loads(report_path.read_text())
+manifest_path = out_dir / "package/package-manifest.json"
+manifest = json.loads(manifest_path.read_text())
+
+# A persisted report's missing or stale summary must never act as a cache.
+# Exercise both report reuse entrypoints, with missing manifest fields backfilled.
+for pre_signature, stale_summary in ((True, None), (False, {"record_count": 999})):
+    report = copy.deepcopy(original)
+    if stale_summary is None:
+        report.pop("package_manifest_summary")
+    else:
+        report["package_manifest_summary"] = stale_summary
+    if not pre_signature:
+        report.pop("pre_request_signature")
+    report_path.write_text(json.dumps(report))
+    partial_manifest = copy.deepcopy(manifest)
+    partial_manifest.pop("runtime_ready_native_sampled_record_count")
+    partial_manifest["runtime_ready_record_class"] = None
+    manifest_path.write_text(json.dumps(partial_manifest))
+    sys.argv = ["hts2phrb", "--cache", str(cache), "--bundle", str(bundle),
+                "--output-dir", str(out_dir), "--reuse-existing", "--stdout-format", "json"]
+    with patch.object(hts2phrb, "summarize_package_manifest", wraps=hts2phrb.summarize_package_manifest) as summarize, \
+         patch.object(hts2phrb, "_load_runtime_manifest_stats", wraps=hts2phrb._load_runtime_manifest_stats) as load:
+        hts2phrb.main()
+        assert summarize.call_count > 0
+        assert load.call_count > 0
+    reused = json.loads(report_path.read_text())
+    assert reused["reused_existing"]
+    assert reused["package_manifest_summary"] == original["package_manifest_summary"]
+    assert json.loads(manifest_path.read_text()) == manifest
+    for key in ("gate_success", "gate_failures", "runtime_state_counts", "import_state_counts",
+                "unresolved_family_review_summary", "runtime_overlay_blockers"):
+        assert reused[key] == original[key], key
+
+# External manifests still derive mixed ready/deferred counts from records.
+external_dir = out_dir / "external"
+external_dir.mkdir()
+external = {"records": [
+    {"record_kind": kind, "runtime_ready": ready}
+    for ready in (True, False) for kind in ("canonical-sampled", "legacy-exact")
+]}
+(external_dir / "package-manifest.json").write_text(json.dumps(external))
+report = {"package_dir": str(external_dir), "package_manifest_summary": {"record_count": 999},
+          "stage_timings_ms": {"total": 123.0}}
+hts2phrb.synchronize_report_summary_fields(report)
+assert report["package_manifest_record_count"] == 4
+for state in ("ready", "deferred"):
+    assert report[f"package_manifest_runtime_{state}_record_count"] == 2
+    assert report[f"package_manifest_runtime_{state}_native_sampled_record_count"] == 1
+    assert report[f"package_manifest_runtime_{state}_compat_record_count"] == 1
+    assert report[f"package_manifest_runtime_{state}_record_class"] == "mixed-native-and-compat"
+assert report["total_runtime_ms"] == report["total_ms"] == 123.0
+
+# An invalid transport selection retains the package and emits an overlay review.
+# Its nonzero review fields must reach the final report without package rescans.
+bindings = json.loads((out_dir / "bindings.json").read_text())
+proxy_key = bindings["bindings"][0]["policy_key"]
+policy_path = out_dir / "invalid-transport-policy.json"
+policy_path.write_text(json.dumps({"transport_proxies": {
+    proxy_key: {"selected_replacement_id": "missing-selection"}
+}}))
+overlay_dir = out_dir / "unresolved-overlay"
+sys.argv = ["hts2phrb", "--cache", str(cache), "--bundle", str(bundle),
+            "--output-dir", str(overlay_dir), "--transport-policy", str(policy_path),
+            "--stdout-format", "json"]
+with patch.object(hts2phrb, "summarize_package_manifest", wraps=hts2phrb.summarize_package_manifest) as summarize, \
+     patch.object(hts2phrb, "_load_runtime_manifest_stats", side_effect=AssertionError("unexpected package reload")):
+    hts2phrb.main()
+    assert summarize.call_count == 1, summarize.call_count
+overlay = json.loads((overlay_dir / "hts2phrb-report.json").read_text())
+assert overlay["package_manifest_summary"] == original["package_manifest_summary"]
+assert overlay["unresolved_count"] == overlay["runtime_overlay_unresolved_count"] == 1
+assert overlay["runtime_overlay_direct_unresolved_count"] == 1
+assert overlay["runtime_overlay_reason_counts"] == {"selected-replacement-id-not-found": 1}
+assert Path(overlay["runtime_overlay_review_json_path"]).is_file()
 PY
 
 echo "emu_hts2phrb_smoke: PASS"

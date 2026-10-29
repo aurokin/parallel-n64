@@ -2954,15 +2954,18 @@ def classify_runtime_record_class(native_count: int, compat_count: int) -> str:
     return "none"
 
 
-def synchronize_report_summary_fields(report: dict):
-    package_manifest_path = None
-    if report.get("package_dir"):
-        candidate = Path(report["package_dir"]) / "package-manifest.json"
-        if candidate.exists():
-            package_manifest_path = candidate
-    if package_manifest_path is not None:
-        package_manifest, _ = _load_runtime_manifest_stats(package_manifest_path)
-        report["package_manifest_summary"] = summarize_package_manifest(package_manifest)
+def synchronize_report_summary_fields(report: dict, *, package_manifest=None, package_manifest_summary=None):
+    # Fresh conversions can supply the finalized manifest and its matching summary.
+    # Reports alone still require disk validation/backfill, even if they contain a summary.
+    if package_manifest is None or package_manifest_summary is None:
+        package_manifest = None
+        if report.get("package_dir"):
+            candidate = Path(report["package_dir"]) / "package-manifest.json"
+            if candidate.exists():
+                package_manifest, _ = _load_runtime_manifest_stats(candidate)
+                package_manifest_summary = summarize_package_manifest(package_manifest)
+    if package_manifest is not None:
+        report["package_manifest_summary"] = package_manifest_summary
         report["package_manifest_record_count"] = int(_manifest_value_or_default(package_manifest, "record_count", 0))
         report["package_manifest_runtime_ready_record_count"] = int(
             _manifest_value_or_default(package_manifest, "runtime_ready_record_count", 0)
@@ -4892,7 +4895,9 @@ def build_conversion(args):
         "reused_stage_names": reused_stage_names,
         "reused_existing": False,
     }
-    synchronize_report_summary_fields(report)
+    synchronize_report_summary_fields(
+        report, package_manifest=package_manifest, package_manifest_summary=package_manifest_summary
+    )
     report["gate_failures"] = evaluate_conversion_gates(args, report)
     report["gate_success"] = not report["gate_failures"]
     inventory_json_path, inventory_markdown_path = write_family_inventory_artifacts(output_dir, report)
@@ -4933,7 +4938,9 @@ def build_conversion(args):
     report["unresolved_family_runtime_ready_review_markdown_path"] = str(
         unresolved_runtime_ready_review_markdown_path
     )
-    synchronize_report_summary_fields(report)
+    synchronize_report_summary_fields(
+        report, package_manifest=package_manifest, package_manifest_summary=package_manifest_summary
+    )
     if unresolved_count > 0:
         runtime_overlay_review, runtime_overlay_review_json_path, runtime_overlay_review_markdown_path = write_runtime_overlay_review_artifacts(
             output_dir,
@@ -4997,7 +5004,9 @@ def build_conversion(args):
         report.pop("runtime_overlay_linked_import_review_json_path", None)
         report.pop("runtime_overlay_linked_import_review_markdown_path", None)
         report["runtime_overlay_blockers"] = []
-    synchronize_report_summary_fields(report)
+    synchronize_report_summary_fields(
+        report, package_manifest=package_manifest, package_manifest_summary=package_manifest_summary
+    )
     summary_path.write_text(build_markdown_summary(report))
     report["summary_path"] = str(summary_path)
     report["report_path"] = str(report_path)

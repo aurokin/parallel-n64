@@ -686,3 +686,23 @@ add_executable(emu_unit_compat_checksum_test emu_unit_compat_checksum_test.cpp)
 target_include_directories(emu_unit_compat_checksum_test PRIVATE "${CMAKE_SOURCE_DIR}")
 target_compile_features(emu_unit_compat_checksum_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.compat_checksum COMMAND emu_unit_compat_checksum_test)
+
+# Isolate the production TLBWrite from the other cached-interpreter instructions.
+# GNU/LLVM ELF section GC lets this test link only the code it exercises.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  add_executable(emu_unit_tlb_code_hash_test
+    emu_unit_tlb_code_hash_test.c
+    "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/r4300/tlb.c"
+  )
+  target_include_directories(emu_unit_tlb_code_hash_test PRIVATE
+    "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+    "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/api"
+    "${CMAKE_SOURCE_DIR}/libretro"
+    "${CMAKE_SOURCE_DIR}/libretro-common/include"
+  )
+  target_compile_definitions(emu_unit_tlb_code_hash_test PRIVATE M64P_CORE_PROTOTYPES)
+  target_compile_features(emu_unit_tlb_code_hash_test PRIVATE c_std_99)
+  target_compile_options(emu_unit_tlb_code_hash_test PRIVATE -ffunction-sections -fdata-sections)
+  target_link_options(emu_unit_tlb_code_hash_test PRIVATE -Wl,--gc-sections)
+  add_test(NAME emu.unit.tlb_code_hash COMMAND emu_unit_tlb_code_hash_test)
+endif()

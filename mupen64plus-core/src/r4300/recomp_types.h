@@ -80,8 +80,8 @@ struct precomp_block
    int jumps_number;
    void *riprel_table;
    int riprel_number;
-   //unsigned char md5[16];
-   unsigned int adler32;
+   /* Host-only TLB code-page fingerprint; zero disables reuse. Not serialized. */
+   uint64_t code_hash;
 };
 
 #endif

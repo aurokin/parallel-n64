@@ -36,6 +36,7 @@ Additionally, mupen includes a number of components licensed under other OSI app
 The BSD license:
    * minizip by Gilles Vollant and others, ftp://ftp.info-zip.org/pub/infozip/license.html
    * src/memory/n64_cic_nus_6105.c/.h, by X-Scale
+   * xxHash 0.8.4 by Yann Collet, BSD-2-Clause; see src/xxhash/xxhash.LICENSE
 
 The zlib/libpng license:
    * Adler-32 by Mark Adler

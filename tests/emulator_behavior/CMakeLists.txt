@@ -174,6 +174,18 @@ target_include_directories(emu_unit_vi_refresh_rate_test PRIVATE
 target_compile_features(emu_unit_vi_refresh_rate_test PRIVATE c_std_99)
 add_test(NAME emu.unit.vi_refresh_rate COMMAND emu_unit_vi_refresh_rate_test)
 
+foreach(dispatch predecode portable)
+  set(target "emu_unit_cxd4_dispatch_${dispatch}_test")
+  add_executable(${target} emu_unit_cxd4_dispatch_test.c)
+  target_include_directories(${target} PRIVATE "${CMAKE_SOURCE_DIR}/mupen64plus-rsp-cxd4")
+  target_compile_features(${target} PRIVATE c_std_99)
+  if(dispatch STREQUAL "portable")
+    target_compile_definitions(${target} PRIVATE CXD4_PORTABLE_DISPATCH)
+  endif()
+  add_test(NAME emu.unit.cxd4_dispatch_${dispatch} COMMAND ${target})
+  set_tests_properties(emu.unit.cxd4_dispatch_${dispatch} PROPERTIES TIMEOUT 10)
+endforeach()
+
 add_executable(emu_unit_cp0_exception_cause_test
   emu_unit_cp0_exception_cause_test.c
   "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/r4300/exception.c"

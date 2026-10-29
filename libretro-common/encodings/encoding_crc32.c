@@ -22,16 +22,22 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <limits.h>
 #include <encodings/crc32.h>
 #include <zlib.h>
 
 /* zlib's CRC-32 is the same IEEE CRC (identical results) and much faster than
- * the byte-at-a-time table this file used to carry; the core hashes whole
- * 4 KiB pages on every TLB write to validate compiled code. */
+ * the byte-at-a-time table this file used to carry. */
 uint32_t encoding_crc32(uint32_t crc, const uint8_t *buf, size_t len)
 {
-   /* zlib treats a NULL buffer as a request for its initial value. */
-   if (!len)
-      return crc;
-   return (uint32_t)crc32_z(crc, buf, len);
+   /* crc32() takes a uInt length; chunk so size_t inputs work with every zlib,
+    * including Android's before API 28, which lacks crc32_z(). */
+   while (len > 0)
+   {
+      uInt chunk = len > UINT_MAX ? UINT_MAX : (uInt)len;
+      crc = (uint32_t)crc32(crc, buf, chunk);
+      buf += chunk;
+      len -= chunk;
+   }
+   return crc;
 }

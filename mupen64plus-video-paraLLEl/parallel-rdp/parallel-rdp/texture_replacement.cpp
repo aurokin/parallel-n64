@@ -2037,14 +2037,25 @@ bool ReplacementProvider::decode_entry_rgba8(const Entry &entry, ReplacementImag
 	if (!read_blob(entry, blob))
 		return false;
 
-	std::vector<uint8_t> pixels;
-	if (!decompress_if_needed(entry, blob, pixels))
-		return false;
-
 	ReplacementImage image;
 	image.meta.repl_w = entry.width;
 	image.meta.repl_h = entry.height;
 	image.meta.vk_image_index = 0xffffffffu;
+	const uint64_t pixel_count = uint64_t(entry.width) * uint64_t(entry.height);
+	// Only exact raw RGBA can reuse the blob without retaining an oversized allocation.
+	if ((entry.format & GL_TEXFMT_GZ) == 0 &&
+	    entry.texture_format == GL_RGBA && entry.pixel_type == GL_UNSIGNED_BYTE &&
+	    pixel_count != 0 && pixel_count <= SIZE_MAX / 4 && blob.size() == size_t(pixel_count) * 4)
+	{
+		image.rgba8 = std::move(blob);
+		*out = std::move(image);
+		return true;
+	}
+
+	std::vector<uint8_t> pixels;
+	if (!decompress_if_needed(entry, blob, pixels))
+		return false;
+
 	if (entry.texture_format == GL_COLOR_INDEX)
 	{
 		const bool ci4 = entry.formatsize == 2;

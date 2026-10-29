@@ -12,6 +12,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 #include <zlib.h>
 
@@ -396,6 +397,95 @@ static std::vector<uint8_t> compress_zlib(const std::vector<uint8_t> &bytes)
 	return compressed;
 }
 
+static void test_rgba8_decode_payloads()
+{
+	const auto dir = make_temp_dir();
+	const std::vector<uint8_t> rgba = {
+		1, 2, 3, 0, 17, 33, 65, 127, 255, 128, 64, 255,
+		4, 5, 6, 1, 7, 8, 9, 128, 10, 11, 12, 254};
+	auto short_rgba = rgba;
+	short_rgba.pop_back();
+	auto overlong_rgba = rgba;
+	overlong_rgba.insert(overlong_rgba.end(), {99, 98, 97, 96, 95});
+	const std::vector<uint8_t> compressible = {
+		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	// Equal stored/decoded lengths must still take the decompression path.
+	const std::vector<uint8_t> compressed = {
+		0x78, 0x9c, 0x63, 0x60, 0x64, 0x62, 0x66, 0x61, 0x65, 0x63, 0xe7, 0xe0,
+		0xe4, 0xe2, 0xe6, 0xe1, 0x65, 0x80, 0x03, 0x00, 0x05, 0x6d, 0x00, 0x5c};
+	struct DecodeCase
+	{
+		const char *name;
+		uint32_t format;
+		uint16_t texture_format;
+		uint16_t pixel_type;
+		std::vector<uint8_t> blob;
+		std::vector<uint8_t> expected;
+	};
+	const DecodeCase cases[] = {
+		{"exact raw RGBA", GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, rgba, rgba},
+		{"short raw RGBA", GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, short_rgba, {}},
+		{"overlong raw RGBA prefix", GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, overlong_rgba, rgba},
+		{"compressed RGBA", 0x80008058u, GL_RGBA, GL_UNSIGNED_BYTE, compressed, compressible},
+		{"packed RGB565", GL_RGB8, GL_RGB, GL_UNSIGNED_SHORT_5_6_5,
+		 {0x00, 0xf8, 0xe0, 0x07, 0x1f, 0x00, 0, 0, 0xff, 0xff, 0x10, 0x84},
+		 {255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255,
+		  0, 0, 0, 255, 255, 255, 255, 255, 132, 130, 132, 255}},
+		// Packed RGBA with trailing bytes must not be mistaken for exact raw RGBA.
+		{"packed RGBA4444 prefix", GL_RGBA8, GL_RGBA, 0x8033,
+		 {0x0f, 0xf0, 0xf0, 0x0f, 0xff, 0x00, 0, 0, 0xff, 0xff, 0x21, 0x84,
+		  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+		 {255, 0, 0, 255, 0, 255, 255, 0, 0, 0, 255, 255,
+		  0, 0, 0, 0, 255, 255, 255, 255, 136, 68, 34, 17}},
+	};
+	for (const auto &test : cases)
+	{
+		const auto path = dir + "/decode.phrb";
+		write_single_asset_phrb(path, "decode", "decode", "family", 0, 0, 0, 0, 0, 0,
+		                        768, 0x12345678, 0, 0, 3, 2, test.blob,
+		                        PHRB_RECORD_FLAG_RUNTIME_READY, 0x12345678,
+		                        test.format, test.texture_format, test.pixel_type);
+		ReplacementProvider provider;
+		provider.set_enabled(true);
+		check(provider.load_cache_dir(path), test.name);
+		ReplacementImage image;
+		image.meta.repl_w = 97;
+		image.meta.indexed = true;
+		image.rgba8 = {42};
+		const bool decoded = provider.decode_rgba8(0x12345678, 768, &image);
+		check(decoded == !test.expected.empty(), test.name);
+		if (decoded)
+		{
+			check(image.rgba8 == test.expected, test.name);
+			check(image.meta.repl_w == 3 && image.meta.repl_h == 2 &&
+			      image.meta.orig_w == 0 && image.meta.orig_h == 0 &&
+			      image.meta.vk_image_index == 0xffffffffu &&
+			      !image.meta.has_mips && !image.meta.srgb && !image.meta.indexed,
+			      "decoded image metadata must replace the caller's prior metadata");
+		}
+		else
+			check(image.rgba8 == std::vector<uint8_t>({42}) && image.meta.repl_w == 97 && image.meta.indexed,
+			      "short input must leave the caller's image intact");
+	}
+	ReplacementProvider provider;
+	ReplacementProvider::Entry invalid;
+	invalid.inline_blob = true;
+	invalid.format = GL_RGBA8;
+	invalid.texture_format = GL_RGBA;
+	invalid.pixel_type = GL_UNSIGNED_BYTE;
+	const std::pair<uint32_t, uint32_t> invalid_dims[] = {{0, 2}, {3, 0}, {UINT32_MAX, UINT32_MAX}};
+	for (const auto &dims : invalid_dims)
+	{
+		invalid.width = dims.first;
+		invalid.height = dims.second;
+		invalid.blob = (dims.first == 0 || dims.second == 0) ?
+		               std::vector<uint8_t>{} : std::vector<uint8_t>{1, 2, 3, 4};
+		ReplacementImage image;
+		check(!provider.decode_entry_rgba8(invalid, &image), "zero or overflowing RGBA dimensions must fail");
+	}
+	remove_tree(dir);
+}
+
 static void test_indexed_replacements()
 {
 	const auto dir = make_temp_dir();
@@ -512,6 +602,7 @@ static void test_indexed_replacements()
 
 int main()
 {
+	test_rgba8_decode_payloads();
 	test_indexed_replacements();
 	if (const char *load_path = std::getenv("PARALLEL_N64_PROVIDER_LOAD_CACHE_PATH"))
 	{

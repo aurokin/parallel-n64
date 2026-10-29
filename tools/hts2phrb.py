@@ -707,6 +707,7 @@ def make_pre_request_signature(args, cache_resolution, bundle_resolution):
             for path in getattr(args, "resolved_canonical_family_selection_review_paths", [])
         ],
         "package_name": args.package_name,
+        "compress_raw_rgba": args.compress_raw_rgba,
         "runtime_overlay_mode": args.runtime_overlay_mode,
         "all_families": bool(args.all_families),
         "low32": [normalize_low32(value) for value in (args.low32 or [])],
@@ -791,6 +792,7 @@ def make_request_signature(args, cache_resolution, request_mode, requested_pairs
             for path in getattr(args, "resolved_canonical_family_selection_review_paths", [])
         ],
         "package_name": args.package_name,
+        "compress_raw_rgba": args.compress_raw_rgba,
         "runtime_overlay_mode": args.runtime_overlay_mode,
     }
 
@@ -3860,6 +3862,7 @@ def build_jabo_conversion(args, cache_input_path, cache_resolution, started_at, 
         binary_path,
         asset_blob_loader=lambda _index, record, _candidate: read_entry_blob(cache_path, entries_by_name[record["policy_key"]]),
         asset_storage_mode="legacy",
+        compress_raw_rgba=args.compress_raw_rgba,
     )
     stage_timings_ms["emit_binary_package"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
     stage_timings_ms["total"] = round((time.perf_counter() - started_at) * 1000.0, 3)
@@ -4679,6 +4682,7 @@ def build_conversion(args):
         asset_rgba_blobs,
         asset_blob_loader=streaming_asset_blob_loader,
         asset_storage_mode="legacy",
+        compress_raw_rgba=args.compress_raw_rgba,
     )
     stage_timings_ms["emit_binary_package"] = round((time.perf_counter() - stage_started) * 1000.0, 3)
     stage_timings_ms["total"] = round((time.perf_counter() - started_at) * 1000.0, 3)
@@ -5028,6 +5032,8 @@ def main():
     parser.add_argument("--review-profile", action="append", default=[], help="Review-only profile JSON that expands duplicate/alias review inputs. Pass multiple times.")
     parser.add_argument("--output-dir", help="Output directory for migration data, bindings, package assets, and the final .phrb. Defaults to ./artifacts/hts2phrb/<resolved-cache>-<path-tag>-<request-mode>.")
     parser.add_argument("--package-name", default="package.phrb", help="Binary package filename relative to --output-dir.")
+    parser.add_argument("--compress-raw-rgba", choices=("off", "1", "6"), default="off",
+                        help="Optionally zlib-compress exact raw RGBA8 blobs at this level when smaller (default: off).")
     parser.add_argument("--runtime-overlay-mode", choices=("auto", "always", "never"), default="auto", help="Whether to build the runtime overlay artifacts. auto builds them when bundle or explicit runtime context is supplied.")
     parser.add_argument("--reuse-existing", action="store_true", help="If a complete prior conversion in --output-dir matches the same request signature, reuse its report/package instead of rebuilding.")
     parser.add_argument(

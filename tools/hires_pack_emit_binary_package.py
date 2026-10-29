@@ -2,9 +2,14 @@
 # SPDX-License-Identifier: MIT
 import argparse
 import json
+import stat
 import struct
 import sys
+import tempfile
+import zlib
 from pathlib import Path
+
+from hires_pack_common import GL_TEXFMT_GZ, expected_decoded_size
 
 MAGIC = b'PHRB'
 VERSION = 7
@@ -19,6 +24,7 @@ GL_COLOR_INDEX8_EXT = 0x80E5
 GL_RGBA = 0x1908
 GL_UNSIGNED_BYTE = 0x1401
 GL_RGBA8 = 0x8058
+ASSET_STRUCT = struct.Struct('<IIIIIIIIIIIQQQQ')
 
 
 def load_package_manifest(path: Path):
@@ -149,8 +155,7 @@ def _build_package_tables(package_manifest: dict,
         asset_record['stored_format'] = stored_format
         asset_record['stored_texture_format'] = stored_texture_format
         asset_record['stored_pixel_type'] = stored_pixel_type
-        asset_table.extend(struct.pack(
-            '<IIIIIIIIIIIQQQQ',
+        asset_table.extend(ASSET_STRUCT.pack(
             record_index,
             string_offsets[candidate['replacement_id']],
             string_offsets[candidate['legacy_source_path']],
@@ -193,7 +198,10 @@ def emit_binary_package_from_manifest(package_manifest: dict,
                                       output_path: Path,
                                       asset_rgba_blobs: dict[str, bytes] | None = None,
                                       asset_blob_loader=None,
-                                      asset_storage_mode: str = 'rgba'):
+                                      asset_storage_mode: str = 'rgba',
+                                      compress_raw_rgba: str = 'off'):
+    if compress_raw_rgba not in ('off', '1', '6'):
+        raise ValueError('compress_raw_rgba must be off, 1 or 6')
     package_tables = _build_package_tables(
         package_manifest,
         asset_rgba_blobs=asset_rgba_blobs,
@@ -208,50 +216,124 @@ def emit_binary_package_from_manifest(package_manifest: dict,
     asset_table_offset = package_tables['asset_table_offset']
     string_table_offset = package_tables['string_table_offset']
     blob_offset = package_tables['blob_offset']
-    blob_bytes = package_tables['blob_bytes']
+    blob_bytes = 0
+    eligible_assets = 0
+    compressed_assets = 0
 
-    with output_path.open('wb') as fp:
-        fp.write(struct.pack(
-            '<4sIIIIIII',
-            MAGIC,
-            package_tables['version'],
-            len(records),
-            len(asset_records),
-            record_table_offset,
-            asset_table_offset,
-            string_table_offset,
-            blob_offset,
-        ))
-        fp.write(record_table)
-        fp.write(asset_table)
-        fp.write(string_blob)
-        asset_rgba_blobs = asset_rgba_blobs or {}
-        for asset_record in asset_records:
-            record_index = asset_record['record_index']
-            candidate = asset_record['candidate']
-            if not records[record_index].get('runtime_ready', True):
-                continue
-            blob_rel_path = candidate['materialized_path']
-            blob_bytes_value = asset_rgba_blobs.get(blob_rel_path)
-            if blob_bytes_value is None:
-                if asset_blob_loader is None:
-                    raise ValueError(f"Missing asset blob for materialized asset path: {blob_rel_path}")
-                blob_bytes_value = asset_blob_loader(record_index, records[record_index], candidate)
-            expected_size = int(asset_record['blob_size'])
-            if len(blob_bytes_value) != expected_size:
-                raise ValueError(
-                    f"Unexpected asset blob size for {candidate['replacement_id']}: "
-                    f"expected {expected_size}, got {len(blob_bytes_value)}"
-                )
-            fp.write(blob_bytes_value)
+    # Measure ordinary creation permissions with an empty file only. Repairing
+    # this private directory can clear inherited setgid for a nonmember; payload
+    # creation must therefore happen directly under the original output parent.
+    with tempfile.TemporaryDirectory(dir=output_path.parent,
+                                     prefix=f'.{output_path.name}.', suffix='.tmp') as temp_dir:
+        staging_dir = Path(temp_dir)
+        staging_dir.chmod(0o700)
+        probe_path = staging_dir / 'mode'
+        with probe_path.open('wb'):
+            creation_mode = stat.S_IMODE(probe_path.stat().st_mode)
 
-    return {
+    # Keep unfinished data private, with the output parent's actual group policy.
+    # Close successfully before restoring final permissions and atomically publishing.
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='wb', dir=output_path.parent,
+                                         prefix=f'.{output_path.name}.', suffix='.tmp', delete=False) as fp:
+            temp_path = Path(fp.name)
+            fp.write(struct.pack(
+                '<4sIIIIIII',
+                MAGIC,
+                package_tables['version'],
+                len(records),
+                len(asset_records),
+                record_table_offset,
+                asset_table_offset,
+                string_table_offset,
+                blob_offset,
+            ))
+            fp.write(record_table)
+            fp.write(asset_table)
+            fp.write(string_blob)
+            asset_rgba_blobs = asset_rgba_blobs or {}
+            for asset_index, asset_record in enumerate(asset_records):
+                record_index = asset_record['record_index']
+                candidate = asset_record['candidate']
+                stored_format = asset_record['stored_format']
+                stored_size = 0
+                if records[record_index].get('runtime_ready', True):
+                    blob_rel_path = candidate['materialized_path']
+                    blob_bytes_value = asset_rgba_blobs.get(blob_rel_path)
+                    if blob_bytes_value is None:
+                        if asset_blob_loader is None:
+                            raise ValueError(f"Missing asset blob for materialized asset path: {blob_rel_path}")
+                        blob_bytes_value = asset_blob_loader(record_index, records[record_index], candidate)
+                    expected_size = int(asset_record['blob_size'])
+                    if len(blob_bytes_value) != expected_size:
+                        raise ValueError(
+                            f"Unexpected asset blob size for {candidate['replacement_id']}: "
+                            f"expected {expected_size}, got {len(blob_bytes_value)}"
+                        )
+                    width, height = int(candidate['width']), int(candidate['height'])
+                    # Runtime decompression requires a uint32 decoded byte count.
+                    if (compress_raw_rgba != 'off' and not stored_format & GL_TEXFMT_GZ
+                            and asset_record['stored_texture_format'] == GL_RGBA
+                            and asset_record['stored_pixel_type'] == GL_UNSIGNED_BYTE
+                            and width > 0 and height > 0 and width <= sys.maxsize // 4 // height
+                            and len(blob_bytes_value) <= 0xFFFFFFFF
+                            and len(blob_bytes_value) == expected_decoded_size({
+                                'width': width, 'height': height,
+                                'texture_format': GL_RGBA, 'pixel_type': GL_UNSIGNED_BYTE,
+                            })):
+                        eligible_assets += 1
+                        compressed = zlib.compress(blob_bytes_value, int(compress_raw_rgba))
+                        if len(compressed) < len(blob_bytes_value):
+                            blob_bytes_value = compressed
+                            stored_format |= GL_TEXFMT_GZ
+                            compressed_assets += 1
+                        del compressed
+                    stored_size = len(blob_bytes_value)
+                    fp.write(blob_bytes_value)
+                    del blob_bytes_value
+                if compress_raw_rgba != 'off':
+                    # Source provenance stays in the manifest; only output storage changes.
+                    fields = list(ASSET_STRUCT.unpack_from(asset_table, asset_index * ASSET_STRUCT.size))
+                    fields[7] = stored_format
+                    fields[-2:] = (blob_bytes, stored_size)
+                    ASSET_STRUCT.pack_into(asset_table, asset_index * ASSET_STRUCT.size, *fields)
+                blob_bytes += stored_size
+            if compress_raw_rgba != 'off':
+                fp.seek(asset_table_offset)
+                fp.write(asset_table)
+        try:
+            output_mode = stat.S_IMODE(output_path.stat().st_mode)
+        except FileNotFoundError:
+            output_mode = creation_mode
+        temp_path.chmod(output_mode)
+        temp_path.replace(output_path)
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except PermissionError:
+                # Windows may reject unlink after a read-only final mode was set.
+                temp_path.chmod(0o600)
+                temp_path.unlink()
+
+    result = {
         'output_path': str(output_path),
         'record_count': len(records),
         'asset_count': len(asset_records),
         'string_table_bytes': len(string_blob),
         'blob_bytes': blob_bytes,
     }
+    if compress_raw_rgba != 'off':
+        result['raw_rgba_compression'] = {
+            'level': int(compress_raw_rgba),
+            'eligible_assets': eligible_assets,
+            'compressed_assets': compressed_assets,
+            'raw_fallback_assets': eligible_assets - compressed_assets,
+            'source_blob_bytes': package_tables['blob_bytes'],
+            'saved_bytes': package_tables['blob_bytes'] - blob_bytes,
+        }
+    return result
 
 
 def emit_binary_package(package_dir: Path, output_path: Path):

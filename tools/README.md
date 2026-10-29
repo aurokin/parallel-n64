@@ -5,6 +5,15 @@ Project64/Jabo packs into PHRB packages. See the
 [pack format and conversion guide](../assets/TEXTURE_PACKS.md) and run
 `python3 tools/hts2phrb.py --help` for options.
 
+Raw RGBA compression is opt-in: `--compress-raw-rgba 1` or `6` uses zlib at
+that level only for exact, nonzero RGBA/unsigned-byte blobs, retaining the
+compressed bytes only when smaller. The default is `off`. Other formats,
+already compressed blobs and deferred assets retain their storage behavior.
+PHRB v7/v8 and texture identity are unchanged. Output storage counts appear in
+the report's `binary_package.raw_rgba_compression`; source manifest fields
+remain provenance. Smaller output adds conversion and first-use decode CPU
+cost; this option makes no speed guarantee.
+
 ## License
 
 The converter, its helpers listed below, `hires_pack_transport_policy.json`,

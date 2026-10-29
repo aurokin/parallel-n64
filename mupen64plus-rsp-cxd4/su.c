@@ -1874,13 +1874,9 @@ static INLINE void COP0(u32 inst)
     }
 }
 
-static INLINE void COP2(u32 inst)
+static INLINE void COP2_decoded(unsigned int op, unsigned int vt,
+    unsigned int vs, unsigned int vd, p_vector_func vector)
 {
-    const unsigned int op = (inst >> 21) % (1 << 5); /* inst.R.rs */
-    const unsigned int vt = (inst >> 16) % (1 << 5); /* inst.R.rt */
-    const unsigned int vs = IW_RD(inst);
-    const unsigned int vd = (inst >>  6) % (1 << 5); /* inst.R.sa */
-    const unsigned int func = inst % (1 << 6);
 #ifndef ARCH_MIN_SSE2
     const unsigned int e  = op & 0xF; /* With Intel, LEA offsets beat ANDing. */
 #endif
@@ -1907,9 +1903,9 @@ static INLINE void COP2(u32 inst)
     case 020:
     case 021:
 #ifdef ARCH_MIN_SSE2
-        *(v16 *)(VR[vd]) = COP2_C2[func](*(v16 *)VR[vs], *(v16 *)VR[vt]);
+        *(v16 *)(VR[vd]) = vector(*(v16 *)VR[vs], *(v16 *)VR[vt]);
 #else
-        COP2_C2[func](&VR[vs][0], &VR[vt][0]);
+        vector(&VR[vs][0], &VR[vt][0]);
         vector_copy(&VR[vd][0], &V_result[0]);
 #endif
         break;
@@ -1930,11 +1926,11 @@ static INLINE void COP2(u32 inst)
         target = _mm_shufflehi_epi16(target, _MM_SHUFFLE(2, 2, 0, 0));
         target = _mm_shufflelo_epi16(target, _MM_SHUFFLE(2, 2, 0, 0));
 #endif
-        *(v16 *)(VR[vd]) = COP2_C2[func](*(v16 *)VR[vs], target);
+        *(v16 *)(VR[vd]) = vector(*(v16 *)VR[vs], target);
 #else
         for (i = 0; i < N; i++)
             shuffle_temporary[i] = VR[vt][(i & 0xE) + (e & 0x1)];
-        COP2_C2[func](&VR[vs][0], &shuffle_temporary[0]);
+        vector(&VR[vs][0], &shuffle_temporary[0]);
         vector_copy(&VR[vd][0], &V_result[0]);
 #endif
         break;
@@ -1953,11 +1949,11 @@ static INLINE void COP2(u32 inst)
         target = _mm_shufflehi_epi16(target, _MM_SHUFFLE(0, 0, 0, 0));
         target = _mm_shufflelo_epi16(target, _MM_SHUFFLE(0, 0, 0, 0));
 #endif
-        *(v16 *)(VR[vd]) = COP2_C2[func](*(v16 *)VR[vs], target);
+        *(v16 *)(VR[vd]) = vector(*(v16 *)VR[vs], target);
 #else
         for (i = 0; i < N; i++)
             shuffle_temporary[i] = VR[vt][(i & 0xC) + (e & 0x3)];
-        COP2_C2[func](&VR[vs][0], &shuffle_temporary[0]);
+        vector(&VR[vs][0], &shuffle_temporary[0]);
         vector_copy(&VR[vd][0], &V_result[0]);
 #endif
         break;
@@ -1970,14 +1966,14 @@ static INLINE void COP2(u32 inst)
     case 036:
     case 037:
 #ifdef ARCH_MIN_SSE2
-        *(v16 *)(VR[vd]) = COP2_C2[func](
+        *(v16 *)(VR[vd]) = vector(
             *(v16 *)VR[vs],
             _mm_set1_epi16(VR[vt][op - 0x18])
         );
 #else
         for (i = 0; i < N; i++)
             shuffle_temporary[i] = VR[vt][e % N];
-        COP2_C2[func](&VR[vs][0], &shuffle_temporary[0]);
+        vector(&VR[vs][0], &shuffle_temporary[0]);
         vector_copy(&VR[vd][0], &V_result[0]);
 #endif
         break;
@@ -1986,12 +1982,70 @@ static INLINE void COP2(u32 inst)
     }
 }
 
+static INLINE void COP2(u32 inst)
+{
+    COP2_decoded((inst >> 21) & 31, (inst >> 16) & 31, IW_RD(inst),
+        (inst >> 6) & 31, COP2_C2[inst & 63]);
+}
+
+/* Validate the exact instruction word on every fetch. All IMEM writers,
+ * including in-task DMA and savestate loads, are observed without write hooks.
+ * Cached labels and vector operands are reused only for that same word. */
+#if (defined(__GNUC__) || defined(__clang__)) && defined(EMULATE_STATIC_PC) && \
+    !defined(CXD4_PORTABLE_DISPATCH)
+#define CXD4_PREDECODE
+#define RSP_CASE(op) rsp_op_##op:
+#define RSP_NEXT() goto rsp_next_instruction
+#else
+#define RSP_CASE(op) case op:
+#define RSP_NEXT() break
+#endif
+
+#ifdef CXD4_PREDECODE
+struct rsp_decoded {
+    const void *handler;
+    p_vector_func vector;
+    u32 word;
+    unsigned char vt, vs, vd;
+};
+#endif
+
 NOINLINE void run_task(void)
 {
     register u32 PC;
+#ifdef CXD4_PREDECODE
+    unsigned int fetched_pc;
+#endif
+
+#ifdef CXD4_PREDECODE
+    /* A matching word fully determines every cached field, even after an
+     * IMEM bank replacement or rebinding IMEM to a different allocation. */
+    static struct rsp_decoded cache[1024];
+    struct rsp_decoded *decoded;
+    static const void *const vector_dispatch[16] = {
+        &&rsp_vector_020, &&rsp_vector_021, &&rsp_vector_022, &&rsp_vector_023,
+        &&rsp_vector_024, &&rsp_vector_025, &&rsp_vector_026, &&rsp_vector_027,
+        &&rsp_vector_030, &&rsp_vector_031, &&rsp_vector_032, &&rsp_vector_033,
+        &&rsp_vector_034, &&rsp_vector_035, &&rsp_vector_036, &&rsp_vector_037,
+    };
+    static const void *const dispatch[64] = {
+        &&rsp_op_000, &&rsp_op_001, &&rsp_op_002, &&rsp_op_003, &&rsp_op_004, &&rsp_op_005, &&rsp_op_006, &&rsp_op_007,
+        &&rsp_op_010, &&rsp_op_011, &&rsp_op_012, &&rsp_op_013, &&rsp_op_014, &&rsp_op_015, &&rsp_op_016, &&rsp_op_017,
+        &&rsp_op_020, &&rsp_reserved, &&rsp_op_022, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved,
+        &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved,
+        &&rsp_op_040, &&rsp_op_041, &&rsp_reserved, &&rsp_op_043, &&rsp_op_044, &&rsp_op_045, &&rsp_reserved, &&rsp_reserved,
+        &&rsp_op_050, &&rsp_op_051, &&rsp_reserved, &&rsp_op_053, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved,
+        &&rsp_reserved, &&rsp_reserved, &&rsp_op_062, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved,
+        &&rsp_reserved, &&rsp_reserved, &&rsp_op_072, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved, &&rsp_reserved,
+    };
+#endif
 
     PC = FIT_IMEM(GET_RCP_REG(SP_PC_REG));
     for (;;) {
+#ifdef CXD4_PREDECODE
+rsp_next_instruction:
+        fetched_pc = FIT_IMEM(PC);
+#endif
         inst_word = *(pi32)(IMEM + FIT_IMEM(PC));
 #ifdef EMULATE_STATIC_PC
         PC = (PC + 0x004);
@@ -2006,104 +2060,147 @@ EX:
             goto RSP_halted_CPU_exit_point; /* Only BREAK and COP0 set this. */
         SR[zero] = 0x00000000; /* already handled on per-instruction basis */
 #endif
+#ifdef CXD4_PREDECODE
+        decoded = &cache[fetched_pc >> 2];
+        if (decoded->word != inst_word || decoded->handler == NULL) {
+            decoded->word = inst_word;
+            decoded->handler = dispatch[inst_word >> 26];
+            if ((inst_word >> 25) == 0x25) {
+                decoded->handler = vector_dispatch[(inst_word >> 21) & 15];
+                decoded->vector = COP2_C2[inst_word & 63];
+                decoded->vt = (inst_word >> 16) & 31;
+                decoded->vs = IW_RD(inst_word);
+                decoded->vd = (inst_word >> 6) & 31;
+            }
+        }
+        goto *decoded->handler;
+#else
         switch (inst_word >> 26) {
-        case 000: /* SPECIAL */
+#endif
+        RSP_CASE(000) /* SPECIAL */
             switch (SPECIAL(inst_word, PC)) {
             case -1: /* BREAK */
                 goto RSP_halted_CPU_exit_point;
             case +1: /* JR and JALR */
                 JUMP;
             }
-            break;
-        case 001: /* REGIMM */
+            RSP_NEXT();
+        RSP_CASE(001) /* REGIMM */
             if (REGIMM(inst_word, PC) != 0)
                 JUMP;
-            break;
-        case 002:
+            RSP_NEXT();
+        RSP_CASE(002)
             J(inst_word);
             JUMP;
-        case 003:
+        RSP_CASE(003)
             JAL(inst_word, PC);
             JUMP;
-        case 004:
+        RSP_CASE(004)
             if (BEQ(inst_word, PC) != 0)
                 JUMP;
-            break;
-        case 005:
+            RSP_NEXT();
+        RSP_CASE(005)
             if (BNE(inst_word, PC) != 0)
                 JUMP;
-            break;
-        case 006:
+            RSP_NEXT();
+        RSP_CASE(006)
             if (BLEZ(inst_word, PC) != 0)
                 JUMP;
-            break;
-        case 007:
+            RSP_NEXT();
+        RSP_CASE(007)
             if (BGTZ(inst_word, PC) != 0)
                 JUMP;
-            break;
-        case 010: /* ADDI:  Traps don't exist on the RCP. */
-        case 011:
+            RSP_NEXT();
+        RSP_CASE(010) /* ADDI:  Traps don't exist on the RCP. */
+        RSP_CASE(011)
             ADDIU(inst_word);
-            break;
-        case 012:
+            RSP_NEXT();
+        RSP_CASE(012)
             SLTI(inst_word);
-            break;
-        case 013:
+            RSP_NEXT();
+        RSP_CASE(013)
             SLTIU(inst_word);
-            break;
-        case 014:
+            RSP_NEXT();
+        RSP_CASE(014)
             ANDI(inst_word);
-            break;
-        case 015:
+            RSP_NEXT();
+        RSP_CASE(015)
             ORI(inst_word);
-            break;
-        case 016:
+            RSP_NEXT();
+        RSP_CASE(016)
             XORI(inst_word);
-            break;
-        case 017:
+            RSP_NEXT();
+        RSP_CASE(017)
             LUI(inst_word);
-            break;
-        case 020:
+            RSP_NEXT();
+        RSP_CASE(020)
             COP0(inst_word);
             if (GET_RCP_REG(SP_STATUS_REG) & SP_STATUS_HALT)
                 goto RSP_halted_CPU_exit_point;
-            break;
-        case 022:
+            RSP_NEXT();
+        RSP_CASE(022)
             COP2(inst_word);
-            break;
-        case 040:
+            RSP_NEXT();
+        RSP_CASE(040)
             LB(inst_word);
-            break;
-        case 041:
+            RSP_NEXT();
+        RSP_CASE(041)
             LH(inst_word);
-            break;
-        case 043:
+            RSP_NEXT();
+        RSP_CASE(043)
             LW(inst_word);
-            break;
-        case 044:
+            RSP_NEXT();
+        RSP_CASE(044)
             LBU(inst_word);
-            break;
-        case 045:
+            RSP_NEXT();
+        RSP_CASE(045)
             LHU(inst_word);
-            break;
-        case 050:
+            RSP_NEXT();
+        RSP_CASE(050)
             SB(inst_word);
-            break;
-        case 051:
+            RSP_NEXT();
+        RSP_CASE(051)
             SH(inst_word);
-            break;
-        case 053:
+            RSP_NEXT();
+        RSP_CASE(053)
             SW(inst_word);
-            break;
-        case 062: /* LWC2 */
+            RSP_NEXT();
+        RSP_CASE(062) /* LWC2 */
             MWC2_load(inst_word);
-            break;
-        case 072: /* SWC2 */
+            RSP_NEXT();
+        RSP_CASE(072) /* SWC2 */
             MWC2_store(inst_word);
-            break;
+            RSP_NEXT();
+#ifdef CXD4_PREDECODE
+#define RSP_VECTOR(op) \
+        rsp_vector_##op: \
+            COP2_decoded(op, decoded->vt, decoded->vs, decoded->vd, decoded->vector); \
+            RSP_NEXT()
+        RSP_VECTOR(020);
+        RSP_VECTOR(021);
+        RSP_VECTOR(022);
+        RSP_VECTOR(023);
+        RSP_VECTOR(024);
+        RSP_VECTOR(025);
+        RSP_VECTOR(026);
+        RSP_VECTOR(027);
+        RSP_VECTOR(030);
+        RSP_VECTOR(031);
+        RSP_VECTOR(032);
+        RSP_VECTOR(033);
+        RSP_VECTOR(034);
+        RSP_VECTOR(035);
+        RSP_VECTOR(036);
+        RSP_VECTOR(037);
+#undef RSP_VECTOR
+        rsp_reserved:
+#else
         default:
+#endif
             res_S();
+#ifndef CXD4_PREDECODE
         }
+#endif
 
 #ifndef EMULATE_STATIC_PC
         if (stage == 2) { /* branch phase of scheduler */
@@ -2118,6 +2215,9 @@ EX:
 #else
         continue;
 set_branch_delay:
+#ifdef CXD4_PREDECODE
+        fetched_pc = FIT_IMEM(PC);
+#endif
         inst_word = *(pi32)(IMEM + FIT_IMEM(PC));
         PC = FIT_IMEM(temp_PC);
         goto EX;
@@ -2127,3 +2227,7 @@ RSP_halted_CPU_exit_point:
     GET_RCP_REG(SP_PC_REG) = 0x04001000 | FIT_IMEM(PC);
     return;
 }
+
+#undef RSP_CASE
+#undef RSP_NEXT
+#undef CXD4_PREDECODE

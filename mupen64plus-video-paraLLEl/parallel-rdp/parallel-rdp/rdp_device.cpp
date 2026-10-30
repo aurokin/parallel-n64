@@ -313,20 +313,8 @@ void CommandProcessor::begin_frame_context()
 	// created and is never reset.
 	if (hires_summary_clock.advance())
 		renderer.log_hires_summary_periodic(hires_summary_clock.frames);
-	if (hires_pack_status.state == HiresPackState::Loaded)
-	{
-		// Idle callbacks can flush queues too. Exclude them while advancing
-		// Granite and asserting that no recorded draw crosses this boundary.
-		renderer.lock_command_processing();
-		device.next_frame_context();
-		renderer.begin_frame_context();
-		renderer.unlock_command_processing();
-	}
-	else
-	{
-		renderer.begin_frame_context();
-		device.next_frame_context();
-	}
+	renderer.begin_frame_context();
+	device.next_frame_context();
 }
 
 void CommandProcessor::init_renderer()

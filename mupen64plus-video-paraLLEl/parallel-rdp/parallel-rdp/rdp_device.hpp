@@ -120,6 +120,7 @@ struct HiresPackStatus
 	ReplacementLoadStatus load_error = ReplacementLoadStatus::NotFound;
 	std::string loaded_path, rejected_path;
 	size_t entries = 0;
+	std::vector<ReplacementPackageStats> packages;
 };
 
 class CommandProcessor

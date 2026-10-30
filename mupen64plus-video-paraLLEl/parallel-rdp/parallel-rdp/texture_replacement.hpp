@@ -187,6 +187,18 @@ struct ReplacementResolution
 
 enum class ReplacementLoadStatus { Loaded, NotFound, UnsupportedVersion, Invalid };
 
+// Counts unique runtime keys, including palette aliases, in separate Rice and
+// Jabo namespaces. Overlap is diagnostic only; lookup indices are unchanged.
+struct ReplacementPackageStats
+{
+	std::string path;
+	size_t records = 0;
+	size_t hidden_by_later = 0;
+	std::string hidden_by;
+	bool multiple_hiders = false;
+	bool mostly_hidden() const { return hidden_by_later > records / 2; }
+};
+
 class ReplacementProvider
 {
 public:
@@ -197,6 +209,7 @@ public:
 	ReplacementLoadStatus load_error() const { return load_error_; }
 	const std::string &rejected_path() const { return rejected_path_; }
 	const std::string &loaded_path() const { return loaded_path_; }
+	std::vector<ReplacementPackageStats> package_stats() const;
 	bool has_compat_entries() const;
 	bool has_phrb_compat_entries() const;
 	bool has_jabo_entries() const;

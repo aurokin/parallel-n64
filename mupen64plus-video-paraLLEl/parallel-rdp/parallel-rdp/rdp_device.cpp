@@ -980,6 +980,10 @@ void CommandProcessor::configure_hires_replacement(bool enable, const std::vecto
 		else if (!replacement_provider.rejected_path().empty())
 			LOGW("Hi-res replacement cache load failed for path: %s\n", path.c_str());
 	}
+	hires_pack_status.packages = replacement_provider.package_stats();
+	for (const auto &pack : hires_pack_status.packages)
+		LOGI("Hi-res package: path=%s records=%zu hidden_by_later=%zu.\n",
+		     pack.path.c_str(), pack.records, pack.hidden_by_later);
 	hires_pack_status.loaded_path = replacement_provider.loaded_path();
 	hires_pack_status.rejected_path = replacement_provider.rejected_path();
 	hires_pack_status.load_error = replacement_provider.load_error();

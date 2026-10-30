@@ -9,6 +9,8 @@
 #include <cstring>
 #include <dirent.h>
 #include <fstream>
+#include <map>
+#include <tuple>
 #include <sys/stat.h>
 #include <zlib.h>
 
@@ -606,6 +608,47 @@ bool ReplacementProvider::load_cache_dir(const std::string &path, bool append)
 	}
 
 	return entries_.size() > previous_entries;
+}
+
+std::vector<ReplacementPackageStats> ReplacementProvider::package_stats() const
+{
+	std::vector<ReplacementPackageStats> packages;
+	std::map<std::string, size_t> package_ids;
+	for (const auto &entry : entries_)
+		if (package_ids.emplace(entry.source_path, packages.size()).second)
+		{
+			ReplacementPackageStats stats;
+			stats.path = entry.source_path;
+			packages.push_back(std::move(stats));
+		}
+
+	// The winner stays fixed while walking backwards. last_seen deduplicates
+	// repeated keys within a package (each package's entries are contiguous).
+	using Key = std::tuple<bool, uint64_t, uint16_t, uint64_t>;
+	struct Owner { size_t winner, last_seen; };
+	std::map<Key, Owner> owners;
+	for (auto it = entries_.rbegin(); it != entries_.rend(); ++it)
+	{
+		const auto id = package_ids.at(it->source_path);
+		const Key key(it->is_jabo, it->checksum64, it->is_jabo ? 0 : it->formatsize, it->selector_checksum64);
+		auto inserted = owners.emplace(key, Owner{ id, id });
+		auto &owner = inserted.first->second;
+		if (!inserted.second && owner.last_seen == id)
+			continue;
+		auto &stats = packages[id];
+		stats.records++;
+		if (owner.winner != id)
+		{
+			stats.hidden_by_later++;
+			const auto &winner = packages[owner.winner].path;
+			if (stats.hidden_by.empty())
+				stats.hidden_by = winner;
+			else if (stats.hidden_by != winner)
+				stats.multiple_hiders = true;
+		}
+		owner.last_seen = id;
+	}
+	return packages;
 }
 
 bool ReplacementProvider::has_compat_entries() const

@@ -717,3 +717,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
   target_link_options(emu_unit_tlb_code_hash_test PRIVATE -Wl,--gc-sections)
   add_test(NAME emu.unit.tlb_code_hash COMMAND emu_unit_tlb_code_hash_test)
 endif()
+
+add_executable(emu_unit_snap_cheat_gating_test
+  emu_unit_snap_cheat_gating_test.c
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/main/cheat.c"
+)
+target_include_directories(emu_unit_snap_cheat_gating_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/api"
+  "${CMAKE_SOURCE_DIR}/libretro"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+)
+target_compile_definitions(emu_unit_snap_cheat_gating_test PRIVATE M64P_CORE_PROTOTYPES)
+target_compile_features(emu_unit_snap_cheat_gating_test PRIVATE c_std_99)
+add_test(NAME emu.unit.snap_cheat_gating COMMAND emu_unit_snap_cheat_gating_test)

@@ -22,7 +22,8 @@ def read_memory(proc):
             continue
         seen.add(client)  # Duplicate descriptors share the same DRM accounting.
         for key, value in fields.items():
-            if key.startswith(("drm-memory-", "drm-total-", "drm-resident-")):
+            # drm-total-cycles-<engine> shares the prefix but counts GPU cycles, not bytes.
+            if key.startswith(("drm-memory-", "drm-total-", "drm-resident-")) and not key.startswith("drm-total-cycles-"):
                 parts = value.split()
                 if len(parts) == 1:
                     parts.append("B")

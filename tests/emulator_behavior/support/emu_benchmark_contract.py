@@ -40,7 +40,8 @@ class BenchmarkContracts(unittest.TestCase):
             status.write_text('Name:\tfixture\nVmRSS:\t5000 kB\nVmHWM:\t6000 kB\n')
             drm = ('drm-pdev: 0000:01:00.0\ndrm-client-id: 7\n'
                    'drm-memory-vram: 1024 KiB\ndrm-total-vram0: 4 MiB\n'
-                   'drm-resident-vram0: 2097152 B\ndrm-engine-gfx: 42 ns\n')
+                   'drm-resident-vram0: 2097152 B\ndrm-engine-gfx: 42 ns\n'
+                   'drm-total-cycles-rcs: 123456789\n')  # xe engine cycles, not memory
             # Memory fields from a captured amdgpu fdinfo sample.
             drm += ('drm-total-cpu:\t0\ndrm-resident-gds:\t0\n'
                     'drm-total-gtt:\t79260 KiB\n')

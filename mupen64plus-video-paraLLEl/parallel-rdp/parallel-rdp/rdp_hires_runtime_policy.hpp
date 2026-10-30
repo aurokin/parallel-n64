@@ -71,15 +71,12 @@ inline std::string hires_path_filename(const std::string &path)
 	return path.substr(path.find_last_of("/\\") + 1);
 }
 
-enum class HiresListingLocation { Hires, LegacyCache, LegacyTextures };
-
 // I/O supplies existing regular files/directories and immediate regular-file
 // children only. No filesystem operations occur in the selection policy.
 struct HiresListingEntry
 {
 	std::string path;
-	HiresListingLocation location = HiresListingLocation::Hires;
-	bool directory = false;
+	bool directory;
 	std::vector<std::string> files;
 };
 
@@ -87,6 +84,7 @@ struct HiresPackageSelection
 {
 	std::vector<std::string> paths;
 	std::vector<std::string> near_misses;
+	std::vector<std::string> different_game;
 	std::vector<std::string> unconverted;
 };
 
@@ -100,6 +98,7 @@ inline HiresPackageSelection select_hires_packages(const std::string &ident, con
 	const auto gliden = hires_ascii_fold(gliden_ident);
 	const auto folded = hires_ascii_fold(ident, true);
 	const auto folded_gliden = hires_ascii_fold(gliden_ident, true);
+	const bool shared_name = (ident == "CPSJ" || ident == "CP2J") && gliden != exact;
 	std::vector<std::string> directory_packages;
 	for (const auto &entry : listing)
 	{
@@ -110,7 +109,7 @@ inline HiresPackageSelection select_hires_packages(const std::string &ident, con
 		const bool phrb = !entry.directory && hires_has_suffix(name, ".phrb");
 		const auto label = phrb ? name.substr(0, name.size() - 5) : name;
 		const bool match = hires_ascii_fold(label) == exact;
-		if (entry.location == HiresListingLocation::Hires && (entry.directory || phrb))
+		if (entry.directory || phrb)
 		{
 			if (match)
 			{
@@ -124,41 +123,67 @@ inline HiresPackageSelection select_hires_packages(const std::string &ident, con
 			else
 			{
 				const auto near = hires_ascii_fold(label, true);
-				if (!near.empty() && (near == folded || near == folded_gliden))
+				if (shared_name && !gliden.empty() &&
+				    (hires_ascii_fold(label) == gliden || (!near.empty() && near == folded_gliden)))
+					result.different_game.push_back(entry.path);
+				else if ((!near.empty() && (near == folded || near == folded_gliden)) ||
+				         (!gliden.empty() && hires_ascii_fold(label) == gliden))
 					result.near_misses.push_back(entry.path);
 			}
 		}
 		if (gliden.empty())
 			continue;
-		if (!entry.directory && entry.location != HiresListingLocation::LegacyTextures &&
+		if (!entry.directory &&
 		    (lower == gliden + "_hirestextures.hts" || lower == gliden + "_hirestextures.htc"))
 			result.unconverted.push_back(entry.path);
 		if (entry.directory && lower == gliden)
 		{
-			if (entry.location == HiresListingLocation::LegacyTextures)
-				result.unconverted.push_back(entry.path);
-			else if (entry.location == HiresListingLocation::Hires)
+			bool has_phrb = false, has_source = false;
+			for (const auto &file : entry.files)
 			{
-				bool has_phrb = false, has_source = false;
-				for (const auto &file : entry.files)
-				{
-					if (file.empty() || file[0] == '.')
-						continue;
-					has_phrb |= hires_has_suffix(file, ".phrb");
-					has_source |= hires_has_suffix(file, ".hts") || hires_has_suffix(file, ".htc") ||
-					              hires_has_suffix(file, ".png") || hires_has_suffix(file, ".dds");
-				}
-				if (!has_phrb && has_source)
-					result.unconverted.push_back(entry.path);
+				if (file.empty() || file[0] == '.')
+					continue;
+				has_phrb |= hires_has_suffix(file, ".phrb");
+				has_source |= hires_has_suffix(file, ".hts") || hires_has_suffix(file, ".htc") ||
+				              hires_has_suffix(file, ".png") || hires_has_suffix(file, ".dds");
 			}
+			if (!has_phrb && has_source)
+				result.unconverted.push_back(entry.path);
 		}
 	}
 	std::sort(result.paths.begin(), result.paths.end());
 	std::sort(directory_packages.begin(), directory_packages.end());
 	result.paths.insert(result.paths.end(), directory_packages.begin(), directory_packages.end());
 	std::sort(result.near_misses.begin(), result.near_misses.end());
+	std::sort(result.different_game.begin(), result.different_game.end());
 	std::sort(result.unconverted.begin(), result.unconverted.end());
 	return result;
+}
+
+// Legacy locations are exact diagnostic probes, never a directory scan or
+// runtime input. The expected type lets the adapter reject unrelated objects.
+inline std::vector<HiresListingEntry> hires_legacy_sources(const std::string &system_dir,
+                                                         const std::string &gliden_ident)
+{
+	if (system_dir.empty() || gliden_ident.empty())
+		return {};
+	const auto cache = system_dir + "/Mupen64plus/cache/" + gliden_ident + "_HIRESTEXTURES";
+	return { { cache + ".hts", false, {} }, { cache + ".htc", false, {} },
+	         { system_dir + "/Mupen64plus/hires_texture/" + gliden_ident, true, {} } };
+}
+
+inline HiresPackageSelection resolve_hires_cache_path(bool enable, const std::string &system_dir,
+                                                      const std::string &ident, const std::string &gliden_ident,
+                                                      const char *env_path,
+                                                      const std::vector<HiresListingEntry> &listing)
+{
+	if (!enable)
+		return {};
+	if (env_path && *env_path)
+		return { { env_path }, {}, {}, {} };
+	if (system_dir.empty())
+		return {};
+	return select_hires_packages(ident, gliden_ident, listing);
 }
 
 inline HiresConfigureOutcome classify_hires_configure_outcome(bool enable, const char *cache_path, bool load_ok)

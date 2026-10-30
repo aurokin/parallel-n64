@@ -94,10 +94,11 @@ static void show_hires_status()
 	}
 	if (pack.state == HiresPackState::Loaded)
 	{
-		std::snprintf(message, sizeof(message), "Hi-res textures: %s - %zu texture%s, %llu MB memory budget",
+		const string budget = residency.budget ?
+		    std::to_string(residency.budget / (1024 * 1024)) + " MB memory budget" : "unlimited memory budget";
+		std::snprintf(message, sizeof(message), "Hi-res textures: %s - %zu texture%s, %s",
 		              hires_pack_filename(pack.loaded_path).c_str(), pack.entries,
-		              pack.entries == 1 ? "" : "s",
-		              (unsigned long long)(residency.budget / (1024 * 1024)));
+		              pack.entries == 1 ? "" : "s", budget.c_str());
 		hires_message_once(PackLoaded, message);
 	}
 	else if (pack.state == HiresPackState::NotFound)

@@ -55,6 +55,8 @@ The generated `parallel-rdp/shaders/slangmosh.hpp` is not an entirely local
 source file; it embeds upstream and local shaders. It receives no new SPDX
 header. Neither do imported Granite, SPIRV-Cross, Vulkan-Headers, volk or
 BSD-2-Clause `parallel-rdp/xxhash.h`. Their original notices remain intact.
+The GPL core also includes this BSD-2-Clause xxHash header for TLB code-page
+fingerprints; the renderer does not depend on core headers.
 Full Apache-2.0 license copies accompany SPIRV-Cross and Vulkan-Headers.
 
 ## Dependency boundary

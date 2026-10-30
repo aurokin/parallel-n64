@@ -1975,7 +1975,7 @@ DECLARE_INSTRUCTION(DSRA32)
 
 /* TLB */
 #define XXH_INLINE_ALL
-#include "../xxhash/xxhash.h"
+#include "../../../mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/xxhash.h"
 
 DECLARE_INSTRUCTION(TLBR)
 {

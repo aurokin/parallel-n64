@@ -81,10 +81,11 @@ int main(void)
     poweron_ai(&ai);
     write_ai_regs(&ai, AI_DRAM_ADDR_REG * 4, 0xa0000027, ~0u);
     write_ai_regs(&ai, AI_LEN_REG * 4, 0xfffc001f, ~0u);
-    assert(ai.fifo[0].address == 0x20 && ai.fifo[0].length == 0x18);
-    assert(ai.regs[AI_LEN_REG] == 0x18);
+    assert(ai.fifo[0].address == 0x20 && ai.fifo[0].length == 0xfffc0018u);
+    /* The register keeps the written value: DMA duration (CPU-visible timing) reads it. */
+    assert(ai.regs[AI_LEN_REG] == 0xfffc001f);
     write_ai_regs(&ai, AI_DRAM_ADDR_REG * 4, 0xa000003f, ~0u);
     write_ai_regs(&ai, AI_LEN_REG * 4, 0xffffffff, ~0u);
-    assert(ai.fifo[1].address == 0x38 && ai.fifo[1].length == 0x3fff8);
+    assert(ai.fifo[1].address == 0x38 && ai.fifo[1].length == 0xfffffff8u);
     return 0;
 }

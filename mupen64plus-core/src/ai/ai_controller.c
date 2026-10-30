@@ -133,7 +133,8 @@ static void fifo_push(struct ai_controller* ai)
    if (ai->regs[AI_STATUS_REG] & AI_STATUS_BUSY)
    {
       ai->fifo[1].address = ai->regs[AI_DRAM_ADDR_REG] & UINT32_C(0x00fffff8);
-      ai->fifo[1].length = ai->regs[AI_LEN_REG];
+      /* Only the transfer is masked; DMA duration still reads the register. */
+      ai->fifo[1].length = ai->regs[AI_LEN_REG] & ~UINT32_C(7);
       ai->fifo[1].duration = duration;
       ai->regs[AI_STATUS_REG] |= AI_STATUS_FULL;
    }
@@ -141,7 +142,7 @@ static void fifo_push(struct ai_controller* ai)
    {
       /* If we're not DMA-ing already, start DMA engine. */
       ai->fifo[0].address = ai->regs[AI_DRAM_ADDR_REG] & UINT32_C(0x00fffff8);
-      ai->fifo[0].length = ai->regs[AI_LEN_REG];
+      ai->fifo[0].length = ai->regs[AI_LEN_REG] & ~UINT32_C(7);
       ai->fifo[0].duration = duration;
       ai->regs[AI_STATUS_REG] |= AI_STATUS_BUSY;
 
@@ -239,7 +240,7 @@ int write_ai_regs(void* opaque, uint32_t address,
          }
          return 0;
       case AI_LEN_REG:
-         ai->regs[AI_LEN_REG] = MASKED_WRITE(&ai->regs[AI_LEN_REG], value, mask) & UINT32_C(0x3fff8);
+         ai->regs[AI_LEN_REG] = MASKED_WRITE(&ai->regs[AI_LEN_REG], value, mask);
          fifo_push(ai);
          return 0;
 

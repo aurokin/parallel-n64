@@ -1580,7 +1580,19 @@ bool retro_unserialize(const void * data, size_t size)
        return false;
 
     if (savestates_load_m64p(data, size))
+    {
+        /* Rumble is latched frontend state, outside the savestate. */
+        if (rumble.set_rumble_state)
+        {
+            unsigned port;
+            for (port = 0; port < 4; port++)
+            {
+                rumble.set_rumble_state(port, RETRO_RUMBLE_WEAK, 0);
+                rumble.set_rumble_state(port, RETRO_RUMBLE_STRONG, 0);
+            }
+        }
         return true;
+    }
 
     return false;
 }

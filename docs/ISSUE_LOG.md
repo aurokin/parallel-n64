@@ -1176,3 +1176,19 @@ raised its own error before copying it; that defect is in the harness, not in
 this repository. No logcat, tombstone or native stack was retained. Later
 controlled launches on the same device started normally. If a startup stall
 recurs, keep the frontend log and logcat before diagnosing.
+
+## Apple arm64 CXD4 shuffles are unqualified
+
+Status: open, October 30, 2026; untested, not a known defect.
+
+`mupen64plus-rsp-cxd4/su.c` picks its vector shuffle code with
+`__ARM_NEON__`, which Apple's clang defines but the Android NDK and Linux
+AArch64 compilers do not (they define `__ARM_NEON`). Android and Linux arm64
+builds therefore run the SSE2 shuffles through sse2neon, which is the path the
+October 28 tablet measurements covered (byte-identical, faster). iOS and macOS
+arm64 builds run the hand-written NEON shuffles instead. A source trace finds
+them equivalent, but they have never run on AArch64.
+
+Accepting both spellings in `su.c`, as `rsp.c` already does, would move the
+measured Android path onto the unmeasured one, so it was not merged. Qualify
+one path on Apple hardware, then make both platforms use it.

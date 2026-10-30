@@ -42,6 +42,10 @@ near misses, then unconverted sources, then unusable identity, then no pack.
 Unconverted detection uses the GLideN64 ident in the current hires root and
 exact legacy Mupen64plus cache/hires_texture paths (no legacy directory scan);
 see the [install contract](../../assets/TEXTURE_PACKS.md#install-and-load-diagnostics).
+Offline installation accepts Jabo packs without a supported-ROM list with a
+notice and report method `jabo-unlisted`, since texture-content MD5 keys only
+match the game's textures, while listed Jabo packs still require a supported
+ROM and Rice/GLideN64 label checks stay unchanged.
 
 ## Consequences and verification
 

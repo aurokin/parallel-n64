@@ -7,13 +7,14 @@ import os
 import re
 import shutil
 import stat
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 import zlib
 from pathlib import Path
 
-from hires_pack_common import LOOSE_PNG_STORAGE, resolve_legacy_cache_path
+from hires_pack_common import JABO_STORAGE, LOOSE_PNG_STORAGE, resolve_legacy_cache_path
 from hires_pack_loose_png import infer_rom_name, iter_pack_files, port_specific_summary
 
 RDB_KEY_RE = re.compile(r"(?<![0-9A-Za-z])([0-9a-f]{8})-([0-9a-f]{8})-C:([0-9a-f]{1,2})(?![0-9A-Za-z])", re.IGNORECASE)
@@ -92,7 +93,7 @@ def read_source_allowlist(root: Path):
     return sorted(keys)
 
 
-def check_pairing(source_label, source_allowlist, header, force=False):
+def check_pairing(source_label, source_allowlist, header, force=False, jabo=False):
     ident = hires_game_ident(header)
     if ident is None:
         raise ValueError("This ROM has no usable name or game code in its header; cannot install a pack.")
@@ -101,6 +102,8 @@ def check_pairing(source_label, source_allowlist, header, force=False):
         if key in source_allowlist:
             return "allowlist"
         reason = f'This pack is labelled "{source_label}"; your ROM is "{ident}" ({key}), which is not in its supported ROM list.'
+    elif jabo:
+        return "jabo-unlisted"
     else:
         if source_label is not None and source_label.isascii() and source_label.lower() == ident.lower():
             return "exact"
@@ -139,7 +142,7 @@ def prepare_install(args):
     source_root = Path(args.cache)
     allowlist = read_source_allowlist(source_root) if source_root.is_dir() else []
     header = read_rom_header(Path(args.rom))
-    method = check_pairing(label, allowlist, header, args.force_target)
+    method = check_pairing(label, allowlist, header, args.force_target, jabo=storage == JABO_STORAGE)
     ident = _filename_component(hires_game_ident(header), "ROM identity")
     name = _filename_component(args.name or source.stem, "--name")
     if not name.lower().endswith(".phrb"):
@@ -154,6 +157,9 @@ def prepare_install(args):
                      if folder.is_dir() and folder.name.lower() == ident.lower()
                      for p in folder.iterdir() if p.is_file() and not p.name.startswith(".") and
                      p.suffix.lower() == ".phrb" and p != target)
+    if method == "jabo-unlisted":
+        print(f"This Jabo pack has no supported-ROM list; installing it for {ident}. "
+              "Its textures only appear if they match this game.", file=sys.stderr)
     return {
         "source_label": label,
         "source_allowlist": allowlist,

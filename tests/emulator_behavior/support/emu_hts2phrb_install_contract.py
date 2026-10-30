@@ -278,6 +278,20 @@ class InstallCLI(unittest.TestCase):
         self.assertIn("not in its supported ROM list", result.stderr)
         self.assertFalse(self.output.exists())
 
+    def test_unlisted_jabo_pack_title_installs_with_notice_and_report_method(self):
+        pack = self.root / "SM64 Reloaded (Jabo 4K)"
+        image(pack / f"{MD5}.png")
+        result = self.run_converter(cache=pack)
+        info = json.loads(result.stdout)["install"]
+        self.assertEqual(info["target_check"], "jabo-unlisted")
+        self.assertEqual(info["source_allowlist"], [])
+        self.assertFalse(info["forced"])
+        self.assertTrue(Path(info["target_path"]).is_file())
+        self.assertEqual(json.loads((self.output / "hts2phrb-report.json").read_text())["install"], info)
+        notice = ("This Jabo pack has no supported-ROM list; installing it for MARIOKART64. "
+                  "Its textures only appear if they match this game.")
+        self.assertEqual(result.stderr.splitlines().count(notice), 1)
+
     def test_a066_parent_lists_accept_listed_europe_rom(self):
         pack = self.root / "A066" / "MARIOKART64"
         image(pack / f"{MD5}.png")
@@ -304,11 +318,11 @@ class InstallCLI(unittest.TestCase):
         report = json.loads(self.run_converter(cache=pack).stdout)
         self.assertEqual(report["install"]["source_allowlist"], [KEY])
 
-    def test_jabo_allowlist_and_no_list_folder_label(self):
+    def test_jabo_allowlist_and_no_list_matching_folder_label(self):
         pack = self.root / "MARIOKART64"
         image(pack / f"{MD5}.png")
         report = json.loads(self.run_converter(cache=pack).stdout)
-        self.assertEqual(report["install"]["target_check"], "exact")
+        self.assertEqual(report["install"]["target_check"], "jabo-unlisted")
         renamed = self.root / "Free-form Jabo label"
         pack.rename(renamed)
         pack = renamed

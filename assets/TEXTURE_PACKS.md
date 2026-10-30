@@ -92,8 +92,10 @@ extracted or modified. Pack archives must be extracted first.
 
 If the source directory contains a Jabo supported-ROM list in `pack.xml`
 (`supported/rdb`) or `roms.ini` (`[Supported] CRC`), the ROM's header CRC pair
-and country must be listed. Otherwise the cache stem without `_HIRESTEXTURES`,
-dominant Rice filename prefix, or Jabo folder name must equal the ROM ident,
+and country must be listed. Jabo packs without a supported-ROM list accept any
+ROM with a notice and report method `jabo-unlisted`, because their texture-content
+MD5 keys only match textures used by the game. Otherwise the cache stem without
+`_HIRESTEXTURES` or dominant Rice filename prefix must equal the ROM ident,
 case-insensitively. `--rom-name` selects loose input textures; it does not
 override this pairing check. A label such as `Mario Kart 64` therefore refuses
 `MARIOKART64`, and `POKEMON STADIUM 2` refuses a CP2J ROM. Review the pairing
@@ -102,7 +104,7 @@ and pass `--force-target` only when you intend that mismatch.
 Use `--name <name>` to name the installed package and `--replace` to overwrite
 an existing file. The converter lists other packages already in the target
 folder: later names win. Its JSON report records source label/list, ROM header
-fields, ident, target path, match method (`exact`, `allowlist`, `forced`) and
+fields, ident, target path, match method (`exact`, `allowlist`, `jabo-unlisted`, `forced`) and
 whether a mismatch was forced in `install`. Metadata lists must be inside the
 source directory you pass, so pass the extracted pack root if it holds both
 metadata and a texture subfolder.

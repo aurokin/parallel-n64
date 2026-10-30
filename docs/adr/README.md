@@ -41,6 +41,7 @@ Status values:
 
 | [0022](0022-strong-hash-lookup-after-rice-miss.md) | Strong-hash lookup after a Rice miss | Accepted |
 | [0023](0023-hires-residency-budget-and-descriptor-retirement.md) | Hi-res residency budget and descriptor retirement | Accepted |
+| [0024](0024-pack-selection-identity.md) | Pack selection identity | Accepted |
 
 ## Decision Spine
 

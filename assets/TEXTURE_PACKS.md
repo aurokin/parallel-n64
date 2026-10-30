@@ -13,15 +13,31 @@ its own rights.
 
 - Runtime input is `.phrb` only. Enable hi-res textures in the core options,
   then install packs under the frontend's system directory:
-  - `parallel-n64/hires/<ROM name>.phrb` for a single package, and/or
-  - `parallel-n64/hires/<ROM name>/` for multiple top-level `*.phrb` files,
-    loaded in sorted order. If both exist, the single package loads first.
-  `<ROM name>` is the ROM header's 20-byte internal Name field, with only
-  trailing spaces and NULs removed; spelling and case must match. For example,
-  use `parallel-n64/hires/SUPER MARIO 64.phrb` for Super Mario 64. Other games'
-  packs and loose `.phrb` files in the system directory root are ignored.
-  If neither game path loads entries, hi-res stays off and the log lists the
-  two checked paths.
+  - `parallel-n64/hires/<ident>.phrb` for a single package, and/or
+  - `parallel-n64/hires/<ident>/` for multiple top-level `*.phrb` files.
+  Matching is ASCII case-insensitive. Matching files load first in byte order,
+  then matching directories in byte order, each with its files in byte order.
+  Dotfiles and other games' packages are skipped. Later packages win on equal
+  keys; an add-on should sort after the full pack it modifies.
+- `<ident>` starts with the ROM header's 20-byte Name, stopped at the first
+  NUL and trimmed of trailing spaces. Replace `:` and `/` with `-`, as GLideN64
+  does: `Turok 3: Shadow of O` becomes `Turok 3- Shadow of O` and
+  `WCW / nWo  REVENGE` becomes `WCW - nWo  REVENGE`.
+  Use the four-character game code instead for CPSJ and CP2J (Japanese
+  Stadium games with Western-shared Names), blank Names, non-ASCII or
+  unprintable Names, or Names containing `<>"\|?*`. If that code is not
+  printable ASCII either, no package is selected. NP3E still uses
+  `POKEMON STADIUM 2`. There is no region, revision or CRC restriction.
+  Hacks retaining a base game's header select its packs too; this is deliberate.
+- Punctuation and space differences are diagnostic only. `Mario Kart 64/`
+  does not match `MARIOKART64`, and `FZEROX.phrb` does not match `F-ZERO X`.
+  A notification names a close-but-wrong entry instead of silently loading it.
+- Mixing is visible: the log lists each package's unique runtime key count
+  (`records`) and `hidden_by_later`. A package with more than half its keys
+  replaced by later packages produces one warning per content load. Keys are
+  Rice checksum64 + formatsize + selector, or Jabo MD5, counted in separate
+  namespaces. Rice and Jabo do not hide each other; at draw time Rice wins
+  before Jabo is tried, so cross-lane competition cannot be diagnosed this way.
 - `PARALLEL_RDP_HIRES_CACHE_PATH` overrides game scoping. It loads only the
   named `.phrb` file, or the sorted top-level `*.phrb` files in the named
   directory. Any other path, including an extension-less file, logs
@@ -55,6 +71,36 @@ its own rights.
 - ROMs, pack archives, extracted caches, and generated packages are never
   committed.
 - Record the source URL and archive SHA-256 before promoting a new source.
+
+## Install And Load Diagnostics
+
+Convert offline using the current converter, then copy the resulting package
+into the ident file or directory above. For example:
+
+```sh
+python3 tools/hts2phrb.py --cache "extracted/SUPER MARIO 64_HIRESTEXTURES.hts" \
+  --output-dir artifacts/hts2phrb/sm64
+# Copy the resulting .phrb into system/parallel-n64/hires/SUPER MARIO 64/
+```
+
+There is no core pack picker or automatic conversion. The planned converter
+`--rom --install` workflow mentioned by unconverted-pack notifications is a
+separate follow-up; those flags are not implemented yet.
+
+The existing notification path uses `SET_MESSAGE_EXT` (with `SET_MESSAGE`
+fallback), once per event per content load. On success it reports pack count,
+ident, texture count and the memory budget (or “unlimited memory budget” for
+the explicit tooling override). A mostly hidden package also warns once.
+When no package loads, a near miss takes priority over an unconverted hint,
+then an unusable header identity, then “no pack”. Rejected packages, GPU support,
+memory pressure and read failures retain their independent memory diagnostics.
+
+Unconverted hints use the GLideN64 Name ident, even for code-selected carts:
+`hires/<ident>_HIRESTEXTURES.{hts,htc}`, a matching `hires/<ident>/` containing
+HTS/HTC/PNG/DDS but no PHRB, `Mupen64plus/cache/<ident>_HIRESTEXTURES.{hts,htc}`,
+or `Mupen64plus/hires_texture/<ident>/`, all below the system directory. These
+sources and punctuation near misses are never runtime inputs. An explicit
+`PARALLEL_RDP_HIRES_CACHE_PATH` bypasses this discovery and its hints.
 
 ## Memory And Disk
 

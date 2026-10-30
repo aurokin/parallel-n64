@@ -455,6 +455,28 @@ Display-free contracts accept compatibility-only evidence and reject missing,
 zero or malformed draw activity, including independent wrapper reuse checks.
 Dormant converter enrichment input validation remains separate and unchanged.
 
+## Hi-res pack selection identity and silent layering
+
+Status: Phase 1 implemented October 30, 2026; offline checks only.
+
+[ADR-0024](adr/0024-pack-selection-identity.md) fixes header-name punctuation,
+first-NUL handling, ASCII case matching and the CP2J/CPSJ shared-name collision.
+Unusable Names fall back to the game code. Punctuation near misses are reported,
+never loaded; patched `FZEROX` is not aliased to retail. Selection and directory
+reads run only with hi-res enabled, and the explicit harness cache-path override
+still bypasses discovery. Package ordering and later-wins lookup are unchanged.
+
+The existing memory notification path now reports pack count, ident and textures
+with its budget suffix, plus prioritized missing-pack explanations and one
+mostly-hidden warning per content load. Per-package unique-key and hidden-key
+counts keep Rice and Jabo separate. These diagnostics do not compare cross-lane
+Rice-first/Jabo-second competition.
+
+The shared JSON ident fixture, pure listing tests and synthetic PHRB overlap
+tests cover Phase 1 offline. Converter installation checks are Phase 2; no
+converter or format change is included. Corpus proof, live notifications and
+feature-off capture goldens remain unverified in this task (no emulator launch).
+
 ## Hi-res replacement admission budget
 
 Status: bounded residency implemented October 30, 2026; runtime pressure unqualified.

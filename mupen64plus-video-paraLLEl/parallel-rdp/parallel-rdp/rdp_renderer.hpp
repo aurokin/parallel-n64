@@ -694,6 +694,7 @@ private:
 		std::unordered_map<HiresKey, uint32_t, HiresKeyHasher> resident_images;
 		std::vector<HiresResidentImage> images;
 		std::unordered_set<HiresKey, HiresKeyHasher> failed;
+		std::unordered_set<HiresKey, HiresKeyHasher> refused_saturated, refused_no_slot;
 		detail::HiresResidencyPolicy residency;
 		unsigned capacity = 0;
 	} hires_resources;

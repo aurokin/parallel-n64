@@ -4949,12 +4949,13 @@ bool Renderer::load_hires_descriptor(const HiresKey &key, ReplacementMeta &meta,
 		return true;
 	case detail::HiresAdmission::TooLarge:
 		status.refused_too_large++;
+		hires_resources.failed.insert(key);
 		break;
 	case detail::HiresAdmission::Saturated:
-		status.refused_saturated++;
+		status.refused_saturated += hires_resources.refused_saturated.insert(key).second;
 		break;
 	case detail::HiresAdmission::NoSlot:
-		status.refused_no_slot++;
+		status.refused_no_slot += hires_resources.refused_no_slot.insert(key).second;
 		break;
 	case detail::HiresAdmission::LoadFailed:
 		hires_resources.failed.insert(key);

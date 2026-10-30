@@ -758,3 +758,14 @@ target_include_directories(emu_unit_pi_dma_bounds_test PRIVATE
   "${CMAKE_SOURCE_DIR}/libretro")
 target_compile_features(emu_unit_pi_dma_bounds_test PRIVATE c_std_99)
 add_test(NAME emu.unit.pi_dma_bounds COMMAND emu_unit_pi_dma_bounds_test)
+
+add_executable(emu_unit_expansion_pak_option_test
+  emu_unit_expansion_pak_option_test.c
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/api/config.c")
+target_include_directories(emu_unit_expansion_pak_option_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/api"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include")
+target_compile_definitions(emu_unit_expansion_pak_option_test PRIVATE _GNU_SOURCE)
+target_compile_features(emu_unit_expansion_pak_option_test PRIVATE c_std_99)
+add_test(NAME emu.unit.expansion_pak_option COMMAND emu_unit_expansion_pak_option_test)

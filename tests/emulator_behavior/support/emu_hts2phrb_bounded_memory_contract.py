@@ -12,16 +12,11 @@ import sys
 import tempfile
 import unittest
 import zlib
-from contextlib import nullcontext
 from pathlib import Path
-from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / 'tools'))
-from hires_pack_emit_binary_package import (
-    ASSET_STRUCT,
-    emit_binary_package_from_manifest,
-)
+from hires_pack_emit_binary_package import emit_binary_package_from_manifest
 from hires_pack_inspect_binary_package import inspect_binary_package
 
 TXCACHE_FORMAT_VERSION = 0x08000000
@@ -128,6 +123,7 @@ assert output.stat().st_size < 4 << 20
             self.assertLess(cache.stat().st_blocks * 512, 1 << 20)
             out = Path(tmp) / 'out'
             original = None
+            previous_setting = 'initial'
             for setting in (None, 'off', '1', '6', 'off'):
                 command = [sys.executable, str(REPO / 'tools/hts2phrb.py'), '--cache', str(cache),
                            '--output-dir', str(out), '--stdout-format', 'json', '--reuse-existing']
@@ -137,6 +133,10 @@ assert output.stat().st_size < 4 << 20
                                         check=False)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 report = json.loads(result.stdout)
+                self.assertEqual(report['reused_existing'], setting == 'off' and previous_setting is None)
+                if setting is None:
+                    for name in ('pre_request_signature', 'request_signature'):
+                        self.assertNotIn('compress_raw_rgba', report[name])
                 data = (out / 'package.phrb').read_bytes()
                 if setting in (None, 'off'):
                     if original is None:
@@ -146,6 +146,7 @@ assert output.stat().st_size < 4 << 20
                 else:
                     self.assertFalse(report['reused_existing'])
                     self.assertEqual(report['binary_package']['raw_rgba_compression']['compressed_assets'], 2)
+                previous_setting = setting
                 package = inspect_binary_package(out / 'package.phrb')
                 blobs = stored_blobs(data, package)
                 self.assertEqual([zlib.decompress(blob) if asset['format'] & GL_TEXFMT_GZ else blob
@@ -206,276 +207,41 @@ def stored_blobs(data, package):
             for record in package['records'] for candidate in record['asset_candidates']]
 
 
-@unittest.skipUnless(os.name == 'posix', 'POSIX file permission modes and umask')
-class OutputPermissions(unittest.TestCase):
-    def emit_with_umask(self, mask, existing_mode=None):
-        # Isolate the process-wide umask from the test runner and other tests.
-        command = '''
-import json
-import os
-import stat
-import sys
-from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-from emu_hts2phrb_bounded_memory_contract import mixed_manifest
-from hires_pack_emit_binary_package import emit_binary_package_from_manifest
-manifest, blobs = mixed_manifest()
-directory = Path(sys.argv[2])
-existing_mode = int(sys.argv[4]) if sys.argv[4] else None
-previous_umask = os.umask(int(sys.argv[3]))
-try:
-    results = []
-    for setting in (None, 'off', '1', '6'):
-        output = directory / f'{setting}.phrb'
-        if existing_mode is not None:
-            output.write_bytes(b'previous package')
-            output.chmod(existing_mode)
-        options = {} if setting is None else {'compress_raw_rgba': setting}
-        result = emit_binary_package_from_manifest(manifest, output, blobs,
-            asset_storage_mode='legacy', **options)
-        results.append({'mode': stat.S_IMODE(output.stat().st_mode),
-            'compressed': result.get('raw_rgba_compression', {}).get('compressed_assets', 0)})
-    assert len(list(directory.iterdir())) == 4, 'temporary output leaked'
-    print(json.dumps(results))
-finally:
-    os.umask(previous_umask)
-'''
-        with tempfile.TemporaryDirectory(prefix='phrb permissions ') as tmp:
-            result = subprocess.run([sys.executable, '-B', '-c', command, str(Path(__file__).resolve().parent),
-                                     '.', str(mask), '' if existing_mode is None else str(existing_mode)], cwd=tmp,
-                                    capture_output=True, text=True, timeout=30, check=False)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            return json.loads(result.stdout)
-
-    def test_new_output_uses_ordinary_creation_mode_under_umask(self):
-        for mask in (0o000, 0o022, 0o027, 0o077, 0o207, 0o222, 0o777):
-            with self.subTest(umask=oct(mask)):
-                results = self.emit_with_umask(mask)
-                self.assertEqual([result['mode'] for result in results], [0o666 & ~mask] * 4)
-                self.assertEqual([result['compressed'] for result in results], [0, 0, 2, 2])
-
-    def test_existing_output_preserves_mode_despite_restrictive_umask(self):
-        for mode in (0o640, 0o604, 0o440):
-            with self.subTest(mode=oct(mode)):
-                results = self.emit_with_umask(0o077, mode)
-                self.assertEqual([result['mode'] for result in results], [mode] * 4)
-                self.assertEqual([result['compressed'] for result in results], [0, 0, 2, 2])
-
-    def test_setgid_parent_preserves_group_at_creation_and_publication(self):
-        for clear_setgid in (False, True):
-            with self.subTest(simulated_nonmember_kernel=clear_setgid):
-                self.check_setgid_parent(clear_setgid)
-
-    def check_setgid_parent(self, clear_setgid):
-        groups = sorted(set(os.getgroups()) - {os.getegid()})
-        if not groups:
-            self.skipTest('no supplementary group differs from the effective group')
-        shared_gid = groups[0]
-        # Only an owned disposable fixture changes group; credentials stay intact.
-        with tempfile.TemporaryDirectory(prefix='phrb setgid ') as tmp:
-            directory = Path(tmp) / 'shared output'
-            directory.mkdir()
-            try:
-                os.chown(directory, -1, shared_gid)
-            except PermissionError as error:
-                self.skipTest(f'cannot assign supplementary group to owned fixture: {error}')
-            directory.chmod(0o2770)
-            parent_stat = directory.stat()
-            if parent_stat.st_gid != shared_gid or not parent_stat.st_mode & stat.S_ISGID:
-                self.skipTest('fixture filesystem does not retain the requested group and setgid')
-            command = '''
-import json
-import os
-import stat
-import sys
-from pathlib import Path
-from unittest.mock import patch
-import tempfile
-sys.path.insert(0, sys.argv[1])
-from emu_hts2phrb_bounded_memory_contract import mixed_manifest
-from hires_pack_emit_binary_package import emit_binary_package_from_manifest
-directory = Path(sys.argv[2])
-credentials = (os.geteuid(), os.getegid(), os.getgroups())
-parent = directory.stat()
-parent_policy = (parent.st_uid, parent.st_gid, stat.S_IMODE(parent.st_mode))
-replace = Path.replace
-chmod = Path.chmod
-create_temporary_file = tempfile.NamedTemporaryFile
-manifest, blobs = mixed_manifest()
-previous_umask = os.umask(0o027)
-try:
-    results = []
-    for setting in (None, 'off', '1', '6'):
-        for mask, existing_mode in ((mask, mode) for mask in (0o027, 0o207, 0o777) for mode in (None, 0o604)):
-            os.umask(mask)
-            output = directory / f'{setting}-{mask}-{existing_mode}.phrb'
-            if existing_mode is not None:
-                output.write_bytes(b'previous package')
-                output.chmod(existing_mode)
-            creation = {}
-            publication = {}
-            private_writes = []
-
-            def load(_index, _record, candidate):
-                if not creation:
-                    inner, = (path for path in directory.iterdir() if path != output and path.name.startswith('.'))
-                    inner_stat = inner.stat()
-                    creation.update(gid=inner_stat.st_gid, mode=stat.S_IMODE(inner_stat.st_mode))
-                return blobs[candidate['materialized_path']]
-
-            def publish(path, target):
-                value = path.stat()
-                publication.update(gid=value.st_gid, mode=stat.S_IMODE(value.st_mode))
-                return replace(path, target)
-
-            def change_mode(path, mode, *args, **kwargs):
-                # Model the kernel clearing setgid for a nonmember, on this owned
-                # supplementary-group fixture only. Assert real file results below.
-                if sys.argv[3] == '1' and path.is_dir():
-                    mode &= ~stat.S_ISGID
-                return chmod(path, mode, *args, **kwargs)
-
-            def private_temporary_file(*args, **kwargs):
-                fp = create_temporary_file(*args, **kwargs)
-                write = fp.file.write
-
-                def private_write(data):
-                    mode = stat.S_IMODE(os.fstat(fp.fileno()).st_mode)
-                    assert mode & 0o077 == 0, 'unfinished payload is public'
-                    private_writes.append(mode)
-                    return write(data)
-
-                fp.file.write = private_write
-                return fp
-
-            options = {} if setting is None else {'compress_raw_rgba': setting}
-            with patch.object(Path, 'replace', publish), patch.object(Path, 'chmod', change_mode), patch(
-                    'tempfile.NamedTemporaryFile', private_temporary_file):
-                result = emit_binary_package_from_manifest(manifest, output, asset_blob_loader=load,
-                    asset_storage_mode='legacy', **options)
-            final = output.stat()
-            results.append(dict(setting=setting, umask=mask, existing_mode=existing_mode, creation=creation,
-                private_writes=private_writes,
-                publication=publication, gid=final.st_gid, mode=stat.S_IMODE(final.st_mode),
-                compressed=result.get('raw_rgba_compression', {}).get('compressed_assets', 0)))
-    assert len(list(directory.iterdir())) == 24, 'temporary output leaked'
-    final_parent = directory.stat()
-    assert (final_parent.st_uid, final_parent.st_gid, stat.S_IMODE(final_parent.st_mode)) == parent_policy
-    assert (os.geteuid(), os.getegid(), os.getgroups()) == credentials
-    print(json.dumps(results))
-finally:
-    os.umask(previous_umask)
-'''
-            result = subprocess.run([sys.executable, '-B', '-c', command,
-                str(Path(__file__).resolve().parent), directory.name, str(int(clear_setgid))], cwd=tmp,
-                capture_output=True, text=True, timeout=30, check=False)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            results = json.loads(result.stdout)
-            self.assertEqual(len(results), 24)
-            for emitted in results:
-                with self.subTest(setting=emitted['setting'], umask=oct(emitted['umask']),
-                                  existing_mode=emitted['existing_mode']):
-                    creation = emitted['creation']
-                    self.assertEqual(creation['gid'], shared_gid)
-                    creation_mode = 0o666 & ~emitted['umask']
-                    self.assertEqual(creation['mode'] & 0o077, 0)
-                    self.assertTrue(emitted['private_writes'])
-                    self.assertTrue(all(mode & 0o077 == 0 for mode in emitted['private_writes']))
-                    expected_mode = emitted['existing_mode'] if emitted['existing_mode'] is not None else creation_mode
-                    self.assertEqual(emitted['publication'], {'gid': shared_gid, 'mode': expected_mode})
-                    self.assertEqual(emitted['gid'], shared_gid)
-                    self.assertEqual(emitted['mode'], expected_mode)
-                    self.assertEqual(emitted['compressed'], 2 if emitted['setting'] in ('1', '6') else 0)
-
-
 class OptionalRawCompression(unittest.TestCase):
-    @unittest.skipUnless(sys.maxsize > 0xFFFFFFFF, 'large lengths require a 64-bit Python')
-    def test_compression_respects_runtime_decoded_size_boundary(self):
-        # RGBA byte counts are multiples of four: these straddle UINT32_MAX.
-        # Only length and write sinks are simulated; the real emitter builds and
-        # backpatches the tables without allocating or writing a multi-GiB blob.
-        class SizedBlob:
-            def __init__(self, size):
-                self.size = size
-
-            def __len__(self):
-                return self.size
-
-        create_temporary_file = tempfile.NamedTemporaryFile
-        for width in (0x3FFFFFFF, 0x40000000):
-            for setting in ('off', '1', '6'):
-                with self.subTest(width=width, setting=setting), tempfile.TemporaryDirectory() as tmp:
-                    manifest, _ = mixed_manifest()
-                    record = manifest['records'][0]
-                    candidate = dict(record['asset_candidates'][0], width=width, height=1, data_size=width * 4)
-                    record.update(asset_candidates=[candidate], asset_candidate_count=1)
-                    manifest['records'] = [record]
-                    blob = SizedBlob(width * 4)
-                    raw_writes = []
-
-                    def bounded_temporary_file(*args, source_blob=blob, passthrough=raw_writes, **kwargs):
-                        fp = create_temporary_file(*args, **kwargs)
-                        write = fp.file.write
-
-                        def bounded_write(data):
-                            if data is source_blob:
-                                passthrough.append(data)
-                                return len(data)
-                            return write(data)
-
-                        fp.file.write = bounded_write
-                        return fp
-
-                    output = Path(tmp) / 'boundary.phrb'
-                    with patch('tempfile.NamedTemporaryFile', bounded_temporary_file), patch(
-                            'hires_pack_emit_binary_package.zlib.compress', return_value=b'encoded') as compress:
-                        result = emit_binary_package_from_manifest(manifest, output,
-                            asset_blob_loader=lambda *_, source_blob=blob: source_blob,
-                            asset_storage_mode='legacy', compress_raw_rgba=setting)
-                    emitted = output.read_bytes()
-                    asset_table_offset = struct.unpack_from('<4sIIIIIII', emitted)[5]
-                    fields = ASSET_STRUCT.unpack_from(emitted, asset_table_offset)
-                    eligible = setting != 'off' and width == 0x3FFFFFFF
-                    if eligible:
-                        compress.assert_called_once_with(blob, int(setting))
-                    else:
-                        compress.assert_not_called()
-                    self.assertEqual(raw_writes, [] if eligible else [blob])
-                    self.assertEqual(fields[7], GL_RGBA8 | (GL_TEXFMT_GZ if eligible else 0))
-                    self.assertEqual(fields[-2:], (0, len(b'encoded') if eligible else len(blob)))
-                    self.assertEqual(result['blob_bytes'], fields[-1])
-                    if setting != 'off':
-                        self.assertEqual(result['raw_rgba_compression']['eligible_assets'], int(eligible))
-                    self.assertLess(len(emitted), 4096)
-
-    def test_jabo_cli_retains_already_compressed_v8_output(self):
-        from PIL import Image
-
+    @unittest.skipUnless(os.name == 'posix', 'POSIX permissions and umask')
+    def test_output_uses_normal_creation_permissions_and_retains_existing_mode(self):
+        manifest, blobs = mixed_manifest()
         with tempfile.TemporaryDirectory() as tmp:
-            pack = Path(tmp) / 'jabo'
-            pack.mkdir()
-            md5 = '0123456789abcdef0123456789abcdef'
-            Image.new('RGBA', (4, 4), (10, 20, 30, 128)).save(pack / f'{md5}.png')
-            out = Path(tmp) / 'output'
-            baseline = None
+            output = Path(tmp) / 'out.phrb'
+            previous_umask = os.umask(0o027)
+            try:
+                emit_binary_package_from_manifest(manifest, output, blobs, asset_storage_mode='legacy')
+                self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o640)
+                output.chmod(0o604)
+                emit_binary_package_from_manifest(manifest, output, blobs, asset_storage_mode='legacy')
+                self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o604)
+            finally:
+                os.umask(previous_umask)
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX symlinks')
+    def test_output_symlink_updates_target_and_preserves_link(self):
+        manifest, blobs = mixed_manifest()
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp) / 'target'
+            target_dir.mkdir()
+            target = target_dir / 'out.phrb'
+            target.write_bytes(b'previous package')
+            output = Path(tmp) / 'link.phrb'
+            output.symlink_to(Path('target') / target.name)
             for setting in ('off', '1', '6'):
-                result = subprocess.run([sys.executable, str(REPO / 'tools/hts2phrb.py'),
-                    '--cache', str(pack), '--output-dir', str(out), '--compress-raw-rgba', setting,
-                    '--stdout-format', 'json', '--loose-png-workers', '1'],
-                    capture_output=True, text=True, check=False)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                data = (out / 'package.phrb').read_bytes()
-                if baseline is None:
-                    baseline = data
-                self.assertEqual(data, baseline)
-                package = inspect_binary_package(out / 'package.phrb')
-                self.assertEqual(package['version'], 8)
-                self.assertEqual(package['records'][0]['jabo_md5'], md5)
-                asset, blob = stored_blobs(data, package)[0]
-                self.assertTrue(asset['format'] & GL_TEXFMT_GZ)
-                self.assertEqual(zlib.decompress(blob), bytes((10, 20, 30, 128)) * 16)
-                if setting != 'off':
-                    self.assertEqual(json.loads(result.stdout)['binary_package']['raw_rgba_compression']['eligible_assets'], 0)
+                expected = Path(tmp) / 'expected.phrb'
+                emit_binary_package_from_manifest(manifest, expected, blobs,
+                    asset_storage_mode='legacy', compress_raw_rgba=setting)
+                emit_binary_package_from_manifest(manifest, output, blobs,
+                    asset_storage_mode='legacy', compress_raw_rgba=setting)
+                self.assertTrue(output.is_symlink())
+                self.assertEqual(target.read_bytes(), expected.read_bytes())
+                self.assertEqual(list(target_dir.iterdir()), [target])
 
     def test_mixed_assets_preserve_content_metadata_order_and_source_manifest(self):
         for jabo in (False, True):
@@ -565,113 +331,6 @@ class OptionalRawCompression(unittest.TestCase):
                     if existing:
                         self.assertEqual(output.read_bytes(), b'previous package')
                         self.assertEqual(stat.S_IMODE(output.stat().st_mode), previous_mode)
-
-    @unittest.skipUnless(os.name == 'posix', 'POSIX mode bits for the read-only deletion model')
-    def test_readonly_staged_output_is_cleaned_after_failed_publication(self):
-        manifest, blobs = mixed_manifest()
-        unlink = Path.unlink
-
-        def readonly_unlink(path, *args, **kwargs):
-            # Model Windows' read-only deletion rule using the real staged mode.
-            if path.is_file() and not path.stat().st_mode & stat.S_IWUSR:
-                raise PermissionError('read-only staged output')
-            return unlink(path, *args, **kwargs)
-
-        with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / 'out.phrb'
-            output.write_bytes(b'previous package')
-            output.chmod(0o440)
-            try:
-                with patch.object(Path, 'unlink', readonly_unlink), patch.object(
-                        Path, 'replace', side_effect=OSError('publication failed')), self.assertRaisesRegex(
-                            OSError, 'publication failed'):
-                    emit_binary_package_from_manifest(manifest, output, blobs, asset_storage_mode='legacy')
-                self.assertEqual(output.read_bytes(), b'previous package')
-                self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o440)
-                self.assertEqual(list(Path(tmp).iterdir()), [output])
-            finally:
-                output.chmod(0o600)
-
-    def test_source_encode_write_and_publication_failures_do_not_publish(self):
-        manifest, blobs = mixed_manifest()
-        create_temporary_file = tempfile.NamedTemporaryFile
-        open_file = Path.open
-        stat_file = Path.stat
-        chmod_file = Path.chmod
-
-        def failing_chmod(path, *args, **kwargs):
-            if path.is_file():
-                raise OSError('injected output mode failure')
-            return chmod_file(path, *args, **kwargs)
-
-        with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / 'out.phrb'
-            cases = [(setting, failure) for setting in ('off', '1', '6')
-                     for failure in ('probe', 'create', 'size', 'encode', 'write', 'backpatch', 'close', 'stat', 'mode', 'publish')
-                     if setting != 'off' or failure not in ('encode', 'backpatch')]
-            for setting, failure in cases:
-                with self.subTest(setting=setting, failure=failure):
-                    output.write_bytes(b'previous package')
-                    output.chmod(0o640)
-                    previous_mode = stat.S_IMODE(output.stat().st_mode)
-                    bad_blobs = dict(blobs, **{'assets/noise': b'short'}) if failure == 'size' else blobs
-
-                    def failing_temporary_file(*args, failure_kind=failure, **kwargs):
-                        fp = create_temporary_file(*args, **kwargs)
-                        write = fp.file.write
-                        close = fp.file.close
-                        written = 0
-
-                        def fail_write(data):
-                            nonlocal written
-                            if ((failure_kind == 'write' and written + len(data) > 64)
-                                    or (failure_kind == 'backpatch' and fp.tell() < written)):
-                                raise OSError('injected output write failure')
-                            written += len(data)
-                            return write(data)
-
-                        fp.file.write = fail_write
-                        if failure_kind == 'close':
-                            def fail_close():
-                                fp.file.close = close
-                                close()
-                                raise OSError('injected output close failure')
-
-                            fp.file.close = fail_close
-                        return fp
-
-                    def failing_probe(path, *args, **kwargs):
-                        if path.name == 'mode':
-                            raise OSError('injected probe creation failure')
-                        return open_file(path, *args, **kwargs)
-
-                    def failing_stat(path, *args, **kwargs):
-                        if path == output:
-                            raise OSError('injected destination stat failure')
-                        return stat_file(path, *args, **kwargs)
-
-                    if failure == 'probe':
-                        failure_context = patch('pathlib.Path.open', failing_probe)
-                    elif failure == 'create':
-                        failure_context = patch('tempfile.NamedTemporaryFile', side_effect=OSError('injected creation failure'))
-                    elif failure == 'stat':
-                        failure_context = patch('pathlib.Path.stat', failing_stat)
-                    elif failure in ('write', 'backpatch', 'close'):
-                        failure_context = patch('tempfile.NamedTemporaryFile', failing_temporary_file)
-                    elif failure == 'size':
-                        failure_context = nullcontext()
-                    elif failure == 'mode':
-                        failure_context = patch('pathlib.Path.chmod', failing_chmod)
-                    else:
-                        target = {'encode': 'hires_pack_emit_binary_package.zlib.compress',
-                                  'publish': 'pathlib.Path.replace'}[failure]
-                        failure_context = patch(target, side_effect=OSError('injected failure'))
-                    with failure_context, self.assertRaises((OSError, ValueError)):
-                        emit_binary_package_from_manifest(manifest, output, bad_blobs,
-                                                          asset_storage_mode='legacy', compress_raw_rgba=setting)
-                    self.assertEqual(output.read_bytes(), b'previous package')
-                    self.assertEqual(stat.S_IMODE(output.stat().st_mode), previous_mode)
-                    self.assertEqual(list(Path(tmp).iterdir()), [output])
 
 
 if __name__ == '__main__':

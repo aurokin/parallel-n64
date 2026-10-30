@@ -707,7 +707,7 @@ def make_pre_request_signature(args, cache_resolution, bundle_resolution):
             for path in getattr(args, "resolved_canonical_family_selection_review_paths", [])
         ],
         "package_name": args.package_name,
-        "compress_raw_rgba": args.compress_raw_rgba,
+        **({"compress_raw_rgba": args.compress_raw_rgba} if args.compress_raw_rgba != "off" else {}),
         "runtime_overlay_mode": args.runtime_overlay_mode,
         "all_families": bool(args.all_families),
         "low32": [normalize_low32(value) for value in (args.low32 or [])],
@@ -792,7 +792,7 @@ def make_request_signature(args, cache_resolution, request_mode, requested_pairs
             for path in getattr(args, "resolved_canonical_family_selection_review_paths", [])
         ],
         "package_name": args.package_name,
-        "compress_raw_rgba": args.compress_raw_rgba,
+        **({"compress_raw_rgba": args.compress_raw_rgba} if args.compress_raw_rgba != "off" else {}),
         "runtime_overlay_mode": args.runtime_overlay_mode,
     }
 

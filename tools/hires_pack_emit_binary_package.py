@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: MIT
 import argparse
 import json
+import os
 import stat
 import struct
 import sys
-import tempfile
+import uuid
 import zlib
 from pathlib import Path
 
@@ -220,24 +221,11 @@ def emit_binary_package_from_manifest(package_manifest: dict,
     eligible_assets = 0
     compressed_assets = 0
 
-    # Measure ordinary creation permissions with an empty file only. Repairing
-    # this private directory can clear inherited setgid for a nonmember; payload
-    # creation must therefore happen directly under the original output parent.
-    with tempfile.TemporaryDirectory(dir=output_path.parent,
-                                     prefix=f'.{output_path.name}.', suffix='.tmp') as temp_dir:
-        staging_dir = Path(temp_dir)
-        staging_dir.chmod(0o700)
-        probe_path = staging_dir / 'mode'
-        with probe_path.open('wb'):
-            creation_mode = stat.S_IMODE(probe_path.stat().st_mode)
-
-    # Keep unfinished data private, with the output parent's actual group policy.
-    # Close successfully before restoring final permissions and atomically publishing.
-    temp_path = None
+    # Resolve symlinks so publishing updates their target without replacing the link.
+    destination = output_path.resolve()
+    temp_path = destination.with_name(f'.phrb-{uuid.uuid4().hex}.tmp')
     try:
-        with tempfile.NamedTemporaryFile(mode='wb', dir=output_path.parent,
-                                         prefix=f'.{output_path.name}.', suffix='.tmp', delete=False) as fp:
-            temp_path = Path(fp.name)
+        with os.fdopen(os.open(temp_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666), 'wb') as fp:
             fp.write(struct.pack(
                 '<4sIIIIIII',
                 MAGIC,
@@ -302,20 +290,13 @@ def emit_binary_package_from_manifest(package_manifest: dict,
             if compress_raw_rgba != 'off':
                 fp.seek(asset_table_offset)
                 fp.write(asset_table)
-        try:
-            output_mode = stat.S_IMODE(output_path.stat().st_mode)
-        except FileNotFoundError:
-            output_mode = creation_mode
-        temp_path.chmod(output_mode)
-        temp_path.replace(output_path)
+            fp.flush()
+            os.fsync(fp.fileno())
+        if destination.exists():
+            temp_path.chmod(stat.S_IMODE(destination.stat().st_mode))
+        os.replace(temp_path, destination)
     finally:
-        if temp_path is not None:
-            try:
-                temp_path.unlink(missing_ok=True)
-            except PermissionError:
-                # Windows may reject unlink after a read-only final mode was set.
-                temp_path.chmod(0o600)
-                temp_path.unlink()
+        temp_path.unlink(missing_ok=True)
 
     result = {
         'output_path': str(output_path),

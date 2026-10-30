@@ -33,6 +33,7 @@ void parallel_set_native_texture_lod(bool enable);
 void parallel_set_native_tex_rect(bool enable);
 void parallel_set_hires_textures(bool enable);
 void parallel_set_hires_filter(unsigned filter);
+void parallel_set_hires_memory(unsigned mb);
 void parallel_set_hires_cache_path(const char *path);
 /* Reads the ROM header's fixed-width, 20-byte Name field. */
 void parallel_set_hires_rom_name(const char *name);

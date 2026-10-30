@@ -221,6 +221,11 @@ void parallel_set_hires_filter(unsigned filter)
 	RDP::hires_filter = filter;
 }
 
+void parallel_set_hires_memory(unsigned mb)
+{
+	RDP::hires_memory_mb = mb;
+}
+
 void parallel_set_hires_cache_path(const char *path)
 {
 	RDP::hires_cache_path = path ? path : "";
@@ -229,6 +234,7 @@ void parallel_set_hires_cache_path(const char *path)
 void parallel_set_hires_rom_name(const char *name)
 {
 	RDP::hires_rom_name.assign(name, 20);
+	RDP::reset_hires_messages();
 }
 
 void parallel_set_overscan_crop(unsigned pixels)

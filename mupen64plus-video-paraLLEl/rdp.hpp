@@ -31,6 +31,8 @@ extern bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_fil
 extern bool native_texture_lod, native_tex_rect;
 extern bool hires_textures;
 extern unsigned hires_filter;
+extern unsigned hires_memory_mb;
+void reset_hires_messages();
 extern std::string hires_cache_path;
 extern std::string hires_rom_name;
 

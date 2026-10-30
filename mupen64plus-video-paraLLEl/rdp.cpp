@@ -13,6 +13,7 @@
 #include "parallel-rdp/parallel-rdp/rdp_hires_capability_policy.hpp"
 #include <assert.h>
 #include <stdlib.h>
+#include <cstdio>
 
 using namespace Vulkan;
 using namespace std;
@@ -45,8 +46,77 @@ bool native_tex_rect = true;
 bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
 bool hires_textures = false;
 unsigned hires_filter = 2;
+unsigned hires_memory_mb = 0;
 string hires_cache_path;
 string hires_rom_name;
+
+static unsigned hires_messages_sent = 0;
+
+enum HiresMessage { PackLoaded, NoPack, PackRejected, GPUUnsupported, BudgetFull, ReadErrors };
+
+void reset_hires_messages()
+{
+	hires_messages_sent = 0;
+}
+
+static void hires_message_once(HiresMessage event, const char *text)
+{
+	if (hires_messages_sent & (1u << event))
+		return;
+	hires_messages_sent |= 1u << event;
+	retro_message message = { text, 360 };
+	environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &message);
+}
+
+static string hires_pack_filename(const string &path)
+{
+	return path.substr(path.find_last_of("/\\") + 1);
+}
+
+static void show_hires_status()
+{
+	if (!hires_textures || !frontend)
+		return;
+	const auto &pack = frontend->get_hires_pack_status();
+	const auto &residency = frontend->get_hires_residency_status();
+	char message[1024];
+	if (!pack.rejected_path.empty())
+	{
+		std::snprintf(message, sizeof(message), "Hi-res textures: %s not loaded (%s)",
+		              hires_pack_filename(pack.rejected_path).c_str(),
+		              pack.load_error == ReplacementLoadStatus::UnsupportedVersion ?
+		                  "unsupported PHRB version; use a compatible pack or newer core" : "unreadable or damaged");
+		hires_message_once(PackRejected, message);
+	}
+	if (pack.state == HiresPackState::Loaded)
+	{
+		std::snprintf(message, sizeof(message), "Hi-res textures: %s - %zu textures, %llu MB memory budget",
+		              hires_pack_filename(pack.loaded_path).c_str(), pack.entries,
+		              (unsigned long long)(residency.budget / (1024 * 1024)));
+		hires_message_once(PackLoaded, message);
+	}
+	else if (pack.state == HiresPackState::NotFound)
+	{
+		string name = hires_rom_name;
+		name.erase(name.find_last_not_of(string(" \0", 2)) + 1);
+		std::snprintf(message, sizeof(message), "Hi-res textures: no pack for \"%s\" in system/parallel-n64/hires/", name.c_str());
+		hires_message_once(NoPack, message);
+	}
+	else if (pack.state == HiresPackState::Unsupported)
+		hires_message_once(GPUUnsupported, "Hi-res textures unavailable: GPU descriptor or frame resources unsupported");
+	if (residency.refused_saturated)
+	{
+		std::snprintf(message, sizeof(message), "Hi-res textures exceed the %llu MB memory budget; some show at original resolution. Raise \"Hi-res texture memory\".",
+		              (unsigned long long)(residency.budget / (1024 * 1024)));
+		hires_message_once(BudgetFull, message);
+	}
+	if (residency.decode_failures)
+	{
+		std::snprintf(message, sizeof(message), "Hi-res textures: %llu textures could not be read; the pack may be damaged",
+		              (unsigned long long)residency.decode_failures);
+		hires_message_once(ReadErrors, message);
+	}
+}
 
 static bool hires_shader_disabled_by_env()
 {
@@ -274,6 +344,7 @@ bool init()
 
 	if (hires_textures && !hires_capabilities_ok)
 	{
+		hires_message_once(GPUUnsupported, "Hi-res textures unavailable: this GPU lacks descriptor indexing");
 		log_cb(RETRO_LOG_WARN,
 		       "Hi-res textures requested, but disabled: %s (maxDescriptorSetUpdateAfterBindSampledImages=%u, required>=%u).\n",
 		       detail::describe_hires_descriptor_requirement(hires_requirement),
@@ -281,14 +352,14 @@ bool init()
 		       detail::hires_min_update_after_bind_sampled_images());
 	}
 
-	if (hires_capabilities_ok)
+	frontend->configure_hires_replacement(hires_capabilities_ok, cache_paths, hires_memory_mb);
+	if (frontend->get_hires_pack_status().state == HiresPackState::Loaded)
 	{
 		log_cb(RETRO_LOG_INFO,
 		       "Hi-res textures enabled (path=%s, filter=%u).\n",
 		       cache_paths.empty() ? "<empty>" : cache_paths.front().c_str(), hires_filter);
 	}
-
-	frontend->configure_hires_replacement(hires_capabilities_ok, cache_paths);
+	show_hires_status();
 	frontend->set_hires_filter(hires_filter);
 
 	timeline_value = 0;
@@ -414,6 +485,7 @@ void complete_frame()
 	frontend->set_quirks(quirks);
 
 	frontend->begin_frame_context();
+	show_hires_status();
 }
 }
 

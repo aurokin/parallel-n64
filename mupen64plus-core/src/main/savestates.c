@@ -395,6 +395,8 @@ int savestates_load_m64p(const unsigned char *data, size_t size)
    load_rdp_trailer(curr, remaining);
 
    *r4300_last_addr() = *r4300_pc();
+   /* This transient task lock is not stored in the fork's state format. */
+   g_dev.sp.rsp_task_locked = 0;
 
    /* deliver callback to indicate 
     * completion of state loading operation */

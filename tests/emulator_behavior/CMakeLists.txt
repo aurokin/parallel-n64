@@ -769,3 +769,15 @@ target_include_directories(emu_unit_expansion_pak_option_test PRIVATE
 target_compile_definitions(emu_unit_expansion_pak_option_test PRIVATE _GNU_SOURCE)
 target_compile_features(emu_unit_expansion_pak_option_test PRIVATE c_std_99)
 add_test(NAME emu.unit.expansion_pak_option COMMAND emu_unit_expansion_pak_option_test)
+
+add_executable(emu_unit_savestate_rsp_lock_test
+  emu_unit_savestate_rsp_lock_test.c
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/main/savestates.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/main/util.c")
+target_include_directories(emu_unit_savestate_rsp_lock_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/api"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+  "${CMAKE_SOURCE_DIR}/libretro")
+target_compile_features(emu_unit_savestate_rsp_lock_test PRIVATE c_std_99)
+add_test(NAME emu.unit.savestate_rsp_lock COMMAND emu_unit_savestate_rsp_lock_test)

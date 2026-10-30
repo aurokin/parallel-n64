@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Display-free benchmark math, input resolution and control contracts."""
 import argparse
+import csv
 import gzip
 import hashlib
+import io
 import json
 import subprocess
 import sys
@@ -15,6 +17,7 @@ from unittest.mock import patch
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "tools" / "benchmark"))
 import run_benchmark as bench
+import sample_memory as memory
 
 
 def sample(fps, cpu=100, rss=200):
@@ -29,6 +32,43 @@ def summary(values):
 
 
 class BenchmarkContracts(unittest.TestCase):
+    def test_memory_sampler_proc_fixture(self):
+        with tempfile.TemporaryDirectory() as temp:
+            proc = Path(temp) / '123'
+            (proc / 'fdinfo').mkdir(parents=True)
+            status = proc / 'status'
+            status.write_text('Name:\tfixture\nVmRSS:\t5000 kB\nVmHWM:\t6000 kB\n')
+            drm = ('drm-pdev: 0000:01:00.0\ndrm-client-id: 7\n'
+                   'drm-memory-vram: 1024 KiB\ndrm-total-vram0: 4 MiB\n'
+                   'drm-resident-vram0: 2097152 B\ndrm-engine-gfx: 42 ns\n')
+            for fd in ('3', '4'):
+                (proc / 'fdinfo' / fd).write_text(drm)
+            (proc / 'fdinfo' / '5').write_text(drm.replace('01:00.0', '02:00.0'))
+            (proc / 'fdinfo' / '6').write_text('pos:\t0\nflags:\t0100000\n')
+            clock = [0]
+
+            def advance(seconds):
+                self.assertEqual(seconds, 1)
+                clock[0] += seconds
+                rss = (5000, 5000, 3000, 4000, 5000, 5000)[int(clock[0])]
+                status.write_text(f'VmRSS:\t{rss} kB\nVmHWM:\t6000 kB\n')
+
+            output, summary = io.StringIO(), io.StringIO()
+            with patch.object(memory.time, 'monotonic', side_effect=lambda: clock[0]), \
+                    patch.object(memory.time, 'sleep', side_effect=advance), patch('sys.stdout', summary):
+                memory.sample(proc, output, duration=5)
+            rows = list(csv.DictReader(io.StringIO(output.getvalue())))
+            self.assertEqual(sorted({float(r['elapsed_seconds']) for r in rows}), [0, 1, 2, 3, 4])
+            first = {r['metric']: float(r['MB']) for r in rows if r['elapsed_seconds'] == '0.000'}
+            self.assertEqual(first, {'VmRSS': 5.12, 'VmHWM': 6.144, 'drm-memory-vram': 2.097152,
+                                     'drm-total-vram0': 8.388608, 'drm-resident-vram0': 4.194304})
+            self.assertIn('VmRSS: peak=5.120000 MB slope=61.440000 MB/min (final half)', summary.getvalue())
+            self.assertIn('drm-memory-vram: peak=2.097152 MB slope=0.000000', summary.getvalue())
+            # Exit between ticks must finish and summarize without another sleep.
+            with patch.object(memory.time, 'sleep', side_effect=lambda _: status.unlink()), \
+                    patch('sys.stdout', io.StringIO()):
+                memory.sample(proc, io.StringIO())
+
     def test_android_config_replaces_all_duplicate_controls(self):
         base = '# retained comment\nvideo_vsync = "true"\n  video_vsync="true"\naudio_sync = "true"\nother = "kept"\n'
         result = bench.merged_config(base, {"video_vsync": "false", "audio_sync": "false"})

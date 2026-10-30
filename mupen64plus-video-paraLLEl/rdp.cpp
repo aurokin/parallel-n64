@@ -64,6 +64,10 @@ static void hires_message_once(HiresMessage event, const char *text)
 	if (hires_messages_sent & (1u << event))
 		return;
 	hires_messages_sent |= 1u << event;
+	retro_message_ext extended = { text, 6000, 1, RETRO_LOG_INFO,
+	                               RETRO_MESSAGE_TARGET_OSD, RETRO_MESSAGE_TYPE_NOTIFICATION, -1 };
+	if (environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &extended))
+		return;
 	retro_message message = { text, 360 };
 	environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &message);
 }
@@ -90,8 +94,9 @@ static void show_hires_status()
 	}
 	if (pack.state == HiresPackState::Loaded)
 	{
-		std::snprintf(message, sizeof(message), "Hi-res textures: %s - %zu textures, %llu MB memory budget",
+		std::snprintf(message, sizeof(message), "Hi-res textures: %s - %zu texture%s, %llu MB memory budget",
 		              hires_pack_filename(pack.loaded_path).c_str(), pack.entries,
+		              pack.entries == 1 ? "" : "s",
 		              (unsigned long long)(residency.budget / (1024 * 1024)));
 		hires_message_once(PackLoaded, message);
 	}
@@ -99,7 +104,11 @@ static void show_hires_status()
 	{
 		string name = hires_rom_name;
 		name.erase(name.find_last_not_of(string(" \0", 2)) + 1);
-		std::snprintf(message, sizeof(message), "Hi-res textures: no pack for \"%s\" in system/parallel-n64/hires/", name.c_str());
+		const char *override_path = getenv("PARALLEL_RDP_HIRES_CACHE_PATH");
+		const string search_path = override_path && *override_path ? override_path :
+		                          hires_cache_path + "/parallel-n64/hires/";
+		std::snprintf(message, sizeof(message), "Hi-res textures: no pack for \"%s\" in %s",
+		              name.c_str(), search_path.c_str());
 		hires_message_once(NoPack, message);
 	}
 	else if (pack.state == HiresPackState::Unsupported)
@@ -112,8 +121,8 @@ static void show_hires_status()
 	}
 	if (residency.decode_failures)
 	{
-		std::snprintf(message, sizeof(message), "Hi-res textures: %llu textures could not be read; the pack may be damaged",
-		              (unsigned long long)residency.decode_failures);
+		std::snprintf(message, sizeof(message), "Hi-res textures: %llu texture%s could not be read; the pack may be damaged",
+		              (unsigned long long)residency.decode_failures, residency.decode_failures == 1 ? "" : "s");
 		hires_message_once(ReadErrors, message);
 	}
 }

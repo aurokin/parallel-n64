@@ -1257,6 +1257,12 @@ enum retro_mod
                                             *
                                             * 'data' points to an unsigned variable
                                             */
+
+#define RETRO_ENVIRONMENT_SET_MESSAGE_EXT 60
+                                           /* const struct retro_message_ext * --
+                                            * Queues a message; duration is in milliseconds.
+                                            * Returns false when unsupported; use SET_MESSAGE then.
+                                            */
 											
 /* VFS functionality */
 
@@ -2398,6 +2404,32 @@ struct retro_message
 {
    const char *msg;        /* Message to be displayed. */
    unsigned    frames;     /* Duration in frames of message. */
+};
+
+enum retro_message_target
+{
+   RETRO_MESSAGE_TARGET_ALL = 0,
+   RETRO_MESSAGE_TARGET_OSD,
+   RETRO_MESSAGE_TARGET_LOG
+};
+
+enum retro_message_type
+{
+   RETRO_MESSAGE_TYPE_NOTIFICATION = 0,
+   RETRO_MESSAGE_TYPE_NOTIFICATION_ALT,
+   RETRO_MESSAGE_TYPE_STATUS,
+   RETRO_MESSAGE_TYPE_PROGRESS
+};
+
+struct retro_message_ext
+{
+   const char *msg;
+   unsigned duration;
+   unsigned priority;
+   enum retro_log_level level;
+   enum retro_message_target target;
+   enum retro_message_type type;
+   int8_t progress;
 };
 
 /* Describes how the libretro implementation maps a libretro input bind

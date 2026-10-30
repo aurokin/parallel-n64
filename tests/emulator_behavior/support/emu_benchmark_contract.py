@@ -41,6 +41,9 @@ class BenchmarkContracts(unittest.TestCase):
             drm = ('drm-pdev: 0000:01:00.0\ndrm-client-id: 7\n'
                    'drm-memory-vram: 1024 KiB\ndrm-total-vram0: 4 MiB\n'
                    'drm-resident-vram0: 2097152 B\ndrm-engine-gfx: 42 ns\n')
+            # Memory fields from a captured amdgpu fdinfo sample.
+            drm += ('drm-total-cpu:\t0\ndrm-resident-gds:\t0\n'
+                    'drm-total-gtt:\t79260 KiB\n')
             for fd in ('3', '4'):
                 (proc / 'fdinfo' / fd).write_text(drm)
             (proc / 'fdinfo' / '5').write_text(drm.replace('01:00.0', '02:00.0'))
@@ -61,7 +64,13 @@ class BenchmarkContracts(unittest.TestCase):
             self.assertEqual(sorted({float(r['elapsed_seconds']) for r in rows}), [0, 1, 2, 3, 4])
             first = {r['metric']: float(r['MB']) for r in rows if r['elapsed_seconds'] == '0.000'}
             self.assertEqual(first, {'VmRSS': 5.12, 'VmHWM': 6.144, 'drm-memory-vram': 2.097152,
-                                     'drm-total-vram0': 8.388608, 'drm-resident-vram0': 4.194304})
+                                     'drm-total-vram0': 8.388608, 'drm-resident-vram0': 4.194304,
+                                     'drm-total-cpu': 0, 'drm-resident-gds': 0, 'drm-total-gtt': 162.32448})
+            # A nonzero unitless value must also be interpreted as bytes.
+            for fd in ('3', '4', '5'):
+                path = proc / 'fdinfo' / fd
+                path.write_text(path.read_text().replace('drm-total-cpu:\t0', 'drm-total-cpu:\t4096'))
+            self.assertEqual(memory.read_memory(proc)['drm-total-cpu'], 0.008192)
             self.assertIn('VmRSS: peak=5.120000 MB slope=61.440000 MB/min (final half)', summary.getvalue())
             self.assertIn('drm-memory-vram: peak=2.097152 MB slope=0.000000', summary.getvalue())
             # Exit between ticks must finish and summarize without another sleep.

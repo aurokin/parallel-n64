@@ -23,7 +23,10 @@ def read_memory(proc):
         seen.add(client)  # Duplicate descriptors share the same DRM accounting.
         for key, value in fields.items():
             if key.startswith(("drm-memory-", "drm-total-", "drm-resident-")):
-                number, unit = value.split()
+                parts = value.split()
+                if len(parts) == 1:
+                    parts.append("B")
+                number, unit = parts
                 values[key] = values.get(key, 0) + float(number) * {
                     "B": 1, "kB": 1024, "KiB": 1024, "MiB": 1024**2, "GiB": 1024**3}[unit] / 1e6
     return values

@@ -132,7 +132,7 @@ static void fifo_push(struct ai_controller* ai)
 
    if (ai->regs[AI_STATUS_REG] & AI_STATUS_BUSY)
    {
-      ai->fifo[1].address = ai->regs[AI_DRAM_ADDR_REG];
+      ai->fifo[1].address = ai->regs[AI_DRAM_ADDR_REG] & UINT32_C(0x00fffff8);
       ai->fifo[1].length = ai->regs[AI_LEN_REG];
       ai->fifo[1].duration = duration;
       ai->regs[AI_STATUS_REG] |= AI_STATUS_FULL;
@@ -140,7 +140,7 @@ static void fifo_push(struct ai_controller* ai)
    else
    {
       /* If we're not DMA-ing already, start DMA engine. */
-      ai->fifo[0].address = ai->regs[AI_DRAM_ADDR_REG];
+      ai->fifo[0].address = ai->regs[AI_DRAM_ADDR_REG] & UINT32_C(0x00fffff8);
       ai->fifo[0].length = ai->regs[AI_LEN_REG];
       ai->fifo[0].duration = duration;
       ai->regs[AI_STATUS_REG] |= AI_STATUS_BUSY;
@@ -177,6 +177,25 @@ void poweron_ai(struct ai_controller* ai)
 	  ai->last_read = 0;
 }
 
+/* Clamp at handover as FIFO values can also come from a savestate.
+ * The backend swaps whole stereo frames in place, so never pass a partial one. */
+static void ai_push_span(struct ai_controller* ai, unsigned int diff, unsigned int length)
+{
+   size_t dram_size = ai->ri->rdram.dram_size;
+   uint32_t start = ai->fifo[0].address & ~UINT32_C(7);
+
+   if (start >= dram_size || diff > dram_size - start)
+      return;
+   if (length > dram_size - start - diff)
+      length = (unsigned int)(dram_size - start - diff);
+   length &= ~UINT32_C(3);
+   if (length == 0)
+      return;
+
+   ai->push_audio_samples(&ai->backend,
+         (unsigned char*)ai->ri->rdram.dram + start + diff, length);
+}
+
 /* Reads a word from the AI MMIO register space. */
 int read_ai_regs(void* opaque, uint32_t address, uint32_t* value)
 {
@@ -190,8 +209,7 @@ int read_ai_regs(void* opaque, uint32_t address, uint32_t* value)
        {
 		   //should never read greater than the fifo length
 		   unsigned int diff =ai->fifo[0].length - ai->last_read;
-		   unsigned char *p = (unsigned char*)&ai->ri->rdram.dram[ai->fifo[0].address / 4];
-		   ai->push_audio_samples(&ai->backend,p + diff,ai->last_read - *value);
+           ai_push_span(ai, diff, ai->last_read - *value);
 			 
 		 }
 		  ai->last_read = *value;
@@ -221,7 +239,7 @@ int write_ai_regs(void* opaque, uint32_t address,
          }
          return 0;
       case AI_LEN_REG:
-         ai->regs[AI_LEN_REG] = MASKED_WRITE(&ai->regs[AI_LEN_REG], value, mask);
+         ai->regs[AI_LEN_REG] = MASKED_WRITE(&ai->regs[AI_LEN_REG], value, mask) & UINT32_C(0x3fff8);
          fifo_push(ai);
          return 0;
 
@@ -249,9 +267,7 @@ void ai_end_of_dma_event(struct ai_controller* ai)
    if (ai->last_read != 0)
    {
       unsigned int diff = ai->fifo[0].length - ai->last_read;
-      unsigned char *p = (unsigned char*)&ai->ri->rdram.dram[ai->fifo[0].address/4];
-      ai->push_audio_samples(&ai->backend,
-         p + diff, ai->last_read);
+      ai_push_span(ai, diff, ai->last_read);
    } 
  
    fifo_pop(ai);

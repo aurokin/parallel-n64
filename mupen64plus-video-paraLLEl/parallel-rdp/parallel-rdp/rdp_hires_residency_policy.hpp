@@ -122,7 +122,7 @@ public:
 
 	void touch(uint32_t slot, uint64_t frame)
 	{
-		assert(slot > 0 && slot < slots.size() && slots[slot].bytes);
+		if (slot == 0 || slot >= slots.size() || !slots[slot].bytes) return;
 		if (slots[slot].last_used_frame == frame)
 			return;
 		slots[slot].last_used_frame = frame;
@@ -132,7 +132,7 @@ public:
 
 	void release(uint32_t slot)
 	{
-		assert(slot > 0 && slot < slots.size() && slots[slot].bytes);
+		if (slot == 0 || slot >= slots.size() || !slots[slot].bytes) return;
 		resident_bytes -= slots[slot].bytes;
 		resident_count--;
 		unlink(slot);

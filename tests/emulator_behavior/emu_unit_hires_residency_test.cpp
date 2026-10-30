@@ -84,6 +84,22 @@ int main()
 	check(admit(1, 8).slot == 1 && policy.resident_bytes == 1, "unlimited bytes still reuse retired slots");
 	policy.reset(0, 100);
 	check(admit(1, 0).reason == HiresAdmission::NoSlot, "empty capacity refuses cleanly");
+	policy.touch(0, 1); policy.touch(HiresInvalidSlot, 1);
+	policy.release(0); policy.release(HiresInvalidSlot);
+	policy.reset(3, 100);
+	check(admit(30, 0).slot == 1, "reserve before invalid-slot operations");
+	for (uint32_t slot : {0u, 2u, 3u, HiresInvalidSlot})
+	{
+		policy.touch(slot, 1);
+		policy.release(slot);
+	}
+	check(policy.resident_bytes == 30 && policy.resident_count == 1,
+	      "invalid and empty slots preserve resident accounting");
+	policy.release(1);
+	policy.touch(1, 1); policy.release(1);
+	check(admit(30, 1).slot == 1 && admit(30, 1).slot == 2,
+	      "touch and repeated release of a freed slot cannot duplicate the free list");
+	check(admit(30, 1).reason == HiresAdmission::NoSlot, "each slot can be allocated only once");
 
 	policy.reset(3, 100);
 	unsigned decodes = 0, uploads = 0;

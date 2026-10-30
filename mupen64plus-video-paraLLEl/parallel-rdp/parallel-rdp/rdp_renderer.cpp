@@ -1197,7 +1197,14 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 		flush_queues();
 
 	if (detail::hires_provider_changed(replacement_provider, provider))
+	{
+		// Shaders already declare set 3. Retain its fallback binding even if
+		// allocating the next pack's pool (or the one-slot pool) fails.
+		auto previous = std::move(hires_resources);
 		hires_resources = {};
+		hires_resources.bindless_pool = std::move(previous.bindless_pool);
+		hires_resources.fallback_image = std::move(previous.fallback_image);
+	}
 
 	replacement_provider = provider;
 	detail::reset_hires_tracking_state(
@@ -1259,8 +1266,7 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 		{
 			LOGW("Hi-res resources unavailable (descriptor pool or frame-context limit).\n");
 			replacement_provider = nullptr;
-			hires_resources = {};
-			caps.hires_replacement_shader = false;
+			init_hires_resources(1);
 		}
 	}
 	else if (caps.hires_replacement_shader)
@@ -4837,11 +4843,6 @@ bool Renderer::init_hires_resources(unsigned requested_capacity)
 	if (hires_resources.bindless_pool && hires_resources.capacity >= requested_capacity)
 		return true;
 
-	hires_resources = {};
-	hires_resources.capacity = requested_capacity;
-	hires_resources.residency.reset(requested_capacity, hires_residency_status.budget);
-	hires_resources.images.resize(requested_capacity);
-
 	auto pool = device->create_bindless_descriptor_pool(Vulkan::BindlessResourceType::ImageFP, 1, requested_capacity);
 	if (!pool || !pool->allocate_descriptors(requested_capacity))
 		return false;
@@ -4859,6 +4860,11 @@ bool Renderer::init_hires_resources(unsigned requested_capacity)
 		return false;
 
 	pool->set_texture(0, fallback->get_view());
+	// Replace the live resources only after all allocations succeed.
+	hires_resources = {};
+	hires_resources.capacity = requested_capacity;
+	hires_resources.residency.reset(requested_capacity, hires_residency_status.budget);
+	hires_resources.images.resize(requested_capacity);
 	hires_resources.fallback_image = std::move(fallback);
 	hires_resources.bindless_pool = std::move(pool);
 	return true;

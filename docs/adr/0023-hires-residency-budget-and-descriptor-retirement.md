@@ -48,3 +48,11 @@ upload rollback, refusal without decode, capacity and auto-budget clamps.
 Runtime qualification remains separate: feature-off and generous-budget parity,
 strict RDRAM parity under 64/256 MiB pressure, synchronization validation,
 long-session memory/teardown checks and paired throughput measurements.
+
+Pack refusal leaves the compiled shader capability unchanged and initializes a
+one-slot fallback pool; allocation failure retains the previous fallback binding.
+These Vulkan allocation paths require a runtime smoke: in scratch builds, lower
+the accepted frame-context limit and separately inject a pack-pool allocation
+failure. Run a few frames with synchronization validation, checking the
+unavailable notification and a valid set 3 binding without a crash. No offline
+renderer test currently constructs the Vulkan device needed to exercise refusal.

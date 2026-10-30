@@ -42,6 +42,13 @@ cursors or the native RDRAM pass (ADR-0020). This bounds computed resident image
 bytes, not driver allocations or staging memory still awaiting GPU completion.
 There is no PHRB change, size reduction, background loader or new runtime dependency.
 
+The first resolved texture now wins even if descriptor loading fails for a
+non-budget reason (an indexed asset at upload without a palette, an invalid
+sampled identity, or a decode error): CI4-reinterpretation, CI-low32 and entry-CRC
+fallbacks are no longer tried, so resolution stays independent of residency and
+descriptor availability. The pinned 8 GiB runtime comparison against `a26cd5b3`
+will determine whether these fallbacks need restoring.
+
 `emu.unit.hires_residency` covers N64-14's multi-eviction and release-accounting
 acceptance, the eight-frame guard, atomic refusal, deterministic order, failed
 upload rollback, refusal without decode, capacity and auto-budget clamps.

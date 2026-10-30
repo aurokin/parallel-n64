@@ -133,7 +133,9 @@ static void fifo_push(struct ai_controller* ai)
    if (ai->regs[AI_STATUS_REG] & AI_STATUS_BUSY)
    {
       ai->fifo[1].address = ai->regs[AI_DRAM_ADDR_REG] & UINT32_C(0x00fffff8);
-      /* Only the transfer is masked; DMA duration still reads the register. */
+      /* Only the transfer is masked (~7, as upstream); DMA duration still reads the
+       * register. The 18-bit hardware limit is deliberately not applied: it would
+       * change CPU-visible AI_LEN reads, and ai_push_span already bounds RDRAM. */
       ai->fifo[1].length = ai->regs[AI_LEN_REG] & ~UINT32_C(7);
       ai->fifo[1].duration = duration;
       ai->regs[AI_STATUS_REG] |= AI_STATUS_FULL;

@@ -8446,10 +8446,13 @@ int new_recompile_block(int addr)
       if(i>MAXBLOCK/2) done=1;
     }
     if(i>0&&itype[i-1]==SYSCALL&&stop_after_jal) done=1;
-    assert(i<MAXBLOCK-1);
+    assert(i<MAXBLOCK-2);
     if(start+i*4==pagelimit-4) done=1;
     assert(start+i*4<pagelimit);
-    if (i==MAXBLOCK-1) done=1;
+    /* Leave room for the later passes' two-instruction lookahead and
+       keep a boundary branch with its delay slot. */
+    if(i==MAXBLOCK-3) done=1;
+    if(i==MAXBLOCK-4&&itype[i]!=UJUMP&&itype[i]!=CJUMP&&itype[i]!=SJUMP&&itype[i]!=RJUMP&&itype[i]!=FJUMP) done=1;
     // Stop if we're compiling junk
     if(itype[i]==NI&&opcode[i]==0x11) {
       done=stop_after_jal=1;

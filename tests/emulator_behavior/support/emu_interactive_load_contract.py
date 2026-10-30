@@ -1,4 +1,4 @@
-"""Exercise load completion over the real FIFO/log adapter, without an emulator."""
+"""Exercise command completion over the real FIFO/log adapter, without an emulator."""
 import os
 from pathlib import Path
 import subprocess
@@ -56,6 +56,13 @@ with log.open("a", buffering=1) as output:
             if mode != "input-stalled-step":
                 frame += int(command.split()[1])
             output.write(command + "\n")
+        elif command == "SAVE_FILES":
+            time.sleep(0.1)
+            if mode == "save-failure":
+                output.write('[ERROR] [SRAM] Failed to save SRAM.\n')
+            else:
+                suffix = ' (unchanged, skipping write)' if mode == "save-unchanged" else ''
+                output.write(f'[INFO] [SRAM] Saved successfully to "rom.srm"{suffix}.\n')
         elif command.startswith("LOAD_STATE_SLOT"):
             attempt += 1
             with (bundle / "load.events").open("a") as events:
@@ -123,6 +130,25 @@ class LoadContract(unittest.TestCase):
         result = self.adapter(*args)
         commands = self.bundle / "logs/interactive.commands.log"
         return result, commands.read_text().splitlines() if commands.exists() else []
+
+    def test_save_files_waits_for_written_or_identical_success(self):
+        for mode in ("save-written", "save-unchanged", "save-failure"):
+            with self.subTest(mode=mode):
+                self.bundle = self.root / mode
+                (self.bundle / "logs").mkdir(parents=True)
+                self.session(mode)
+                # A stale success must not acknowledge this request.
+                with (self.bundle / "logs/retroarch.log").open("a") as log:
+                    log.write('[INFO] [SRAM] Saved successfully to "old.srm".\n')
+                result = self.adapter("send", "--bundle-dir", str(self.bundle),
+                                      "--command", "SAVE_FILES", "--ack-timeout", "1")
+                if mode == "save-failure":
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("No ack for: SAVE_FILES", result.stderr)
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    suffix = ' (unchanged, skipping write)' if mode == "save-unchanged" else ''
+                    self.assertIn(f'[SRAM] Saved successfully to "rom.srm"{suffix}.', result.stdout)
 
     def test_waits_for_completion_paused_and_unpaused(self):
         for paused in (True, False):

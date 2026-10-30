@@ -201,6 +201,7 @@ class AdapterConfigContract(unittest.TestCase):
             expected_env[SHADER_ENV] = "1"
         self.assertEqual(report["env"], expected_env)
         if kind == "interactive":
+            self.assertIn('autosave_interval = "0"', generated.read_text())
             # Release the lock before the next launch in a matrix test.
             self.stop_interactive(bundle, env)
             (bundle / "session.pid").unlink()

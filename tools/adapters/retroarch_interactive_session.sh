@@ -372,6 +372,7 @@ ack_for_command() {
     WAIT_SAVE_STATE*) echo "WAIT_SAVE_STATE DONE" ;;
     WAIT_LOAD_STATE*) echo "WAIT_LOAD_STATE DONE" ;;
     SAVE_STATE*) echo "[State] Saving state" ;;
+    SAVE_FILES*) echo "[SRAM] Saved successfully to" ;;
     *) echo "" ;;
   esac
 }
@@ -598,6 +599,7 @@ pause_nonactive = "false"
 state_slot = "0"
 savestate_directory = "$BUNDLE_DIR/states"
 savefile_directory = "$BUNDLE_DIR/savefiles"
+autosave_interval = "0"
 screenshot_directory = "$BUNDLE_DIR/captures"
 playlist_directory = "$BUNDLE_DIR/playlists"
 content_favorites_path = "$BUNDLE_DIR/playlists/builtin/content_favorites.lpl"
@@ -850,8 +852,12 @@ cmd_send() {
       echo "No ack for: $COMMAND (expected log pattern: $ack)" >&2
       exit 1
     fi
-    # Print the matched reply line for the agent.
-    tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -o -e "${ack}[^\r\n]*" | tail -n1 || true
+    # Ack patterns are literal log text, including brackets such as [SRAM].
+    local reply
+    reply="$(tail -c +"$((start_bytes + 1))" "$RA_LOG" | rg -F -- "$ack" | tail -n1 || true)"
+    if [[ -n "$reply" ]]; then
+      printf '%s%s\n' "$ack" "${reply#*"$ack"}"
+    fi
   fi
   if [[ -n "$step_frames" ]]; then
     # 60fps plus generous slack; scales with the request instead of flat 60s.

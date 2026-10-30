@@ -224,8 +224,12 @@ def emit_binary_package_from_manifest(package_manifest: dict,
     # Resolve symlinks so publishing updates their target without replacing the link.
     destination = output_path.resolve()
     temp_path = destination.with_name(f'.phrb-{uuid.uuid4().hex}.tmp')
+    # A new package gets normal creation permissions (umask and default ACLs apply).
+    # A replacement is staged privately and takes the existing package's mode at publication.
+    existing_mode = stat.S_IMODE(destination.stat().st_mode) if destination.exists() else None
     try:
-        with os.fdopen(os.open(temp_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666), 'wb') as fp:
+        with os.fdopen(os.open(temp_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                               0o666 if existing_mode is None else 0o600), 'wb') as fp:
             fp.write(struct.pack(
                 '<4sIIIIIII',
                 MAGIC,
@@ -292,11 +296,16 @@ def emit_binary_package_from_manifest(package_manifest: dict,
                 fp.write(asset_table)
             fp.flush()
             os.fsync(fp.fileno())
-        if destination.exists():
-            temp_path.chmod(stat.S_IMODE(destination.stat().st_mode))
+        if existing_mode is not None:
+            temp_path.chmod(existing_mode)
         os.replace(temp_path, destination)
     finally:
-        temp_path.unlink(missing_ok=True)
+        try:
+            temp_path.unlink(missing_ok=True)
+        except PermissionError:
+            # Windows refuses to delete a staged copy that took a read-only mode.
+            temp_path.chmod(stat.S_IWRITE)
+            temp_path.unlink(missing_ok=True)
 
     result = {
         'output_path': str(output_path),

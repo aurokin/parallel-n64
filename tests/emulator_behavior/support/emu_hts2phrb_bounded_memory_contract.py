@@ -218,8 +218,17 @@ class OptionalRawCompression(unittest.TestCase):
                 emit_binary_package_from_manifest(manifest, output, blobs, asset_storage_mode='legacy')
                 self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o640)
                 output.chmod(0o604)
-                emit_binary_package_from_manifest(manifest, output, blobs, asset_storage_mode='legacy')
+                staged_modes = set()
+
+                def record_staged_mode(_index, _record, candidate):
+                    staged_modes.update(stat.S_IMODE(path.stat().st_mode) for path in Path(tmp).glob('.phrb-*.tmp'))
+                    return blobs[candidate['materialized_path']]
+
+                emit_binary_package_from_manifest(manifest, output, asset_blob_loader=record_staged_mode,
+                                                  asset_storage_mode='legacy')
                 self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o604)
+                # Package contents stay private until the published mode is applied.
+                self.assertEqual(staged_modes, {0o600})
             finally:
                 os.umask(previous_umask)
 

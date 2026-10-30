@@ -83,8 +83,12 @@ static void dma_pi_read(struct pi_controller *pi)
          return;
       }
 
-      length = (pi->regs[PI_DRAM_ADDR_REG] + length) > 0x7FFFFF ?
-         (0x7FFFFF - pi->regs[PI_DRAM_ADDR_REG]) : length;
+      /* Check the start before subtracting, including savestate values. */
+      dram_address = pi->regs[PI_DRAM_ADDR_REG];
+      if (dram_address >= pi->ri->rdram.dram_size)
+         length = 0;
+      else if (length > pi->ri->rdram.dram_size - dram_address)
+         length = (uint32_t)(pi->ri->rdram.dram_size - dram_address);
 
       dram_address = pi->regs[PI_DRAM_ADDR_REG];
       dram = (uint8_t*)pi->ri->rdram.dram;
@@ -92,7 +96,7 @@ static void dma_pi_read(struct pi_controller *pi)
       for (i = 0; i < length; ++i)
       {
          const unsigned int rom_i = (rom_address + i) ^ S8;
-         if (rom_i >= (uint32_t)g_rom_size) continue;
+         if (rom_i >= sizeof(g_dev.dd.sec_buf)) continue;
          rom[rom_i] = rdram_safe_read_byte(dram, (dram_address + i) ^ S8);
       }
    }
@@ -129,6 +133,7 @@ static void dma_pi_write(struct pi_controller *pi)
    uint32_t length, i;
    uint32_t dram_address;
    uint32_t rom_address;
+   size_t buffer_size;
    uint8_t* dram;
    const uint8_t* rom;
 
@@ -160,6 +165,7 @@ static void dma_pi_write(struct pi_controller *pi)
             length = (i + length) > 0x100 ? (0x100 - i) : length;
             rom_address = (pi->regs[PI_CART_ADDR_REG] - 0x05000400) & 0x3fffff;
             rom = g_dev.dd.sec_buf;
+            buffer_size = sizeof(g_dev.dd.sec_buf);
          }
          else if (pi->regs[PI_CART_ADDR_REG] == 0x05000000)
          {
@@ -167,6 +173,7 @@ static void dma_pi_write(struct pi_controller *pi)
             rom_address = (pi->regs[PI_CART_ADDR_REG] - 0x05000000) & 0x3fffff;
             length      = (i + length) > 0x400 ? (0x400 - i) : length;
             rom         = g_dev.dd.c2_buf;
+            buffer_size = sizeof(g_dev.dd.c2_buf);
          }
          else
          {
@@ -181,8 +188,12 @@ static void dma_pi_write(struct pi_controller *pi)
             return;
          }
 
-         length = (pi->regs[PI_DRAM_ADDR_REG] + length) > 0x7FFFFF ?
-            (0x7FFFFF - pi->regs[PI_DRAM_ADDR_REG]) : length;
+         /* Check the start before subtracting, including savestate values. */
+         dram_address = pi->regs[PI_DRAM_ADDR_REG];
+         if (dram_address >= pi->ri->rdram.dram_size)
+            length = 0;
+         else if (length > pi->ri->rdram.dram_size - dram_address)
+            length = (uint32_t)(pi->ri->rdram.dram_size - dram_address);
 
          dram_address = pi->regs[PI_DRAM_ADDR_REG];
          dram = (uint8_t*)pi->ri->rdram.dram;
@@ -190,7 +201,7 @@ static void dma_pi_write(struct pi_controller *pi)
          for (i = 0; i < length; ++i)
          {
             const unsigned int rom_i = (rom_address + i) ^ S8;
-            rdram_safe_write_byte(dram, (dram_address + i) ^ S8, (rom_i < (uint32_t)g_rom_size) ? rom[rom_i] : 0u);
+            rdram_safe_write_byte(dram, (dram_address + i) ^ S8, (rom_i < buffer_size) ? rom[rom_i] : 0u);
          }
 
          invalidate_r4300_cached_code(0x80000000 + dram_address, length);

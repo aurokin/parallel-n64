@@ -168,8 +168,8 @@ void dma_read_flashram(struct pi_controller *pi)
    switch (flashram->mode)
    {
       case FLASHRAM_MODE_STATUS:
-         dram[pi->regs[PI_DRAM_ADDR_REG]/4]   = (uint32_t)(flashram->status >> 32);
-         dram[pi->regs[PI_DRAM_ADDR_REG]/4+1] = (uint32_t)(flashram->status);
+         rdram_safe_write_word(dram, pi->regs[PI_DRAM_ADDR_REG], (uint32_t)(flashram->status >> 32));
+         rdram_safe_write_word(dram, pi->regs[PI_DRAM_ADDR_REG] + 4, (uint32_t)flashram->status);
          break;
       case FLASHRAM_MODE_READ:
          length = (pi->regs[PI_WR_LEN_REG] & 0xffffff) + 1;

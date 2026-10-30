@@ -746,3 +746,15 @@ target_include_directories(emu_unit_ai_dma_bounds_test PRIVATE
   "${CMAKE_SOURCE_DIR}/libretro")
 target_compile_features(emu_unit_ai_dma_bounds_test PRIVATE c_std_99)
 add_test(NAME emu.unit.ai_dma_bounds COMMAND emu_unit_ai_dma_bounds_test)
+
+add_executable(emu_unit_pi_dma_bounds_test
+  emu_unit_pi_dma_bounds_test.c
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/pi/pi_controller.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/pi/flashram.c")
+target_include_directories(emu_unit_pi_dma_bounds_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/api"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+  "${CMAKE_SOURCE_DIR}/libretro")
+target_compile_features(emu_unit_pi_dma_bounds_test PRIVATE c_std_99)
+add_test(NAME emu.unit.pi_dma_bounds COMMAND emu_unit_pi_dma_bounds_test)

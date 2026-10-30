@@ -5071,8 +5071,8 @@ def main():
     try:
         install = prepare_install(args)
         if install and install["other_packages"]:
-            print("Other packages in target folder: " + ", ".join(install["other_packages"]) +
-                  ". Packages load in name order; later names win.", file=sys.stderr)
+            print("Other packages for this ROM: " + ", ".join(install["other_packages"]) +
+                  ". Packages load in name order, top-level files before folder packages; later names win.", file=sys.stderr)
         result = build_conversion(args)
         if result.pop("install", None):
             Path(result["report_path"]).write_text(json.dumps(result, indent=2) + "\n")

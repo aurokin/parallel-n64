@@ -85,6 +85,9 @@ class Identity(unittest.TestCase):
                 z.writestr("readme.txt", "no ROM")
             with self.assertRaisesRegex(ValueError, "No .z64/.v64/.n64"):
                 read_rom_header(path)
+            path.write_bytes(path.read_bytes()[:-10])
+            with self.assertRaisesRegex(ValueError, "Cannot read ZIP ROM"):
+                read_rom_header(path)
 
 
 class Pairing(unittest.TestCase):
@@ -223,7 +226,65 @@ class InstallCLI(unittest.TestCase):
         self.assertTrue(target.read_bytes().startswith(b"PHRB"))
         self.assertIn("addon.phrb", result.stderr)
         self.assertIn("later names win", result.stderr)
-        self.assertEqual(json.loads(result.stdout)["install"]["other_packages"], ["addon.phrb"])
+        self.assertEqual(json.loads(result.stdout)["install"]["other_packages"], ["MARIOKART64/addon.phrb"])
+
+    def test_layering_note_includes_top_level_and_case_insensitive_folders_in_load_order(self):
+        hires = self.system / "parallel-n64/hires"
+        folder = hires / "mariokart64"
+        folder.mkdir(parents=True)
+        (hires / "mariokart64.PHRB").write_bytes(b"top-level")
+        (folder / "addon.phrb").write_bytes(b"folder")
+        (folder / ".hidden.phrb").write_bytes(b"ignored")
+        (hires / "OTHER.phrb").write_bytes(b"ignored")
+        result = self.run_converter()
+        self.assertEqual(json.loads(result.stdout)["install"]["other_packages"],
+                         ["mariokart64.PHRB", "mariokart64/addon.phrb"])
+        self.assertIn("top-level files before folder packages", result.stderr)
+
+    def test_truncated_zip_rom_is_a_clean_cli_error(self):
+        self.rom = self.root / "game.zip"
+        with zipfile.ZipFile(self.rom, "w") as archive:
+            archive.writestr("game.z64", rom_header())
+        self.rom.write_bytes(self.rom.read_bytes()[:-10])
+        result = self.run_converter(success=False)
+        self.assertIn("Cannot read ZIP ROM", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertFalse(self.output.exists())
+
+    def test_a092_parent_list_refuses_europe_despite_matching_texture_folder(self):
+        pack = self.root / "A092" / "MARIOKART64"
+        image(pack / f"{MD5}.png")
+        (pack.parent / "pack.xml").write_text(f"<pack><supported><rdb>{KEY}</rdb></supported></pack>")
+        self.rom.write_bytes(rom_header(code=b"NKTP"))
+        result = self.run_converter(cache=pack, success=False)
+        self.assertIn("not in its supported ROM list", result.stderr)
+        self.assertFalse(self.output.exists())
+
+    def test_a066_parent_lists_accept_listed_europe_rom(self):
+        pack = self.root / "A066" / "MARIOKART64"
+        image(pack / f"{MD5}.png")
+        europe_key = KEY[:-2] + "50"
+        (pack.parent / "pack.xml").write_text(
+            f"<pack><supported><rdb>{KEY}</rdb><rdb>{europe_key}</rdb></supported></pack>")
+        (pack.parent / "roms.ini").write_text(f'[Supported]\nCRC="{KEY}","{europe_key}"\n')
+        self.rom.write_bytes(rom_header(code=b"NKTP"))
+        report = json.loads(self.run_converter(cache=pack).stdout)
+        self.assertEqual(report["install"]["target_check"], "allowlist")
+        self.assertEqual(report["install"]["source_allowlist"], sorted([KEY, europe_key]))
+
+    def test_parent_lookup_does_not_read_siblings_or_grandparents_and_local_list_wins(self):
+        pack = self.root / "container" / "MARIOKART64"
+        image(pack / f"{MD5}.png")
+        unsupported = '<pack><supported><rdb>00000000-00000000-C:45</rdb></supported></pack>'
+        (self.root / "pack.xml").write_text(unsupported)
+        sibling = pack.parent / "sibling"
+        sibling.mkdir()
+        (sibling / "pack.xml").write_text(unsupported)
+        self.assertEqual(read_source_allowlist(pack), [])
+        (pack.parent / "pack.xml").write_text(unsupported)
+        (pack / "roms.ini").write_text(f'[Supported]\nCRC="{KEY}"\n')
+        report = json.loads(self.run_converter(cache=pack).stdout)
+        self.assertEqual(report["install"]["source_allowlist"], [KEY])
 
     def test_jabo_allowlist_and_no_list_folder_label(self):
         pack = self.root / "MARIOKART64"

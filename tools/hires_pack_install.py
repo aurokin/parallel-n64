@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 from pathlib import Path
 
 from hires_pack_common import LOOSE_PNG_STORAGE, resolve_legacy_cache_path
@@ -29,13 +30,16 @@ def read_rom_header(path: Path):
     """Read only the header, or the first .z64/.v64/.n64 member in ZIP order."""
     path = Path(path)
     if path.suffix.lower() == ".zip":
-        with zipfile.ZipFile(path) as archive:
-            member = next((m for m in archive.infolist() if not m.is_dir() and
-                           Path(m.filename).suffix.lower() in (".z64", ".v64", ".n64")), None)
-            if member is None:
-                raise ValueError(f"No .z64/.v64/.n64 ROM member found in {path}.")
-            with archive.open(member) as fp:
-                header = fp.read(64)
+        try:
+            with zipfile.ZipFile(path) as archive:
+                member = next((m for m in archive.infolist() if not m.is_dir() and
+                               Path(m.filename).suffix.lower() in (".z64", ".v64", ".n64")), None)
+                if member is None:
+                    raise ValueError(f"No .z64/.v64/.n64 ROM member found in {path}.")
+                with archive.open(member) as fp:
+                    header = fp.read(64)
+        except (zipfile.BadZipFile, RuntimeError, NotImplementedError, EOFError, zlib.error) as exc:
+            raise ValueError(f"Cannot read ZIP ROM {path}: {exc}") from exc
     else:
         with path.open("rb") as fp:
             header = fp.read(64)
@@ -57,16 +61,17 @@ def parse_rdb_keys(text: str):
 def read_source_allowlist(root: Path):
     """Read Jabo's supported/rdb XML nodes and [Supported] CRC INI list.
 
-    Metadata must be inside the supplied source directory. Never infer support
-    from keys mentioned in descriptions, comments or unrelated INI sections.
+    Prefer metadata inside the source directory, then its immediate parent.
+    Never infer support from descriptions, comments or unrelated INI sections.
     """
     keys = set()
-    for rel, skipped in iter_pack_files(root):
-        if skipped or rel.name.lower() not in ("pack.xml", "roms.ini"):
-            continue
-        path = root / rel
+    paths = [root / rel for rel, skipped in iter_pack_files(root)
+             if not skipped and rel.name.lower() in ("pack.xml", "roms.ini")]
+    if not paths:
+        paths = [p for p in root.parent.iterdir() if p.is_file() and p.name.lower() in ("pack.xml", "roms.ini")]
+    for path in paths:
         try:
-            if rel.name.lower() == "pack.xml":
+            if path.name.lower() == "pack.xml":
                 document = ET.parse(path)
                 values = [node.text or "" for node in document.findall("./supported/rdb")]
                 if document.find("./supported") is not None and not values:
@@ -140,10 +145,13 @@ def prepare_install(args):
     target = Path(args.install).resolve() / "parallel-n64" / "hires" / ident / name
     if os.path.lexists(target) and not args.replace:
         raise ValueError(f"Pack already exists: {target}. Rerun with --replace to overwrite it.")
-    others = []
-    if target.parent.is_dir():
-        others = sorted(p.name for p in target.parent.iterdir() if p.is_file() and
-                        not p.name.startswith(".") and p.suffix.lower() == ".phrb" and p != target)
+    hires = target.parent.parent
+    entries = list(hires.iterdir()) if hires.is_dir() else []
+    others = sorted(p.name for p in entries if p.is_file() and p.name.lower() == f"{ident}.phrb".lower())
+    others += sorted(str(p.relative_to(hires)) for folder in entries
+                     if folder.is_dir() and folder.name.lower() == ident.lower()
+                     for p in folder.iterdir() if p.is_file() and not p.name.startswith(".") and
+                     p.suffix.lower() == ".phrb" and p != target)
     return {
         "source_label": label,
         "source_allowlist": allowlist,

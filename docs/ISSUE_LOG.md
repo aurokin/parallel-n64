@@ -1104,3 +1104,75 @@ scanline where this core uses 1500. Other games, states saved mid-RSP-task or
 mid-flash-operation, and long-run drift are unqualified. Separately, this core's
 writer stores the PI domain-1 timing registers in the domain-2 slots; the
 bridge carries them unchanged.
+
+## Gamma-dither screenshots differ after a state load
+
+Status: open, October 29, 2026; cause not confirmed.
+
+On Android arm64 at 1x with VI gamma dithering on (the default), Super Mario 64
+reached byte-identical guest state after a state load, but the screenshots
+differed. A repeat with two runs of the same older core (`04a52369`) also
+differed: 2,540,862 pixels changed, with a maximum channel difference of 11. With gamma dithering off, every endpoint
+screenshot in the same matrix matched exactly.
+
+A likely cause is visible in source but untested. With gamma dithering on,
+`vi_scale.frag` reseeds its noise from `VideoInterface::frame_count`. That renderer counter is not
+part of the saved state and is not reset on load. The dither pattern after a
+load would then depend on how many frames the process rendered before it. Linux
+was not checked. Exact screenshot comparisons across state loads currently need
+gamma dithering off.
+
+Acceptance:
+
+- a reproduction on one platform with gamma dithering on;
+- confirmation or rejection of the frame-counter cause;
+- if confirmed, deterministic post-load dither with a focused test.
+
+## Android hi-res summaries go to the Granite logger
+
+Status: open, October 29, 2026.
+
+On Android, `util/logging.hpp` sends the renderer's `LOGI`/`LOGW`/`LOGE` to
+`__android_log_print` with the tag `Granite`. The optional `HAVE_LIBRETRO` path,
+which would use the libretro log callback, is not enabled by the build. The
+`Hi-res keying summary` lines therefore never reach RetroArch's log.
+
+In an October 29 Android run at 4x with hi-res on and a Super Mario 64 PHRB
+package, RetroArch's log showed the package loaded and the hi-res path enabled,
+but had no summary lines. The logcat captures kept from that run did not show
+them either; why is not established. As a result, replacement use on Android
+cannot be confirmed from logs, and on-mode checks there had to rely on visual
+review.
+
+## Super Mario 64 attract frame 3 looks native with hi-res on (Android)
+
+Status: open, October 29, 2026; cause unknown.
+
+On Android arm64 at 4x with hi-res on and the uncompressed Super Mario 64 PHRB
+package (core `89b1936e`), five checkpoints after state loads were compared
+with a hi-res-off control: courtyard frames 150, 220 and 343, and attract frames
+3 and 60. Full guest state matched at all five. Replacement art (Mario portrait,
+camera HUD, camera lens) was visible in four frames. Attract frame 3 looked
+native across the whole frame.
+
+It is not known whether this is a fallback, replacements not yet resident three
+frames after the load, or a frame with no replaced textures. Logs could not
+answer it (see the Granite logger entry). The same checkpoint was not compared
+on Linux.
+
+## Android startup timeout with a lost log
+
+Status: open, October 29, 2026; cause unknown, not reproduced.
+
+The first 4x launch of the `89b1936e` arm64 build in an October 29 Android test
+(hi-res off, dynamic recompiler, CXD4, synchronous paraLLEl-RDP, Vulkan, null
+audio) did not reach PLAYING within the test harness's 25-second deadline. The
+activity started and the app's processes were present at every sample, but
+eleven status queries over RetroArch's network command interface returned empty
+replies.
+
+The frontend log was not kept. The external test harness's timeout handler
+raised its own error before copying it; that defect is in the harness, not in
+this repository. No logcat, tombstone or native stack was retained. Later
+controlled launches on the same device started normally. If a startup stall
+recurs, keep the frontend log and logcat before diagnosing.

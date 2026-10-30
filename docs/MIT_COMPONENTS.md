@@ -28,7 +28,7 @@ files that contain local modifications.
 | `parallel-rdp/rdp_hires_load_origin_policy.hpp` | `9e866127` |
 | `parallel-rdp/rdp_hires_lookup_policy.hpp` | `e3d15e45` |
 | `parallel-rdp/rdp_hires_pass_policy.hpp` | `553e4a27` |
-| `parallel-rdp/rdp_hires_registry_policy.hpp` | `2aece304` |
+| `parallel-rdp/rdp_hires_residency_policy.hpp` | Phase 1 residency replacement (2026-10-30; original MIT policy `2aece304`) |
 | `parallel-rdp/rdp_hires_runtime_config.hpp` | `c2522872` |
 | `parallel-rdp/rdp_hires_runtime_policy.hpp` | `94dd3e86` |
 | `parallel-rdp/rdp_hires_state_policy.hpp` | `582872a4` |

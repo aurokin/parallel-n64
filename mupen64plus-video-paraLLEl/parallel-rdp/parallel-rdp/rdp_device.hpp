@@ -112,6 +112,16 @@ struct Quirks
 	} u;
 };
 
+enum class HiresPackState { Disabled, NotFound, Rejected, Loaded, Unsupported };
+
+struct HiresPackStatus
+{
+	HiresPackState state = HiresPackState::Disabled;
+	ReplacementLoadStatus load_error = ReplacementLoadStatus::NotFound;
+	std::string loaded_path, rejected_path;
+	size_t entries = 0;
+};
+
 class CommandProcessor
 {
 public:
@@ -141,7 +151,9 @@ public:
 	void enqueue_command_direct(unsigned num_words, const uint32_t *words);
 
 	void set_quirks(const Quirks &quirks);
-	void configure_hires_replacement(bool enable, const std::vector<std::string> &cache_paths);
+	void configure_hires_replacement(bool enable, const std::vector<std::string> &cache_paths, unsigned budget_mb = 0);
+	const HiresPackStatus &get_hires_pack_status() const { return hires_pack_status; }
+	const HiresResidencyStatus &get_hires_residency_status() const { return renderer.get_hires_residency_status(); }
 	void set_hires_filter(unsigned mode);
 
 	// Interact with memory.
@@ -232,6 +244,7 @@ private:
 	bool timestamp = false;
 	detail::HiresGlideN64CompatCRCOverride hires_gliden64_compat_crc_override = {};
 	detail::HiresSummaryIntervalClock hires_summary_clock = {};
+	HiresPackStatus hires_pack_status;
 
 	friend class Renderer;
 

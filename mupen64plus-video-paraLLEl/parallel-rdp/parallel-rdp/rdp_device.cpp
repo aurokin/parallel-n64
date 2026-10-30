@@ -274,12 +274,6 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 		detail::parse_hires_gliden64_compat_crc_override(getenv("PARALLEL_RDP_HIRES_GLIDEN64_COMPAT_CRC"));
 	hires_summary_clock.interval =
 		detail::parse_hires_summary_interval_frames(getenv("PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES"));
-	if (const char *env = getenv("PARALLEL_RDP_HIRES_GPU_BUDGET_MB"))
-	{
-		long mb = strtol(env, nullptr, 0);
-		if (mb > 0)
-			renderer.set_hires_gpu_budget_bytes(size_t(mb) * 1024u * 1024u);
-	}
 
 	// PARALLEL_RDP_HIRES_NATIVE_PASS: "native" (default) or "replace". See
 	// Renderer::set_hires_native_pass_replacement() and ADR-0020.
@@ -299,8 +293,9 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 
 CommandProcessor::~CommandProcessor()
 {
-	renderer.log_hires_summary();
 	idle();
+	drain_command_ring();
+	renderer.log_hires_summary();
 	// Members destruct in reverse declaration order: timeline_worker and
 	// renderer go before ring, but the ring worker thread would stay alive
 	// until ~CommandRing and its 500us idle ticker would call back into the
@@ -318,8 +313,20 @@ void CommandProcessor::begin_frame_context()
 	// created and is never reset.
 	if (hires_summary_clock.advance())
 		renderer.log_hires_summary_periodic(hires_summary_clock.frames);
-	renderer.begin_frame_context();
-	device.next_frame_context();
+	if (hires_pack_status.state == HiresPackState::Loaded)
+	{
+		// Idle callbacks can flush queues too. Exclude them while advancing
+		// Granite and asserting that no recorded draw crosses this boundary.
+		renderer.lock_command_processing();
+		device.next_frame_context();
+		renderer.begin_frame_context();
+		renderer.unlock_command_processing();
+	}
+	else
+	{
+		renderer.begin_frame_context();
+		device.next_frame_context();
+	}
 }
 
 void CommandProcessor::init_renderer()
@@ -947,11 +954,22 @@ void CommandProcessor::set_hires_filter(unsigned mode)
 	renderer.set_hires_filter(mode);
 }
 
-void CommandProcessor::configure_hires_replacement(bool enable, const std::vector<std::string> &cache_paths)
+void CommandProcessor::configure_hires_replacement(bool enable, const std::vector<std::string> &cache_paths, unsigned budget_mb)
 {
+	if (enable || hires_pack_status.state == HiresPackState::Loaded)
+	{
+		flush();
+		drain_command_ring();
+	}
+	renderer.set_replacement_provider(nullptr);
 	replacement_provider.clear();
 	replacement_provider.set_enabled(enable);
-	renderer.set_replacement_provider(nullptr);
+	hires_pack_status = {};
+	if (enable)
+	{
+		hires_pack_status.state = HiresPackState::NotFound;
+		renderer.configure_hires_gpu_budget(budget_mb);
+	}
 	renderer.set_hires_gliden64_compat_crc(false);
 
 	const char *first_path = cache_paths.empty() ? nullptr : cache_paths.front().c_str();
@@ -971,9 +989,14 @@ void CommandProcessor::configure_hires_replacement(bool enable, const std::vecto
 		if (replacement_provider.load_cache_dir(path, true))
 			LOGI("Hi-res replacement cache loaded: %zu entries from %s\n",
 			     replacement_provider.entry_count() - previous_entries, path.c_str());
-		else
+		else if (!replacement_provider.rejected_path().empty())
 			LOGW("Hi-res replacement cache load failed for path: %s\n", path.c_str());
 	}
+	hires_pack_status.loaded_path = replacement_provider.loaded_path();
+	hires_pack_status.rejected_path = replacement_provider.rejected_path();
+	hires_pack_status.load_error = replacement_provider.load_error();
+	if (!hires_pack_status.rejected_path.empty())
+		hires_pack_status.state = HiresPackState::Rejected;
 	outcome = detail::classify_hires_configure_outcome(enable, first_path,
 	                                                replacement_provider.entry_count() != 0);
 	if (outcome == detail::HiresConfigureOutcome::LoadFailed)
@@ -982,7 +1005,15 @@ void CommandProcessor::configure_hires_replacement(bool enable, const std::vecto
 		return;
 	}
 	if (detail::should_attach_hires_provider(outcome))
-		renderer.set_replacement_provider(&replacement_provider);
+	{
+		if (!renderer.set_replacement_provider(&replacement_provider))
+		{
+			hires_pack_status.state = HiresPackState::Unsupported;
+			return;
+		}
+		hires_pack_status.state = HiresPackState::Loaded;
+		hires_pack_status.entries = replacement_provider.entry_count();
+	}
 
 	// Jabo MD5 lookups run inside the draw-time compat lane, after its Rice key misses.
 	const bool compat_crc_auto_enabled = detail::resolve_hires_gliden64_compat_crc_auto_enabled(

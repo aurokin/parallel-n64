@@ -1758,6 +1758,28 @@ int main()
 	check(duplicate_image.rgba8 == duplicate_a_rgba, "duplicate sampled decode should resolve the stable replacement-id winner");
 	remove_tree(duplicate_dir);
 
+	const std::string rejected_dir = make_temp_dir();
+	ReplacementProvider rejected_provider;
+	check(!rejected_provider.load_cache_dir(rejected_dir + "/missing.phrb") &&
+	      rejected_provider.load_error() == ReplacementLoadStatus::NotFound && rejected_provider.rejected_path().empty(),
+	      "missing pack is distinct from rejected pack");
+	PHRBHeader unsupported = {};
+	memcpy(unsupported.magic, "PHRB", 4);
+	unsupported.version = 9;
+	std::vector<uint8_t> header_bytes(sizeof(unsupported));
+	memcpy(header_bytes.data(), &unsupported, sizeof(unsupported));
+	const auto rejected_path = rejected_dir + "/newer.phrb";
+	write_file(rejected_path, header_bytes);
+	check(!rejected_provider.load_cache_dir(rejected_path) &&
+	      rejected_provider.load_error() == ReplacementLoadStatus::UnsupportedVersion &&
+	      rejected_provider.rejected_path() == rejected_path && rejected_provider.entry_count() == 0,
+	      "unsupported PHRB version reports rejection without loading entries");
+	write_file(rejected_path, {1, 2, 3});
+	check(!rejected_provider.load_cache_dir(rejected_path) &&
+	      rejected_provider.load_error() == ReplacementLoadStatus::Invalid,
+	      "unreadable or truncated metadata reports a damaged pack");
+	remove_tree(rejected_dir);
+
 	remove_tree(dir);
 	std::cout << "emu_unit_texture_replacement_provider_test: PASS" << std::endl;
 	return 0;

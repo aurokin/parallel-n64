@@ -260,12 +260,12 @@ target_compile_features(emu_unit_texture_replacement_provider_test PRIVATE cxx_s
 target_link_libraries(emu_unit_texture_replacement_provider_test PRIVATE z)
 add_test(NAME emu.unit.texture_replacement_provider COMMAND emu_unit_texture_replacement_provider_test)
 
-add_executable(emu_unit_hires_registry_budget_test
-  emu_unit_hires_registry_budget_test.cpp
+add_executable(emu_unit_hires_residency_test
+  emu_unit_hires_residency_test.cpp
 )
-target_include_directories(emu_unit_hires_registry_budget_test PRIVATE "${CMAKE_SOURCE_DIR}")
-target_compile_features(emu_unit_hires_registry_budget_test PRIVATE cxx_std_17)
-add_test(NAME emu.unit.hires_registry_budget COMMAND emu_unit_hires_registry_budget_test)
+target_include_directories(emu_unit_hires_residency_test PRIVATE "${CMAKE_SOURCE_DIR}")
+target_compile_features(emu_unit_hires_residency_test PRIVATE cxx_std_11)
+add_test(NAME emu.unit.hires_residency COMMAND emu_unit_hires_residency_test)
 
 add_executable(emu_unit_hires_mip_filter_test
   emu_unit_hires_mip_filter_test.cpp

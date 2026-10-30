@@ -60,6 +60,7 @@ STATUS_RE = re.compile(r"GET_STATUS\s+(\w+)\b.*?frame=(\d+)\s*$")
 SUMMARY_RE = re.compile(r"Hi-res keying summary[^:]*:\s*(.*)$")
 # Jabo (MD5-keyed) packages report their draw-time hits on a separate line.
 JABO_SUMMARY_RE = re.compile(r"Hi-res Jabo summary:\s*entries=(\d+) hits=(\d+) misses=(\d+)")
+RESIDENCY_RE = re.compile(r"Hi-res residency summary[^:]*:\s*(.*)$", re.MULTILINE)
 FILTERED_RE = re.compile(r"Hi-res keying filtered: reason=(\S+)")
 CACHE_FAILED = "Hi-res replacement cache load failed"
 STATE_LOAD_FAILED = "[State] Failed to load state"
@@ -410,8 +411,15 @@ def parse_hires(log_text: str) -> dict[str, Any]:
         "summary_lines": lines[-3:], "summary_count": len(lines),
         "cache_load_failed": CACHE_FAILED in log_text,
         "provider": None, "entries": None, "hits": None, "misses": None, "draw_hits": None,
-        "jabo": None, "fallback_reasons": {},
+        "jabo": None, "residency": None, "fallback_reasons": {},
     }
+    residency = RESIDENCY_RE.findall(log_text)
+    if residency:
+        fields = dict(re.findall(r"(\w+)=([^\s]+)", residency[-1].rstrip(".")))
+        hires["residency"] = {
+            key: value if key == "mode" else float(value) if key.startswith("load_ms_") else int(value)
+            for key, value in fields.items()
+        }
     jabo = JABO_SUMMARY_RE.findall(log_text)
     if jabo:
         entries, hits, misses = map(int, jabo[-1])
@@ -617,8 +625,15 @@ def execute(scenario: Scenario, ctx: RunContext, session: Session, record: dict[
              "--retroarch-bin", str(args.retroarch_bin), "--base-config", str(args.base_config),
              "--ttl-seconds", str(args.ttl or max(600, 180 + scenario.total_frames // 10)),
              "--start-paused"]
-    if args.extra_append_config:
-        start += ["--extra-append-config", str(args.extra_append_config)]
+    extra_config = args.extra_append_config
+    if args.mode == "on":
+        # Vulkan viewport screenshots can include frontend messages. Suppress
+        # notifications in captures, preserving any caller's other settings.
+        extra_config = stage_dir / "capture.cfg"
+        extra_config.write_text((args.extra_append_config.read_text() if args.extra_append_config else "")
+                                + '\nvideo_font_enable = "false"\nmenu_enable_widgets = "false"\n')
+    if extra_config:
+        start += ["--extra-append-config", str(extra_config)]
     if inputs.state:
         # The adapter copies a "ParaLLEish" source into the core's sorted
         # state directory; RetroArch names slots after the content basename.
@@ -674,6 +689,9 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
         bundle.rename(bundle.with_name(f"{bundle.name}.interrupted-{int(time.time())}"))
     (bundle / "logs").mkdir(parents=True)
     env = dict(os.environ)
+    if args.mode == "on":
+        env["PARALLEL_RDP_HIRES_GPU_BUDGET_MB"] = "8192"
+        env["PARALLEL_RDP_HIRES_LOAD"] = "sync"
     pack = ctx.pack_for(scenario)
     pack_sha = ctx.pack_sha(pack) if pack else None
     if pack:
@@ -825,6 +843,14 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
     hires = record["hires"]
     if hires is not None:
         if mode == "on":
+            residency = hires.get("residency") or {}
+            deterministic = residency.get("mode") == "sync"
+            bounded = (residency.get("budget", 0) > 0
+                       and residency.get("resident_bytes", -1) >= 0
+                       and residency["resident_bytes"] <= residency["budget"])
+            gates.append(gate("hires.residency", "pass" if deterministic and bounded else "fail",
+                              f"mode={residency.get('mode')} resident_bytes={residency.get('resident_bytes')} "
+                              f"budget={residency.get('budget')}"))
             loaded = not hires["cache_load_failed"] and hires["provider"] == "on"
             gates.append(gate("hires.provider", "pass" if loaded else "fail",
                               "" if loaded else ("cache load failed" if hires["cache_load_failed"]

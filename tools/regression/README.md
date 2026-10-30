@@ -106,6 +106,7 @@ second run into a new `--out`; compare their records.
 | `hires.provider` — summary has `provider=on`, no cache load failure | — | fail |
 | `hires.entries`, `hires.served` (upload or draw-time hits) — at least one; `served` skips a session with no texture lookups | — | fail |
 | `hires.inert` — no `provider=on` summary | fail | — |
+| `hires.residency` — synchronous loading and computed resident bytes within budget | — | fail |
 
 - End-state and RAM-cue gates follow
   [ADR-0019](../../docs/adr/0019-deterministic-emulation-state-gates.md):
@@ -126,6 +127,11 @@ second run into a new `--out`; compare their records.
   `PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES` in on mode so a core that
   emits periodic summaries leaves evidence even when shutdown is forced; cores
   without it log only at shutdown.
+- On-mode runs pin `PARALLEL_RDP_HIRES_GPU_BUDGET_MB=8192` and
+  `PARALLEL_RDP_HIRES_LOAD=sync`, overriding inherited environment values.
+  The last residency summary is stored in `hires.residency`; timing fields are
+  diagnostic only. Frontend notifications are disabled in the appended capture
+  config, since Vulkan viewport screenshots can include them.
 - Sessions stay paused and advance only by explicit frame steps
   ([ADR-0009](../../docs/adr/0009-interactive-adapter-and-deterministic-play.md)).
   Each bundle records its inputs and logs

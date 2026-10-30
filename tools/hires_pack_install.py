@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: MIT
 """Offline ROM identity, pack pairing and installation; no emulator dependencies."""
 import configparser
+import errno
 import json
 import os
 import re
 import shutil
+import stat
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
@@ -167,25 +169,52 @@ def prepare_install(args):
 
 
 def finish_install(report, install, replace=False):
-    """Publish a completed package atomically, preserving an existing target by default."""
+    """Publish a completed package, preserving an existing target by default."""
     if report["gate_failures"]:
         return
     target = Path(install["target_path"])
     target.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".hts2phrb-", delete=False) as fp:
-        temporary = Path(fp.name)
-    try:
-        shutil.copyfile(report["binary_package"]["output_path"], temporary)
+    source = Path(report["binary_package"]["output_path"])
+    with tempfile.TemporaryDirectory(dir=target.parent, prefix=".hts2phrb-") as staging:
+        Path(staging).chmod(0o700)
+        temporary = Path(staging) / "package"
+        with temporary.open("wb"):
+            mode = stat.S_IMODE(temporary.stat().st_mode)
+        if replace and target.exists():
+            mode = stat.S_IMODE(target.stat().st_mode)
+        # Move converter output (rename on the same filesystem), but preserve
+        # installed packages referenced by a reused report.
+        if source.resolve().is_relative_to(Path(report["output_dir"]).resolve()):
+            shutil.move(source, temporary)
+        else:
+            shutil.copyfile(source, temporary)
+        temporary.chmod(mode)
         if replace:
             os.replace(temporary, target)
         else:
             try:
-                os.link(temporary, target)
+                try:
+                    os.link(temporary, target)
+                except OSError as exc:
+                    if exc.errno not in (errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP,
+                                         errno.EXDEV, errno.ENOSYS, errno.EMLINK):
+                        raise
+                    with temporary.open("rb") as src:
+                        fp = target.open("xb")
+                        try:
+                            with fp:
+                                shutil.copyfileobj(src, fp)
+                        except BaseException:
+                            target.unlink()
+                            raise
+                    target.chmod(mode)
             except FileExistsError as exc:
                 raise ValueError(f"Pack already exists: {target}. Rerun with --replace to overwrite it.") from exc
-    finally:
-        temporary.unlink(missing_ok=True)
+    report["binary_package"]["output_path"] = str(target)
+    if "binary_package_path" in report:
+        report["binary_package_path"] = str(target)
     report["install"] = install
     Path(report["report_path"]).write_text(json.dumps(report, indent=2) + "\n")
-    with Path(report["summary_path"]).open("a") as fp:
-        fp.write(f"\nInstalled: `{target}` (target check: {install['target_check']}).\n")
+    summary = Path(report["summary_path"])
+    summary.write_text(summary.read_text().replace(str(source), str(target)) +
+                       f"\nInstalled: `{target}` (target check: {install['target_check']}).\n")

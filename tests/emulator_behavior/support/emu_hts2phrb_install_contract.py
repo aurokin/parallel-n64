@@ -1,7 +1,10 @@
 """Synthetic, offline contracts for ROM pairing and converter installation."""
+import errno
 import gzip
 import hashlib
 import json
+import os
+import stat
 import struct
 import subprocess
 import sys
@@ -9,6 +12,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 from PIL import Image
 
@@ -17,6 +21,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 from hires_pack_install import (
     check_pairing,
+    finish_install,
     hires_game_ident,
     parse_rdb_keys,
     read_rom_header,
@@ -176,6 +181,9 @@ class InstallCLI(unittest.TestCase):
         report = json.loads(self.run_converter().stdout)
         target = self.system / "parallel-n64/hires/MARIOKART64/MARIOKART64_HIRESTEXTURES.phrb"
         self.assertEqual(target.read_bytes(), binary)
+        self.assertFalse((self.output / "package.phrb").exists())
+        self.assertEqual(report["binary_package"]["output_path"], str(target))
+        self.assertEqual(Path(report["report_path"]).parent, self.output)
         info = report["install"]
         self.assertEqual(info["target_path"], str(target))
         self.assertEqual(info["source_label"], "MARIOKART64")
@@ -227,6 +235,16 @@ class InstallCLI(unittest.TestCase):
         self.assertIn("addon.phrb", result.stderr)
         self.assertIn("later names win", result.stderr)
         self.assertEqual(json.loads(result.stdout)["install"]["other_packages"], ["MARIOKART64/addon.phrb"])
+
+    def test_reusing_an_installed_package_keeps_the_previous_install(self):
+        first = json.loads(self.run_converter().stdout)
+        original = Path(first["install"]["target_path"])
+        payload = original.read_bytes()
+        second = json.loads(self.run_converter("--reuse-existing", "--name", "second").stdout)
+        self.assertTrue(second["reused_existing"])
+        self.assertEqual(original.read_bytes(), payload)
+        self.assertEqual(Path(second["install"]["target_path"]).read_bytes(), payload)
+        self.assertFalse((self.output / "package.phrb").exists())
 
     def test_layering_note_includes_top_level_and_case_insensitive_folders_in_load_order(self):
         hires = self.system / "parallel-n64/hires"
@@ -374,6 +392,81 @@ class InstallCLI(unittest.TestCase):
         result = self.run_converter("--force-target", success=False)
         self.assertIn("ROM identity is not a usable install filename", result.stderr)
         self.assertFalse(self.system.exists())
+
+
+class Publication(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.output = self.root / "out"
+        self.output.mkdir()
+        self.source = self.output / "package.phrb"
+        self.source.write_bytes(b"completed package")
+        self.target = self.root / "system/parallel-n64/hires/GAME/skin.phrb"
+        summary = self.output / "summary.md"
+        summary.write_text(f"Package: {self.source}\n")
+        self.report = {"gate_failures": [], "output_dir": str(self.output),
+                       "binary_package": {"output_path": str(self.source)},
+                       "report_path": str(self.output / "report.json"), "summary_path": str(summary)}
+        self.install = {"target_path": str(self.target), "target_check": "exact"}
+
+    def test_new_install_uses_creation_mode_and_moves_same_filesystem_payload(self):
+        inode = self.source.stat().st_ino
+        self.source.chmod(0o600)
+        previous = os.umask(0o027)
+        try:
+            finish_install(self.report, self.install)
+        finally:
+            os.umask(previous)
+        self.assertEqual(stat.S_IMODE(self.target.stat().st_mode), 0o640)
+        self.assertEqual(self.target.stat().st_ino, inode)
+        self.assertFalse(self.source.exists())
+
+    def test_replacement_keeps_existing_mode(self):
+        self.target.parent.mkdir(parents=True)
+        self.target.write_bytes(b"old")
+        self.target.chmod(0o604)
+        finish_install(self.report, self.install, replace=True)
+        self.assertEqual(self.target.read_bytes(), b"completed package")
+        self.assertEqual(stat.S_IMODE(self.target.stat().st_mode), 0o604)
+
+    def test_cross_filesystem_move_leaves_only_the_installed_package(self):
+        with mock.patch("hires_pack_install.os.rename", side_effect=OSError(errno.EXDEV, "cross device")):
+            finish_install(self.report, self.install)
+        self.assertEqual(self.target.read_bytes(), b"completed package")
+        self.assertFalse(self.source.exists())
+        self.assertEqual(list(self.target.parent.iterdir()), [self.target])
+
+    def test_unsupported_link_falls_back_to_exclusive_creation(self):
+        for error in (errno.EPERM, errno.ENOTSUP, errno.EXDEV, errno.ENOSYS, errno.EMLINK):
+            with self.subTest(error=error):
+                self.source.write_bytes(b"completed package")
+                self.report["binary_package"]["output_path"] = str(self.source)
+                with mock.patch("hires_pack_install.os.link", side_effect=OSError(error, "unsupported")):
+                    finish_install(self.report, self.install)
+                self.assertEqual(self.target.read_bytes(), b"completed package")
+                self.assertFalse(self.source.exists())
+                self.target.unlink()
+
+    def test_racing_target_is_preserved_with_links_and_exclusive_fallback(self):
+        self.target.parent.mkdir(parents=True)
+        self.target.write_bytes(b"preserve me")
+        for error in (None, OSError(errno.EPERM, "unsupported")):
+            with self.subTest(error=error):
+                self.source.write_bytes(b"completed package")
+                with mock.patch("hires_pack_install.os.link", wraps=os.link, side_effect=error):
+                    with self.assertRaisesRegex(ValueError, "--replace"):
+                        finish_install(self.report, self.install)
+                self.assertEqual(self.target.read_bytes(), b"preserve me")
+
+    def test_failed_fallback_copy_removes_its_partial_target(self):
+        with mock.patch("hires_pack_install.os.link", side_effect=OSError(errno.EXDEV, "unsupported")), \
+             mock.patch("hires_pack_install.shutil.copyfileobj", side_effect=OSError("disk full")):
+            with self.assertRaisesRegex(OSError, "disk full"):
+                finish_install(self.report, self.install)
+        self.assertFalse(self.target.exists())
+        self.assertEqual(list(self.target.parent.iterdir()), [])
 
 
 if __name__ == "__main__":

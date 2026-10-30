@@ -190,7 +190,7 @@ static void show_hires_status()
 			std::snprintf(message, sizeof(message), "Hi-res textures: \"%s\" was not loaded. This game's folder must be named \"%s\".",
 			              detail::hires_path_filename(hires_selection.near_misses.front()).c_str(), hires_ident.c_str());
 		else if (!hires_selection.unconverted.empty())
-			std::snprintf(message, sizeof(message), "Hi-res textures: found an unconverted pack (%s). Convert it with the ParaLLEish pack converter; see the texture pack guide.",
+			std::snprintf(message, sizeof(message), "Hi-res textures: found an unconverted pack (%s). Run python3 tools/hts2phrb.py --cache <pack> --rom <ROM> --install <system dir>.",
 			              detail::hires_path_filename(hires_selection.unconverted.front()).c_str());
 		else if (hires_ident.empty())
 			std::snprintf(message, sizeof(message), "Hi-res textures: this ROM has no name or game code in its header.");

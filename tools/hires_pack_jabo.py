@@ -12,7 +12,8 @@ a folder offline:
   `.jpeg`, in any case; the key is the lowercase MD5. Suffixed copies
   (`<MD5> - Copy.png`, `<MD5>xx.png`), other image formats (`.pspimage`,
   `.bmp`), `Thumbs.db` and every other file are skipped and reported.
-  `pack.xml` and `roms.ini` are listed in the report only.
+  `pack.xml` and `roms.ini` are listed in the source report; the separate
+  install helper checks their supported-ROM lists when installing.
 - Traversal is depth-first in case-insensitive name order without following
   symlinks, as in hires_pack_loose_png. The first loadable file for an MD5 wins.
 - Content decides the decoder: PNG and JPEG via Pillow (RGB gets alpha 255),

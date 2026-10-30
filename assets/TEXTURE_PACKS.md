@@ -76,19 +76,43 @@ its own rights.
 
 ## Install And Load Diagnostics
 
-Convert offline using the current converter, then copy the resulting package
-into the ident file or directory above. For example:
+Extract the pack and run the converter with your ROM and the frontend's system
+directory:
 
 ```sh
 python3 tools/hts2phrb.py --cache "extracted/SUPER MARIO 64_HIRESTEXTURES.hts" \
-  --output-dir artifacts/hts2phrb/sm64
-# Copy the resulting .phrb into system/parallel-n64/hires/SUPER MARIO 64/
+  --rom "roms/Super Mario 64.z64" --install "system"
 ```
 
-There is no core pack picker or automatic conversion. The planned converter
-`--rom --install` workflow is a separate follow-up; those flags are not
-implemented yet. Unconverted-pack notifications refer to the converter and
-this guide.
+This checks the pairing before conversion and installs to
+`<system>/parallel-n64/hires/<ident>/<source stem>.phrb`, printing the path.
+ROM headers are read from `.z64`, `.v64` and `.n64` byte orders, or the first
+member with one of those extensions in ZIP archive order. ROM data is never
+extracted or modified. Pack archives must be extracted first.
+
+If the source directory contains a Jabo supported-ROM list in `pack.xml`
+(`supported/rdb`) or `roms.ini` (`[Supported] CRC`), the ROM's header CRC pair
+and country must be listed. Otherwise the cache stem without `_HIRESTEXTURES`,
+dominant Rice filename prefix, or Jabo folder name must equal the ROM ident,
+case-insensitively. `--rom-name` selects loose input textures; it does not
+override this pairing check. A label such as `Mario Kart 64` therefore refuses
+`MARIOKART64`, and `POKEMON STADIUM 2` refuses a CP2J ROM. Review the pairing
+and pass `--force-target` only when you intend that mismatch.
+
+Use `--name <name>` to name the installed package and `--replace` to overwrite
+an existing file. The converter lists other packages already in the target
+folder: later names win. Its JSON report records source label/list, ROM header
+fields, ident, target path, match method (`exact`, `allowlist`, `forced`) and
+whether a mismatch was forced in `install`. Metadata lists must be inside the
+source directory you pass, so pass the extracted pack root if it holds both
+metadata and a texture subfolder.
+
+`--install` requires `--rom`; `--rom`, `--name`, `--force-target` and `--replace`
+require `--install`. Without install mode, conversion still writes to
+`--output-dir` (or its existing artifacts default) for manual copying and
+tooling. Conversion reports and scratch data stay there even in install mode.
+There is no core pack picker or automatic conversion. The core's unconverted
+pack hint names the command above.
 
 The existing notification path uses `SET_MESSAGE_EXT` (with `SET_MESSAGE`
 fallback), once per event per content load. On success it reports pack count,
@@ -202,7 +226,8 @@ The converter (`tools/hires_pack_jabo.py`):
 - Accepts names of exactly 32 hex digits with `.png`, `.dds`, `.jpg` or
   `.jpeg`, in any case. Suffixed copies (`<MD5> - Copy.png`, `<MD5>xx.png`),
   other image formats (`.pspimage`, `.bmp`), `Thumbs.db` and other files are
-  skipped. `pack.xml` and `roms.ini` are only listed in the report.
+  skipped. `pack.xml` and `roms.ini` are listed in the source report and their
+  supported-ROM lists are checked in install mode.
 - Traverses depth-first in case-insensitive name order without following
   symlinks. The first loadable file for an MD5 wins; later ones are reported
   as `duplicate-key`.

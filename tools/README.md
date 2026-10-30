@@ -5,6 +5,22 @@ Project64/Jabo packs into PHRB packages. See the
 [pack format and conversion guide](../assets/TEXTURE_PACKS.md) and run
 `python3 tools/hts2phrb.py --help` for options.
 
+To check a pack against your ROM and install it:
+
+```sh
+python3 tools/hts2phrb.py --cache "extracted pack" --rom "game.z64" \
+  --install "RetroArch system directory"
+```
+
+The ROM may use z64/v64/n64 byte order or be the first N64 member in a ZIP.
+The converter checks a supported-ROM list when present, otherwise an exact
+case-insensitive label, then writes
+`<system>/parallel-n64/hires/<ident>/<source stem>.phrb`. `--name` changes the
+installed filename, `--replace` permits overwriting it, and `--force-target`
+explicitly overrides a pairing mismatch. The report's `install` object records
+the source, ROM header, target and check result. See the guide for label rules
+and layering order. Without `--install`, conversion behavior is unchanged.
+
 Raw RGBA compression is opt-in: `--compress-raw-rgba 1` or `6` uses zlib at
 that level only for exact, nonzero RGBA/unsigned-byte blobs, retaining the
 compressed bytes only when smaller. The default is `off`. Other formats,
@@ -38,6 +54,7 @@ introduced in this repository by the listed local addition commit.
 | [`hires_pack_emit_proxy_bindings.py`](hires_pack_emit_proxy_bindings.py) | `fa932c0f` |
 | [`hires_pack_inspect_binary_package.py`](hires_pack_inspect_binary_package.py) | `1a776054` |
 | [`hires_pack_jabo.py`](hires_pack_jabo.py) | `14ec942e` |
+| [`hires_pack_install.py`](hires_pack_install.py) | `2af91ccb` |
 | [`hires_pack_loose_png.py`](hires_pack_loose_png.py) | `88bad189` |
 | [`hires_pack_materialize_package.py`](hires_pack_materialize_package.py) | `ca99336b` |
 | [`hires_pack_migrate.py`](hires_pack_migrate.py) | `22d05626` |

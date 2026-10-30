@@ -673,9 +673,18 @@ void reinit_gfx_plugin(void)
           }
           else
           {
-             parallel_init(vulkan);
-             savestate_rdp_noise_get = parallel_get_noise_state;
-             savestate_rdp_noise_set = parallel_set_noise_state;
+             if (parallel_init(vulkan))
+             {
+                savestate_rdp_noise_get = parallel_get_noise_state;
+                savestate_rdp_noise_set = parallel_set_noise_state;
+             }
+             else
+             {
+                savestate_rdp_noise_get = NULL;
+                savestate_rdp_noise_set = NULL;
+                if (log_cb)
+                   log_cb(RETRO_LOG_ERROR, "parallel-RDP init failed; nothing will be rendered.\n");
+             }
           }
 #endif
           break;

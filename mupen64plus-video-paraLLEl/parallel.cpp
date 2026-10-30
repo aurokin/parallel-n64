@@ -6,6 +6,9 @@
 #include <string.h>
 #include <boolean.h>
 
+/* Keep failed Vulkan initialization away from the frame-driving entry points. */
+static bool renderer_ready = false;
+
 extern "C" {
 extern int retro_return(bool just_flipping);
 
@@ -49,7 +52,8 @@ void parallelProcessDList(void)
 
 void parallelProcessRDPList(void)
 {
-	RDP::process_commands();
+	if (renderer_ready)
+		RDP::process_commands();
 }
 
 void parallelRomClosed(void)
@@ -63,7 +67,8 @@ int parallelRomOpen(void)
 
 void parallelUpdateScreen(void)
 {
-	RDP::complete_frame();
+	if (renderer_ready)
+		RDP::complete_frame();
 	retro_return(true);
 }
 
@@ -117,11 +122,13 @@ m64p_error parallelPluginGetVersion(m64p_plugin_type *PluginType, int *PluginVer
 bool parallel_init(const struct retro_hw_render_interface_vulkan *vulkan)
 {
 	RDP::vulkan = vulkan;
-	return RDP::init();
+	renderer_ready = RDP::init();
+	return renderer_ready;
 }
 
 void parallel_deinit()
 {
+	renderer_ready = false;
 	RDP::deinit();
 	RDP::vulkan = nullptr;
 }
@@ -138,12 +145,13 @@ unsigned parallel_frame_height()
 
 bool parallel_frame_is_valid()
 {
-	return true;
+	return renderer_ready;
 }
 
 void parallel_begin_frame()
 {
-	RDP::begin_frame();
+	if (renderer_ready)
+		RDP::begin_frame();
 }
 
 void parallel_set_synchronous_rdp(bool enable)
@@ -183,12 +191,14 @@ void parallel_set_interlacing(bool enable)
 
 void parallel_profile_video_refresh_begin(void)
 {
-	RDP::profile_refresh_begin();
+	if (renderer_ready)
+		RDP::profile_refresh_begin();
 }
 
 void parallel_profile_video_refresh_end(void)
 {
-	RDP::profile_refresh_end();
+	if (renderer_ready)
+		RDP::profile_refresh_end();
 }
 
 void parallel_set_upscaling(unsigned factor)

@@ -42,6 +42,8 @@ from hires_pack_emit_binary_package import emit_binary_package_from_manifest
 from hires_pack_emit_loader_manifest import build_canonical_loader_manifest, build_loader_manifest
 from hires_pack_emit_proxy_bindings import build_proxy_bindings, load_policy as load_transport_policy
 from hires_pack_materialize_package import materialize_package_in_memory
+from hires_pack_install import finish_install, prepare_install
+from hires_pack_loose_png import port_specific_summary
 from hires_pack_migrate import (
     build_imported_index,
     build_migration_plan,
@@ -625,6 +627,9 @@ def write_source_input_report(output_dir: Path, cache_path: Path, cache_resoluti
     if cache_resolution["resolved_storage"] not in (LOOSE_PNG_STORAGE, JABO_STORAGE, "dat"):
         return None
     full_report = load_derived_cache_input(cache_path)["report"]
+    port_note = port_specific_summary(item["path"] for item in full_report.get("skipped", []))
+    if port_note:
+        full_report["port_specific_summary"] = port_note
     report_path = output_dir / "source-input-report.json"
     report_path.write_text(json.dumps(full_report, indent=2) + "\n")
     summary = {key: value for key, value in full_report.items() if key not in ("skipped", "oversize", "pack_metadata")}
@@ -3676,7 +3681,7 @@ def build_stdout_summary(report):
     ]
     if report.get("family_inventory_markdown_path"):
         lines.append(f"family_inventory: {report['family_inventory_markdown_path']}")
-    cache_name = Path(report.get("cache_path") or "").name
+    cache_name = "" if report.get("install") else Path(report.get("cache_path") or "").name
     for suffix in ("_HIRESTEXTURES.hts", "_HIRESTEXTURES.htc"):
         if cache_name.endswith(suffix):
             rom_name = cache_name[:-len(suffix)].rstrip(" \0")
@@ -5021,6 +5026,11 @@ def main():
     )
     parser.add_argument("--cache", required=True, help="Path to a GLideN64 .hts/.htc cache, a Glide64 *_HIRESTEXTURES.dat cache, a directory containing one, or a loose texture directory (used when the directory holds no cache file): Rice-named PNGs, or Project64/Jabo textures named by 32-digit MD5, whichever naming the directory mostly uses.")
     parser.add_argument("--rom-name", help="Loose PNG input: ROM internal name that texture file names must start with (GLideN64's texture folder name). Defaults to the most common <name># prefix in the directory.")
+    parser.add_argument("--rom", help="Target ROM (.z64/.v64/.n64 or first N64 member of a .zip); requires --install.")
+    parser.add_argument("--install", help="Check the pack against --rom and install under this frontend system directory.")
+    parser.add_argument("--name", help="Installed package name (default: source stem); requires --install.")
+    parser.add_argument("--force-target", action="store_true", help="Install despite a label or supported-ROM-list mismatch.")
+    parser.add_argument("--replace", action="store_true", help="Allow replacing an existing installed package.")
     parser.add_argument("--loose-png-alpha", choices=("full", "rice"), default="full", help="Loose PNG input: 'full' keeps artist alpha (GLideN64 txHiresFullAlphaChannel=True, its default); 'rice' applies GLideNHQ's legacy Rice alpha rounding to fmt 0/siz 2 and CI textures (txHiresFullAlphaChannel=False).")
     parser.add_argument("--accept-glide64-pow2-padding", action="store_true", help="Convert a Glide64 .dat cache even though its non-power-of-two textures are stored padded and will render at the wrong scale.")
     parser.add_argument("--loose-png-workers", type=int, help="Loose PNG or Jabo input: decoder processes. Defaults to the CPU count.")
@@ -5058,11 +5068,28 @@ def main():
     parser.add_argument("--stdout-format", choices=("summary", "json"), default="summary", help="Stdout format. Use json for machine consumption; summary is the default front-door view.")
     args = parser.parse_args()
 
-    result = build_conversion(args)
+    try:
+        install = prepare_install(args)
+        if install and install["other_packages"]:
+            print("Other packages in target folder: " + ", ".join(install["other_packages"]) +
+                  ". Packages load in name order; later names win.", file=sys.stderr)
+        result = build_conversion(args)
+        if result.pop("install", None):
+            Path(result["report_path"]).write_text(json.dumps(result, indent=2) + "\n")
+        if install:
+            finish_install(result, install, args.replace)
+    except (OSError, ValueError) as exc:
+        parser.exit(1, f"hts2phrb: {exc}\n")
+    source_report = result.get("source_input_report") or {}
+    port_note = source_report.get("port_specific_summary")
+    if port_note:
+        print(port_note, file=sys.stderr)
     if args.stdout_format == "json":
         sys.stdout.write(json.dumps(result, indent=2) + "\n")
     else:
         sys.stdout.write(build_stdout_summary(result))
+        if result.get("install"):
+            sys.stdout.write(f"installed: {result['install']['target_path']}\n")
     if result["gate_failures"]:
         raise SystemExit("Conversion gates failed: " + "; ".join(failure["message"] for failure in result["gate_failures"]))
 

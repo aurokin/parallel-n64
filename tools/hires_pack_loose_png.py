@@ -154,11 +154,26 @@ def iter_pack_files(root: Path):
     yield from walk(root, Path())
 
 
+def port_specific_format(path: Path):
+    name = path.name.lower()
+    if name.startswith("tex1_"):
+        return "Dolphin tex1_*"
+    if (name.startswith("rt64_") or
+            re.fullmatch(r"[0-9a-f]{8}#[0-4]#[0-3](?:#[0-9a-f]{8})?(?:_[0-9a-f]{16})?\.(?:png|dds)", name)):
+        return "rt64"
+    return None
+
+
+def port_specific_summary(paths):
+    formats = sorted({kind for path in paths if (kind := port_specific_format(Path(path)))})
+    return "Skipped port-specific textures: " + ", ".join(formats) + "; these are not N64 Rice/GLideN64 pack names." if formats else ""
+
+
 def infer_rom_name(root: Path):
     """Pick the ROM name GLideNHQ would need for most image names in the pack."""
     counts = {}
     for rel, skipped in iter_pack_files(root):
-        if skipped or not rel.name.lower().endswith(_IMAGE_SUFFIXES):
+        if skipped or not rel.name.lower().endswith(_IMAGE_SUFFIXES) or port_specific_format(rel):
             continue
         match = _IDENT_PREFIX_RE.match(rel.name)
         if match and match.group("ident"):
@@ -438,7 +453,8 @@ def scan_loose_png_pack(root: Path, rom_name: str | None = None, alpha_mode: str
     inferred_rom_name, rom_name_counts = infer_rom_name(root)
     ident = rom_name or inferred_rom_name
     if not ident:
-        raise ValueError(f"No Rice-named textures (<ROM>#<CRC>#...) found under {root}; pass --rom-name.")
+        note = port_specific_summary(rel for rel, skipped in iter_pack_files(root) if not skipped)
+        raise ValueError(f"No Rice-named textures (<ROM>#<CRC>#...) found under {root}; pass --rom-name. {note}".rstrip())
     if workers is None:
         workers = os.cpu_count() or 1
 

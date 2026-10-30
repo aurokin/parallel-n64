@@ -106,6 +106,11 @@ add_test(
 )
 
 add_test(
+  NAME emu.support.hts2phrb_install_contract
+  COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_install_contract.py"
+)
+
+add_test(
   NAME emu.support.hts2phrb_bounded_memory_contract
   COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_bounded_memory_contract.py"
 )

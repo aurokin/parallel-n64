@@ -129,6 +129,10 @@ second run into a new `--out`; compare their records.
   without it log only at shutdown.
 - On-mode runs pin `PARALLEL_RDP_HIRES_GPU_BUDGET_MB=8192` and
   `PARALLEL_RDP_HIRES_LOAD=sync`, overriding inherited environment values.
+  Use `--hires-budget-mb N` for an explicit positive budget in MiB (e.g. 64 or
+  256 for pressure runs). The selected budget is recorded as `hires_budget_mb`;
+  non-default budgets append `:hires-budget-Nmb` to the condition and
+  `__hires-budget-Nmb` to the bundle name, keeping resume and evidence separate.
   The last residency summary is stored in `hires.residency`; timing fields are
   diagnostic only. Frontend notifications are disabled in the appended capture
   config, since Vulkan viewport screenshots can include them.

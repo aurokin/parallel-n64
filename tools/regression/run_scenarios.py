@@ -455,7 +455,7 @@ class RunContext:
     adapter: Path
     out: Path
     condition: str
-    identities: dict[str, str | None]
+    identities: dict[str, str | int | None]
     pack_map: dict[str, Path] = field(default_factory=dict)
     rom_sha_cache: dict[Path, str] = field(default_factory=dict)
     pack_sha_cache: dict[Path, str] = field(default_factory=dict)
@@ -684,13 +684,15 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
     # One bundle per condition, so runs of another runtime class in the same
     # output directory never replace the evidence an earlier record points to.
     runtime_slug = re.sub(r"[^A-Za-z0-9._-]+", "_", args.runtime_class)
+    if args.mode == "on" and args.hires_budget_mb != 8192:
+        runtime_slug += f"__hires-budget-{args.hires_budget_mb}mb"
     bundle = ctx.out / "bundles" / f"{scenario.id}__{args.mode}__{runtime_slug}"
     if bundle.exists():
         bundle.rename(bundle.with_name(f"{bundle.name}.interrupted-{int(time.time())}"))
     (bundle / "logs").mkdir(parents=True)
     env = dict(os.environ)
     if args.mode == "on":
-        env["PARALLEL_RDP_HIRES_GPU_BUDGET_MB"] = "8192"
+        env["PARALLEL_RDP_HIRES_GPU_BUDGET_MB"] = str(args.hires_budget_mb)
         env["PARALLEL_RDP_HIRES_LOAD"] = "sync"
     pack = ctx.pack_for(scenario)
     pack_sha = ctx.pack_sha(pack) if pack else None
@@ -893,6 +895,7 @@ def expectation_entry(scenario: Scenario, record: dict[str, Any], mode: str) -> 
         "frontend_sha256": record["frontend_sha256"],
         "rom_sha256": record["rom_sha256"],
         "pack_sha256": record["pack_sha256"],
+        "hires_budget_mb": record["hires_budget_mb"],
         "checkpoints": checkpoints,
     }
     if scenario.save_end:
@@ -1003,6 +1006,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--extra-append-config", type=Path,
                         help="config loaded after the adapter's generated settings (e.g. capture profile)")
     parser.add_argument("--mode", choices=("off", "on"), default="off")
+    parser.add_argument("--hires-budget-mb", type=int, default=8192,
+                        help="hi-res memory budget in MiB for on-mode runs (default 8192)")
     packs = parser.add_mutually_exclusive_group()
     packs.add_argument("--pack", type=Path, help="hi-res .phrb package for every game (--mode on)")
     packs.add_argument("--pack-map", type=Path,
@@ -1026,6 +1031,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.step_chunk < 1:
         parser.error("--step-chunk must be positive")
+    if args.hires_budget_mb < 1:
+        parser.error("--hires-budget-mb must be positive")
     if args.mode == "on" and not args.pack_map and (not args.pack or not args.pack.is_file()):
         parser.error("--mode on requires an existing --pack or a --pack-map")
     if args.mode != "on" and (args.pack or args.pack_map):
@@ -1077,6 +1084,8 @@ def main(argv: list[str] | None = None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     results_path = out / "results.jsonl"
     condition = f"{args.mode}:{args.runtime_class}"
+    if args.mode == "on" and args.hires_budget_mb != 8192:
+        condition += f":hires-budget-{args.hires_budget_mb}mb"
     done = {(r["scenario"], r["condition"]) for r in read_results(results_path)} if args.resume else set()
     pending = [s for s in selected if (s.id, condition) not in done]
     print(f"[regression] {len(selected)} selected, {len(selected) - len(pending)} already recorded, "
@@ -1086,6 +1095,7 @@ def main(argv: list[str] | None = None) -> int:
     ctx = RunContext(args=args, adapter=adapter, out=out, condition=condition, pack_map=pack_map, identities={
         "core_sha256": sha256_file(args.core),
         "frontend_sha256": sha256_file(args.retroarch_bin),
+        "hires_budget_mb": args.hires_budget_mb if args.mode == "on" else None,
     })
     if pending:
         doctor = subprocess.run([str(adapter), "doctor"], capture_output=True, text=True, check=False)

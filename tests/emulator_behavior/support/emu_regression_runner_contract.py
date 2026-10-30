@@ -42,7 +42,7 @@ def emit(line):
 if sub == "start":
     assert "--start-paused" in flags and opts["--mode"] in ("off", "on")
     if opts["--mode"] == "on":
-        assert os.environ["PARALLEL_RDP_HIRES_GPU_BUDGET_MB"] == "8192"
+        assert os.environ["PARALLEL_RDP_HIRES_GPU_BUDGET_MB"] == str(plan.get("budget_mb", 8192))
         assert os.environ["PARALLEL_RDP_HIRES_LOAD"] == "sync"
         config = Path(opts["--extra-append-config"]).read_text()
         assert 'video_font_enable = "false"' in config
@@ -270,6 +270,37 @@ class RegressionRunnerContract(unittest.TestCase):
             result, records = self.run_runner(name, mode="on", plan={"residency": fields})
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(self.gates(records["field-state"])["hires.residency"], "fail")
+
+    def test_explicit_hires_budget_labels_runs_and_resume(self):
+        for budget in (8192, 64, 256):
+            with self.subTest(budget=budget):
+                flags = [] if budget == 8192 else ["--hires-budget-mb", str(budget)]
+                result, records = self.run_runner(
+                    "budgets", "--select", "boot-power-on", "--resume", "--record-expectations",
+                    *flags, mode="on", plan={"budget_mb": budget})
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                record = records["boot-power-on"]
+                self.assertEqual(record["hires_budget_mb"], budget)
+                condition = "on:fake-4x" + (f":hires-budget-{budget}mb" if budget != 8192 else "")
+                self.assertEqual(record["condition"], condition)
+                golden = json.loads((self.root / "budgets/expectations/boot-power-on.expect.json").read_text())
+                self.assertEqual(golden["conditions"][condition]["hires_budget_mb"], budget)
+        records = [json.loads(line) for line in (self.root / "budgets/results.jsonl").read_text().splitlines()]
+        self.assertEqual(len(records), 3)
+        self.assertEqual(len({record["bundle"] for record in records}), 3)
+        for record in records:
+            self.assertTrue((self.root / "budgets" / record["bundle"] / "logs/retroarch.log").is_file())
+
+    def test_shared_scenario_budget_requires_named_override(self):
+        for override, expected in (("", "8192"), ("64", "64"), ("256", "256")):
+            with self.subTest(override=override):
+                result = subprocess.run(
+                    ["bash", "-c", 'source "$1"; printf "%s" "$PARALLEL_RDP_HIRES_GPU_BUDGET_MB"',
+                     "bash", str(REPO / "tools/scenarios/lib/common.sh")],
+                    env={**os.environ, "PARALLEL_RDP_HIRES_GPU_BUDGET_MB": "1",
+                         "N64_SCENARIO_HIRES_BUDGET_MB": override},
+                    capture_output=True, text=True, check=True)
+                self.assertEqual(result.stdout, expected)
 
     def pack_map(self, name, mapping):
         path = self.root / name

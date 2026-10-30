@@ -14,7 +14,9 @@ orchestrator.
 - Record the actual ROM, state, pack, core, frontend, and configuration
   identities.
 - Shared scenario setup pins `PARALLEL_RDP_HIRES_GPU_BUDGET_MB=8192` and
-  `PARALLEL_RDP_HIRES_LOAD=sync`, matching the regression runner. Adapters and
+  `PARALLEL_RDP_HIRES_LOAD=sync`, matching the regression runner. Scenario
+  pressure runs can explicitly select a different budget in MiB with
+  `N64_SCENARIO_HIRES_BUDGET_MB`. Adapters and
   throughput benchmarks intentionally inherit the user's budget (auto if unset);
   direct adapter examples are therefore not deterministic residency comparisons.
 

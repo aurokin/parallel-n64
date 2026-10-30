@@ -32,6 +32,8 @@ its own rights.
 - Punctuation and space differences are diagnostic only. `Mario Kart 64/`
   does not match `MARIOKART64`, and `FZEROX.phrb` does not match `F-ZERO X`.
   A notification names a close-but-wrong entry instead of silently loading it.
+  For CPSJ/CP2J, a shared GLideN64-name entry is a pack for a different game,
+  so the notification does not suggest renaming it.
 - Mixing is visible: the log lists each package's unique runtime key count
   (`records`) and `hidden_by_later`. A package with more than half its keys
   replaced by later packages produces one warning per content load. Keys are
@@ -84,8 +86,9 @@ python3 tools/hts2phrb.py --cache "extracted/SUPER MARIO 64_HIRESTEXTURES.hts" \
 ```
 
 There is no core pack picker or automatic conversion. The planned converter
-`--rom --install` workflow mentioned by unconverted-pack notifications is a
-separate follow-up; those flags are not implemented yet.
+`--rom --install` workflow is a separate follow-up; those flags are not
+implemented yet. Unconverted-pack notifications refer to the converter and
+this guide.
 
 The existing notification path uses `SET_MESSAGE_EXT` (with `SET_MESSAGE`
 fallback), once per event per content load. On success it reports pack count,
@@ -98,8 +101,9 @@ memory pressure and read failures retain their independent memory diagnostics.
 Unconverted hints use the GLideN64 Name ident, even for code-selected carts:
 `hires/<ident>_HIRESTEXTURES.{hts,htc}`, a matching `hires/<ident>/` containing
 HTS/HTC/PNG/DDS but no PHRB, `Mupen64plus/cache/<ident>_HIRESTEXTURES.{hts,htc}`,
-or `Mupen64plus/hires_texture/<ident>/`, all below the system directory. These
-sources and punctuation near misses are never runtime inputs. An explicit
+or `Mupen64plus/hires_texture/<ident>/`, all below the system directory. The
+legacy locations are checked only at those exact paths, without listing them.
+These sources and punctuation near misses are never runtime inputs. An explicit
 `PARALLEL_RDP_HIRES_CACHE_PATH` bypasses this discovery and its hints.
 
 ## Memory And Disk

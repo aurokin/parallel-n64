@@ -19,7 +19,9 @@ standalone `.phrb` files first, then matching directories and their top-level
 `.phrb` files, all in byte order and skipping dotfiles. Later packages keep
 winning. The explicit `PARALLEL_RDP_HIRES_CACHE_PATH` tooling override still
 bypasses game selection, including when the header has no usable identity.
-Punctuation folding detects near misses only; it never selects packages.
+Shared GLideN64-name entries for CPSJ/CP2J are diagnosed as packs for a
+different game, without rename advice. Punctuation folding detects near misses
+only; it never selects packages.
 In particular `FZEROX` must not alias to retail `F-ZERO X`.
 
 After indexing, count each package's unique runtime keys and keys hidden by a
@@ -34,12 +36,12 @@ Reuse ADR-0023's MIT renderer status and GPL notification path, with extended
 messages and legacy fallback, once per event per content load. Identity owns
 the loaded line and missing-pack diagnostics; memory owns the budget suffix,
 rejections, GPU-support, pressure and read-error events. Loaded text is now
-`Hi-res textures: 2 packs for MARIOKART64 — 16311 textures, 512 MB memory budget`.
+`Hi-res textures: 2 packs for MARIOKART64 - 16311 textures, 512 MB memory budget`.
 A mostly hidden package additionally warns. Without a loaded package, report
 near misses, then unconverted sources, then unusable identity, then no pack.
 Unconverted detection uses the GLideN64 ident in the current hires root and
-legacy Mupen64plus cache/hires_texture locations; see the
-[install contract](../../assets/TEXTURE_PACKS.md#install-and-load-diagnostics).
+exact legacy Mupen64plus cache/hires_texture paths (no legacy directory scan);
+see the [install contract](../../assets/TEXTURE_PACKS.md#install-and-load-diagnostics).
 
 ## Consequences and verification
 

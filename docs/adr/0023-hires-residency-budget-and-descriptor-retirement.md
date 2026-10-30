@@ -34,9 +34,10 @@ The GPL frontend reports pack, device, pressure and read-error notifications
 once per content load. [ADR-0024](0024-pack-selection-identity.md) owns the
 loaded line (pack count, ident and texture count) and missing-pack diagnostics;
 this decision supplies the memory-budget suffix and retains the device,
-rejection, pressure and read-error rows. Both use the same notification path. MIT renderer status and periodic/final residency logs
-contain no libretro dependency. Regression on-mode runs pin 8 GiB and synchronous
-loading and suppress frontend notifications in viewport captures.
+rejection, pressure and read-error rows. Both use the same notification path.
+MIT renderer status and periodic/final residency logs contain no libretro
+dependency. Regression on-mode runs pin 8 GiB and synchronous loading and
+suppress frontend notifications in viewport captures.
 
 ## Consequences and verification
 

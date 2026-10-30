@@ -486,8 +486,8 @@ static bool emu_step_load_data()
          log_cb(RETRO_LOG_INFO, "EmuThread: M64CMD_ROM_GET_HEADER\n");
 
 #ifdef HAVE_PARALLEL
-      /* Capture the raw field before GET_HEADER substitutes its normalized name. */
-      parallel_set_hires_rom_name((const char *)ROM_HEADER.Name);
+      /* Capture the raw header before GET_HEADER substitutes its normalized name. */
+      parallel_set_hires_rom_header((const uint8_t *)&ROM_HEADER);
 #endif
       if(CoreDoCommand(M64CMD_ROM_GET_HEADER, sizeof(ROM_HEADER), &ROM_HEADER))
       {
@@ -582,8 +582,8 @@ static bool emu_step_load_data()
          log_cb(RETRO_LOG_INFO, "EmuThread: M64CMD_ROM_GET_HEADER\n");
 
 #ifdef HAVE_PARALLEL
-      /* Capture the raw field before GET_HEADER substitutes its normalized name. */
-      parallel_set_hires_rom_name((const char *)ROM_HEADER.Name);
+      /* Capture the raw header before GET_HEADER substitutes its normalized name. */
+      parallel_set_hires_rom_header((const uint8_t *)&ROM_HEADER);
 #endif
       if(CoreDoCommand(M64CMD_ROM_GET_HEADER, sizeof(ROM_HEADER), &ROM_HEADER))
       {

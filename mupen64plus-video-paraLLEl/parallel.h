@@ -35,8 +35,8 @@ void parallel_set_hires_textures(bool enable);
 void parallel_set_hires_filter(unsigned filter);
 void parallel_set_hires_memory(unsigned mb);
 void parallel_set_hires_cache_path(const char *path);
-/* Reads the ROM header's fixed-width, 20-byte Name field. */
-void parallel_set_hires_rom_name(const char *name);
+/* Reads a canonical 64-byte ROM header before frontend name normalization. */
+void parallel_set_hires_rom_header(const uint8_t *header64);
 
 void parallel_set_overscan_crop(unsigned pixels);
 

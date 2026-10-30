@@ -1,4 +1,5 @@
 #include "rdp.hpp"
+#include "parallel-rdp/parallel-rdp/rdp_hires_runtime_policy.hpp"
 #include "Gfx #1.3.h"
 #include "m64p_config.h"
 #include "m64p_types.h"
@@ -231,9 +232,10 @@ void parallel_set_hires_cache_path(const char *path)
 	RDP::hires_cache_path = path ? path : "";
 }
 
-void parallel_set_hires_rom_name(const char *name)
+void parallel_set_hires_rom_header(const uint8_t *header64)
 {
-	RDP::hires_rom_name.assign(name, 20);
+	RDP::hires_ident = RDP::detail::hires_game_ident(header64);
+	RDP::hires_gliden_name = RDP::detail::hires_gliden_ident(header64);
 	RDP::reset_hires_messages();
 }
 

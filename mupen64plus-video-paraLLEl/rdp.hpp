@@ -34,7 +34,7 @@ extern unsigned hires_filter;
 extern unsigned hires_memory_mb;
 void reset_hires_messages();
 extern std::string hires_cache_path;
-extern std::string hires_rom_name;
+extern std::string hires_ident, hires_gliden_name;
 
 void complete_frame();
 void deinit();

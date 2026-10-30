@@ -14,6 +14,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <cstdio>
+#include <dirent.h>
+#include <sys/stat.h>
 
 using namespace Vulkan;
 using namespace std;
@@ -48,11 +50,12 @@ bool hires_textures = false;
 unsigned hires_filter = 2;
 unsigned hires_memory_mb = 0;
 string hires_cache_path;
-string hires_rom_name;
+string hires_ident, hires_gliden_name;
+static detail::HiresPackageSelection hires_selection;
 
 static unsigned hires_messages_sent = 0;
 
-enum HiresMessage { PackLoaded, NoPack, PackRejected, GPUUnsupported, BudgetFull, ReadErrors };
+enum HiresMessage { PackLoaded, NoPack, PackRejected, GPUUnsupported, BudgetFull, ReadErrors, PackOverlap };
 
 void reset_hires_messages()
 {
@@ -72,9 +75,68 @@ static void hires_message_once(HiresMessage event, const char *text)
 	environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &message);
 }
 
-static string hires_pack_filename(const string &path)
+// Only inspect immediate files of game-named directories. The root is listed
+// once, and all matching and ordering decisions remain in the MIT policy.
+static void read_hires_listing(const string &root, detail::HiresListingLocation location,
+                               vector<detail::HiresListingEntry> &listing)
 {
-	return path.substr(path.find_last_of("/\\") + 1);
+	DIR *dir = opendir(root.c_str());
+	if (!dir)
+		return;
+	while (auto *entry = readdir(dir))
+	{
+		if (entry->d_name[0] == '.')
+			continue;
+		const string path = root + "/" + entry->d_name;
+		struct stat info;
+		if (stat(path.c_str(), &info) != 0 || (!S_ISDIR(info.st_mode) && !S_ISREG(info.st_mode)))
+			continue;
+		detail::HiresListingEntry item;
+		item.path = path;
+		item.location = location;
+		item.directory = S_ISDIR(info.st_mode);
+		const auto name = detail::hires_ascii_fold(entry->d_name);
+		if (item.directory && location == detail::HiresListingLocation::Hires &&
+		    (name == detail::hires_ascii_fold(hires_ident) || name == detail::hires_ascii_fold(hires_gliden_name)))
+		{
+			if (DIR *children = opendir(path.c_str()))
+			{
+				while (auto *child = readdir(children))
+				{
+					if (child->d_name[0] == '.')
+						continue;
+					const auto child_path = path + "/" + child->d_name;
+					if (stat(child_path.c_str(), &info) == 0 && S_ISREG(info.st_mode))
+						item.files.emplace_back(child->d_name);
+				}
+				closedir(children);
+			}
+		}
+		listing.push_back(std::move(item));
+	}
+	closedir(dir);
+}
+
+static vector<string> find_hires_packages()
+{
+	hires_selection = {};
+	if (!hires_textures)
+		return {};
+	if (const char *path = getenv("PARALLEL_RDP_HIRES_CACHE_PATH"))
+		if (*path)
+			return { path };
+	if (hires_cache_path.empty() || hires_ident.empty())
+		return {};
+	vector<detail::HiresListingEntry> listing;
+	read_hires_listing(hires_cache_path + "/parallel-n64/hires", detail::HiresListingLocation::Hires, listing);
+	read_hires_listing(hires_cache_path + "/Mupen64plus/cache", detail::HiresListingLocation::LegacyCache, listing);
+	read_hires_listing(hires_cache_path + "/Mupen64plus/hires_texture", detail::HiresListingLocation::LegacyTextures, listing);
+	hires_selection = detail::select_hires_packages(hires_ident, hires_gliden_name, listing);
+	for (const auto &path : hires_selection.near_misses)
+		log_cb(RETRO_LOG_WARN, "Hi-res near miss (not loaded): %s; expected ident=%s.\n", path.c_str(), hires_ident.c_str());
+	for (const auto &path : hires_selection.unconverted)
+		log_cb(RETRO_LOG_INFO, "Hi-res unconverted pack: %s.\n", path.c_str());
+	return hires_selection.paths;
 }
 
 static void show_hires_status()
@@ -87,7 +149,7 @@ static void show_hires_status()
 	if (!pack.rejected_path.empty())
 	{
 		std::snprintf(message, sizeof(message), "Hi-res textures: %s not loaded (%s)",
-		              hires_pack_filename(pack.rejected_path).c_str(),
+		              detail::hires_path_filename(pack.rejected_path).c_str(),
 		              pack.load_error == ReplacementLoadStatus::UnsupportedVersion ?
 		                  "unsupported PHRB version; use a compatible pack or newer core" : "unreadable or damaged");
 		hires_message_once(PackRejected, message);
@@ -96,20 +158,40 @@ static void show_hires_status()
 	{
 		const string budget = residency.budget ?
 		    std::to_string(residency.budget / (1024 * 1024)) + " MB memory budget" : "unlimited memory budget";
-		std::snprintf(message, sizeof(message), "Hi-res textures: %s - %zu texture%s, %s",
-		              hires_pack_filename(pack.loaded_path).c_str(), pack.entries,
+		const auto count = pack.packages.size();
+		const auto name = hires_ident.empty() ? detail::hires_path_filename(pack.loaded_path) : hires_ident;
+		std::snprintf(message, sizeof(message), "Hi-res textures: %zu pack%s for %s — %zu texture%s, %s",
+		              count, count == 1 ? "" : "s", name.c_str(), pack.entries,
 		              pack.entries == 1 ? "" : "s", budget.c_str());
 		hires_message_once(PackLoaded, message);
+		for (const auto &package : pack.packages)
+			if (package.mostly_hidden())
+			{
+				const auto hider = package.multiple_hiders ? string("later packs") :
+				                   "\"" + detail::hires_path_filename(package.hidden_by) + "\"";
+				std::snprintf(message, sizeof(message), "Hi-res textures: \"%s\" is mostly hidden by %s in %s/. Later names win. Remove one, or rename to change the order.",
+				              detail::hires_path_filename(package.path).c_str(), hider.c_str(), name.c_str());
+				hires_message_once(PackOverlap, message);
+				break;
+			}
 	}
 	else if (pack.state == HiresPackState::NotFound)
 	{
-		string name = hires_rom_name;
-		name.erase(name.find_last_not_of(string(" \0", 2)) + 1);
 		const char *override_path = getenv("PARALLEL_RDP_HIRES_CACHE_PATH");
-		const string search_path = override_path && *override_path ? override_path :
-		                          hires_cache_path + "/parallel-n64/hires/";
-		std::snprintf(message, sizeof(message), "Hi-res textures: no pack for \"%s\" in %s",
-		              name.c_str(), search_path.c_str());
+		if (override_path && *override_path)
+			std::snprintf(message, sizeof(message), "Hi-res textures: no pack for \"%s\" in %s",
+			              hires_ident.c_str(), override_path);
+		else if (!hires_selection.near_misses.empty())
+			std::snprintf(message, sizeof(message), "Hi-res textures: \"%s\" was not loaded. This game's folder must be named \"%s\".",
+			              detail::hires_path_filename(hires_selection.near_misses.front()).c_str(), hires_ident.c_str());
+		else if (!hires_selection.unconverted.empty())
+			std::snprintf(message, sizeof(message), "Hi-res textures: found an unconverted pack (%s). Convert it with hts2phrb --rom --install.",
+			              detail::hires_path_filename(hires_selection.unconverted.front()).c_str());
+		else if (hires_ident.empty())
+			std::snprintf(message, sizeof(message), "Hi-res textures: this ROM has no name or game code in its header.");
+		else
+			std::snprintf(message, sizeof(message), "Hi-res textures: no pack for \"%s\" in system/parallel-n64/hires/",
+			              hires_ident.c_str());
 		hires_message_once(NoPack, message);
 	}
 	else if (pack.state == HiresPackState::Unsupported)
@@ -336,8 +418,7 @@ bool init()
 	quirks.set_native_resolution_tex_rect(native_tex_rect);
 	frontend->set_quirks(quirks);
 
-	const auto cache_paths = detail::resolve_hires_cache_path(hires_cache_path, hires_rom_name,
-	                                                        getenv("PARALLEL_RDP_HIRES_CACHE_PATH"));
+	const auto cache_paths = find_hires_packages();
 	if (hires_textures)
 	{
 		log_cb(RETRO_LOG_INFO,

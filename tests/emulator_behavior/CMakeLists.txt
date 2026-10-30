@@ -239,6 +239,10 @@ add_executable(emu_unit_hires_cache_path_test emu_unit_hires_cache_path_test.cpp
 target_include_directories(emu_unit_hires_cache_path_test PRIVATE "${CMAKE_SOURCE_DIR}")
 target_compile_features(emu_unit_hires_cache_path_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.hires_cache_path COMMAND emu_unit_hires_cache_path_test)
+add_test(NAME emu.unit.hires_game_ident
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_hires_game_ident_vectors.py"
+    "$<TARGET_FILE:emu_unit_hires_cache_path_test>"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/hires_game_ident.json")
 
 add_executable(emu_unit_texture_replacement_provider_test
   emu_unit_texture_replacement_provider_test.cpp

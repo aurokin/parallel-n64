@@ -266,6 +266,10 @@ static m64p_error plugin_start_rsp(void)
    /* call the RSP plugin  */
    rsp.initiateRSP(rsp_info, NULL);
 
+   /* Audio routing can be enabled at runtime, so prepare HLE alongside LLE. */
+   if (rsp.initiateRSP != hleInitiateRSP)
+      hleInitiateRSP(rsp_info, NULL);
+
    return M64ERR_SUCCESS;
 }
 

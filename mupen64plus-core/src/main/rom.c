@@ -372,7 +372,7 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    /* print out a bunch of info about the ROM */
    DebugMessage(M64MSG_INFO, "Goodname: %s", ROM_SETTINGS.goodname);
    DebugMessage(M64MSG_INFO, "Headername: %s", ROM_PARAMS.headername);
-   DebugMessage(M64MSG_INFO, "Name: %s", ROM_HEADER.Name);
+   DebugMessage(M64MSG_INFO, "Name: %.20s", ROM_HEADER.Name);
    imagestring(imagetype, buffer);
    DebugMessage(M64MSG_INFO, "MD5: %s", ROM_SETTINGS.MD5);
    DebugMessage(M64MSG_INFO, "CRC: %x %x", sl(ROM_HEADER.CRC1), sl(ROM_HEADER.CRC2));

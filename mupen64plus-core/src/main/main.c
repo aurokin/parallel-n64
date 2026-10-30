@@ -423,5 +423,6 @@ void mupen_main_stop(void)
 
 void main_check_inputs(void)
 {
-   poll_cb();
+   if (poll_cb)
+      poll_cb();
 }

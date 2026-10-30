@@ -690,8 +690,7 @@ DECLARE_INSTRUCTION(MFC0)
    {
       case CP0_RANDOM_REG:
          cp0_update_count();
-         g_cp0_regs[CP0_RANDOM_REG] = (g_cp0_regs[CP0_COUNT_REG]/2 % (32 - g_cp0_regs[CP0_WIRED_REG]))
-            + g_cp0_regs[CP0_WIRED_REG];
+         g_cp0_regs[CP0_RANDOM_REG] = cp0_random_index(g_cp0_regs);
          break;
       case CP0_COUNT_REG:
          cp0_update_count();
@@ -719,8 +718,7 @@ DECLARE_INSTRUCTION(DMFC0)
    {
       case CP0_RANDOM_REG:
          cp0_update_count();
-         g_cp0_regs[CP0_RANDOM_REG] = (g_cp0_regs[CP0_COUNT_REG]/2 % (32 - g_cp0_regs[CP0_WIRED_REG]))
-            + g_cp0_regs[CP0_WIRED_REG];
+         g_cp0_regs[CP0_RANDOM_REG] = cp0_random_index(g_cp0_regs);
          break;
       case CP0_COUNT_REG:
          cp0_update_count();
@@ -2117,8 +2115,7 @@ DECLARE_INSTRUCTION(TLBWI)
 DECLARE_INSTRUCTION(TLBWR)
 {
    cp0_update_count();
-   g_cp0_regs[CP0_RANDOM_REG] = (g_cp0_regs[CP0_COUNT_REG]/2 % (32 - g_cp0_regs[CP0_WIRED_REG]))
-                              + g_cp0_regs[CP0_WIRED_REG];
+   g_cp0_regs[CP0_RANDOM_REG] = cp0_random_index(g_cp0_regs);
    TLBWrite(g_cp0_regs[CP0_RANDOM_REG]);
    ADD_TO_PC(1);
 }

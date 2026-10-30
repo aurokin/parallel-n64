@@ -143,5 +143,14 @@ uint32_t* r4300_cp0_regs(void);
 
 void cp0_update_count(void);
 
+/* Savestates can supply any Wired value; Random must still name a TLB entry. */
+static inline uint32_t cp0_random_index(const uint32_t* regs)
+{
+    uint32_t wired = regs[CP0_WIRED_REG];
+    if (wired >= 32)
+        return 31;
+    return (regs[CP0_COUNT_REG] / 2) % (32 - wired) + wired;
+}
+
 #endif /* M64P_R4300_CP0_H */
 

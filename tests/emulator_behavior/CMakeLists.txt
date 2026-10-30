@@ -731,3 +731,8 @@ target_include_directories(emu_unit_snap_cheat_gating_test PRIVATE
 target_compile_definitions(emu_unit_snap_cheat_gating_test PRIVATE M64P_CORE_PROTOTYPES)
 target_compile_features(emu_unit_snap_cheat_gating_test PRIVATE c_std_99)
 add_test(NAME emu.unit.snap_cheat_gating COMMAND emu_unit_snap_cheat_gating_test)
+
+add_executable(emu_unit_cp0_random_test emu_unit_cp0_random_test.c)
+target_include_directories(emu_unit_cp0_random_test PRIVATE "${CMAKE_SOURCE_DIR}/mupen64plus-core/src")
+target_compile_features(emu_unit_cp0_random_test PRIVATE c_std_99)
+add_test(NAME emu.unit.cp0_random COMMAND emu_unit_cp0_random_test)

@@ -58,7 +58,10 @@ with log.open("a", buffering=1) as output:
             output.write(command + "\n")
         elif command == "SAVE_FILES":
             time.sleep(0.1)
-            if mode == "save-failure":
+            if mode in ("save-failure", "save-partial-failure"):
+                if mode == "save-partial-failure":
+                    output.write('[INFO] [SRAM] Saved successfully to "other.srm".\n')
+                output.write(f'[INFO] [SRAM] Saving RAM type #0 to "{bundle}/savefiles/ParaLLEish/rom.srm".\n')
                 output.write('[ERROR] [SRAM] Failed to save SRAM.\n')
             else:
                 suffix = ' (unchanged, skipping write)' if mode == "save-unchanged" else ''
@@ -132,19 +135,24 @@ class LoadContract(unittest.TestCase):
         return result, commands.read_text().splitlines() if commands.exists() else []
 
     def test_save_files_waits_for_written_or_identical_success(self):
-        for mode in ("save-written", "save-unchanged", "save-failure"):
+        for mode in ("save-written", "save-unchanged", "save-failure", "save-partial-failure"):
             with self.subTest(mode=mode):
                 self.bundle = self.root / mode
                 (self.bundle / "logs").mkdir(parents=True)
                 self.session(mode)
-                # A stale success must not acknowledge this request.
+                # Stale success and failure must not decide this request.
                 with (self.bundle / "logs/retroarch.log").open("a") as log:
                     log.write('[INFO] [SRAM] Saved successfully to "old.srm".\n')
+                    log.write('[ERROR] [SRAM] Failed to save SRAM.\n')
+                started = time.monotonic()
                 result = self.adapter("send", "--bundle-dir", str(self.bundle),
-                                      "--command", "SAVE_FILES", "--ack-timeout", "1")
-                if mode == "save-failure":
+                                      "--command", "SAVE_FILES", "--ack-timeout", "10")
+                if mode in ("save-failure", "save-partial-failure"):
                     self.assertNotEqual(result.returncode, 0)
-                    self.assertIn("No ack for: SAVE_FILES", result.stderr)
+                    self.assertIn("SAVE_FILES failed to save SRAM", result.stderr)
+                    self.assertIn(str(self.bundle / "savefiles/ParaLLEish/rom.srm"), result.stderr)
+                    self.assertNotIn("No ack", result.stderr)
+                    self.assertLess(time.monotonic() - started, 3)
                 else:
                     self.assertEqual(result.returncode, 0, result.stderr)
                     suffix = ' (unchanged, skipping write)' if mode == "save-unchanged" else ''

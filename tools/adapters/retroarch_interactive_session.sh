@@ -275,9 +275,13 @@ PY
 }
 
 wait_for_log_pattern_after() {
-  local start_bytes="$1" pattern="$2" timeout_seconds="$3"
+  local start_bytes="$1" pattern="$2" timeout_seconds="$3" failure_pattern="${4:-}"
   local deadline=$(( $(date +%s) + timeout_seconds ))
   while (( $(date +%s) < deadline )); do
+    if [[ -n "$failure_pattern" && -f "$RA_LOG" ]] &&
+        tail -c +"$((start_bytes + 1))" "$RA_LOG" 2>/dev/null | rg -F -q -- "$failure_pattern"; then
+      return 2
+    fi
     if [[ -f "$RA_LOG" ]] && tail -c +"$((start_bytes + 1))" "$RA_LOG" 2>/dev/null | rg -F -q -- "$pattern"; then
       return 0
     fi
@@ -552,21 +556,34 @@ cmd_start() {
     fi
   fi
   if [[ -n "$SAVEFILE_SOURCE" ]]; then
-    if [[ -f "$SAVEFILE_SOURCE" ]]; then
-      mkdir -p "$BUNDLE_DIR/savefiles/ParaLLEish"
-      cp "$SAVEFILE_SOURCE" "$BUNDLE_DIR/savefiles/ParaLLEish/$(basename "${ROM_PATH%.*}").srm"
-    elif [[ -d "$SAVEFILE_SOURCE" ]]; then
-      if [[ "$(basename "$SAVEFILE_SOURCE")" == "ParaLLEish" ]] &&
-          find "$SAVEFILE_SOURCE" -maxdepth 1 -type f -name '*.srm' -print -quit | rg -q .; then
-        mkdir -p "$BUNDLE_DIR/savefiles/$(basename "$SAVEFILE_SOURCE")"
-        cp -r "$SAVEFILE_SOURCE"/. "$BUNDLE_DIR/savefiles/$(basename "$SAVEFILE_SOURCE")/"
-      else
-        cp -r "$SAVEFILE_SOURCE"/. "$BUNDLE_DIR/savefiles/"
-      fi
-    else
-      echo "Savefile source not found: $SAVEFILE_SOURCE" >&2
-      exit 1
-    fi
+    python3 - "$SAVEFILE_SOURCE" "$BUNDLE_DIR/savefiles" "$ROM_PATH" <<'PY'
+from pathlib import Path
+import sys
+
+source, destination, rom = map(Path, sys.argv[1:])
+
+def copy_bytes(source, target):
+    # Retained inputs may be 0444; create fresh, normally writable files,
+    # including when restarting a bundle with an old read-only staged copy.
+    data = source.read_bytes()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.unlink(missing_ok=True)
+    target.write_bytes(data)
+
+if source.is_file():
+    copy_bytes(source, destination / "ParaLLEish" / f"{rom.stem}.srm")
+elif source.is_dir():
+    if source.name == "ParaLLEish" and any(source.glob("*.srm")):
+        destination /= source.name
+    for path in source.rglob("*"):
+        target = destination / path.relative_to(source)
+        if path.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        elif path.is_file():
+            copy_bytes(path, target)
+else:
+    raise SystemExit(f"Savefile source not found: {source}")
+PY
   fi
 
   local APPEND_CONFIG="$BUNDLE_DIR/retroarch.append.cfg"
@@ -848,7 +865,19 @@ cmd_send() {
   start_bytes="$(log_size_bytes)"
   send_fifo "$COMMAND"
   if [[ -n "$ack" ]]; then
-    if ! wait_for_log_pattern_after "$start_bytes" "$ack" "$ACK_TIMEOUT"; then
+    local failure_pattern=""
+    [[ "$COMMAND" == SAVE_FILES* ]] && failure_pattern="[SRAM] Failed to save SRAM"
+    if wait_for_log_pattern_after "$start_bytes" "$ack" "$ACK_TIMEOUT" "$failure_pattern"; then
+      :
+    else
+      local wait_status=$?
+      if (( wait_status == 2 )); then
+        local savefile
+        savefile="$(tail -c +"$((start_bytes + 1))" "$RA_LOG" \
+          | sed -n 's/.*\[SRAM\] Saving RAM type #[0-9]* to "\(.*\)"\..*/\1/p' | tail -n1)"
+        echo "SAVE_FILES failed to save SRAM: ${savefile:-$BUNDLE_DIR/savefiles} (see $RA_LOG)" >&2
+        exit 1
+      fi
       echo "No ack for: $COMMAND (expected log pattern: $ack)" >&2
       exit 1
     fi

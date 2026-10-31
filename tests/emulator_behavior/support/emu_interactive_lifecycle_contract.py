@@ -183,13 +183,14 @@ class InteractiveLifecycleContract(unittest.TestCase):
         return subprocess.run(["bash", str(ADAPTER), *args], env=self.env, text=True,
                               capture_output=True, timeout=timeout, check=False)
 
-    def start(self, ttl, **env):
+    def start(self, ttl, savefile_source=None, **env):
         self.env.update(env)
+        extra = ["--savefile-source", str(savefile_source)] if savefile_source else []
         result = self.adapter("start", "--bundle-dir", str(self.bundle),
                               "--rom", str(self.root / "rom"), "--core", str(self.root / "core"),
                               "--base-config", str(self.root / "base.cfg"),
                               "--retroarch-bin", str(self.binary),
-                              "--ttl-seconds", str(ttl), "--start-paused")
+                              "--ttl-seconds", str(ttl), "--start-paused", *extra)
         if "Another RetroArch process is already running" in result.stderr:
             self.skipTest("a RetroArch process is running on this host")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -208,6 +209,32 @@ class InteractiveLifecycleContract(unittest.TestCase):
 
     def received(self):
         return [line.split("|") for line in (self.state / "received").read_text().splitlines()]
+
+    def test_readonly_savefile_sources_stage_writable_bytes(self):
+        for kind in ("file", "core-directory", "savefiles-directory"):
+            with self.subTest(kind=kind):
+                source_root = self.root / kind
+                if kind == "file":
+                    source = source_root.with_suffix(".srm")
+                    savefile_source = source
+                else:
+                    source = source_root / "ParaLLEish/rom.srm"
+                    source.parent.mkdir(parents=True)
+                    savefile_source = source.parent if kind == "core-directory" else source_root
+                source.write_bytes(b"\x00\xffretained save\x00")
+                source.chmod(0o444)
+                self.bundle = self.root / f"bundle-{kind}"
+                staged = self.bundle / "savefiles/ParaLLEish/rom.srm"
+                staged.parent.mkdir(parents=True)
+                staged.write_bytes(b"old staged copy")
+                staged.chmod(0o444)
+                self.start(600, savefile_source=savefile_source)
+                self.assertEqual(staged.read_bytes(), source.read_bytes())
+                self.assertTrue(staged.stat().st_mode & 0o200)
+                staged.write_bytes(b"in-game save")
+                self.assertEqual(source.read_bytes(), b"\x00\xffretained save\x00")
+                self.assertEqual(source.stat().st_mode & 0o777, 0o444)
+                self.assertEqual(self.adapter("stop", "--bundle-dir", str(self.bundle)).returncode, 0)
 
     def test_stop_after_quit_timeout_leaves_no_frontend(self):
         self.start(600, FAKE_FRONTEND_WEDGED="1")

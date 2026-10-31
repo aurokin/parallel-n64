@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <vector>
 
 using namespace RDP::detail;
@@ -31,6 +32,44 @@ int main()
 	check(!tile.hit && tile.vk_image_index == HiresInvalidSlot && binding.repl_desc_index == HiresInvalidSlot,
 	      "an evicted slot cannot remain bound to a tile");
 	check(tile.checksum == 123 && tile.selector == 456, "eviction preserves lookup identity and selector");
+
+	struct Image
+	{
+		uint32_t view;
+		uint32_t get_view() const { return view; }
+	} fallback = {10};
+	struct Pool
+	{
+		uint32_t descriptors[3] = {10, 20, 30};
+		void set_texture(uint32_t slot, uint32_t view) { descriptors[slot] = view; }
+	} pool;
+	struct Resident { std::shared_ptr<Image> image; };
+	struct Resources
+	{
+		Pool *bindless_pool;
+		Image *fallback_image;
+		Resident images[3];
+	} resources = {&pool, &fallback, {}};
+	unsigned destroyed = 0;
+	for (uint32_t slot : {1u, 2u})
+		resources.images[slot].image = std::shared_ptr<Image>(new Image{pool.descriptors[slot]},
+			[&, slot](Image *image) {
+				check(pool.descriptors[slot] == fallback.get_view(), "descriptor is rebound before image destruction");
+				destroyed++;
+				delete image;
+			});
+	HiresResidencyPolicy descriptors;
+	descriptors.reset(3, 60);
+	auto retire = [&](uint32_t slot) { clear_hires_resident_image(slot, resources); };
+	descriptors.admit(30, 0, retire);
+	descriptors.admit(30, 0, retire);
+	check(descriptors.admit(31, 7, retire).reason == HiresAdmission::Saturated && destroyed == 0 &&
+	      pool.descriptors[1] == 20 && pool.descriptors[2] == 30,
+	      "descriptors stay unchanged until eight unused frames");
+	check(descriptors.admit_and_load(31, 8, retire, [](uint32_t) { return false; }).reason == HiresAdmission::LoadFailed,
+	      "failed reload after multi-slot retirement");
+	check(destroyed == 2 && pool.descriptors[1] == fallback.get_view() && pool.descriptors[2] == fallback.get_view(),
+	      "all retired descriptors point at the fallback even when the new upload fails");
 
 	HiresResidencyPolicy policy;
 	std::vector<uint32_t> evicted;

@@ -546,6 +546,7 @@ Renderer::Renderer(CommandProcessor &processor_)
 
 Renderer::~Renderer()
 {
+	clear_hires_images();
 }
 
 void Renderer::set_shader_bank(const ShaderBank *bank)
@@ -1198,6 +1199,7 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 
 	if (detail::hires_provider_changed(replacement_provider, provider))
 	{
+		clear_hires_images();
 		// Shaders already declare set 3. Retain its fallback binding even if
 		// allocating the next pack's pool (or the one-slot pool) fails.
 		auto previous = std::move(hires_resources);
@@ -4861,6 +4863,7 @@ bool Renderer::init_hires_resources(unsigned requested_capacity)
 
 	pool->set_texture(0, fallback->get_view());
 	// Replace the live resources only after all allocations succeed.
+	clear_hires_images();
 	hires_resources = {};
 	hires_resources.capacity = requested_capacity;
 	hires_resources.residency.reset(requested_capacity, hires_residency_status.budget);
@@ -4870,14 +4873,29 @@ bool Renderer::init_hires_resources(unsigned requested_capacity)
 	return true;
 }
 
+void Renderer::clear_hires_images()
+{
+	if (hires_resources.resident_images.empty())
+		return;
+	// Provider/pool replacement and teardown can precede normal retirement.
+	// Finish GPU readers before rewriting their UPDATE_AFTER_BIND descriptors.
+	flush_and_signal();
+	device->wait_idle();
+	for (const auto &entry : hires_resources.resident_images)
+		detail::clear_hires_resident_image(entry.second, hires_resources);
+	hires_resources.resident_images.clear();
+}
+
 void Renderer::evict_hires_slot(uint32_t slot)
 {
 	// Eight unused frames cover the admitted frame-context count plus one.
 	// Granite has waited those contexts' fences; no submitted or buffered draw
-	// can still read this UPDATE_AFTER_BIND slot. Image destruction is deferred.
+	// can still read this UPDATE_AFTER_BIND slot. Rewrite only at retirement,
+	// not when selecting an eviction victim: earlier writes could change an
+	// in-flight draw. The fallback avoids descriptors naming destroyed views.
 	auto &resident = hires_resources.images[slot];
 	hires_resources.resident_images.erase(resident.key);
-	resident = {};
+	detail::clear_hires_resident_image(slot, hires_resources);
 	for (unsigned i = 0; i < Limits::MaxNumTiles; i++)
 		detail::clear_hires_evicted_binding(slot, replacement_tiles[i], tiles[i].replacement);
 	hires_residency_status.evictions++;

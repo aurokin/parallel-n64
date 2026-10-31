@@ -22,6 +22,9 @@ frames exceed the supported frame-context count plus one. Configurations with
 more than seven contexts disable hi-res with a diagnostic, preserving the
 constant retirement rule. Image destruction remains deferred by Granite, and
 eviction clears any of the eight tile bindings still naming the slot.
+At retirement (or after GPU completion during resource clearing), rewrite each
+released image's descriptor to the existing fallback before destruction to avoid
+dangling views and GPU-assisted validation crashes.
 
 Auto memory is half of the largest device-local heap for discrete GPUs
 (512 MiB–4 GiB), one quarter for shared GPUs (256 MiB–2 GiB), or one quarter

@@ -15,6 +15,20 @@ namespace detail
 constexpr uint32_t HiresInvalidSlot = 0xffffffffu;
 constexpr uint64_t HiresRetirementFrames = 8;
 
+// Call only after GPU readers have retired; keep the descriptor valid before
+// releasing its image, including when a subsequent upload fails.
+template <typename Resources>
+inline void clear_hires_resident_image(uint32_t slot, Resources &resources)
+{
+	auto &resident = resources.images[slot];
+	if (resident.image)
+	{
+		assert(resources.bindless_pool && resources.fallback_image);
+		resources.bindless_pool->set_texture(slot, resources.fallback_image->get_view());
+	}
+	resident = {};
+}
+
 // Keep lookup identity/selector provenance while removing GPU availability.
 template <typename TileState, typename TileBinding>
 inline void clear_hires_evicted_binding(uint32_t slot, TileState &state, TileBinding &binding)

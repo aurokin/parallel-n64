@@ -3993,7 +3993,9 @@ ImageHandle Device::create_image_from_staging_buffer(const ImageCreateInfo &crea
 					handle->get_access_flags() & image_layout_to_possible_access(create_info.initial_layout));
 		}
 
-		bool share_compute = concurrent_queue && graphics_queue != compute_queue;
+		// Also when graphics and compute share one VkQueue: they keep separate pending
+		// submission lists, so submit the upload first and order compute after it.
+		bool share_compute = concurrent_queue;
 		bool share_async_graphics = get_physical_queue_type(CommandBuffer::Type::AsyncGraphics) == CommandBuffer::Type::AsyncCompute;
 
 		// For concurrent queue, make sure that compute can see the final image as well.
@@ -4021,7 +4023,7 @@ ImageHandle Device::create_image_from_staging_buffer(const ImageCreateInfo &crea
 		                   image_layout_to_possible_access(create_info.initial_layout));
 
 		// For concurrent queue, make sure that compute can see the final image as well.
-		if (concurrent_queue && graphics_queue != compute_queue)
+		if (concurrent_queue)
 		{
 			Semaphore sem;
 			submit(cmd, nullptr, 1, &sem);

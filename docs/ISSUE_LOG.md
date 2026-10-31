@@ -337,6 +337,36 @@ the pinned 2020 packer and the candidate core is built in an isolated source
 copy. Other combiner classes, all opacity phases and other backends remain
 unqualified; broader multi-cycle alpha dependency propagation is not implemented.
 
+## Opaque intensity replacement punches holes in a colored surface
+
+Status: corrected in source October 31, 2026; isolated candidate qualified.
+No deployment is included.
+
+PLAY-OOT-001's gold specks on OoT's Deku Nut are holes in the brown shell,
+exposing gold geometry behind it. The shell uses I8 key `655e3ed8`, not the
+two-tile `840eac57` specular texture initially suspected. The Reloaded shell
+replacement has zero-alpha texels; the independent Community pack does not
+replace this key. Keeping only the shell replacement reproduces the specks;
+removing only it clears them. A fragment mask identifies replacement cutout
+rejection at the affected pixels.
+
+The shell's two-cycle RGB is `(PRIM-ENV)*TEXEL0+ENV`, then
+`COMBINED*SHADE`, with `ENV=(40,10,0)` and constant ONE output alpha.
+An empty intensity sample should retain the shaded brown material. The
+unconditional multi-cycle cutout rule instead discards its geometry. This is
+the same composition-contract gap as the one-cycle decal issue above.
+
+The shared policy now preserves single-sample biased RGB-intensity surfaces
+followed by pure SHADE modulation and constant ONE output alpha. Secondary
+samples, conversion, variable alpha and product-only effects keep the prior
+cutout behavior. Sampling, mip selection, combiner arithmetic and RDRAM
+rendering are unchanged. `emu.unit.hires_cutout_policy` covers the captured
+normalized mux and the dependency exclusions. The matched 4x Reloaded replay
+is clean; Community and hi-res-off controls retain their original captures,
+and all repro end-state bodies agree. The paired 38-scenario pre-deploy tier
+has no changed captures, checkpoint RAM or full end-state bodies. See ADR-0018's
+amendment. Other GPU backends have not been qualified for this change.
+
 ## Full negative analog diagonal loses input
 
 Status: corrected in source October 11, 2026; bounded live candidate qualification passed. Installed-runtime rollout remains separate.

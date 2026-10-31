@@ -330,7 +330,10 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	// instead use that alpha to reveal SHADE on the same surface.
 	if (hires_replacement_cutout_kills_pixel(hires_replacement_cutout, multi_cycle,
 	                                       uses_texel1 || uses_pipelined_texel1, convert_one,
-	                                       combiner_inputs_rgb1, combiner_inputs_alpha1))
+	                                       combiner_inputs_rgb1, combiner_inputs_alpha1) &&
+	    !hires_shaded_intensity_preserves_surface(multi_cycle, uses_texel1 || uses_pipelined_texel1, convert_one,
+	                                             combiner_inputs_rgb0, combiner_inputs_rgb1, combiner_inputs_alpha1,
+	                                             derived.constant_add0, derived.constant_mulsub1, derived.constant_add1))
 		return false;
 #endif
 

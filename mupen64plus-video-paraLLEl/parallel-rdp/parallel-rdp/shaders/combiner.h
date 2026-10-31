@@ -67,12 +67,14 @@ const int RGB_MULADD_TEXEL1 = 2;
 const int RGB_MULADD_SHADE = 4;
 const int RGB_MULADD_ONE = 6;
 const int RGB_MULADD_NOISE = 7;
+const int RGB_MULADD_CONSTANT = 8;
 
 const int RGB_MULSUB_COMBINED = 0;
 const int RGB_MULSUB_TEXEL0 = 1;
 const int RGB_MULSUB_TEXEL1 = 2;
 const int RGB_MULSUB_SHADE = 4;
 const int RGB_MULSUB_K4 = 7;
+const int RGB_MULSUB_CONSTANT = 8;
 
 const int RGB_MUL_COMBINED = 0;
 const int RGB_MUL_TEXEL0 = 1;
@@ -90,6 +92,7 @@ const int RGB_ADD_TEXEL0 = 1;
 const int RGB_ADD_TEXEL1 = 2;
 const int RGB_ADD_SHADE = 4;
 const int RGB_ADD_ONE = 6;
+const int RGB_ADD_CONSTANT = 7;
 
 const int ALPHA_ADDSUB_COMBINED = 0;
 const int ALPHA_ADDSUB_TEXEL0_ALPHA = 1;

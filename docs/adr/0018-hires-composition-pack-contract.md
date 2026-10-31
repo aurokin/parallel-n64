@@ -67,6 +67,19 @@ ADR-0002), no per-scene or per-descriptor overrides (ADR-0005):
    is 0 iff every contributing tap is transparent, so the kill region is
    exactly the authored cutout, with clean filtered edges outside it.
    Copy-pipe transport keeps raw alpha-bit semantics and is exempt.
+
+   *Amendment (2026-10-31):* a single-sample, two-cycle opaque intensity
+   material also retains its surface when a replacement sample is empty.
+   Its first cycle is `(constant - constant) * TEXEL0_RGB + color_bias`,
+   with a nonzero RGB bias; the second is exactly `COMBINED * SHADE`, with
+   constant ONE output alpha (`(ONE - ONE) * factor + ONE`). Equal
+   normalized constant selectors alone do not prove alpha cancellation, since
+   primitive and environment constants can differ. Black replacement RGB selects
+   a shaded material color, rather than an absent surface. Killing it exposed
+   gold geometry through OoT's brown Deku Nut shell. The shared cutout policy
+   recognizes this composition class, excluding secondary samples, conversion,
+   variable output alpha and product-only effects. The ordinary pack cutout
+   contract remains in force outside the recognized surface classes.
    This fixed the dark-box/black-oval/blob family.
 
 2. **HLE alpha kill** (RASTERIZATION_HIRES_ALPHA_KILL_BIT): draws that

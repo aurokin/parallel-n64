@@ -183,6 +183,20 @@ target_include_directories(emu_unit_controller_pak_test PRIVATE
 target_compile_features(emu_unit_controller_pak_test PRIVATE c_std_99)
 add_test(NAME emu.unit.controller_pak COMMAND emu_unit_controller_pak_test)
 
+add_executable(emu_unit_rom_settings_test
+  emu_unit_rom_settings_test.c
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/main/md5.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/main/util.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/si/eeprom.c"
+)
+target_include_directories(emu_unit_rom_settings_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/libretro"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+)
+target_compile_features(emu_unit_rom_settings_test PRIVATE c_std_99)
+add_test(NAME emu.unit.rom_settings COMMAND emu_unit_rom_settings_test)
+
 add_executable(emu_unit_vi_refresh_rate_test
   emu_unit_vi_refresh_rate_test.c
 )

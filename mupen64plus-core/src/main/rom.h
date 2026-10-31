@@ -43,6 +43,7 @@ typedef struct _rom_params
    int fixedaudiopos;
    int audiosignal;
    int special_rom;
+   unsigned int disableextramem;
 } rom_params;
 
 extern m64p_rom_header   ROM_HEADER;

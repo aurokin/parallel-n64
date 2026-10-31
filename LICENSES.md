@@ -12,6 +12,7 @@ the [MIT file inventory](docs/MIT_COMPONENTS.md) and
 | Component | Existing declaration |
 |-----------|----------------------|
 | Mupen64Plus core | [`mupen64plus-core/LICENSES`](mupen64plus-core/LICENSES): GNU GPL version 2, with separately identified bundled components |
+| Embedded Mupen64Plus ROM catalog | [`mupen64plus.ini.h`](mupen64plus-core/src/main/mupen64plus.ini.h), imported from libretro/parallel-n64 `a467ddaf`, under the core's GPLv2 declaration above; compiled into every platform's core through `rom.c`, with no external runtime data file |
 | Mupen64Plus HLE RSP | [`mupen64plus-rsp-hle/LICENSES`](mupen64plus-rsp-hle/LICENSES): GNU GPL version 2 |
 | CXD4 RSP | [`mupen64plus-rsp-cxd4/COPYING`](mupen64plus-rsp-cxd4/COPYING): CC0 1.0 Universal |
 | ParaLLEl RSP | [`mupen64plus-rsp-paraLLEl/LICENSE`](mupen64plus-rsp-paraLLEl/LICENSE): dual MIT or LGPLv3 |

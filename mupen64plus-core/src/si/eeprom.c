@@ -53,6 +53,12 @@ void format_eeprom(uint8_t* eeprom, size_t size)
 
 void eeprom_status_command(struct eeprom* eeprom, uint8_t* cmd)
 {
+   if (eeprom->size == 0)
+   {
+      cmd[1] |= 0x80;
+      return;
+   }
+
    /* check size */
    if (cmd[1] != 3)
    {
@@ -76,6 +82,11 @@ void eeprom_read_command(struct eeprom* eeprom, uint8_t* cmd)
 {
    uint16_t address = cmd[3] * 8;
    uint8_t* data = &cmd[4];
+   if (eeprom->size == 0)
+   {
+      cmd[1] |= 0x80;
+      return;
+   }
    /* read 8-byte block */
    if (address < eeprom->size)
    {
@@ -91,6 +102,11 @@ void eeprom_write_command(struct eeprom* eeprom, uint8_t* cmd)
 {
    uint16_t address = cmd[3] * 8;
    const uint8_t* data = &cmd[4];
+   if (eeprom->size == 0)
+   {
+      cmd[1] |= 0x80;
+      return;
+   }
    /* write 8-byte block */
    if (address < eeprom->size)
    {

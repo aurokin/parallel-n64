@@ -322,7 +322,8 @@ m64p_error main_init(void)
 
    /* set some other core parameters based on the config file values */
    no_compiled_jump = ConfigGetParamBool(g_CoreConfig, "NoCompiledJump");
-   disable_extra_mem = ConfigGetParamInt(g_CoreConfig, "DisableExtraMem");
+   disable_extra_mem = ConfigGetParamInt(g_CoreConfig, "DisableExtraMem")
+         || ROM_PARAMS.disableextramem;
 #if 0
    count_per_op = ConfigGetParamInt(g_CoreConfig, "CountPerOp");
 #endif
@@ -359,8 +360,10 @@ m64p_error main_init(void)
          NULL, dummy_save, saved_memory.sram,
          g_rdram, (disable_extra_mem == 0) ? 0x800000 : 0x400000,
          NULL,dummy_save,saved_memory.eeprom,
-         ROM_SETTINGS.savetype != EEPROM_16KB ? 0x200  : 0x800,   /* eeprom_size */
-         ROM_SETTINGS.savetype != EEPROM_16KB ? 0x8000 : 0xc000,  /* eeprom_id   */
+         ROM_SETTINGS.savetype == EEPROM_16KB ? 0x800 :
+            ROM_SETTINGS.savetype == EEPROM_4KB ? 0x200 : 0,    /* eeprom_size */
+         ROM_SETTINGS.savetype == EEPROM_16KB ? 0xc000 :
+            ROM_SETTINGS.savetype == EEPROM_4KB ? 0x8000 : 0,   /* eeprom_id   */
          NULL,                                                    /* af_rtc_userdata */
          get_time_using_C_localtime,                              /* af_rtc_get_time */
 	 ROM_PARAMS.audiosignal,

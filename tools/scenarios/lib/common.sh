@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Match the regression runner's deterministic residency condition.
+export PARALLEL_RDP_HIRES_GPU_BUDGET_MB="${N64_SCENARIO_HIRES_BUDGET_MB:-8192}"
+export PARALLEL_RDP_HIRES_LOAD=sync
+
 scenario_source_runtime_env() {
   local runtime_env="$1"
   # Scenario runtime env files define both local shell vars and process env overrides.

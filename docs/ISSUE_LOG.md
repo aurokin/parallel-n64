@@ -455,27 +455,55 @@ Display-free contracts accept compatibility-only evidence and reject missing,
 zero or malformed draw activity, including independent wrapper reuse checks.
 Dormant converter enrichment input validation remains separate and unchanged.
 
+## Hi-res pack selection identity and silent layering
+
+Status: Phase 1 implemented October 30, 2026; offline checks only.
+
+[ADR-0024](adr/0024-pack-selection-identity.md) fixes header-name punctuation,
+first-NUL handling, ASCII case matching and the CP2J/CPSJ shared-name collision.
+Unusable Names fall back to the game code. Punctuation near misses are reported,
+never loaded; patched `FZEROX` is not aliased to retail. Selection and directory
+reads run only with hi-res enabled, and the explicit harness cache-path override
+still bypasses discovery. Package ordering and later-wins lookup are unchanged.
+
+The existing memory notification path now reports pack count, ident and textures
+with its budget suffix, plus prioritized missing-pack explanations and one
+mostly-hidden warning per content load. Per-package unique-key and hidden-key
+counts keep Rice and Jabo separate. These diagnostics do not compare cross-lane
+Rice-first/Jabo-second competition.
+
+The shared JSON ident fixture, pure listing tests and synthetic PHRB overlap
+tests cover Phase 1 offline. Converter installation checks are Phase 2; no
+converter or format change is included. Corpus proof, live notifications and
+feature-off capture goldens remain unverified in this task (no emulator launch).
+
 ## Hi-res replacement admission budget
 
-Status: stable-descriptor admission accounting fixed; runtime pressure unqualified.
+Status: bounded residency implemented October 30, 2026; runtime pressure unqualified.
 
-The opt-in `PARALLEL_RDP_HIRES_GPU_BUDGET_MB` configuration previously disappeared
-when replacement resources reset during pack initialization. The setting now
-survives provider/cache resets. Images that do not fit reject admission and use
-the existing native-texture fallback. Already admitted replacement bindings stay
-stable until the cache resets. Zero retains the default unlimited behavior.
+[ADR-0023](adr/0023-hires-residency-budget-and-descriptor-retirement.md) replaces
+admission-only accounting with LRU eviction after eight unused frames. Binding
+and draw-state touches, a drained frame boundary, the frame-context limit, and
+clearing evicted tile bindings protect descriptor reuse. Admission preflights
+multiple victims and checks computed mip bytes before decode; failed loads
+release their reservation and oversized device dimensions fail before allocation.
+The dead provider budget setter is removed. Auto defaults, one memory option,
+environment precedence, once-per-content notifications and residency telemetry
+make fallback visible. Pool capacity and the variable sampled-image descriptor
+layout now fit the device limit rather than accepting 4,096-capable devices and
+then declaring or allocating more descriptors than they support.
 
-The old single-image LRU eviction could still exceed the byte budget and reused
-indices that buffered draws or tile bindings could still reference. It is removed;
-introducing eviction requires an explicit descriptor-retirement design.
-
-The display-free `emu.unit.hires_registry_budget` regression exercises distinct
-slots, exact fits, full/oversized rejection, unlimited mode, descriptor exhaustion,
-overflow-safe comparisons, and unchanged accounting on rejection. Renderer
-compilation checks the integration. This accounts reserved replacement mip-chain
-bytes; failed image creation can conservatively retain a reservation until cache
-reset. It is not a physical VRAM ceiling. GPU-pressure rendering and nonzero-budget
-runtime behavior still need bounded qualification before deployment.
+`emu.unit.hires_residency` covers the N64-14 multi-eviction acceptance and stale
+accounting after release, recent-use protection, unchanged state on refusal,
+deterministic LRU/free-slot order, capacity clamps, budget-before-decode,
+failed-upload rollback and the auto-budget table. The provider and regression
+runner contracts cover pack rejection status, pinned synchronous 8 GiB runs,
+notification suppression and telemetry gates. These are offline checks; they
+do not qualify GPU pressure rendering. The bound is computed resident bytes,
+not a physical VRAM ceiling: staging and deferred driver allocations can outlive
+an eviction. Long-session memory/teardown checks, wrong-texture inspection,
+validation-layer checks, RDRAM/capture parity and throughput remain pending.
+Zero environment budget is unlimited for tooling; auto is now the user default.
 
 An October 11 isolated 4x title probe with a 4 MiB admission limit completed
 load, step, capture and shutdown with coherent mixed native/replacement output.

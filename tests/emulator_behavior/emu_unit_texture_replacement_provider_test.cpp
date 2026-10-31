@@ -600,8 +600,122 @@ static void test_indexed_replacements()
 	remove_tree(dir);
 }
 
+// Version-8 family records let the same tiny fixture exercise both key lanes
+// without depending on converter behavior or copyrighted inputs.
+struct OverlapKey
+{
+	bool jabo;
+	uint64_t checksum;
+	uint64_t selector = 0;
+	uint16_t formatsize = 258;
+};
+
+static void write_overlap_package(const std::string &path, const std::vector<OverlapKey> &keys)
+{
+	PHRBHeader header = {};
+	std::memcpy(header.magic, "PHRB", 4);
+	header.version = 8;
+	header.record_count = header.asset_count = uint32_t(keys.size());
+	header.record_table_offset = sizeof(header);
+	header.asset_table_offset = header.record_table_offset + header.record_count * sizeof(PHRBRecordV8);
+	header.string_table_offset = header.asset_table_offset + header.asset_count * sizeof(PHRBAssetV7);
+	header.blob_offset = header.string_table_offset + 1;
+	std::vector<uint8_t> data;
+	append_bytes(data, header);
+	for (const auto &key : keys)
+	{
+		PHRBRecordV8 record = {};
+		record.v4.record_flags = PHRB_RECORD_FLAG_RUNTIME_READY;
+		record.v4.asset_candidate_count = 1;
+		record.key_kind = key.jabo ? 1 : 0;
+		for (unsigned i = 0; i < 8; i++)
+		{
+			record.key[i] = uint8_t(key.checksum >> (8 * i));
+			record.key[i + 8] = uint8_t(key.selector >> (8 * i));
+		}
+		append_bytes(data, record);
+	}
+	for (size_t i = 0; i < keys.size(); i++)
+	{
+		PHRBAssetV7 asset = {};
+		asset.record_index = uint32_t(i);
+		asset.width = asset.height = 1;
+		asset.format = GL_RGBA8;
+		asset.texture_format = GL_RGBA;
+		asset.pixel_type = GL_UNSIGNED_BYTE;
+		asset.legacy_checksum64 = keys[i].checksum;
+		asset.selector_checksum64 = keys[i].selector;
+		asset.legacy_formatsize = keys[i].formatsize;
+		asset.rgba_blob_size = 4;
+		append_bytes(data, asset);
+	}
+	data.insert(data.end(), 5, 0); // Empty string table and one shared RGBA texel.
+	write_file(path, data);
+}
+
+static void test_package_overlap()
+{
+	const auto dir = make_temp_dir();
+	const auto a = dir + "/a.phrb", b = dir + "/b.phrb";
+	std::vector<OverlapKey> full;
+	for (uint64_t i = 1; i <= 20; i++)
+		full.push_back({ false, i });
+	ReplacementProvider provider;
+	write_overlap_package(a, full);
+	write_overlap_package(b, full);
+	check(provider.load_cache_dir(dir), "two overlapping packages load");
+	auto stats = provider.package_stats();
+	check(stats.size() == 2 && stats[0].records == 20 && stats[0].hidden_by_later == 20 &&
+	      stats[0].mostly_hidden() && stats[0].hidden_by == b && !stats[1].mostly_hidden(),
+	      "a fully overridden package is flagged and names the later winner");
+	provider.set_enabled(true);
+	const auto *winner = provider.find_any_entry(1, 258, 0);
+	check(winner && winner->source_path == b,
+	      "overlap diagnostics preserve later-wins lookup");
+
+	write_overlap_package(b, { full[0] });
+	check(provider.load_cache_dir(dir), "a 5 percent add-on after the full pack loads");
+	stats = provider.package_stats();
+	check(stats[0].hidden_by_later == 1 && !stats[0].mostly_hidden() && !stats[1].mostly_hidden(),
+	      "a small later add-on does not warn");
+	write_overlap_package(a, { full[0] });
+	write_overlap_package(b, full);
+	check(provider.load_cache_dir(dir), "an add-on before the full pack loads");
+	stats = provider.package_stats();
+	check(stats[0].mostly_hidden() && stats[0].records == 1 && !stats[1].mostly_hidden(),
+	      "the add-on sorted before the full pack warns");
+
+	write_overlap_package(a, full);
+	write_overlap_package(b, std::vector<OverlapKey>(full.begin(), full.begin() + 10));
+	check(provider.load_cache_dir(dir), "half-overlap packages load");
+	stats = provider.package_stats();
+	check(stats[0].hidden_by_later == 10 && !stats[0].mostly_hidden(), "exactly 50 percent does not warn");
+
+	write_overlap_package(a, { { false, 1 }, { true, 1 } });
+	write_overlap_package(b, { { false, 1 }, { false, 1 } });
+	check(provider.load_cache_dir(dir), "mixed lanes and a duplicate key load");
+	stats = provider.package_stats();
+	check(stats[0].records == 2 && stats[0].hidden_by_later == 1 && !stats[0].mostly_hidden() &&
+	      stats[1].records == 1 && stats[1].hidden_by_later == 0,
+	      "Rice and Jabo keys are counted separately and package-local duplicate keys count once");
+	write_overlap_package(b, { { true, 1 } });
+	check(provider.load_cache_dir(dir), "a Jabo-only overlay loads");
+	stats = provider.package_stats();
+	check(stats[0].hidden_by_later == 1 && !stats[0].mostly_hidden(), "Jabo MD5 overlap does not hide a Rice key");
+
+	write_overlap_package(a, { { false, 1, 2, 258 } });
+	write_overlap_package(b, { { false, 1, 3, 258 }, { false, 1, 2, 2 } });
+	check(provider.load_cache_dir(dir), "Rice selector and format variants load");
+	stats = provider.package_stats();
+	check(stats[0].hidden_by_later == 0, "Rice overlap requires checksum, selector and formatsize");
+	provider.clear();
+	check(provider.package_stats().empty(), "provider reset clears overlap accounting");
+	remove_tree(dir);
+}
+
 int main()
 {
+	test_package_overlap();
 	test_rgba8_decode_payloads();
 	test_indexed_replacements();
 	if (const char *load_path = std::getenv("PARALLEL_N64_PROVIDER_LOAD_CACHE_PATH"))
@@ -1757,6 +1871,28 @@ int main()
 	      "duplicate sampled decode should still resolve the active entry");
 	check(duplicate_image.rgba8 == duplicate_a_rgba, "duplicate sampled decode should resolve the stable replacement-id winner");
 	remove_tree(duplicate_dir);
+
+	const std::string rejected_dir = make_temp_dir();
+	ReplacementProvider rejected_provider;
+	check(!rejected_provider.load_cache_dir(rejected_dir + "/missing.phrb") &&
+	      rejected_provider.load_error() == ReplacementLoadStatus::NotFound && rejected_provider.rejected_path().empty(),
+	      "missing pack is distinct from rejected pack");
+	PHRBHeader unsupported = {};
+	memcpy(unsupported.magic, "PHRB", 4);
+	unsupported.version = 9;
+	std::vector<uint8_t> header_bytes(sizeof(unsupported));
+	memcpy(header_bytes.data(), &unsupported, sizeof(unsupported));
+	const auto rejected_path = rejected_dir + "/newer.phrb";
+	write_file(rejected_path, header_bytes);
+	check(!rejected_provider.load_cache_dir(rejected_path) &&
+	      rejected_provider.load_error() == ReplacementLoadStatus::UnsupportedVersion &&
+	      rejected_provider.rejected_path() == rejected_path && rejected_provider.entry_count() == 0,
+	      "unsupported PHRB version reports rejection without loading entries");
+	write_file(rejected_path, {1, 2, 3});
+	check(!rejected_provider.load_cache_dir(rejected_path) &&
+	      rejected_provider.load_error() == ReplacementLoadStatus::Invalid,
+	      "unreadable or truncated metadata reports a damaged pack");
+	remove_tree(rejected_dir);
 
 	remove_tree(dir);
 	std::cout << "emu_unit_texture_replacement_provider_test: PASS" << std::endl;

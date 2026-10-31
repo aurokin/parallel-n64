@@ -377,6 +377,8 @@ static void setup_variables(void)
          "(ParaLLEl-RDP) Hi-res texture replacement; disabled|enabled" },
       { "parallel-n64-parallel-rdp-hirestex-filter",
          "(ParaLLEl-RDP) Hi-res texture filtering; trilinear|linear|nearest" },
+      { "parallel-n64-parallel-rdp-hirestex-memory",
+         "(ParaLLEl-RDP) Hi-res texture memory (restart); auto|512 MB|1 GB|2 GB|4 GB|8 GB" },
 #endif
       { "parallel-n64-send_allist_to_hle_rsp",
          "Send audio lists to HLE RSP; disabled|enabled" },
@@ -484,8 +486,8 @@ static bool emu_step_load_data()
          log_cb(RETRO_LOG_INFO, "EmuThread: M64CMD_ROM_GET_HEADER\n");
 
 #ifdef HAVE_PARALLEL
-      /* Capture the raw field before GET_HEADER substitutes its normalized name. */
-      parallel_set_hires_rom_name((const char *)ROM_HEADER.Name);
+      /* Capture the raw header before GET_HEADER substitutes its normalized name. */
+      parallel_set_hires_rom_header((const uint8_t *)&ROM_HEADER);
 #endif
       if(CoreDoCommand(M64CMD_ROM_GET_HEADER, sizeof(ROM_HEADER), &ROM_HEADER))
       {
@@ -580,8 +582,8 @@ static bool emu_step_load_data()
          log_cb(RETRO_LOG_INFO, "EmuThread: M64CMD_ROM_GET_HEADER\n");
 
 #ifdef HAVE_PARALLEL
-      /* Capture the raw field before GET_HEADER substitutes its normalized name. */
-      parallel_set_hires_rom_name((const char *)ROM_HEADER.Name);
+      /* Capture the raw header before GET_HEADER substitutes its normalized name. */
+      parallel_set_hires_rom_header((const uint8_t *)&ROM_HEADER);
 #endif
       if(CoreDoCommand(M64CMD_ROM_GET_HEADER, sizeof(ROM_HEADER), &ROM_HEADER))
       {
@@ -1049,6 +1051,21 @@ void update_variables(bool startup)
        parallel_set_hires_textures(!strcmp(var.value, "enabled"));
    else
        parallel_set_hires_textures(false);
+
+   var.key = "parallel-n64-parallel-rdp-hirestex-memory";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+       unsigned mb = 0;
+       if (!strcmp(var.value, "512 MB")) mb = 512;
+       else if (!strcmp(var.value, "1 GB")) mb = 1024;
+       else if (!strcmp(var.value, "2 GB")) mb = 2048;
+       else if (!strcmp(var.value, "4 GB")) mb = 4096;
+       else if (!strcmp(var.value, "8 GB")) mb = 8192;
+       parallel_set_hires_memory(mb);
+   }
+   else
+       parallel_set_hires_memory(0);
 
    var.key = "parallel-n64-parallel-rdp-hirestex-filter";
    var.value = NULL;

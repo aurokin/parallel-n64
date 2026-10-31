@@ -66,9 +66,13 @@ ROMs, texture packs, savestates, binaries, and generated evidence are not
 tracked. Scenario runners accept repository-relative inputs and existing
 environment overrides; the primary pack override is
 `PARALLEL_RDP_HIRES_CACHE_PATH`. Without that override, packs load only from
-`<system>/parallel-n64/hires/<ROM name>.phrb` and/or the matching
-`<ROM name>/` directory. Use the ROM header's internal name (trailing spaces
-and NULs removed). See [pack setup](assets/TEXTURE_PACKS.md#format-contract).
+`<system>/parallel-n64/hires/<ident>.phrb` and/or matching `<ident>/`
+directories, case-insensitively. The ident is the header Name through its first
+NUL, with trailing spaces trimmed and `:` and `/` replaced by `-`. CPSJ/CP2J
+and names unusable as filenames use the four-character game code instead.
+Packages load in name order, files before directories; later packages win.
+Notifications explain missing packs and warn about mostly hidden packages.
+See [pack setup](assets/TEXTURE_PACKS.md#format-contract).
 Do not add machine names or personal
 checkout roots as product defaults.
 

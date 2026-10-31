@@ -29,6 +29,7 @@
 #include "rdp_hires_jabo_key.hpp"
 #include "device.hpp"
 #include "rdp_common.hpp"
+#include "rdp_hires_residency_policy.hpp"
 #include "worker_thread.hpp"
 #include <string>
 #include <unordered_map>
@@ -146,7 +147,7 @@ public:
 	void set_tile_size(uint32_t tile, uint32_t slo, uint32_t shi, uint32_t tlo, uint32_t thi);
 	void load_tile(uint32_t tile, const LoadTileInfo &info);
 	void load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint32_t tmem_offset);
-	void set_replacement_provider(const ReplacementProvider *provider);
+	bool set_replacement_provider(const ReplacementProvider *provider);
 	void set_hires_debug(bool enable);
 	void set_cpu_tmem(uint8_t *host_tmem);
 	void set_hires_debug_filter(bool allow_tile,
@@ -172,7 +173,8 @@ public:
 	// provider is attached. When true, the native pass replaces too and 1x keeps a
 	// single pass (the pre-ADR-0020 behavior, for comparison).
 	void set_hires_native_pass_replacement(bool enable);
-	void set_hires_gpu_budget_bytes(size_t bytes);
+	void configure_hires_gpu_budget(unsigned option_mb);
+	const HiresResidencyStatus &get_hires_residency_status() const { return hires_residency_status; }
 	// Final summary, emitted once at teardown. Its line format is parsed by
 	// tools/scenarios/lib/common.sh and must stay stable.
 	void log_hires_summary() const;
@@ -280,7 +282,11 @@ private:
 		Compat,
 		Jabo,
 	};
-	uint32_t allocate_hires_descriptor(size_t incoming_bytes);
+	struct HiresKey;
+	template <typename Decode>
+	bool load_hires_descriptor(const HiresKey &key, ReplacementMeta &meta, Decode decode);
+	void evict_hires_slot(uint32_t slot);
+	void clear_hires_images();
 	Vulkan::ImageHandle create_hires_replacement_image_with_mips(const ReplacementImage &replacement);
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta);
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta, const ReplacementPalette *palette = nullptr);
@@ -677,7 +683,7 @@ private:
 	struct HiresResidentImage
 	{
 		Vulkan::ImageHandle image;
-		uint32_t descriptor_index = 0xffffffffu;
+		HiresKey key;
 		uint16_t repl_w = 0;
 		uint16_t repl_h = 0;
 	};
@@ -686,13 +692,18 @@ private:
 	{
 		Vulkan::BindlessDescriptorPoolHandle bindless_pool;
 		Vulkan::ImageHandle fallback_image;
-		std::unordered_map<HiresKey, HiresResidentImage, HiresKeyHasher> resident_images;
+		std::unordered_map<HiresKey, uint32_t, HiresKeyHasher> resident_images;
+		std::vector<HiresResidentImage> images;
+		std::unordered_set<HiresKey, HiresKeyHasher> failed;
+		std::unordered_set<HiresKey, HiresKeyHasher> refused_saturated, refused_no_slot;
+		detail::HiresResidencyPolicy residency;
 		unsigned capacity = 0;
-		unsigned next_descriptor = 1;
-		size_t gpu_resident_bytes = 0;
 	} hires_resources;
-	// Configuration survives provider/cache resets; zero disables the admission limit.
-	size_t hires_gpu_budget_bytes = 0;
+	// Configuration survives provider/cache resets.
+	HiresResidencyStatus hires_residency_status;
+	uint64_t hires_frame = 0;
+	unsigned hires_heap_index = 0;
+	bool hires_memory_budget_supported = false;
 
 	void resolve_coherency_host_to_gpu(Vulkan::CommandBuffer &cmd);
 	void resolve_coherency_gpu_to_host(CoherencyOperation &op, Vulkan::CommandBuffer &cmd);

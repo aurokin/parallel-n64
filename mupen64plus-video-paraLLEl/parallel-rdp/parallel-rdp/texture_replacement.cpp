@@ -9,6 +9,8 @@
 #include <cstring>
 #include <dirent.h>
 #include <fstream>
+#include <map>
+#include <tuple>
 #include <sys/stat.h>
 #include <zlib.h>
 
@@ -531,6 +533,9 @@ void ReplacementProvider::add_entry(Entry &&entry)
 
 void ReplacementProvider::clear()
 {
+	load_error_ = ReplacementLoadStatus::NotFound;
+	rejected_path_.clear();
+	loaded_path_.clear();
 	cache_dir_.clear();
 	entries_.clear();
 	native_checksum_index_.clear();
@@ -588,10 +593,62 @@ bool ReplacementProvider::load_cache_dir(const std::string &path, bool append)
 	sort_files(files);
 
 	for (const auto &file : files)
-		if (is_phrb_cache_path(file))
-			load_phrb(file);
+	{
+		const auto status = load_phrb(file);
+		if (status == ReplacementLoadStatus::Loaded)
+		{
+			if (loaded_path_.empty())
+				loaded_path_ = file;
+		}
+		else if (status != ReplacementLoadStatus::NotFound && rejected_path_.empty())
+		{
+			load_error_ = status;
+			rejected_path_ = file;
+		}
+	}
 
 	return entries_.size() > previous_entries;
+}
+
+std::vector<ReplacementPackageStats> ReplacementProvider::package_stats() const
+{
+	std::vector<ReplacementPackageStats> packages;
+	std::map<std::string, size_t> package_ids;
+	for (const auto &entry : entries_)
+		if (package_ids.emplace(entry.source_path, packages.size()).second)
+		{
+			ReplacementPackageStats stats;
+			stats.path = entry.source_path;
+			packages.push_back(std::move(stats));
+		}
+
+	// The winner stays fixed while walking backwards. last_seen deduplicates
+	// repeated keys within a package (each package's entries are contiguous).
+	using Key = std::tuple<bool, uint64_t, uint16_t, uint64_t>;
+	struct Owner { size_t winner, last_seen; };
+	std::map<Key, Owner> owners;
+	for (auto it = entries_.rbegin(); it != entries_.rend(); ++it)
+	{
+		const auto id = package_ids.at(it->source_path);
+		const Key key(it->is_jabo, it->checksum64, it->is_jabo ? 0 : it->formatsize, it->selector_checksum64);
+		auto inserted = owners.emplace(key, Owner{ id, id });
+		auto &owner = inserted.first->second;
+		if (!inserted.second && owner.last_seen == id)
+			continue;
+		auto &stats = packages[id];
+		stats.records++;
+		if (owner.winner != id)
+		{
+			stats.hidden_by_later++;
+			const auto &winner = packages[owner.winner].path;
+			if (stats.hidden_by.empty())
+				stats.hidden_by = winner;
+			else if (stats.hidden_by != winner)
+				stats.multiple_hiders = true;
+		}
+		owner.last_seen = id;
+	}
+	return packages;
 }
 
 bool ReplacementProvider::has_compat_entries() const
@@ -2175,16 +2232,16 @@ std::vector<SampledDuplicateDiagnostics> ReplacementProvider::get_sampled_duplic
 
 
 
-bool ReplacementProvider::load_phrb(const std::string &path)
+ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 {
 	std::ifstream file(path, std::ios::binary);
 	if (!file)
-		return false;
+		return errno == ENOENT ? ReplacementLoadStatus::NotFound : ReplacementLoadStatus::Invalid;
 
 	file.seekg(0, std::ios::end);
 	const std::streamoff size = file.tellg();
 	if (size < std::streamoff(sizeof(PHRBHeader)))
-		return false;
+		return ReplacementLoadStatus::Invalid;
 	file.seekg(0, std::ios::beg);
 
 	// Read only the metadata portion (header + records + assets + string table).
@@ -2193,20 +2250,22 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 	{
 		std::vector<uint8_t> header_buf(sizeof(PHRBHeader));
 		if (!read_exact(file, header_buf))
-			return false;
+			return ReplacementLoadStatus::Invalid;
 		memcpy(&header, header_buf.data(), sizeof(PHRBHeader));
 	}
-	if (!phrb_magic_ok(header.magic) || (header.version != 2 && header.version != 3 && header.version != 4 && header.version != 5 && header.version != 6 && header.version != 7 && header.version != 8))
-		return false;
+	if (!phrb_magic_ok(header.magic))
+		return ReplacementLoadStatus::Invalid;
+	if (header.version < 2 || header.version > 8)
+		return ReplacementLoadStatus::UnsupportedVersion;
 	if (header.string_table_offset > header.blob_offset || header.blob_offset > static_cast<size_t>(size))
-		return false;
+		return ReplacementLoadStatus::Invalid;
 
 	// Read the metadata region: from after the header through end of string table (up to blob_offset).
 	const size_t metadata_size = static_cast<size_t>(header.blob_offset);
 	std::vector<uint8_t> blob(metadata_size);
 	file.seekg(0, std::ios::beg);
 	if (!read_exact(file, blob))
-		return false;
+		return ReplacementLoadStatus::Invalid;
 
 	const bool version3 = header.version >= 3;
 	const bool version4 = header.version >= 4;
@@ -2214,6 +2273,14 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 	const bool version6 = header.version >= 6;
 	const bool version7 = header.version >= 7;
 	const bool version8 = header.version >= 8;
+	const size_t record_size = version8 ? sizeof(PHRBRecordV8) : version4 ? sizeof(PHRBRecordV4) : sizeof(PHRBRecordV2);
+	const size_t asset_size = version7 ? sizeof(PHRBAssetV7) : version6 ? sizeof(PHRBAssetV6) :
+	                          version5 ? sizeof(PHRBAssetV5) : version3 ? sizeof(PHRBAssetV3) : sizeof(PHRBAssetV2);
+	if (header.record_table_offset > metadata_size ||
+	    header.record_count > (metadata_size - header.record_table_offset) / record_size ||
+	    header.asset_table_offset > metadata_size ||
+	    header.asset_count > (metadata_size - header.asset_table_offset) / asset_size)
+		return ReplacementLoadStatus::Invalid;
 	const bool phrb_debug = []() {
 		if (const char *env = getenv("PARALLEL_RDP_HIRES_PHRB_DEBUG"))
 			return strtol(env, nullptr, 0) > 0;
@@ -2243,7 +2310,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 				PHRBRecordV8 record_v8 = {};
 				const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV8);
 				if (!read_pod_from_blob(blob, record_offset, record_v8))
-					return false;
+					return ReplacementLoadStatus::Invalid;
 				record_v4 = record_v8.v4;
 				key_kind = record_v8.key_kind;
 				memcpy(record_key, record_v8.key, sizeof(record_key));
@@ -2252,7 +2319,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 			{
 				const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV4);
 				if (!read_pod_from_blob(blob, record_offset, record_v4))
-					return false;
+					return ReplacementLoadStatus::Invalid;
 			}
 			record.policy_key_offset = record_v4.policy_key_offset;
 			record.sampled_object_id_offset = record_v4.sampled_object_id_offset;
@@ -2273,7 +2340,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 		{
 			const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV2);
 			if (!read_pod_from_blob(blob, record_offset, record))
-				return false;
+				return ReplacementLoadStatus::Invalid;
 		}
 
 		std::string policy_key;
@@ -2436,7 +2503,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 				PHRBAssetV7 asset = {};
 				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV7);
 				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return false;
+					return ReplacementLoadStatus::Invalid;
 				width = asset.width;
 				height = asset.height;
 				format = asset.format;
@@ -2454,7 +2521,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 				PHRBAssetV6 asset = {};
 				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV6);
 				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return false;
+					return ReplacementLoadStatus::Invalid;
 				width = asset.width;
 				height = asset.height;
 				texture_format = asset.texture_format;
@@ -2471,7 +2538,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 				PHRBAssetV5 asset = {};
 				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV5);
 				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return false;
+					return ReplacementLoadStatus::Invalid;
 				width = asset.width;
 				height = asset.height;
 				texture_format = asset.texture_format;
@@ -2488,7 +2555,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 				PHRBAssetV3 asset = {};
 				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV3);
 				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return false;
+					return ReplacementLoadStatus::Invalid;
 				width = asset.width;
 				height = asset.height;
 				texture_format = asset.texture_format;
@@ -2504,7 +2571,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 				PHRBAssetV2 asset = {};
 				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV2);
 				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return false;
+					return ReplacementLoadStatus::Invalid;
 				width = asset.width;
 				height = asset.height;
 				texture_format = asset.texture_format;
@@ -2648,12 +2715,7 @@ bool ReplacementProvider::load_phrb(const std::string &path)
 		}
 	}
 
-	return loaded_count != 0;
-}
-
-void ReplacementProvider::trim_to_budget(size_t bytes)
-{
-	memory_budget_bytes_ = bytes;
+	return loaded_count ? ReplacementLoadStatus::Loaded : ReplacementLoadStatus::Invalid;
 }
 
 }

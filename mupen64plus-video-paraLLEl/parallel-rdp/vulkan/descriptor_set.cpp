@@ -23,6 +23,7 @@
 #include "descriptor_set.hpp"
 #include "device.hpp"
 #include <vector>
+#include <algorithm>
 
 using namespace std;
 using namespace Util;
@@ -82,6 +83,10 @@ DescriptorSetAllocator::DescriptorSetAllocator(Hash hash, Device *device_, const
 				array_size = VULKAN_NUM_BINDINGS_BINDLESS_VARYING;
 			else
 				array_size = VULKAN_NUM_BINDINGS_BINDLESS;
+			// Variable sampled-image layouts must fit the physical-device limit,
+			// even when the allocated descriptor set uses fewer entries.
+			if (layout.separate_image_mask & (1u << i))
+				array_size = std::min(array_size, device->get_device_features().descriptor_indexing_properties.maxDescriptorSetUpdateAfterBindSampledImages);
 			pool_array_size = array_size;
 		}
 		else

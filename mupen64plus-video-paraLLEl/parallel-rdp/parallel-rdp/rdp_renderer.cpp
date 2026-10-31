@@ -26,7 +26,6 @@
 #include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_lookup_policy.hpp"
 #include "rdp_hires_load_origin_policy.hpp"
-#include "rdp_hires_registry_policy.hpp"
 #include "rdp_hires_runtime_policy.hpp"
 #include "rdp_hires_pass_policy.hpp"
 #include "rdp_hires_state_policy.hpp"
@@ -455,12 +454,12 @@ static unsigned hires_replacement_mip_levels(unsigned w, unsigned h)
 	return levels;
 }
 
-static size_t hires_replacement_mip_chain_bytes(unsigned w, unsigned h)
+static uint64_t hires_replacement_mip_chain_bytes(unsigned w, unsigned h)
 {
-	size_t total = 0;
+	uint64_t total = 0;
 	for (;;)
 	{
-		total += size_t(w) * size_t(h) * 4u;
+		total += uint64_t(w) * uint64_t(h) * 4u;
 		if (w == 1 && h == 1)
 			break;
 		w = std::max(w >> 1, 1u);
@@ -547,6 +546,7 @@ Renderer::Renderer(CommandProcessor &processor_)
 
 Renderer::~Renderer()
 {
+	// No descriptor rewrite here: the bindless pool is destroyed with the images.
 }
 
 void Renderer::set_shader_bank(const ShaderBank *bank)
@@ -1192,13 +1192,21 @@ void Renderer::set_tmem(Vulkan::Buffer *buffer)
 	device->set_name(*tmem, "tmem");
 }
 
-void Renderer::set_replacement_provider(const ReplacementProvider *provider)
+bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 {
 	if (need_flush())
 		flush_queues();
 
 	if (detail::hires_provider_changed(replacement_provider, provider))
+	{
+		clear_hires_images();
+		// Shaders already declare set 3. Retain its fallback binding even if
+		// allocating the next pack's pool (or the one-slot pool) fails.
+		auto previous = std::move(hires_resources);
 		hires_resources = {};
+		hires_resources.bindless_pool = std::move(previous.bindless_pool);
+		hires_resources.fallback_image = std::move(previous.fallback_image);
+	}
 
 	replacement_provider = provider;
 	detail::reset_hires_tracking_state(
@@ -1244,15 +1252,30 @@ void Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_ordered_surface_sequence_cursor.clear();
 	hires_sampled_pool_stream_states.clear();
 
-	if (caps.hires_replacement_shader)
+	bool ready = true;
+	if (provider)
 	{
-		unsigned requested_capacity = 1;
-		if (provider)
-			requested_capacity = unsigned(provider->entry_count()) + 1u;
-		init_hires_resources(std::max(requested_capacity, 1u));
+		// A constant guard keeps residency deterministic across hosts. Refuse
+		// unsupported frontend configurations rather than shortening GPU retirement.
+		ready = caps.hires_replacement_shader && device->get_num_frame_contexts() + 1 <= detail::HiresRetirementFrames;
+		if (ready)
+		{
+			assert(device->get_num_frame_contexts() + 1 <= detail::HiresRetirementFrames);
+			const auto limit = device->get_device_features().descriptor_indexing_properties.maxDescriptorSetUpdateAfterBindSampledImages;
+			ready = init_hires_resources(detail::hires_slot_capacity(provider->entry_count(), limit));
+		}
+		if (!ready)
+		{
+			LOGW("Hi-res resources unavailable (descriptor pool or frame-context limit).\n");
+			replacement_provider = nullptr;
+			init_hires_resources(1);
+		}
 	}
+	else if (caps.hires_replacement_shader)
+		init_hires_resources(1);
 
 	update_hires_presented_pass();
+	return ready;
 }
 
 void Renderer::set_hires_debug(bool enable)
@@ -1312,6 +1335,14 @@ void Renderer::set_hires_debug_sampled_object_exact_lookup(bool enable)
 
 void Renderer::begin_frame_context()
 {
+	if (replacement_provider)
+	{
+		// The ring was flushed and drained before Granite advanced; no draw
+		// remains buffered across this counter's frame boundary.
+		assert(!stream.cmd && pending_primitives == 0 && pending_primitives_upscaled == 0);
+		hires_frame++;
+		hires_residency_status.load_ms_frame = 0;
+	}
 	hires_ordered_surface_sequence_cursor.clear();
 	hires_sampled_pool_stream_states.clear();
 }
@@ -1352,6 +1383,8 @@ void Renderer::set_hires_native_pass_replacement(bool enable)
 {
 	hires_native_pass_replacement = enable;
 	LOGI("Hi-res native pass: %s.\n", enable ? "replace" : "native (RDRAM matches feature-off)");
+	if (enable)
+		LOGI("Hi-res loading stays synchronous for native-pass comparison.\n");
 	update_hires_presented_pass();
 }
 
@@ -1397,9 +1430,59 @@ Vulkan::ImageHandle Renderer::create_hires_replacement_image_with_mips(const Rep
 	return device->create_image(info, initial.data());
 }
 
-void Renderer::set_hires_gpu_budget_bytes(size_t bytes)
+void Renderer::configure_hires_gpu_budget(unsigned option_mb)
 {
-	hires_gpu_budget_bytes = bytes;
+	const auto gpu = device->get_physical_device();
+	uint32_t count = 0;
+	vkEnumerateDeviceExtensionProperties(gpu, nullptr, &count, nullptr);
+	std::vector<VkExtensionProperties> extensions(count);
+	vkEnumerateDeviceExtensionProperties(gpu, nullptr, &count, extensions.data());
+	hires_memory_budget_supported = std::any_of(extensions.begin(), extensions.end(), [](const VkExtensionProperties &ext) {
+		return strcmp(ext.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0;
+	});
+	const auto &memory = device->get_memory_properties();
+	uint64_t heap_size = 0;
+	for (unsigned i = 0; i < memory.memoryHeapCount; i++)
+		if ((memory.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) && memory.memoryHeaps[i].size > heap_size)
+		{
+			hires_heap_index = i;
+			heap_size = memory.memoryHeaps[i].size;
+		}
+	VkPhysicalDeviceMemoryBudgetPropertiesEXT budget = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT };
+	if (hires_memory_budget_supported)
+	{
+		VkPhysicalDeviceMemoryProperties2 props = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2 };
+		props.pNext = &budget;
+		vkGetPhysicalDeviceMemoryProperties2(gpu, &props);
+	}
+#if defined(__ANDROID__) || defined(ANDROID) || defined(IOS)
+	const auto device_class = detail::HiresDeviceClass::Mobile;
+#else
+	const auto device_class = device->get_gpu_properties().deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ?
+	                          detail::HiresDeviceClass::Discrete : detail::HiresDeviceClass::Shared;
+#endif
+	hires_residency_status = {};
+	hires_residency_status.budget = detail::hires_default_budget(device_class, heap_size,
+	                                                         hires_memory_budget_supported, budget.heapBudget[hires_heap_index]);
+	const char *basis = hires_memory_budget_supported ? "heapBudget" : "heap size";
+	if (option_mb)
+	{
+		hires_residency_status.budget = uint64_t(option_mb) * 1024 * 1024;
+		basis = "core option";
+	}
+	if (const char *env = getenv("PARALLEL_RDP_HIRES_GPU_BUDGET_MB"))
+	{
+		char *end = nullptr;
+		const auto mb = strtoull(env, &end, 0);
+		if (*env && *env != '-' && end && !*end && mb <= UINT64_MAX / (1024 * 1024))
+		{
+			hires_residency_status.budget = mb * 1024 * 1024;
+			basis = "environment";
+		}
+	}
+	LOGI("Hi-res memory budget: bytes=%llu basis=%s device_class=%u heap_size=%llu heap_budget=%llu.\n",
+	     (unsigned long long)hires_residency_status.budget, basis, unsigned(device_class),
+	     (unsigned long long)heap_size, (unsigned long long)budget.heapBudget[hires_heap_index]);
 }
 
 void Renderer::log_hires_summary() const
@@ -1425,6 +1508,22 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 
 	if (replacement_provider)
 	{
+		VkPhysicalDeviceMemoryBudgetPropertiesEXT heap = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT };
+		if (hires_memory_budget_supported)
+		{
+			VkPhysicalDeviceMemoryProperties2 props = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2 };
+			props.pNext = &heap;
+			vkGetPhysicalDeviceMemoryProperties2(device->get_physical_device(), &props);
+		}
+		const auto &r = hires_residency_status;
+		LOGI("Hi-res residency summary%s: mode=sync budget=%llu resident=%u resident_bytes=%llu high_water_bytes=%llu uploads=%llu upload_bytes=%llu evictions=%llu refused_saturated=%llu refused_too_large=%llu refused_no_slot=%llu decode_failures=%llu upload_failures=%llu load_ms_total=%.3f load_ms_max_frame=%.3f heap_usage=%llu heap_budget=%llu.\n",
+		     label, (unsigned long long)r.budget, hires_resources.residency.resident_count,
+		     (unsigned long long)hires_resources.residency.resident_bytes, (unsigned long long)r.high_water_bytes,
+		     (unsigned long long)r.uploads, (unsigned long long)r.upload_bytes, (unsigned long long)r.evictions,
+		     (unsigned long long)r.refused_saturated, (unsigned long long)r.refused_too_large, (unsigned long long)r.refused_no_slot,
+		     (unsigned long long)r.decode_failures, (unsigned long long)r.upload_failures,
+		     r.load_ms_total, r.load_ms_max_frame,
+		     (unsigned long long)heap.heapUsage[hires_heap_index], (unsigned long long)heap.heapBudget[hires_heap_index]);
 		uint64_t strong_computations = 0, strong_memo_hits = 0;
 		for (const auto &memo : hires_strong_memo)
 		{
@@ -2440,21 +2539,21 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 						compat_repl_meta, &compat_desc_path, &compat_selector, &compat_desc_class,
 						palette.count ? &palette : nullptr);
 
+					auto &repl_state = replacement_tiles[resolve_tile];
+					detail::write_hires_lookup_tile_state(
+						repl_state, compat_hit, lookup_checksum64, compat_checksum64,
+						0, compat_formatsize, compat_w, compat_h);
+					repl_state.repl_w = static_cast<uint16_t>(compat_repl_meta.repl_w);
+					repl_state.repl_h = static_cast<uint16_t>(compat_repl_meta.repl_h);
+					repl_state.vk_image_index = compat_repl_meta.vk_image_index;
+					repl_state.keyed_rdram_addr = hires_rdram_load_addr[resolve_tile];
+					repl_state.ci4_palette = detail::make_hires_ci4_palette_binding(compat_formatsize, resolve_meta.palette);
+					repl_state.source_layout_binding = compat_view.source_layout;
+					repl_state.jabo_source_hash = jabo_hit ? jabo_source_hash : 0;
+					repl_state.indexed_palette_hash = compat_resolution.meta.indexed ? palette.hash() : 0;
+					apply_hires_tile_binding(resolve_tile, repl_state);
 					if (compat_hit)
 					{
-						auto &repl_state = replacement_tiles[resolve_tile];
-						detail::write_hires_lookup_tile_state(
-							repl_state, true, lookup_checksum64, compat_checksum64,
-							0, compat_formatsize, compat_w, compat_h);
-						repl_state.repl_w = static_cast<uint16_t>(compat_repl_meta.repl_w);
-						repl_state.repl_h = static_cast<uint16_t>(compat_repl_meta.repl_h);
-						repl_state.vk_image_index = compat_repl_meta.vk_image_index;
-						repl_state.keyed_rdram_addr = hires_rdram_load_addr[resolve_tile];
-						repl_state.ci4_palette = detail::make_hires_ci4_palette_binding(compat_formatsize, resolve_meta.palette);
-						repl_state.source_layout_binding = compat_view.source_layout;
-						repl_state.jabo_source_hash = jabo_hit ? jabo_source_hash : 0;
-						repl_state.indexed_palette_hash = compat_resolution.meta.indexed ? palette.hash() : 0;
-						apply_hires_tile_binding(resolve_tile, repl_state);
 						if (strong_hit)
 							hires_strong_draw_hits++;
 						if (jabo_hit)
@@ -2871,6 +2970,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			return true;
 		};
 
+		bool sampled_candidate_selected = false;
 		auto try_sampled_exact = [&](uint32_t palette_crc,
 		                            const char *reason_exact,
 		                            const char *reason_family_unique,
@@ -2926,9 +3026,10 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				sampled_miss_attempts.push_back(attempt);
 				return false;
 			}
+			sampled_candidate_selected = true;
 			candidate_meta.orig_w = sampled_identity.width_pixels;
 			candidate_meta.orig_h = sampled_identity.height_pixels;
-			if (!resolve_hires_sampled_replacement_descriptor(
+			const bool resident = resolve_hires_sampled_replacement_descriptor(
 					uint32_t(base_meta.fmt),
 					uint32_t(base_meta.size),
 					base_meta.offset,
@@ -2940,7 +3041,12 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 					sampled_identity.formatsize,
 					resolved_checksum64,
 					resolved_selector_checksum64,
-					candidate_meta))
+					candidate_meta);
+			sampled_meta = candidate_meta;
+			sampled_checksum64 = resolved_checksum64;
+			sampled_resolved_selector_checksum64 = resolved_selector_checksum64;
+			sampled_reason = resolved_reason;
+			if (!resident)
 			{
 				SampledExactMissAttempt attempt = {};
 				attempt.reason = "resolve";
@@ -2951,10 +3057,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				sampled_miss_attempts.push_back(attempt);
 				return false;
 			}
-			sampled_meta = candidate_meta;
-			sampled_checksum64 = resolved_checksum64;
-			sampled_resolved_selector_checksum64 = resolved_selector_checksum64;
-			sampled_reason = resolved_reason;
 			if (std::strcmp(resolved_reason, reason_family_unique) == 0)
 				hires_descriptor_sampled_family_singleton_resolutions++;
 			else if (std::strcmp(resolved_reason, reason_ordered_surface) == 0)
@@ -2964,7 +3066,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 
 		const bool sampled_hit =
 			try_sampled_exact(sampled_identity.sparse_crc, "sampled-sparse-exact", "sampled-sparse-family-unique", "sampled-sparse-ordered-surface") ||
-			(sampled_identity.entry_crc != sampled_identity.sparse_crc &&
+			(!sampled_candidate_selected && sampled_identity.entry_crc != sampled_identity.sparse_crc &&
 			 try_sampled_exact(sampled_identity.entry_crc, "sampled-entry-exact", "sampled-entry-family-unique", "sampled-entry-ordered-surface"));
 		if (!sampled_hit && hires_debug_sampled_object_probe)
 		{
@@ -3011,7 +3113,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				}
 				if (sampled_family_available)
 				{
-					if (sampled_family_diag.active_is_pool)
+					if (sampled_family_diag.active_is_pool && std::strcmp(attempt.reason, "lookup") == 0)
 					{
 						auto &pool_stream_state = update_sampled_pool_stream_state(attempt.palette_crc);
 						LOGI("Hi-res sampled pool stream: draw_class=%s cycle=%s tile=%u sampled_low32=%08x palette_crc=%08x fs=%u selector=%016llx observed_selector=%016llx observed_selector_source=%s observed_count=%u unique_observed_selectors=%u transition_count=%u repeat_count=%u current_run=%u max_run=%u active_entries=%u runtime_unique_selectors=%u ordered_selectors=%u sample_policy=%s sample_replacement_id=%s sampled_object=%s.\n",
@@ -3076,12 +3178,12 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 				}
 			}
 		}
-		if (sampled_hit)
+		if (sampled_candidate_selected)
 		{
 			ReplacementTileState sampled_state = {};
 			detail::write_hires_lookup_tile_state(
 				sampled_state,
-				true,
+				sampled_hit,
 				sampled_checksum64,
 				texel0_state.upload_checksum64 != 0 ? texel0_state.upload_checksum64 : texel0_state.checksum64,
 				sampled_resolved_selector_checksum64,
@@ -3095,7 +3197,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			sampled_state.ci4_palette = detail::make_hires_ci4_palette_binding(sampled_identity.formatsize, base_meta.palette);
 			replacement_tiles[base_tile] = sampled_state;
 			apply_hires_tile_binding(base_tile, replacement_tiles[base_tile]);
-			if (hires_debug)
+			if (hires_debug && sampled_hit)
 			{
 				LOGI("Hi-res sampled-object exact hit: draw_class=%s cycle=%s tile=%u reason=%s sampled_low32=%08x sampled_entry_pcrc=%08x sampled_sparse_pcrc=%08x fs=%u key=%016llx repl=%ux%u.\n",
 				     get_hires_draw_class(draw_class),
@@ -3258,7 +3360,11 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);
 	indices.tile_instance_index = uint8_t(stream.tmem_upload_infos.size());
 	for (unsigned i = 0; i < 8; i++)
+	{
+		if (replacement_provider && detail::hires_descriptor_index_valid(tiles[i].replacement.repl_desc_index))
+			hires_resources.residency.touch(tiles[i].replacement.repl_desc_index, hires_frame);
 		indices.tile_indices[i] = stream.tile_info_state_cache.add(tiles[i]);
+	}
 	stream.state_indices.add(indices);
 
 	fb.color_write_pending = true;
@@ -4739,10 +4845,6 @@ bool Renderer::init_hires_resources(unsigned requested_capacity)
 	if (hires_resources.bindless_pool && hires_resources.capacity >= requested_capacity)
 		return true;
 
-	hires_resources = {};
-	hires_resources.capacity = requested_capacity;
-	hires_resources.next_descriptor = 1;
-
 	auto pool = device->create_bindless_descriptor_pool(Vulkan::BindlessResourceType::ImageFP, 1, requested_capacity);
 	if (!pool || !pool->allocate_descriptors(requested_capacity))
 		return false;
@@ -4760,16 +4862,124 @@ bool Renderer::init_hires_resources(unsigned requested_capacity)
 		return false;
 
 	pool->set_texture(0, fallback->get_view());
+	// Replace the live resources only after all allocations succeed.
+	clear_hires_images();
+	hires_resources = {};
+	hires_resources.capacity = requested_capacity;
+	hires_resources.residency.reset(requested_capacity, hires_residency_status.budget);
+	hires_resources.images.resize(requested_capacity);
 	hires_resources.fallback_image = std::move(fallback);
 	hires_resources.bindless_pool = std::move(pool);
 	return true;
 }
 
-uint32_t Renderer::allocate_hires_descriptor(size_t incoming_bytes)
+void Renderer::clear_hires_images()
 {
-	return detail::allocate_hires_registry_descriptor(
-		hires_resources.gpu_resident_bytes, incoming_bytes, hires_gpu_budget_bytes,
-		hires_resources.next_descriptor, hires_resources.capacity);
+	if (hires_resources.resident_images.empty())
+		return;
+	// Provider and pool replacement can precede normal retirement.
+	// Finish GPU readers before rewriting their UPDATE_AFTER_BIND descriptors.
+	flush_and_signal();
+	device->wait_idle();
+	for (const auto &entry : hires_resources.resident_images)
+		detail::clear_hires_resident_image(entry.second, hires_resources);
+	hires_resources.resident_images.clear();
+}
+
+void Renderer::evict_hires_slot(uint32_t slot)
+{
+	// Eight unused frames cover the admitted frame-context count plus one.
+	// Granite has waited those contexts' fences; no submitted or buffered draw
+	// can still read this UPDATE_AFTER_BIND slot. Rewrite only at retirement,
+	// not when selecting an eviction victim: earlier writes could change an
+	// in-flight draw. The fallback avoids descriptors naming destroyed views.
+	auto &resident = hires_resources.images[slot];
+	hires_resources.resident_images.erase(resident.key);
+	detail::clear_hires_resident_image(slot, hires_resources);
+	for (unsigned i = 0; i < Limits::MaxNumTiles; i++)
+		detail::clear_hires_evicted_binding(slot, replacement_tiles[i], tiles[i].replacement);
+	hires_residency_status.evictions++;
+}
+
+// Metadata is already selected by the resolver; pressure must not re-key it.
+template <typename Decode>
+bool Renderer::load_hires_descriptor(const HiresKey &key, ReplacementMeta &meta, Decode decode)
+{
+	auto itr = hires_resources.resident_images.find(key);
+	if (itr != hires_resources.resident_images.end())
+	{
+		const auto &resident = hires_resources.images[itr->second];
+		hires_resources.residency.touch(itr->second, hires_frame);
+		meta.vk_image_index = itr->second;
+		meta.repl_w = resident.repl_w;
+		meta.repl_h = resident.repl_h;
+		return true;
+	}
+	if (!hires_resources.bindless_pool || hires_resources.failed.count(key))
+		return false;
+	const auto max_dimension = device->get_gpu_properties().limits.maxImageDimension2D;
+	if (!meta.repl_w || !meta.repl_h || meta.repl_w > max_dimension || meta.repl_h > max_dimension)
+	{
+		hires_residency_status.refused_too_large++;
+		hires_resources.failed.insert(key);
+		return false;
+	}
+	const uint64_t bytes = hires_replacement_mip_chain_bytes(meta.repl_w, meta.repl_h);
+	const uint64_t start = Util::get_current_time_nsecs();
+	auto result = hires_resources.residency.admit_and_load(bytes, hires_frame,
+		[this](uint32_t slot) { evict_hires_slot(slot); },
+		[&](uint32_t slot) {
+			ReplacementImage replacement = {};
+			if (!decode(replacement) || replacement.rgba8.empty() ||
+			    replacement.meta.repl_w != meta.repl_w || replacement.meta.repl_h != meta.repl_h)
+			{
+				hires_residency_status.decode_failures++;
+				return false;
+			}
+			zero_transparent_replacement_rgb(replacement.rgba8);
+			auto image = create_hires_replacement_image_with_mips(replacement);
+			if (!image)
+			{
+				hires_residency_status.upload_failures++;
+				return false;
+			}
+			hires_resources.bindless_pool->set_texture(slot, image->get_view());
+			auto &resident = hires_resources.images[slot];
+			resident.image = std::move(image);
+			resident.key = key;
+			resident.repl_w = meta.repl_w;
+			resident.repl_h = meta.repl_h;
+			hires_resources.resident_images.emplace(key, slot);
+			return true;
+		});
+	auto &status = hires_residency_status;
+	const double elapsed = double(Util::get_current_time_nsecs() - start) * 1e-6;
+	status.load_ms_total += elapsed;
+	status.load_ms_frame += elapsed;
+	status.load_ms_max_frame = std::max(status.load_ms_max_frame, status.load_ms_frame);
+	switch (result.reason)
+	{
+	case detail::HiresAdmission::Admitted:
+		status.uploads++;
+		status.upload_bytes += bytes;
+		status.high_water_bytes = std::max(status.high_water_bytes, hires_resources.residency.resident_bytes);
+		meta.vk_image_index = result.slot;
+		return true;
+	case detail::HiresAdmission::TooLarge:
+		status.refused_too_large++;
+		hires_resources.failed.insert(key);
+		break;
+	case detail::HiresAdmission::Saturated:
+		status.refused_saturated += hires_resources.refused_saturated.insert(key).second;
+		break;
+	case detail::HiresAdmission::NoSlot:
+		status.refused_no_slot += hires_resources.refused_no_slot.insert(key).second;
+		break;
+	case detail::HiresAdmission::LoadFailed:
+		hires_resources.failed.insert(key);
+		break;
+	}
+	return false;
 }
 
 bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta)
@@ -4808,60 +5018,13 @@ bool Renderer::resolve_hires_sampled_replacement_descriptor(uint32_t sampled_fmt
 	key.sampled_height = sampled_height;
 	key.sampled_low32 = sampled_low32;
 	key.sampled_palette_crc = palette_crc;
-	auto itr = hires_resources.resident_images.find(key);
-	if (itr != hires_resources.resident_images.end())
-	{
-		hires_descriptor_sampled_resolutions++;
-		meta.vk_image_index = itr->second.descriptor_index;
-		meta.repl_w = itr->second.repl_w;
-		meta.repl_h = itr->second.repl_h;
-		return true;
-	}
-
-	if (!hires_resources.bindless_pool)
+	if (!load_hires_descriptor(key, meta, [&](ReplacementImage &replacement) {
+		return replacement_provider->decode_sampled_rgba8_with_selector(
+			sampled_fmt, sampled_siz, sampled_tex_offset, sampled_stride, sampled_width, sampled_height,
+			sampled_low32, palette_crc, formatsize, selector_checksum64, &replacement);
+	}))
 		return false;
-
-	ReplacementImage replacement = {};
-	if (!replacement_provider->decode_sampled_rgba8_with_selector(
-			sampled_fmt,
-			sampled_siz,
-			sampled_tex_offset,
-			sampled_stride,
-			sampled_width,
-			sampled_height,
-			sampled_low32,
-			palette_crc,
-			formatsize,
-			selector_checksum64,
-			&replacement))
-		return false;
-	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
-		return false;
-
-	const size_t texture_bytes = hires_replacement_mip_chain_bytes(replacement.meta.repl_w, replacement.meta.repl_h);
-	const uint32_t descriptor_index = allocate_hires_descriptor(texture_bytes);
-	if (descriptor_index == 0xffffffffu)
-		return false;
-
-	zero_transparent_replacement_rgb(replacement.rgba8);
-
-	auto image = create_hires_replacement_image_with_mips(replacement);
-	if (!image)
-		return false;
-
-	hires_resources.bindless_pool->set_texture(descriptor_index, image->get_view());
-
-	HiresResidentImage resident = {};
-	resident.image = std::move(image);
-	resident.descriptor_index = descriptor_index;
-	resident.repl_w = static_cast<uint16_t>(replacement.meta.repl_w);
-	resident.repl_h = static_cast<uint16_t>(replacement.meta.repl_h);
-	hires_resources.resident_images.emplace(key, std::move(resident));
-
 	hires_descriptor_sampled_resolutions++;
-	meta.vk_image_index = descriptor_index;
-	meta.repl_w = replacement.meta.repl_w;
-	meta.repl_h = replacement.meta.repl_h;
 	return true;
 }
 
@@ -4893,49 +5056,11 @@ bool Renderer::resolve_hires_native_checksum_replacement_descriptor(uint64_t che
 	key.formatsize = formatsize;
 	key.selector_checksum64 = selector_checksum64;
 	key.source = HiresKeySource::NativeChecksum;
-	auto itr = hires_resources.resident_images.find(key);
-	if (itr != hires_resources.resident_images.end())
-	{
-		record_native_checksum_detail();
-		meta.vk_image_index = itr->second.descriptor_index;
-		meta.repl_w = itr->second.repl_w;
-		meta.repl_h = itr->second.repl_h;
-		return true;
-	}
-
-	if (!hires_resources.bindless_pool)
+	if (!load_hires_descriptor(key, meta, [&](ReplacementImage &replacement) {
+		return replacement_provider->decode_rgba8_native_with_selector(checksum64, formatsize, selector_checksum64, &replacement);
+	}))
 		return false;
-
-	ReplacementImage replacement = {};
-	if (!replacement_provider->decode_rgba8_native_with_selector(checksum64, formatsize, selector_checksum64, &replacement))
-		return false;
-	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
-		return false;
-
-	const size_t texture_bytes = hires_replacement_mip_chain_bytes(replacement.meta.repl_w, replacement.meta.repl_h);
-	const uint32_t descriptor_index = allocate_hires_descriptor(texture_bytes);
-	if (descriptor_index == 0xffffffffu)
-		return false;
-
-	zero_transparent_replacement_rgb(replacement.rgba8);
-
-	auto image = create_hires_replacement_image_with_mips(replacement);
-	if (!image)
-		return false;
-
-	hires_resources.bindless_pool->set_texture(descriptor_index, image->get_view());
-
-	HiresResidentImage resident = {};
-	resident.image = std::move(image);
-	resident.descriptor_index = descriptor_index;
-	resident.repl_w = static_cast<uint16_t>(replacement.meta.repl_w);
-	resident.repl_h = static_cast<uint16_t>(replacement.meta.repl_h);
-	hires_resources.resident_images.emplace(key, std::move(resident));
-
 	record_native_checksum_detail();
-	meta.vk_image_index = descriptor_index;
-	meta.repl_w = replacement.meta.repl_w;
-	meta.repl_h = replacement.meta.repl_h;
 	return true;
 }
 
@@ -5084,49 +5209,11 @@ bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, 
 	key.selector_checksum64 = selector_checksum64;
 	key.source = HiresKeySource::Compat;
 	key.indexed_palette_hash = palette ? palette->hash() : 0;
-	auto itr = hires_resources.resident_images.find(key);
-	if (itr != hires_resources.resident_images.end())
-	{
-		hires_descriptor_compat_resolutions++;
-		meta.vk_image_index = itr->second.descriptor_index;
-		meta.repl_w = itr->second.repl_w;
-		meta.repl_h = itr->second.repl_h;
-		return true;
-	}
-
-	if (!hires_resources.bindless_pool)
+	if (!load_hires_descriptor(key, meta, [&](ReplacementImage &replacement) {
+		return replacement_provider->decode_rgba8_compat_with_selector(checksum64, formatsize, selector_checksum64, &replacement, palette);
+	}))
 		return false;
-
-	ReplacementImage replacement = {};
-	if (!replacement_provider->decode_rgba8_compat_with_selector(checksum64, formatsize, selector_checksum64, &replacement, palette))
-		return false;
-	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
-		return false;
-
-	const size_t texture_bytes = hires_replacement_mip_chain_bytes(replacement.meta.repl_w, replacement.meta.repl_h);
-	const uint32_t descriptor_index = allocate_hires_descriptor(texture_bytes);
-	if (descriptor_index == 0xffffffffu)
-		return false;
-
-	zero_transparent_replacement_rgb(replacement.rgba8);
-
-	auto image = create_hires_replacement_image_with_mips(replacement);
-	if (!image)
-		return false;
-
-	hires_resources.bindless_pool->set_texture(descriptor_index, image->get_view());
-
-	HiresResidentImage resident = {};
-	resident.image = std::move(image);
-	resident.descriptor_index = descriptor_index;
-	resident.repl_w = static_cast<uint16_t>(replacement.meta.repl_w);
-	resident.repl_h = static_cast<uint16_t>(replacement.meta.repl_h);
-	hires_resources.resident_images.emplace(key, std::move(resident));
-
 	hires_descriptor_compat_resolutions++;
-	meta.vk_image_index = descriptor_index;
-	meta.repl_w = replacement.meta.repl_w;
-	meta.repl_h = replacement.meta.repl_h;
 	return true;
 }
 
@@ -5141,47 +5228,11 @@ bool Renderer::resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64
 	key.checksum64 = key_lo;
 	key.selector_checksum64 = key_hi;
 	key.source = HiresKeySource::Jabo;
-	auto itr = hires_resources.resident_images.find(key);
-	if (itr != hires_resources.resident_images.end())
-	{
-		meta.vk_image_index = itr->second.descriptor_index;
-		meta.repl_w = itr->second.repl_w;
-		meta.repl_h = itr->second.repl_h;
-		return true;
-	}
-
-	if (!hires_resources.bindless_pool)
+	if (!load_hires_descriptor(key, meta, [&](ReplacementImage &replacement) {
+		return replacement_provider->decode_rgba8_jabo(key_lo, key_hi, &replacement);
+	}))
 		return false;
 
-	ReplacementImage replacement = {};
-	if (!replacement_provider->decode_rgba8_jabo(key_lo, key_hi, &replacement))
-		return false;
-	if (replacement.rgba8.empty() || replacement.meta.repl_w == 0 || replacement.meta.repl_h == 0)
-		return false;
-
-	const size_t texture_bytes = hires_replacement_mip_chain_bytes(replacement.meta.repl_w, replacement.meta.repl_h);
-	const uint32_t descriptor_index = allocate_hires_descriptor(texture_bytes);
-	if (descriptor_index == 0xffffffffu)
-		return false;
-
-	zero_transparent_replacement_rgb(replacement.rgba8);
-
-	auto image = create_hires_replacement_image_with_mips(replacement);
-	if (!image)
-		return false;
-
-	hires_resources.bindless_pool->set_texture(descriptor_index, image->get_view());
-
-	HiresResidentImage resident = {};
-	resident.image = std::move(image);
-	resident.descriptor_index = descriptor_index;
-	resident.repl_w = static_cast<uint16_t>(replacement.meta.repl_w);
-	resident.repl_h = static_cast<uint16_t>(replacement.meta.repl_h);
-	hires_resources.resident_images.emplace(key, std::move(resident));
-
-	meta.vk_image_index = descriptor_index;
-	meta.repl_w = replacement.meta.repl_w;
-	meta.repl_h = replacement.meta.repl_h;
 	return true;
 }
 
@@ -5268,6 +5319,7 @@ void Renderer::apply_hires_tile_binding(unsigned tile, const ReplacementTileStat
 		return;
 	}
 
+	hires_resources.residency.touch(state.vk_image_index, hires_frame);
 	tiles[tile].replacement.repl_orig_w = state.orig_w;
 	tiles[tile].replacement.repl_orig_h = state.orig_h;
 	tiles[tile].replacement.repl_w = state.repl_w;
@@ -5958,63 +6010,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				repl_meta.orig_h = key_height_pixels;
 				resolved_checksum64 = resolution.resolved_checksum64;
 				resolved_selector_checksum64 = resolution.resolved_selector_checksum64;
-				hit = resolve_hires_provider_resolution_descriptor(
-					resolution,
-					formatsize,
-					key_width_pixels,
-					key_height_pixels,
-					repl_meta,
-					&descriptor_path_kind,
-					&resolved_selector_checksum64,
-					&descriptor_path_class);
-				if (hit)
-				{
-					switch (resolution.kind)
-					{
-					case ReplacementResolutionKind::SampledFamilySingleton:
-						native_lookup_resolution_reason =
-							resolution.ordered_surface_singleton
-								? "sampled-family-ordered-surface-singleton-upload"
-								: "sampled-family-unique-upload";
-						if (resolution.ordered_surface_singleton)
-							hires_descriptor_sampled_ordered_surface_singleton_resolutions++;
-						else
-							hires_descriptor_sampled_family_singleton_resolutions++;
-						break;
-
-					case ReplacementResolutionKind::ExactNativeSampled:
-						native_lookup_resolution_reason =
-							descriptor_path_kind == HiresProviderDescriptorPathKind::Sampled
-								? "native-checksum-exact-upload"
-								: "native-checksum-exact-fallback-upload";
-						break;
-
-					case ReplacementResolutionKind::GenericNativeIdentity:
-					case ReplacementResolutionKind::GenericNativeChecksum:
-						native_lookup_resolution_reason =
-							descriptor_path_kind == HiresProviderDescriptorPathKind::Sampled
-								? "native-checksum-generic-upload"
-								: "native-checksum-generic-fallback-upload";
-						break;
-
-					case ReplacementResolutionKind::GenericCompat:
-						native_lookup_resolution_reason = "generic-compat-upload";
-						break;
-
-					case ReplacementResolutionKind::SampledExactSelector:
-						native_lookup_resolution_reason = "sampled-exact-selector-upload";
-						hires_descriptor_sampled_exact_selector_resolutions++;
-						break;
-
-					case ReplacementResolutionKind::SampledOrderedSurfaceReservedSelector:
-					case ReplacementResolutionKind::CILow32SelectedDims:
-					case ReplacementResolutionKind::CILow32ReplacementDimsUnique:
-					case ReplacementResolutionKind::CILow32Unique:
-					case ReplacementResolutionKind::CILow32Any:
-					case ReplacementResolutionKind::None:
-						break;
-					}
-				}
 			}
 			// GlideN64 keys a CI texture in rendering-tile terms even when the
 			// LoadTile descriptor is wider (Textures.cpp _loadHiresTexture:
@@ -6066,52 +6061,27 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					ReplacementMeta ci4_meta = ci4_resolution.meta;
 					ci4_meta.orig_w = ci4_width;
 					ci4_meta.orig_h = key_height_pixels;
-					HiresProviderDescriptorPathKind ci4_path_kind = HiresProviderDescriptorPathKind::None;
-					uint64_t ci4_selector = ci4_resolution.resolved_selector_checksum64;
-					if (resolve_hires_provider_resolution_descriptor(
-							ci4_resolution,
-							ci4_formatsize,
-							ci4_width,
-							key_height_pixels,
-							ci4_meta,
-							&ci4_path_kind,
-							&ci4_selector,
-							&descriptor_path_class))
-					{
-						hit = true;
-						repl_meta = ci4_meta;
-						resolved_checksum64 = ci4_resolution.resolved_checksum64;
-						resolved_selector_checksum64 = ci4_selector;
-						native_lookup_resolution_reason = "ci4-reinterpreted-upload";
-						lookup_palette_crc = ci4_palette_crc;
-						lookup_checksum64 = detail::compose_hires_checksum64(texture_crc, ci4_palette_crc);
-						lookup_formatsize = ci4_formatsize;
-						lookup_key_w = ci4_width;
-						lookup_key_h = key_height_pixels;
-					}
+					hit = true;
+					resolution = ci4_resolution;
+					repl_meta = ci4_meta;
+					resolved_checksum64 = ci4_resolution.resolved_checksum64;
+					resolved_selector_checksum64 = ci4_resolution.resolved_selector_checksum64;
+					native_lookup_resolution_reason = "ci4-reinterpreted-upload";
+					lookup_palette_crc = ci4_palette_crc;
+					lookup_checksum64 = detail::compose_hires_checksum64(texture_crc, ci4_palette_crc);
+					lookup_formatsize = ci4_formatsize;
+					lookup_key_w = ci4_width;
+					lookup_key_h = key_height_pixels;
 				}
 			}
 			const char *ci_lookup_resolution_reason = nullptr;
-			auto apply_ci_low32_resolution = [&](const ReplacementResolution &resolution, const char *reason) {
-				ReplacementMeta compat_meta = resolution.meta;
-				compat_meta.orig_w = key_width_pixels;
-				compat_meta.orig_h = key_height_pixels;
-				HiresProviderDescriptorPathKind compat_path_kind = HiresProviderDescriptorPathKind::None;
-				if (!resolve_hires_provider_resolution_descriptor(
-					    resolution,
-					    formatsize,
-					    key_width_pixels,
-					    key_height_pixels,
-					    compat_meta,
-					    &compat_path_kind,
-					    &resolved_selector_checksum64,
-					    &descriptor_path_class))
-					return false;
-				if (compat_path_kind != HiresProviderDescriptorPathKind::Compat)
-					return false;
-
-				repl_meta = compat_meta;
-				resolved_checksum64 = resolution.resolved_checksum64;
+			auto apply_ci_low32_resolution = [&](const ReplacementResolution &candidate, const char *reason) {
+				resolution = candidate;
+				repl_meta = candidate.meta;
+				repl_meta.orig_w = key_width_pixels;
+				repl_meta.orig_h = key_height_pixels;
+				resolved_checksum64 = candidate.resolved_checksum64;
+				resolved_selector_checksum64 = candidate.resolved_selector_checksum64;
 				hit = true;
 				ci_lookup_resolution_reason = reason;
 				return true;
@@ -6200,6 +6170,67 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 				if (fallback_reason)
 					apply_ci_low32_resolution(compat_resolution, fallback_reason);
+			}
+			// Residency cannot influence which candidate or selector wins.
+			if (hit)
+			{
+				hit = resolve_hires_provider_resolution_descriptor(
+					resolution,
+					lookup_formatsize,
+					lookup_key_w,
+					lookup_key_h,
+					repl_meta,
+					&descriptor_path_kind,
+					&resolved_selector_checksum64,
+					&descriptor_path_class);
+				if (hit && !native_lookup_resolution_reason && !ci_lookup_resolution_reason)
+				{
+					switch (resolution.kind)
+					{
+					case ReplacementResolutionKind::SampledFamilySingleton:
+						native_lookup_resolution_reason =
+							resolution.ordered_surface_singleton
+								? "sampled-family-ordered-surface-singleton-upload"
+								: "sampled-family-unique-upload";
+						if (resolution.ordered_surface_singleton)
+							hires_descriptor_sampled_ordered_surface_singleton_resolutions++;
+						else
+							hires_descriptor_sampled_family_singleton_resolutions++;
+						break;
+
+					case ReplacementResolutionKind::ExactNativeSampled:
+						native_lookup_resolution_reason =
+							descriptor_path_kind == HiresProviderDescriptorPathKind::Sampled
+								? "native-checksum-exact-upload"
+								: "native-checksum-exact-fallback-upload";
+						break;
+
+					case ReplacementResolutionKind::GenericNativeIdentity:
+					case ReplacementResolutionKind::GenericNativeChecksum:
+						native_lookup_resolution_reason =
+							descriptor_path_kind == HiresProviderDescriptorPathKind::Sampled
+								? "native-checksum-generic-upload"
+								: "native-checksum-generic-fallback-upload";
+						break;
+
+					case ReplacementResolutionKind::GenericCompat:
+						native_lookup_resolution_reason = "generic-compat-upload";
+						break;
+
+					case ReplacementResolutionKind::SampledExactSelector:
+						native_lookup_resolution_reason = "sampled-exact-selector-upload";
+						hires_descriptor_sampled_exact_selector_resolutions++;
+						break;
+
+					case ReplacementResolutionKind::SampledOrderedSurfaceReservedSelector:
+					case ReplacementResolutionKind::CILow32SelectedDims:
+					case ReplacementResolutionKind::CILow32ReplacementDimsUnique:
+					case ReplacementResolutionKind::CILow32Unique:
+					case ReplacementResolutionKind::CILow32Any:
+					case ReplacementResolutionKind::None:
+						break;
+					}
+				}
 			}
 			const char *filter_reason = nullptr;
 			if (hit && hires_debug_filter_is_active(hires_debug_filter))

@@ -185,6 +185,20 @@ struct ReplacementResolution
 	bool matched_preferred_palette = false;
 };
 
+enum class ReplacementLoadStatus { Loaded, NotFound, UnsupportedVersion, Invalid };
+
+// Counts unique runtime keys, including palette aliases, in separate Rice and
+// Jabo namespaces. Overlap is diagnostic only; lookup indices are unchanged.
+struct ReplacementPackageStats
+{
+	std::string path;
+	size_t records = 0;
+	size_t hidden_by_later = 0;
+	std::string hidden_by;
+	bool multiple_hiders = false;
+	bool mostly_hidden() const { return hidden_by_later > records / 2; }
+};
+
 class ReplacementProvider
 {
 public:
@@ -192,6 +206,10 @@ public:
 	void set_enabled(bool enable);
 	// Append lets a game's standalone package and package directory share one provider.
 	bool load_cache_dir(const std::string &path, bool append = false);
+	ReplacementLoadStatus load_error() const { return load_error_; }
+	const std::string &rejected_path() const { return rejected_path_; }
+	const std::string &loaded_path() const { return loaded_path_; }
+	std::vector<ReplacementPackageStats> package_stats() const;
 	bool has_compat_entries() const;
 	bool has_phrb_compat_entries() const;
 	bool has_jabo_entries() const;
@@ -344,7 +362,6 @@ public:
 	bool decode_rgba8_compat_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementImage *out, const ReplacementPalette *palette = nullptr) const;
 	ReplacementProviderStats get_stats() const;
 	std::vector<SampledDuplicateDiagnostics> get_sampled_duplicate_diagnostics(size_t limit = 0) const;
-	void trim_to_budget(size_t bytes);
 	void clear();
 	size_t entry_count() const;
 
@@ -506,7 +523,7 @@ private:
 	                                 uint32_t repl_h,
 	                                 CILow32ResolutionMode mode,
 	                                 bool *matched_preferred_palette = nullptr) const;
-	bool load_phrb(const std::string &path);
+	ReplacementLoadStatus load_phrb(const std::string &path);
 	bool read_blob(const Entry &entry, std::vector<uint8_t> &blob) const;
 	bool decode_entry_rgba8(const Entry &entry, ReplacementImage *out, const ReplacementPalette *palette = nullptr) const;
 	void populate_meta_from_entry(const Entry &entry, ReplacementMeta *out) const;
@@ -551,6 +568,7 @@ private:
 	std::unordered_map<SampledFamilyLookupKey, std::vector<size_t>, SampledFamilyLookupKeyHash> sampled_family_index_;
 	std::unordered_map<uint64_t, std::vector<uint64_t>> ordered_surface_selectors_;
 	std::unordered_map<JaboKey, size_t, JaboKeyHash> jabo_index_;
-	size_t memory_budget_bytes_ = 0;
+	ReplacementLoadStatus load_error_ = ReplacementLoadStatus::NotFound;
+	std::string rejected_path_, loaded_path_;
 };
 }

@@ -106,6 +106,11 @@ add_test(
 )
 
 add_test(
+  NAME emu.support.hts2phrb_install_contract
+  COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_install_contract.py"
+)
+
+add_test(
   NAME emu.support.hts2phrb_bounded_memory_contract
   COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_bounded_memory_contract.py"
 )
@@ -245,6 +250,10 @@ add_executable(emu_unit_hires_cache_path_test emu_unit_hires_cache_path_test.cpp
 target_include_directories(emu_unit_hires_cache_path_test PRIVATE "${CMAKE_SOURCE_DIR}")
 target_compile_features(emu_unit_hires_cache_path_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.hires_cache_path COMMAND emu_unit_hires_cache_path_test)
+add_test(NAME emu.unit.hires_game_ident
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_hires_game_ident_vectors.py"
+    "$<TARGET_FILE:emu_unit_hires_cache_path_test>"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/hires_game_ident.json")
 
 add_executable(emu_unit_texture_replacement_provider_test
   emu_unit_texture_replacement_provider_test.cpp
@@ -266,12 +275,12 @@ target_compile_features(emu_unit_texture_replacement_provider_test PRIVATE cxx_s
 target_link_libraries(emu_unit_texture_replacement_provider_test PRIVATE z)
 add_test(NAME emu.unit.texture_replacement_provider COMMAND emu_unit_texture_replacement_provider_test)
 
-add_executable(emu_unit_hires_registry_budget_test
-  emu_unit_hires_registry_budget_test.cpp
+add_executable(emu_unit_hires_residency_test
+  emu_unit_hires_residency_test.cpp
 )
-target_include_directories(emu_unit_hires_registry_budget_test PRIVATE "${CMAKE_SOURCE_DIR}")
-target_compile_features(emu_unit_hires_registry_budget_test PRIVATE cxx_std_17)
-add_test(NAME emu.unit.hires_registry_budget COMMAND emu_unit_hires_registry_budget_test)
+target_include_directories(emu_unit_hires_residency_test PRIVATE "${CMAKE_SOURCE_DIR}")
+target_compile_features(emu_unit_hires_residency_test PRIVATE cxx_std_11)
+add_test(NAME emu.unit.hires_residency COMMAND emu_unit_hires_residency_test)
 
 add_executable(emu_unit_hires_mip_filter_test
   emu_unit_hires_mip_filter_test.cpp

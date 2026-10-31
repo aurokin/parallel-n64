@@ -68,6 +68,8 @@ def _legacy_cache_sort_key(cache_path: Path):
 
 def resolve_legacy_cache_path(cache_input_path: Path):
     if cache_input_path.is_file():
+        if cache_input_path.stem.upper().endswith("_MEMORYCACHE"):
+            raise ValueError("This is GLideN64's texture-enhancement cache, not a hi-res pack. There is nothing to convert.")
         if cache_input_path.suffix.lower() not in LEGACY_CACHE_SUFFIXES:
             raise ValueError(f"Unsupported cache format: {cache_input_path}")
         return {
@@ -87,8 +89,7 @@ def resolve_legacy_cache_path(cache_input_path: Path):
                 for path in cache_input_path.iterdir()
                 if path.is_file()
                 and path.suffix.lower() in LEGACY_CACHE_SUFFIXES
-                # Glide64 *_MEMORYCACHE.dat holds native-texture filter output, not hi-res textures.
-                and not path.name.upper().endswith("_MEMORYCACHE.DAT")
+                and not path.stem.upper().endswith("_MEMORYCACHE")
             ),
             key=_legacy_cache_sort_key,
         )
@@ -104,6 +105,14 @@ def resolve_legacy_cache_path(cache_input_path: Path):
                     "candidate_count": 1,
                     "candidate_paths": [str(cache_input_path)],
                 }
+            if any(path.is_file() and path.stem.upper().endswith("_MEMORYCACHE")
+                   for path in cache_input_path.iterdir()):
+                raise ValueError("This is GLideN64's texture-enhancement cache, not a hi-res pack. There is nothing to convert.")
+            from hires_pack_loose_png import iter_pack_files, port_specific_summary
+
+            port_note = port_specific_summary(rel for rel, skipped in iter_pack_files(cache_input_path) if not skipped)
+            if port_note:
+                raise ValueError(port_note)
             raise ValueError(
                 f"No .hts/.htc/.dat cache files, loose PNG textures or Jabo textures found in directory: {cache_input_path}"
             )

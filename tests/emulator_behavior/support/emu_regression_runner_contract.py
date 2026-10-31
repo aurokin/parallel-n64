@@ -41,6 +41,11 @@ def emit(line):
 
 if sub == "start":
     assert "--start-paused" in flags and opts["--mode"] in ("off", "on")
+    if opts["--mode"] == "on":
+        assert os.environ["PARALLEL_RDP_HIRES_GPU_BUDGET_MB"] == str(plan.get("budget_mb", 8192))
+        assert os.environ["PARALLEL_RDP_HIRES_LOAD"] == "sync"
+        config = Path(opts["--extra-append-config"]).read_text()
+        assert 'video_font_enable = "false"' in config
     (bundle / "captures").mkdir(parents=True, exist_ok=True)
     if "--state-source" in opts:
         source = Path(opts["--state-source"])
@@ -98,6 +103,10 @@ elif sub == "save-slot":
         b"#RZIPv\x01#" + struct.pack("<IQ", 1 << 17, len(body)) + struct.pack("<I", len(packed)) + packed)
 elif sub == "stop":
     if st["mode"] == "on":
+        emit("[INFO] Hi-res residency summary: " + plan.get("residency",
+             "mode=sync budget=8589934592 resident=3 resident_bytes=128 high_water_bytes=128 "
+             "uploads=3 upload_bytes=128 evictions=0 refused_saturated=0 refused_too_large=0 "
+             "decode_failures=0 load_ms_total=1.500 load_ms_max_frame=0.750 heap_usage=0 heap_budget=0."))
         counts = plan.get("lookups", "lookups=5 hits=4 misses=1")
         draw_hits = plan.get("draw_hits", 3)
         emit(f"[INFO] Hi-res keying summary: {counts} filtered=0 block_probe_hits=0 "
@@ -177,7 +186,8 @@ class RegressionRunnerContract(unittest.TestCase):
                 "--adapter", str(self.adapter), "--orphan-grace", "0.5", "--step-chunk", "50", *extra]
         if mode == "on":
             argv += packs if packs is not None else ["--pack", str(self.root / "pack.phrb")]
-        env = {**os.environ, "FAKE_ADAPTER_PLAN": json.dumps(plan or {})}
+        env = {**os.environ, "FAKE_ADAPTER_PLAN": json.dumps(plan or {}),
+               "PARALLEL_RDP_HIRES_GPU_BUDGET_MB": "1", "PARALLEL_RDP_HIRES_LOAD": "background"}
         result = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=120)
         records = [json.loads(line) for line in (self.root / out / "results.jsonl").read_text().splitlines()]
         return result, {r["scenario"]: r for r in records}
@@ -248,9 +258,49 @@ class RegressionRunnerContract(unittest.TestCase):
                          ("pass", "pass", "pass"))
         self.assertEqual(gates["end_state"], "pass")
         self.assertEqual(record["hires"]["draw_hits"], 3)
+        self.assertEqual(gates["hires.residency"], "pass")
+        self.assertEqual(record["hires"]["residency"]["load_ms_max_frame"], 0.75)
         report = (self.root / "on/report.md").read_text()
         review = report.split("## Review queue")[1]
         self.assertIn(record["checkpoints"][0]["capture_path"], review)
+
+    def test_residency_gate_rejects_async_or_over_budget(self):
+        for name, fields in (("async", "mode=background budget=100 resident_bytes=50"),
+                             ("overflow", "mode=sync budget=100 resident_bytes=101")):
+            result, records = self.run_runner(name, mode="on", plan={"residency": fields})
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(self.gates(records["field-state"])["hires.residency"], "fail")
+
+    def test_explicit_hires_budget_labels_runs_and_resume(self):
+        for budget in (8192, 64, 256):
+            with self.subTest(budget=budget):
+                flags = [] if budget == 8192 else ["--hires-budget-mb", str(budget)]
+                result, records = self.run_runner(
+                    "budgets", "--select", "boot-power-on", "--resume", "--record-expectations",
+                    *flags, mode="on", plan={"budget_mb": budget})
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                record = records["boot-power-on"]
+                self.assertEqual(record["hires_budget_mb"], budget)
+                condition = "on:fake-4x" + (f":hires-budget-{budget}mb" if budget != 8192 else "")
+                self.assertEqual(record["condition"], condition)
+                golden = json.loads((self.root / "budgets/expectations/boot-power-on.expect.json").read_text())
+                self.assertEqual(golden["conditions"][condition]["hires_budget_mb"], budget)
+        records = [json.loads(line) for line in (self.root / "budgets/results.jsonl").read_text().splitlines()]
+        self.assertEqual(len(records), 3)
+        self.assertEqual(len({record["bundle"] for record in records}), 3)
+        for record in records:
+            self.assertTrue((self.root / "budgets" / record["bundle"] / "logs/retroarch.log").is_file())
+
+    def test_shared_scenario_budget_requires_named_override(self):
+        for override, expected in (("", "8192"), ("64", "64"), ("256", "256")):
+            with self.subTest(override=override):
+                result = subprocess.run(
+                    ["bash", "-c", 'source "$1"; printf "%s" "$PARALLEL_RDP_HIRES_GPU_BUDGET_MB"',
+                     "bash", str(REPO / "tools/scenarios/lib/common.sh")],
+                    env={**os.environ, "PARALLEL_RDP_HIRES_GPU_BUDGET_MB": "1",
+                         "N64_SCENARIO_HIRES_BUDGET_MB": override},
+                    capture_output=True, text=True, check=True)
+                self.assertEqual(result.stdout, expected)
 
     def pack_map(self, name, mapping):
         path = self.root / name

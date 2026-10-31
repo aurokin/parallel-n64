@@ -68,6 +68,8 @@ ADR-0002), no per-scene or per-descriptor overrides (ADR-0005):
    exactly the authored cutout, with clean filtered edges outside it.
    Copy-pipe transport keeps raw alpha-bit semantics and is exempt.
 
+   This fixed the dark-box/black-oval/blob family.
+
    *Amendment (2026-10-31):* a single-sample, two-cycle opaque intensity
    material also retains its surface when a replacement sample is empty.
    Its first cycle is `(constant - constant) * TEXEL0_RGB + color_bias`,
@@ -80,7 +82,6 @@ ADR-0002), no per-scene or per-descriptor overrides (ADR-0005):
    recognizes this composition class, excluding secondary samples, conversion,
    variable output alpha and product-only effects. The ordinary pack cutout
    contract remains in force outside the recognized surface classes.
-   This fixed the dark-box/black-oval/blob family.
 
 2. **HLE alpha kill** (RASTERIZATION_HIRES_ALPHA_KILL_BIT): draws that
    sample a replaced texture and whose final blend cycle is a

@@ -835,6 +835,10 @@ bool Context::create_device(VkPhysicalDevice gpu_, VkSurfaceKHR surface, const c
 
 	bool has_pdf2 = ext.supports_physical_device_properties2 ||
 	                (ext.supports_vulkan_11_instance && ext.supports_vulkan_11_device);
+	const bool enable_descriptor_indexing = has_pdf2 &&
+	                                        (flags & CONTEXT_CREATION_DISABLE_BINDLESS_BIT) == 0 &&
+	                                        ext.supports_maintenance_3 &&
+	                                        has_extension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
 
 	if (has_pdf2)
 	{
@@ -925,9 +929,7 @@ bool Context::create_device(VkPhysicalDevice gpu_, VkSurfaceKHR surface, const c
 			ppNext = &ext.timeline_semaphore_features.pNext;
 		}
 
-		if ((flags & CONTEXT_CREATION_DISABLE_BINDLESS_BIT) == 0 &&
-		    ext.supports_maintenance_3 &&
-		    has_extension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME))
+		if (enable_descriptor_indexing)
 		{
 			enabled_extensions.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
 			*ppNext = &ext.descriptor_indexing_features;
@@ -975,7 +977,9 @@ bool Context::create_device(VkPhysicalDevice gpu_, VkSurfaceKHR surface, const c
 		       !f.descriptorBindingSampledImageUpdateAfterBind;
 	};
 
-	if (gpu_props.apiVersion >= VK_API_VERSION_1_2 &&
+	// Only recover bits in the feature structure passed to vkCreateDevice.
+	// Physical-device support alone must not enable bindless shaders or layouts.
+	if (enable_descriptor_indexing && gpu_props.apiVersion >= VK_API_VERSION_1_2 &&
 	    ext.supports_vulkan_11_device &&
 	    ext.supports_vulkan_11_instance &&
 	    descriptor_indexing_features_empty(ext.descriptor_indexing_features))
@@ -1045,7 +1049,7 @@ bool Context::create_device(VkPhysicalDevice gpu_, VkSurfaceKHR surface, const c
 		ext.enabled_features = enabled_features;
 	}
 
-	if (ext.supports_physical_device_properties2)
+	if (has_pdf2)
 		device_info.pNext = &features;
 	else
 		device_info.pEnabledFeatures = &features.features;
@@ -1136,12 +1140,9 @@ bool Context::create_device(VkPhysicalDevice gpu_, VkSurfaceKHR surface, const c
 void Context::check_descriptor_indexing_features()
 {
 	auto &f = ext.descriptor_indexing_features;
-	if (f.descriptorBindingSampledImageUpdateAfterBind &&
-	    f.descriptorBindingPartiallyBound &&
-	    f.runtimeDescriptorArray &&
-	    f.shaderSampledImageArrayNonUniformIndexing)
-	{
-		ext.supports_descriptor_indexing = true;
-	}
+	ext.supports_descriptor_indexing = f.descriptorBindingSampledImageUpdateAfterBind &&
+	                                   f.descriptorBindingPartiallyBound &&
+	                                   f.runtimeDescriptorArray &&
+	                                   f.shaderSampledImageArrayNonUniformIndexing;
 }
 }

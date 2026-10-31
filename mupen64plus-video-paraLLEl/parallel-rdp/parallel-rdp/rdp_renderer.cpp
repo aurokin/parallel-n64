@@ -546,7 +546,7 @@ Renderer::Renderer(CommandProcessor &processor_)
 
 Renderer::~Renderer()
 {
-	clear_hires_images();
+	// No descriptor rewrite here: the bindless pool is destroyed with the images.
 }
 
 void Renderer::set_shader_bank(const ShaderBank *bank)
@@ -4877,7 +4877,7 @@ void Renderer::clear_hires_images()
 {
 	if (hires_resources.resident_images.empty())
 		return;
-	// Provider/pool replacement and teardown can precede normal retirement.
+	// Provider and pool replacement can precede normal retirement.
 	// Finish GPU readers before rewriting their UPDATE_AFTER_BIND descriptors.
 	flush_and_signal();
 	device->wait_idle();

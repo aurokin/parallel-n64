@@ -170,6 +170,19 @@ if(UNIX)
 endif()
 add_test(NAME emu.unit.input_analog COMMAND emu_unit_input_analog_test)
 
+add_executable(emu_unit_controller_pak_test
+  emu_unit_controller_pak_test.c
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/si/game_controller.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/si/mempak.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/si/rumblepak.c"
+)
+target_include_directories(emu_unit_controller_pak_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+)
+target_compile_features(emu_unit_controller_pak_test PRIVATE c_std_99)
+add_test(NAME emu.unit.controller_pak COMMAND emu_unit_controller_pak_test)
+
 add_executable(emu_unit_vi_refresh_rate_test
   emu_unit_vi_refresh_rate_test.c
 )

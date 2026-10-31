@@ -21,6 +21,13 @@ static const uint64_t lut_vi_clock_1600[] = {
    0xBBC99D32117DAA80ULL, /* Twisted Edge Extreme Snowboarding (U) [!] */
 };
 
+/* Cruis'n Exotica hangs during boot at 1500. 1542 is the half-line period
+ * derived from the NTSC video clock (48.68 MHz / 60 Hz / 526 half-lines), which
+ * completes its boot sequence. Other games keep 1500 (closer to hardware). */
+static const uint64_t lut_vi_clock_1542[] = {
+   0x46A3F7AF0F7591D0ULL, /* Cruis'n Exotica (U) [!] */
+};
+
 static const uint64_t lut_vi_clock_2200[] = {
    0x7EAE24889D40A35AULL, /* Biohazard 2 (J) [!] */
    0xAF9DCC151A723D88ULL, /* Indiana Jones and the Infernal Machine (U) [!] */
@@ -480,6 +487,7 @@ static const uint64_t lut_cpop[][2] = {
    { 0x09CC4801E42EE491ULL, 3 }, /* Pilotwings 64 (J) [!] */
    { 0xC851961C78FCAAFAULL, 3 }, /* Pilotwings 64 (U) [!] */
    { 0x9BA10C4E0408ABD3ULL, 1 }, /* Pro Mahjong Kiwame 64 (J) [!] */
+   { 0x0AE2B37CFBC174F0ULL, 1 }, /* Pro Mahjong Kiwame 64 (J) (V1.1) [!] */
    { 0x1BDCB30FA132D876ULL, 1 }, /* Pro Mahjong Tsuwamono 64 - Jansou Battle ni Chousen (J) [!] */
    { 0x3918834A15B50C29ULL, 1 }, /* Razor Freestyle Scooter (U) [!] */
    { 0xE921953313FBAFBDULL, 1 }, /* Ready 2 Rumble Boxing - Round 2 (U) [!] */

@@ -1427,6 +1427,9 @@ Vulkan::ImageHandle Renderer::create_hires_replacement_image_with_mips(const Rep
 
 	auto info = Vulkan::ImageCreateInfo::immutable_2d_image(width, height, VK_FORMAT_R8G8B8A8_UNORM, false);
 	info.levels = levels;
+	// The RDP samples on AsyncCompute; sharing also makes Granite wait for the upload and layout transition.
+	info.misc |= Vulkan::IMAGE_MISC_CONCURRENT_QUEUE_GRAPHICS_BIT |
+	             Vulkan::IMAGE_MISC_CONCURRENT_QUEUE_ASYNC_COMPUTE_BIT;
 	return device->create_image(info, initial.data());
 }
 
@@ -4855,9 +4858,10 @@ bool Renderer::init_hires_resources(unsigned requested_capacity)
 	initial.row_length = 1;
 	initial.image_height = 1;
 
-	auto fallback = device->create_image(
-			Vulkan::ImageCreateInfo::immutable_2d_image(1, 1, VK_FORMAT_R8G8B8A8_UNORM, false),
-			&initial);
+	auto info = Vulkan::ImageCreateInfo::immutable_2d_image(1, 1, VK_FORMAT_R8G8B8A8_UNORM, false);
+	info.misc |= Vulkan::IMAGE_MISC_CONCURRENT_QUEUE_GRAPHICS_BIT |
+	             Vulkan::IMAGE_MISC_CONCURRENT_QUEUE_ASYNC_COMPUTE_BIT;
+	auto fallback = device->create_image(info, &initial);
 	if (!fallback)
 		return false;
 

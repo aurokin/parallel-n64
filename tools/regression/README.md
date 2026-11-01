@@ -96,8 +96,33 @@ Tiers and lanes are scenario tags. Select both, for example
 | `pre-deploy` | rollout qualification |
 | `weekly` | full retained suite and rotating determinism repeats |
 
-The corpus owns membership. An investigation remains outside the regular suite
-selectors and can be run explicitly by its diagnostic lane.
+The corpus owns membership. Investigation lanes have the `investigation:`
+prefix, so lane-only suite selection also excludes them. For example,
+`investigation:off` selects DKR diagnostics. Successful requalification restores
+the policy's suite lanes.
+
+Pre-deploy also requires the two OoT on==off probes in the separate
+`investigation:probes_on_invariant` lane. Run this step alongside the regular
+pre-deploy and showcase lanes, using the same core and runtime for both modes.
+`PACK_MAP` is the existing corpus pack map, not the showcase A126 map. Both runs
+select exactly two probes; adding `tier=pre-deploy` would incorrectly exclude
+them and exit 2.
+
+```bash
+common=(--scenarios "$CORPUS/scenarios" --blobs "$CORPUS/blobs"
+  --core "$CORE_PATH" --retroarch-bin "$RETROARCH_BIN"
+  --base-config "$RETROARCH_BASE_CONFIG" --extra-append-config "$CAPTURE_PROFILE"
+  --runtime-class "$RUNTIME_CLASS" --select lanes=investigation:probes_on_invariant)
+tools/regression/run_scenarios.py "${common[@]}" --mode off \
+  --out artifacts/regression/pre-deploy-probes-off
+tools/regression/run_scenarios.py "${common[@]}" --mode on --pack-map "$PACK_MAP" \
+  --out artifacts/regression/pre-deploy-probes-on
+tools/regression/compare_modes.py artifacts/regression/pre-deploy-probes-off \
+  artifacts/regression/pre-deploy-probes-on --strict-rdram
+```
+
+Require clean loads/exits and a passing strict comparison. These investigation
+probes have no goldens; the procedure does not record them.
 
 Run each mode as its own invocation and output directory. Every on lane must
 be paired with the same core's off run and pass

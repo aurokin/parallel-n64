@@ -16,9 +16,11 @@ static const char lut_vi_clock_1600_id[][4] = {
    "NSB", /* Twisted Edge / King Hill 64 - Extreme Snowboarding */
 };
 
-/* Exotica changes V_SYNC from 525 to 524 during boot, so a fixed 1542
- * half-line period cannot reproduce its clock-derived timing. */
+/* These cartridges derive the half-line period from the VI clock and live
+ * V_SYNC. Exotica changes V_SYNC from 525 to 524 during boot, which a fixed
+ * 1542-count period cannot reproduce. */
 static const char lut_vi_clock_auto_id[][4] = {
+   "NBQ", /* BattleTanx - Global Assault: intro fade/subtitle timing. */
    "NXO", /* Cruis'n Exotica */
 };
 

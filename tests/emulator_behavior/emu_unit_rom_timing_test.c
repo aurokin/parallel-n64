@@ -67,6 +67,9 @@ int main(void)
     expect_timing(0x46a3f7af, 0x0f7591d0, "NXOE", 2, 0, 1); /* Cruis'n Exotica */
     expect_timing(0x12345678, 0x9abcdef0, "NXOP", 2, 0, 1); /* Cart-ID scope. */
     expect_timing(0x12345678, 0x9abcdef0, "NZZE", 2, 1500, 0); /* Clears Exotica's flag. */
+    expect_timing(0x75a4e247, 0x6008963d, "NBQE", 3, 0, 1); /* Global Assault USA. */
+    expect_timing(0x0cad17e6, 0x71a5b797, "NBQP", 3, 0, 1); /* Global Assault Europe. */
+    expect_timing(0x6aa4dde7, 0xe3e2f4e7, "NBXE", 3, 1500, 0); /* Original BattleTanx stays fixed. */
     expect_timing(0x19c553a7, 0xa70f4b52, "NPNE", 2, 1500, 0); /* Puzzle League */
     expect_timing(0x519ea4e1, 0xeb7584e8, "NSBJ", 2, 1600, 0); /* King Hill */
     expect_timing(0xaf9dcc15, 0x1a723d88, "NIJE", 1, 2200, 0); /* Indiana Jones */

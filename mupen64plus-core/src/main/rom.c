@@ -158,6 +158,22 @@ struct romdatabase_settings
    unsigned int disableextramem;
 };
 
+/* Join bounded catalog literals once; all existing parser cursors stay valid. */
+static void romdatabase_init(void)
+{
+   size_t i;
+   char *cursor = inifile;
+   if (inifile[0])
+      return;
+   for (i = 0; i < sizeof(inifile_chunks)/sizeof(inifile_chunks[0]); ++i)
+   {
+      size_t length = strlen(inifile_chunks[i]);
+      memcpy(cursor, inifile_chunks[i], length);
+      cursor += length;
+   }
+   *cursor = '\0';
+}
+
 static ini_line romdatabase_next_line(const char **cursor, char *buffer, size_t size)
 {
    const char *nl = strchr(*cursor, '\n');
@@ -207,11 +223,13 @@ static const char *romdatabase_find(const md5_byte_t *md5, uint64_t crc)
 static int romdatabase_lookup(const md5_byte_t *md5, uint64_t crc,
       struct romdatabase_settings *result)
 {
-   const char *section = md5 ? romdatabase_find(md5, 0) : NULL;
+   const char *section;
    const char *visited[32];
    unsigned int depth = 0, flags = 0;
    enum { GOODNAME = 1, SAVE = 2, STATUS = 4, PLAYERS = 8, RUMBLE = 16,
       COUNT = 32, EXTRAMEM = 64, SIDMA = 128 };
+   romdatabase_init();
+   section = md5 ? romdatabase_find(md5, 0) : NULL;
    if (!section)
       section = romdatabase_find(NULL, crc);
    if (!section)

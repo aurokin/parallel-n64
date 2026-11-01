@@ -34,7 +34,6 @@ const int SCALING_FACTOR = 1 << SCALING_LOG2;
 #include "texture.h"
 #include "dither.h"
 #include "combiner.h"
-#include "hires_cutout_policy.h"
 
 bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 {
@@ -326,14 +325,8 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	}
 
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
-	// Replacement alpha zero normally denotes a cutout. A color decal can
-	// instead use that alpha to reveal SHADE on the same surface.
-	if (hires_replacement_cutout_kills_pixel(hires_replacement_cutout, multi_cycle,
-	                                       uses_texel1 || uses_pipelined_texel1, convert_one,
-	                                       combiner_inputs_rgb1, combiner_inputs_alpha1) &&
-	    !hires_shaded_intensity_preserves_surface(multi_cycle, uses_texel1 || uses_pipelined_texel1, convert_one,
-	                                             combiner_inputs_rgb0, combiner_inputs_rgb1, combiner_inputs_alpha1,
-	                                             derived.constant_add0, derived.constant_mulsub1, derived.constant_add1))
+	// The CPU evaluates the empty-texel combiner once per draw (ADR-0018).
+	if (hires_replacement_cutout && (static_state_flags & RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT) == 0)
 		return false;
 #endif
 

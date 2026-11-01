@@ -28,6 +28,7 @@
 #include "rdp_hires_load_origin_policy.hpp"
 #include "rdp_hires_runtime_policy.hpp"
 #include "rdp_hires_pass_policy.hpp"
+#include "rdp_hires_cutout_policy.hpp"
 #include "rdp_hires_state_policy.hpp"
 #include "rdp_hires_texture_layout.hpp"
 #include "texture_replacement.hpp"
@@ -2356,7 +2357,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 		stream.attribute_setup.add(attr);
 	}
 
-	stream.derived_setup.add(build_derived_attributes(attr));
+	const auto derived_setup = build_derived_attributes(attr);
+	stream.derived_setup.add(derived_setup);
 	stream.scissor_setup.add(stream.scissor_state);
 
 	deduce_static_texture_state(setup.tile & 7, setup.tile >> 3);
@@ -3333,6 +3335,8 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 
 	InstanceIndices indices = {};
 	auto normalized_static_state = normalize_static_state(stream.static_raster_state);
+	if (detail::hires_cutout_preserves_surface(normalized_static_state, derived_setup.constants, replacement_provider != nullptr))
+		normalized_static_state.flags |= RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT;
 
 	// HLE-alpha-kill eligibility: a draw that samples a replaced texture and
 	// whose final blend cycle is one of the src-alpha-over-memory closures

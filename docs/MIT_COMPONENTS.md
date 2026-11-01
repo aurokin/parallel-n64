@@ -20,6 +20,7 @@ files that contain local modifications.
 | `parallel-rdp/command_ring_policy.hpp` | `5aaa5e19` |
 | `parallel-rdp/rdp_device_capability_policy.hpp` | `c09ded58` |
 | `parallel-rdp/rdp_hires_capability_policy.hpp` | `444d8264` |
+| `parallel-rdp/rdp_hires_cutout_policy.hpp` | Empty-texel combiner policy (2026-10-31; replaces MIT policy `e0d44cbd`) |
 | `parallel-rdp/rdp_hires_ci_binding_policy.hpp` | `9e866127` |
 | `parallel-rdp/rdp_hires_ci_palette_policy.hpp` | `3317ec66` |
 | `parallel-rdp/rdp_hires_compat_view.hpp` | `9f134ee2` |
@@ -43,7 +44,6 @@ files that contain local modifications.
 | `parallel-rdp/rdp_tex_rect_policy.hpp` | `d850a45d` |
 | `parallel-rdp/rdp_triangle_setup_policy.hpp` | `cc320f8a` |
 | `parallel-rdp/shaders/hires_addressing.h` | `c6833754` |
-| `parallel-rdp/shaders/hires_cutout_policy.h` | `e0d44cbd` |
 | `parallel-rdp/shaders/hires_mip_filter.h` | `051ec699` |
 | `parallel-rdp/texture_keying.hpp` | `7b1e276f` |
 | `parallel-rdp/texture_replacement.cpp` | `8d5f2d40` |

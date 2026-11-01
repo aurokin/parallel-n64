@@ -803,7 +803,7 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 		t_base = sample_hires_replacement_texel_fp5(tile, hires_st_fp5, sample_quad, hires_linear, hires_lod);
 
 		// Flag empty replacement samples for the shading loop to interpret
-		// using the combiner's cutout/decal semantics. The alpha-weighted RGB filter in
+		// using the draw's empty-texel surface decision. The alpha-weighted RGB filter in
 		// hires_filtered_fetch_level guarantees filtered alpha == 0 iff
 		// every contributing tap is transparent, i.e. the repaint truly
 		// has no content for this pixel.

@@ -61,8 +61,9 @@ Three class-level rules, all hi-res-gated (feature-off provably inert,
 ADR-0002), no per-scene or per-descriptor overrides (ADR-0005):
 
 1. **Cutout kill** (shaders/texture.h + shading.h): if a sampled
-   replacement texel has filtered alpha == 0, the pixel is not written at
-   all (`hires_replacement_cutout` -> shade_pixel returns false). The
+   replacement texel has filtered alpha == 0, reject the pixel unless the
+   general surface rule below preserves it (`hires_replacement_cutout` ->
+   shade_pixel returns false). The
    alpha-weighted RGB filter (ADR-0010 rule 2) guarantees filtered alpha
    is 0 iff every contributing tap is transparent, so the kill region is
    exactly the authored cutout, with clean filtered edges outside it.
@@ -70,18 +71,41 @@ ADR-0002), no per-scene or per-descriptor overrides (ADR-0005):
 
    This fixed the dark-box/black-oval/blob family.
 
-   *Amendment (2026-10-31):* a single-sample, two-cycle opaque intensity
-   material also retains its surface when a replacement sample is empty.
-   Its first cycle is `(constant - constant) * TEXEL0_RGB + color_bias`,
-   with a nonzero RGB bias; the second is exactly `COMBINED * SHADE`, with
-   constant ONE output alpha (`(ONE - ONE) * factor + ONE`). Equal
-   normalized constant selectors alone do not prove alpha cancellation, since
-   primitive and environment constants can differ. Black replacement RGB selects
-   a shaded material color, rather than an absent surface. Killing it exposed
-   gold geometry through OoT's brown Deku Nut shell. The shared cutout policy
-   recognizes this composition class, excluding secondary samples, conversion,
-   variable output alpha and product-only effects. The ordinary pack cutout
-   contract remains in force outside the recognized surface classes.
+   *General surface rule (2026-10-31):* preserve the pixel when the normalized
+   combiner, evaluated with the empty replacement sample set to `(0,0,0,0)`,
+   leaves a texture-free RGB term that can survive the output clamp and every
+   alpha consumer is texture-independent. Check final-cycle alpha for blending and coverage;
+   follow COMBINED back through cycle 0. When alpha compare is enabled, also
+   check cycle 0's alpha reference in two-cycle mode. Alpha independence is
+   evaluated before replacing the texel with zero, with dead arithmetic terms
+   eliminated. Equal normalized constant selectors are not enough to establish
+   cancellation: compare their resolved per-draw values.
+
+   A surviving term may be SHADE, a nonzero constant (including ONE), or
+   texture-free arithmetic. An all-zero RGB result is not a surface: ordinary
+   sprites with TEXEL0 RGB and SHADE alpha remain cutouts, as do product-only
+   redraw effects. This distinction matters because packs store black RGB
+   under transparent texels. Decals that reveal their shaded surface and biased
+   intensity materials that retain a shaded color are consequences of the same
+   rule; neither needs a mux-shape exception.
+
+   The CPU performs conservative symbolic reduction at draw enqueue, using the
+   normalized mux and the same resolved constants uploaded to the combiner.
+   Fixed-point rounding and nine-bit conversion follow the shader. A symbolic
+   texture-free term must also produce non-black output at a valid numeric
+   witness (input corners and midtones, with NOISE restricted to its eight
+   shader encodings); a positive interval bound alone
+   is insufficient. This proof is conservative: unproven terms retain the
+   authored cutout rather than widening preservation. The evaluator checks
+   each sampled physical input separately (including TEXEL1-only and
+   pipelined use), tracks the two-cycle texel swap, and rejects any residual
+   texture dependency. Checking samples separately prevents one empty sample
+   from hiding a live dependency on another. Conversion remains conservative
+   because an empty RGBA sample need not stay zero after conversion. The result
+   is carried by `RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT`; the shader only checks
+   this bit when a replacement actually sampled alpha zero. The CPU bit is
+   enabled only with a replacement provider attached, and the shader check is
+   compiled only into hi-res variants. Native passes remain unchanged.
 
 2. **HLE alpha kill** (RASTERIZATION_HIRES_ALPHA_KILL_BIT): draws that
    sample a replaced texture and whose final blend cycle is a

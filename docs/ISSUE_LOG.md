@@ -335,7 +335,8 @@ captured mux and conservative coverage/dependency exclusions. GPU evidence is
 separate from that selector test. The tracked shader header is regenerated using
 the pinned 2020 packer and the candidate core is built in an isolated source
 copy. Other combiner classes, all opacity phases and other backends remain
-unqualified; broader multi-cycle alpha dependency propagation is not implemented.
+unqualified in that validation; the October 31 generalization below supersedes
+the original shape exclusions.
 
 ## Opaque intensity replacement punches holes in a colored surface
 
@@ -365,7 +366,10 @@ normalized mux and the dependency exclusions. The matched 4x Reloaded replay
 is clean; Community and hi-res-off controls retain their original captures,
 and all repro end-state bodies agree. The paired 38-scenario pre-deploy tier
 has no changed captures, checkpoint RAM or full end-state bodies. See ADR-0018's
-amendment. Other GPU backends have not been qualified for this change.
+general surface rule, which now replaces both shape exceptions with CPU-side
+empty-texel reduction and alpha dependency propagation. The original validation
+above applies to the enumerated implementation. Other GPU backends have not
+been qualified for this change.
 
 ## Full negative analog diagonal loses input
 

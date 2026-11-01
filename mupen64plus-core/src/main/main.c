@@ -335,7 +335,7 @@ m64p_error main_init(void)
 
    if (count_per_op <= 0)
       count_per_op = 2;
-   if (g_vi_refresh_rate == 0)
+   if (g_vi_refresh_rate == 0 && !g_vi_clock_timing)
       g_vi_refresh_rate = 1500;
 
    /* do byte-swapping if it's not been done yet */

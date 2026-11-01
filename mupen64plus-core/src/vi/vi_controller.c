@@ -87,6 +87,21 @@ void poweron_vi(struct vi_controller* vi)
    vi->delay = vi->next_vi = 5000;
 }
 
+/* Only opted-in ROMs derive timing from the video clock (upstream 7750219a).
+ * Positive user overrides win; unconfigured VI registers keep the boot fallback. */
+static unsigned int vi_count_per_scanline(const struct vi_controller* vi)
+{
+   uint32_t lines = vi->regs[VI_V_SYNC_REG] + 1;
+   unsigned int cps;
+
+   if (!g_vi_clock_timing || g_vi_refresh_rate > 0)
+      return (unsigned int)g_vi_refresh_rate;
+   if (vi->regs[VI_V_SYNC_REG] == 0 || lines == 0 || vi->expected_refresh_rate == 0)
+      return DEFAULT_CPU_COUNT_PER_SCANLINE;
+   cps = (vi->clock / vi->expected_refresh_rate) / lines;
+   return cps != 0 ? cps : DEFAULT_CPU_COUNT_PER_SCANLINE;
+}
+
 /* Reads a word from the VI MMIO register space. */
 int read_vi_regs(void* opaque, uint32_t address, uint32_t *word)
 {
@@ -100,7 +115,7 @@ int read_vi_regs(void* opaque, uint32_t address, uint32_t *word)
         if (alternate_vi_timing)
            vi->regs[VI_CURRENT_REG] = (vi->delay - (vi->next_vi - cp0_regs[CP0_COUNT_REG])) % (NTSC_VERTICAL_RESOLUTION + 1);
         else
-           vi->regs[VI_CURRENT_REG] = (vi->delay - (vi->next_vi - cp0_regs[CP0_COUNT_REG])) / g_vi_refresh_rate;
+           vi->regs[VI_CURRENT_REG] = (vi->delay - (vi->next_vi - cp0_regs[CP0_COUNT_REG])) / vi_count_per_scanline(vi);
         vi->regs[VI_CURRENT_REG] = (vi->regs[VI_CURRENT_REG] & (~1)) | vi->field;
     }
 
@@ -159,7 +174,7 @@ void vi_vertical_interrupt_event(struct vi_controller* vi)
    if (vi->regs[VI_V_SYNC_REG] == 0)
       vi->delay = 500000;
    else
-      vi->delay = (vi->regs[VI_V_SYNC_REG] + 1) * g_vi_refresh_rate;
+      vi->delay = (vi->regs[VI_V_SYNC_REG] + 1) * vi_count_per_scanline(vi);
 
    vi->next_vi += vi->delay;
 

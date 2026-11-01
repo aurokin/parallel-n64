@@ -60,6 +60,7 @@ unsigned char* g_rom = NULL;
 /* Global loaded rom size. */
 int g_rom_size = 0;
 unsigned alternate_vi_timing = 0;
+unsigned g_vi_clock_timing = 0;
 int           g_vi_refresh_rate = DEFAULT_COUNT_PER_SCANLINE;
 
 extern bool frame_dupe;
@@ -360,6 +361,7 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    g_rom_size = size;
    g_rom = (unsigned char *) malloc(size);
    alternate_vi_timing = 0;
+   g_vi_clock_timing = 0;
    g_vi_refresh_rate = DEFAULT_COUNT_PER_SCANLINE;
    if (g_rom == NULL)
       return M64ERR_NO_MEMORY;
@@ -486,13 +488,14 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
       }
    }
 
-   for (i = 0; i < sizeof(lut_vi_clock_1542_id)/sizeof(lut_vi_clock_1542_id[0]); ++i)
+   for (i = 0; i < sizeof(lut_vi_clock_auto_id)/sizeof(lut_vi_clock_auto_id[0]); ++i)
    {
-      if (!strcmp(lut_vi_clock_1542_id[i], cart_id))
+      if (!strcmp(lut_vi_clock_auto_id[i], cart_id))
       {
          strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
          DebugMessage(M64MSG_INFO, "%s INI patches applied.", ROM_PARAMS.headername);
-         g_vi_refresh_rate = 1542;
+         g_vi_clock_timing = 1;
+         g_vi_refresh_rate = 0;
 
          patch_applied = 1;
          break;

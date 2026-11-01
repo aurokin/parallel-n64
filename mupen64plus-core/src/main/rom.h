@@ -34,6 +34,8 @@ m64p_error close_rom(void);
 extern unsigned char* g_rom;
 extern int g_rom_size;
 extern int g_vi_refresh_rate;
+/* Allows a zero refresh override to derive timing from the VI registers. */
+extern unsigned g_vi_clock_timing;
 extern unsigned char g_fixed_audio_pos;
 
 typedef struct _rom_params

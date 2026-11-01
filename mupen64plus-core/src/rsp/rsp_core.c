@@ -275,6 +275,8 @@ extern uint32_t send_allist_to_hle_rsp;
 void do_SP_Task(struct rsp_core* sp)
 {
     uint32_t save_pc = sp->regs2[SP_PC_REG] & ~0xfff;
+    uint32_t completion_delay = sp->mem[0xfc0/4] == 2 ? 4000 : 1000;
+    uint32_t sp_intr_pending = sp->r4300->mi.regs[MI_INTR_REG] & MI_INTR_SP;
 
     if (sp->mem[0xfc0/4] == 1)
     {
@@ -333,6 +335,23 @@ void do_SP_Task(struct rsp_core* sp)
 
 	sp->rsp_task_locked = 1;
 	add_interrupt_event(SP_INT, 1000);
+    }
+    else if ((sp->regs[SP_STATUS_REG] & (SP_STATUS_INTR_BREAK | SP_STATUS_BROKE)) ==
+             (SP_STATUS_INTR_BREAK | SP_STATUS_BROKE) &&
+             (sp->r4300->mi.regs[MI_INTR_REG] & MI_INTR_SP))
+    {
+        /* The plugin ran synchronously inside the CPU's SP_STATUS store.
+         * Deliver its break after the caller can leave the task-start path,
+         * preserving any older interrupt the CPU has not acknowledged.
+         * The plugin interrupt callback is inert; if it starts updating
+         * Cause or CHECK_INT, those must also be deferred by this path.
+         * Match the upstream audio delay: a 1000-count audio completion
+         * can preempt the newly dispatched thread before it makes progress
+         * and repeatedly rotate it behind an equal-priority busy waiter. */
+        if (!sp_intr_pending)
+            sp->r4300->mi.regs[MI_INTR_REG] &= ~MI_INTR_SP;
+        cp0_update_count();
+        add_interrupt_event(SP_INT, completion_delay);
     }
 }
 

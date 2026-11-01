@@ -99,6 +99,7 @@ second run into a new `--out`; compare their records.
 |---|---|---|
 | `exit` — exit class is `clean` | fail | fail |
 | `load` — paused load succeeded | fail | fail |
+| `liveness` — no static tail where the reference changes; no newly uniform-black checkpoint | fail | fail |
 | `ram@F:name` — RAM cue equals expectation | fail | fail |
 | `capture@F` — PNG sha equals expectation | fail ([ADR-0002](../../docs/adr/0002-protected-feature-off-property.md)) | review ([ADR-0004](../../docs/adr/0004-hires-on-validation-methodology.md)) |
 | `end_state` — end-state body sha | fail | fail ([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md)) |
@@ -112,7 +113,13 @@ second run into a new `--out`; compare their records.
   [ADR-0019](../../docs/adr/0019-deterministic-emulation-state-gates.md):
   exact feature-off, and a scenario built from a recording gates only after it
   reproduces that recording on the recording core.
-- Missing expectations make a gate `skip`, not `pass`.
+- Missing expectations make a gate `skip`, not `pass`. Liveness compares capture
+  hashes in either mode and records `uniform_black` at captured checkpoints.
+  Older expectations without that flag cannot gate newly black checkpoints;
+  they can still detect a static tail from their capture sequence.
+- Corpus on-mode imports omit end-state goldens. Every on lane must instead run
+  `compare_modes.py OFF_RUN ON_RUN --strict-rdram` against the same core's off
+  lane; RAM cues, liveness and capture review remain in the runner.
 - Capture digests are gates only feature-off (ADR-0002). A changed hi-res-on
   capture is nominated for visual review and never fails a run; presence gates
   are class-level semantics, not counts (ADR-0004,

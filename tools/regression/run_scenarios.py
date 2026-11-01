@@ -805,6 +805,36 @@ def compare(name: str, observed: str | None, expected: str | None, on_mismatch: 
     return gate(name, on_mismatch, f"observed {observed}, expected {expected}")
 
 
+def liveness(record: dict[str, Any], expected: dict[str, Any]) -> dict[str, str]:
+    """Detect frozen tails and newly black captures without decoding PNGs.
+
+    Older expectations lack uniform_black; unknown blackness is not evidence
+    that the reference was nonblack. Static reference tails are legitimate.
+    """
+    references = expected.get("checkpoints") or {}
+    pairs = []
+    checked_black = False
+    for seen in sorted(record["checkpoints"], key=lambda cp: cp["after_frames"]):
+        frame = seen["after_frames"]
+        want = references.get(str(frame)) or {}
+        reference = want.get("reference_capture_sha256") or want.get("capture_sha256")
+        observed = seen.get("capture_sha256")
+        if not reference or not observed:
+            continue
+        pairs.append((frame, observed, reference))
+        if isinstance(want.get("uniform_black"), bool) and isinstance(seen.get("uniform_black"), bool):
+            checked_black = True
+            if seen["uniform_black"] and not want["uniform_black"]:
+                return gate("liveness", "fail", f"newly uniform black at {frame}")
+    for index in range(len(pairs) - 1):
+        tail = pairs[index:]
+        if len({seen for _, seen, _ in tail}) == 1 and len({want for _, _, want in tail}) > 1:
+            return gate("liveness", "fail", f"static tail from {tail[0][0]} where reference changed")
+    if len(pairs) >= 2 or checked_black:
+        return gate("liveness", "pass")
+    return gate("liveness", "skip", "insufficient reference captures or blackness flags")
+
+
 def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any], mode: str) -> list[dict[str, str]]:
     gates = [gate("exit", "pass" if record["exit_class"] == "clean" else "fail",
                   "" if record["exit_class"] == "clean" else f"{record['exit_class']}: {record['error'] or ''}".strip())]
@@ -814,6 +844,7 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
                           {"ok": "", "failed": record["error"] or ""}.get(load, "not reached")))
     observed_by_frame = {cp["after_frames"]: cp for cp in record["checkpoints"]}
     expected_cps = expected.get("checkpoints") or {}
+    gates.append(liveness(record, expected))
     for cp in scenario.checkpoints:
         seen = observed_by_frame.get(cp.after_frames)
         want = expected_cps.get(str(cp.after_frames)) or {}
@@ -888,6 +919,7 @@ def expectation_entry(scenario: Scenario, record: dict[str, Any], mode: str) -> 
             entry["ram"] = dict(cp["ram"])
         if cp["capture_sha256"]:
             entry[capture_key] = cp["capture_sha256"]
+            entry["uniform_black"] = cp["uniform_black"]
         checkpoints[str(cp["after_frames"])] = entry
     entry = {
         "recorded": record["ended"],

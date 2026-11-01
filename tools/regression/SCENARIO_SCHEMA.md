@@ -5,6 +5,8 @@ produce them. Scenario files are portable JSON: no host paths, no ROM or state
 bytes. Binary inputs are content-addressed blobs resolved from a caller-supplied
 blob directory.
 
+A `power-on` start may carry `savefile_sha256` to boot from retained save memory.
+
 ## Scenario file (`<id>.json`)
 
 ```json

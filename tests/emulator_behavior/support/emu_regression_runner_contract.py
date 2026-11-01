@@ -1,5 +1,6 @@
 """Exercise tools/regression/run_scenarios.py against a fake adapter, without an emulator."""
 import gzip
+import importlib.util
 import hashlib
 import json
 import os
@@ -13,6 +14,10 @@ import zlib
 
 REPO = Path(__file__).resolve().parents[3]
 RUNNER = REPO / "tools/regression/run_scenarios.py"
+spec = importlib.util.spec_from_file_location("regression_runner", RUNNER)
+runner = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = runner
+spec.loader.exec_module(runner)
 
 # Mimics the interactive adapter's CLI and outputs. FAKE_ADAPTER_PLAN selects
 # a fault: ram/capture overrides, or fail=step|load|orphan.
@@ -210,6 +215,7 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual(entry["core_sha256"], sha256(b"core.so"))
         self.assertEqual(set(entry["checkpoints"]), {"42", "150"})
         self.assertIn("capture_sha256", entry["checkpoints"]["42"])
+        self.assertIs(entry["checkpoints"]["42"]["uniform_black"], False)
         self.assertRegex(entry["checkpoints"]["42"]["ram"]["cue"], r"^[0-9a-f]{16}$")
         saved = self.root / "golden-off/bundles/field-state__off__fake-4x/states/ParaLLEish"
         rzip = next(saved.glob("*.state2")).read_bytes()
@@ -219,7 +225,8 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         for record in records.values():
             self.assertEqual(record["exit_class"], "clean")
-            self.assertEqual({s for s in self.gates(record).values()}, {"pass"}, record["gates"])
+            self.assertEqual({g["status"] for g in record["gates"] if g["name"] != "liveness"}, {"pass"}, record["gates"])
+            self.assertEqual(self.gates(record)["liveness"], "pass" if record["scenario"] == "field-state" else "skip")
         commands = (self.root / "clean/bundles/field-state__off__fake-4x/commands.log").read_text().split("\n")
         steps = [int(c.split()[1]) for c in commands if c.startswith("STEP_FRAME")]
         self.assertEqual(steps, [1, 12, 30, 50, 50, 8])  # bootstrap, then chunks split at checkpoint 42
@@ -457,6 +464,49 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual(self.gates(record)["load"], "fail")
         self.assertIn("state-load-failed", record["log_flags"])
         self.assertEqual(records["boot-power-on"]["exit_class"], "clean")
+
+
+class LivenessContract(unittest.TestCase):
+    def check_gate(self, actual, reference, status, *, black=None, flags=None, on=False):
+        record = {"checkpoints": [
+            {"after_frames": (index + 1) * 10, "capture_sha256": digest,
+             "uniform_black": (black or {}).get(index, False)}
+            for index, digest in enumerate(actual)]}
+        key = "reference_capture_sha256" if on else "capture_sha256"
+        expected = {"checkpoints": {
+            str((index + 1) * 10): {key: digest, **({"uniform_black": flags[index]} if flags and index in flags else {})}
+            for index, digest in enumerate(reference)}}
+        result = runner.liveness(record, expected)
+        self.assertEqual(result["status"], status, result)
+        return result
+
+    def test_static_tail_fails_in_both_modes(self):
+        for on in (False, True):
+            result = self.check_gate(["x", "y", "y"], ["a", "b", "c"], "fail", on=on)
+            self.assertIn("static tail from 20", result["detail"])
+
+    def test_changed_but_live_and_legitimate_static_tail_pass(self):
+        self.check_gate(["x", "y", "z"], ["a", "b", "c"], "pass")
+        self.check_gate(["x", "y", "y"], ["a", "b", "b"], "pass")
+        self.check_gate(["x", "x"], ["a", "a"], "pass")
+
+    def test_newly_black_fails_but_known_black_passes(self):
+        self.check_gate(["x"], ["a"], "fail", black={0: True}, flags={0: False})
+        self.check_gate(["x"], ["a"], "pass", black={0: True}, flags={0: True})
+        self.check_gate(["x"], ["a"], "skip", black={0: True})
+
+    def test_missing_reference_or_captures_skip(self):
+        self.check_gate([], [], "skip")
+        self.check_gate(["x", "y"], [], "skip")
+        self.check_gate([None, None], ["a", "b"], "skip")
+        self.check_gate(["x"], ["a"], "skip")
+
+    def test_blackness_is_recorded_in_both_modes(self):
+        record = {"checkpoints": [{"after_frames": 1, "ram": {}, "capture_sha256": "black", "uniform_black": True}],
+                  **dict.fromkeys(["ended", "core_sha256", "frontend_sha256", "rom_sha256", "pack_sha256", "hires_budget_mb"])}
+        for mode in ("off", "on"):
+            entry = runner.expectation_entry(type("Scenario", (), {"save_end": False})(), record, mode)
+            self.assertIs(entry["checkpoints"]["1"]["uniform_black"], True)
 
 
 if __name__ == "__main__":

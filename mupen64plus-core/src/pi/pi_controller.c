@@ -386,7 +386,8 @@ int write_pi_regs(void* opaque, uint32_t address,
             g_dev.dd.regs[ASIC_CMD_STATUS] &= ~0x4C000000;
             dd_pi_test();
          }
-         break;
+         pi->regs[reg] = MASKED_WRITE(&pi->regs[reg], value, mask) & 0xfffffffeu;
+         return 0;
       }
       case PI_RD_LEN_REG:
          pi->regs[PI_RD_LEN_REG] = MASKED_WRITE(&pi->regs[PI_RD_LEN_REG], value, mask);

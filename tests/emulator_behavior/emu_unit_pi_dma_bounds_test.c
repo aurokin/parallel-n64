@@ -88,5 +88,20 @@ int main(void)
                     assert(((uint8_t*)ram)[i] == 0x5a);
         }
     }
+    /* Cartridge DMA starts on a halfword even when the guest writes bit 0. */
+    uint32_t cartridge[] = {0x53656c65, 0x6374206c, 0x616e6775, 0x61676500};
+    pi->cart_rom.rom = (uint8_t*)cartridge;
+    pi->cart_rom.rom_size = sizeof(cartridge);
+    g_rom_size = sizeof(cartridge);
+    memset(ram, 0x5a, sizeof(ram));
+    write_pi_regs(pi, PI_CART_ADDR_REG * 4, 0x10000001, ~0u);
+    uint32_t observed;
+    read_pi_regs(pi, PI_CART_ADDR_REG * 4, &observed);
+    assert(observed == 0x10000000);
+    write_pi_regs(pi, PI_DRAM_ADDR_REG * 4, 0, ~0u);
+    write_pi_regs(pi, PI_WR_LEN_REG * 4, 1, ~0u);
+    assert(((uint8_t*)ram)[0 ^ S8] == 'S');
+    assert(((uint8_t*)ram)[1 ^ S8] == 'e');
+    assert(((uint8_t*)ram)[2 ^ S8] == 0x5a);
     return 0;
 }

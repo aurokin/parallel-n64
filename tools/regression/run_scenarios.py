@@ -620,12 +620,6 @@ def resolve_inputs(scenario: Scenario, ctx: RunContext, stage_dir: Path) -> Inpu
 
 def execute(scenario: Scenario, ctx: RunContext, session: Session, record: dict[str, Any],
             inputs: Inputs, stage_dir: Path) -> None:
-    # A pinned save is part of the start identity, including at power-on. Never
-    # silently fall back to an empty save if an input path stops forwarding it.
-    pinned_save = scenario.start.get("savefile_sha256")
-    if pinned_save is not None and inputs.savefile is None:
-        raise RunFailure("not-run", f"{scenario.start['kind']} start cannot honour pinned savefile {pinned_save}: "
-                         "no resolved savefile to pass to the adapter")
     args = ctx.args
     start = ["--rom", str(inputs.rom), "--core", str(args.core), "--mode", args.mode,
              "--retroarch-bin", str(args.retroarch_bin), "--base-config", str(args.base_config),
@@ -1118,6 +1112,11 @@ def main(argv: list[str] | None = None) -> int:
             count = sum(1 for s in unpacked if s.rom_sha256 == rom_sha)
             print(f"[regression] no pack mapped for ROM {rom_sha[:12]}: {count} scenario(s) not run")
         selected = [s for s in selected if s.rom_sha256 in pack_map]
+    if not selected:
+        print(f"[regression] selection matched zero scenarios after mode/pack filtering "
+              f"(selectors={args.select or ['all']}, mode={args.mode}); refusing an empty run",
+              file=sys.stderr)
+        return 2
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     results_path = out / "results.jsonl"

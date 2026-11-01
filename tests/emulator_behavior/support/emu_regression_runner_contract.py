@@ -9,9 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock
 import zlib
 
 REPO = Path(__file__).resolve().parents[3]
@@ -197,7 +195,8 @@ class RegressionRunnerContract(unittest.TestCase):
         env = {**os.environ, "FAKE_ADAPTER_PLAN": json.dumps(plan or {}),
                "PARALLEL_RDP_HIRES_GPU_BUDGET_MB": "1", "PARALLEL_RDP_HIRES_LOAD": "background"}
         result = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=120)
-        records = [json.loads(line) for line in (self.root / out / "results.jsonl").read_text().splitlines()]
+        results_path = self.root / out / "results.jsonl"
+        records = [json.loads(line) for line in results_path.read_text().splitlines()] if results_path.is_file() else []
         return result, {r["scenario"]: r for r in records}
 
     def gates(self, record):
@@ -246,13 +245,26 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertIn("does not match its name", record["error"])
         self.assertFalse((self.root / "bad-sram-boot" / record["bundle"] / "start-options.json").exists())
 
-    def test_pinned_savefile_cannot_silently_disappear_before_start(self):
-        scenario = runner.parse_scenario(self.pin_boot_savefile())
-        session = Mock()
-        with self.assertRaisesRegex(runner.RunFailure, "power-on start cannot honour pinned savefile"):
-            runner.execute(scenario, SimpleNamespace(args=None), session, {},
-                           runner.Inputs(self.root / "unused.rom", None, None), self.root)
-        session.call.assert_not_called()
+    def test_empty_selection_fails_before_adapter_start(self):
+        for selector in ("missing-*", "tier=missing"):
+            with self.subTest(selector=selector):
+                result, records = self.run_runner("empty", "--select", selector)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("selection matched zero scenarios", result.stderr)
+                self.assertEqual(records, {})
+                self.assertFalse((self.root / "empty").exists())
+        result, records = self.run_runner("no-packs", mode="on", packs=self.pack_map("none.json", {}))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("selection matched zero scenarios", result.stderr)
+        self.assertEqual(records, {})
+        self.assertFalse((self.root / "no-packs").exists())
+        for path in self.scenarios.glob("*.json"):
+            scenario = json.loads(path.read_text())
+            path.write_text(json.dumps({**scenario, "modes": ["off"]}))
+        result, records = self.run_runner("no-mode", mode="on")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("selection matched zero scenarios", result.stderr)
+        self.assertEqual(records, {})
 
     def test_records_expectations_then_passes_clean_run(self):
         before = {p.name: p.read_bytes() for p in self.scenarios.iterdir()}

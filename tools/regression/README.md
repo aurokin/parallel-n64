@@ -16,7 +16,7 @@ tools/regression/run_scenarios.py \
   --extra-append-config "$CAPTURE_PROFILE" \
   --runtime-class linux-radv-headless-vk-4x --mode off \
   --expectations "$CORPUS/expectations" \
-  --select tier=smoke --out artifacts/regression/smoke-off
+  --select tier=pre-merge --select lanes=pre-merge:off --out artifacts/regression/pre-merge-off
 ```
 
 - `--mode on` takes either `--pack PATH` (one `.phrb` package for every game) or
@@ -36,11 +36,13 @@ tools/regression/run_scenarios.py \
   temporary stage directory and must hash to its name
   ([blob store](SCENARIO_SCHEMA.md#blob-store)).
 - A pinned `start.savefile_sha256` is validated and passed to the adapter for
-  both state and power-on starts. Missing, corrupt or unforwarded savefiles
+  both state and power-on starts. Missing or corrupt savefiles
   fail before launch; a pinned save never falls back to an empty one.
 - `--select` takes an id glob or `tag=value[,value]`; repeated filters must
-  all match. `--select tier=smoke --select mode=battle` selects smoke battle
-  scenarios.
+  all match. `--select tier=pre-merge --select lanes=pre-merge:off` selects
+  the pre-merge off lane. An empty selection, including one emptied by mode
+  or pack filtering, exits 2. A nonempty selection already complete under
+  `--resume` still succeeds.
 - `--step-chunk N` (default 120) bounds every `STEP_FRAME`; steps also split
   at checkpoint frames.
 - `--ttl SEC` overrides the per-session TTL, which otherwise scales with the
@@ -64,7 +66,7 @@ Output in `--out`:
   its reply).
 
 Exit status: 0 when no gate failed (review items allowed), 1 when any gate
-failed, 2 for invalid scenarios or a busy host.
+failed, 2 for invalid scenarios, an empty selection or a busy host.
 
 ## Per-scenario sequence
 
@@ -85,16 +87,24 @@ failed, 2 for invalid scenarios or a busy host.
 
 ## Tiers
 
-Tiers are scenario tags, selected with `--select tier=<name>`:
+Tiers and lanes are scenario tags. Select both, for example
+`--select tier=pre-merge --select lanes=pre-merge:off`.
 
-| Tier | Intended content | Typical use |
-|---|---|---|
-| `smoke` | short state loads and settles, off and on | per change |
-| `nightly` | the full state matrix plus replay segments | nightly |
-| `soak` | long attract loops and segments, repeated runs | weekly |
+| Tier | Intended use |
+|---|---|
+| `pre-merge` | every core change; conditional renderer add-on lanes |
+| `pre-deploy` | rollout qualification |
+| `weekly` | full retained suite and rotating determinism repeats |
 
-Run each mode as its own invocation and output directory. A soak repeat is a
-second run into a new `--out`; compare their records.
+The corpus owns membership. An investigation remains outside the regular suite
+selectors and can be run explicitly by its diagnostic lane.
+
+Run each mode as its own invocation and output directory. Every on lane must
+be paired with the same core's off run and pass
+`compare_modes.py OFF ON --strict-rdram` before being counted as qualified.
+Until their first goldens land, new showcase lanes gate only exit, load and
+hi-res presence in the runner; their authored cue assertions require the
+separate qualification checks. They are not yet pre-deploy golden coverage.
 
 ## Gate policy
 

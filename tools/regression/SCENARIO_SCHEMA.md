@@ -34,7 +34,7 @@ A `power-on` start may carry `savefile_sha256` to boot from retained save memory
              "ref": "<run id / bundle id / durable id>", "segment": 51,
              "recorded_core_sha256": "<core that produced the recording>",
              "recorded_end_state_sha256": "<as recorded>"},
-  "tags": {"scene": "kkj_13/e0", "mode": "battle", "chapter": 0, "tier": ["smoke", "nightly"]},
+  "tags": {"scene": "kkj_13/e0", "mode": "battle", "chapter": 0, "tier": ["pre-merge", "pre-deploy", "weekly"], "lanes": ["pre-merge:off", "pre-deploy:off", "weekly:off"]},
   "modes": ["off"]
 }
 ```

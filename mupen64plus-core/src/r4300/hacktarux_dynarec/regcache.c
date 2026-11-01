@@ -349,7 +349,7 @@ int allocate_register_32(uint32_t *addr)
             }
 
             last_access[i] = dst;
-            r64[i]         = 0;
+            /* A read-only word access preserves the cached full-width value. */
 
             return i;
          }
@@ -373,14 +373,14 @@ int allocate_register_32(uint32_t *addr)
    last_access[reg] = dst;
    reg_content[reg] = (uint64_t*) addr;
    dirty[reg]       = 0;
-   r64[reg]         = 0;
+   r64[reg]         = 1;
 
    if (addr)
    {
       if (addr == (uint32_t*) r0)
          xor_reg32_reg32(reg, reg);
       else
-         mov_xreg32_m32rel(reg, addr);
+         mov_xreg64_m64rel(reg, (uint64_t*) addr);
    }
 
    return reg;
@@ -712,16 +712,16 @@ void allocate_register_32_manually(int reg, uint32_t *addr)
       }
    }
 
-   /* otherwise just load the 32-bit value into the requested register */
+   /* A word read must also preserve the guest register's upper half. */
    last_access[reg] = dst;
    reg_content[reg] = (uint64_t*) addr;
    dirty[reg] = 0;
-   r64[reg] = 0;
+   r64[reg] = 1;
 
    if ((uint64_t*) addr == r0)
       xor_reg32_reg32(reg, reg);
    else
-      mov_xreg32_m32rel(reg, addr);
+      mov_xreg64_m64rel(reg, (uint64_t*) addr);
 }
 
 void allocate_register_32_manually_w(int reg, uint32_t *addr)

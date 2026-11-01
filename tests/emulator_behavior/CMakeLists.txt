@@ -885,3 +885,37 @@ target_include_directories(emu_unit_pi_cart_io_test PRIVATE
   "${CMAKE_SOURCE_DIR}/libretro")
 target_compile_features(emu_unit_pi_cart_io_test PRIVATE c_std_99)
 add_test(NAME emu.unit.pi_cart_io COMMAND emu_unit_pi_cart_io_test)
+
+# This target executes real emitted x86-64 code through a SysV ABI wrapper.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
+   AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$"
+   AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  add_executable(emu_unit_hacktarux_regcache_width_test
+    emu_unit_hacktarux_regcache_width_test.c
+    "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/r4300/hacktarux_dynarec/regcache.c"
+    "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/r4300/hacktarux_dynarec/hacktarux_dynarec.c"
+    "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/r4300/hacktarux_dynarec/assemble.c"
+  )
+  target_include_directories(emu_unit_hacktarux_regcache_width_test PRIVATE
+    "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+    "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/api"
+    "${CMAKE_SOURCE_DIR}/libretro-common/include"
+    "${CMAKE_SOURCE_DIR}/libretro"
+  )
+  target_compile_features(emu_unit_hacktarux_regcache_width_test PRIVATE c_std_99)
+  target_compile_definitions(emu_unit_hacktarux_regcache_width_test PRIVATE
+    DYNAREC HAVE_DYNAREC_HACKTARUX _M_X64 M64P_CORE_PROTOTYPES DEBUG)
+  target_compile_options(emu_unit_hacktarux_regcache_width_test PRIVATE
+    -m64 -fomit-frame-pointer -fno-strict-aliasing -fno-pie
+    -fcf-protection=none -ffunction-sections -fdata-sections)
+  target_link_options(emu_unit_hacktarux_regcache_width_test PRIVATE
+    -m64 -no-pie -Wl,--gc-sections -Wl,-z,noexecstack)
+  add_test(NAME emu.unit.hacktarux_regcache_width
+    COMMAND emu_unit_hacktarux_regcache_width_test)
+  set_tests_properties(emu.unit.hacktarux_regcache_width PROPERTIES TIMEOUT 10)
+else()
+  add_test(NAME emu.unit.hacktarux_regcache_width
+    COMMAND "${CMAKE_COMMAND}" -E echo "SKIP: native Hacktarux test requires Linux x86-64 with GCC or Clang")
+  set_tests_properties(emu.unit.hacktarux_regcache_width PROPERTIES
+    SKIP_REGULAR_EXPRESSION "^SKIP:")
+endif()

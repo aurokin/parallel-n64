@@ -9,7 +9,9 @@ import subprocess
 import sys
 import tempfile
 import time
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock
 import zlib
 
 REPO = Path(__file__).resolve().parents[3]
@@ -45,6 +47,7 @@ def emit(line):
         out.write(line + "\n")
 
 if sub == "start":
+    (bundle / "start-options.json").write_text(json.dumps(opts))
     assert "--start-paused" in flags and opts["--mode"] in ("off", "on")
     if opts["--mode"] == "on":
         assert os.environ["PARALLEL_RDP_HIRES_GPU_BUDGET_MB"] == str(plan.get("budget_mb", 8192))
@@ -204,6 +207,52 @@ class RegressionRunnerContract(unittest.TestCase):
         result, _ = self.run_runner(f"golden-{mode}", "--record-expectations", mode=mode)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         return self.root / f"golden-{mode}" / "expectations"
+
+    def pin_boot_savefile(self, sha=None):
+        path = self.scenarios / "boot-power-on.json"
+        scenario = json.loads(path.read_text())
+        scenario["start"]["savefile_sha256"] = sha if sha is not None else sha256(self.srm)
+        self.write_scenario(scenario)
+        return path
+
+    def test_power_on_savefile_reaches_adapter_start_raw_and_compressed(self):
+        self.pin_boot_savefile()
+        for form in ("raw", "compressed"):
+            with self.subTest(form=form):
+                if form == "compressed":
+                    self.compress_blobs("savefiles")
+                result, records = self.run_runner(f"sram-boot-{form}", "--select", "boot-power-on")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                record = records["boot-power-on"]
+                bundle = self.root / f"sram-boot-{form}" / record["bundle"]
+                options = json.loads((bundle / "start-options.json").read_text())
+                self.assertIn("--savefile-source", options)
+                self.assertNotIn("--state-source", options)
+                staged = list((bundle / "savefiles/ParaLLEish").glob("*.srm"))
+                self.assertEqual(len(staged), 1)
+                self.assertEqual(staged[0].read_bytes(), self.srm)
+                self.assertEqual(record["frames_run"], 30)
+
+    def test_power_on_savefile_requires_valid_sha_and_matching_blob(self):
+        path = self.pin_boot_savefile("not-a-sha")
+        with self.assertRaisesRegex(runner.ScenarioError, "start.savefile_sha256"):
+            runner.parse_scenario(path)
+        self.pin_boot_savefile()
+        (self.root / "blobs/savefiles" / f"{sha256(self.srm)}.srm").write_bytes(b"corrupt")
+        result, records = self.run_runner("bad-sram-boot", "--select", "boot-power-on")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        record = records["boot-power-on"]
+        self.assertEqual(record["exit_class"], "not-run")
+        self.assertIn("does not match its name", record["error"])
+        self.assertFalse((self.root / "bad-sram-boot" / record["bundle"] / "start-options.json").exists())
+
+    def test_pinned_savefile_cannot_silently_disappear_before_start(self):
+        scenario = runner.parse_scenario(self.pin_boot_savefile())
+        session = Mock()
+        with self.assertRaisesRegex(runner.RunFailure, "power-on start cannot honour pinned savefile"):
+            runner.execute(scenario, SimpleNamespace(args=None), session, {},
+                           runner.Inputs(self.root / "unused.rom", None, None), self.root)
+        session.call.assert_not_called()
 
     def test_records_expectations_then_passes_clean_run(self):
         before = {p.name: p.read_bytes() for p in self.scenarios.iterdir()}

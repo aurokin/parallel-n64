@@ -35,6 +35,9 @@ tools/regression/run_scenarios.py \
   `<sha>.srm.gz`); a compressed blob is decompressed per scenario into a
   temporary stage directory and must hash to its name
   ([blob store](SCENARIO_SCHEMA.md#blob-store)).
+- A pinned `start.savefile_sha256` is validated and passed to the adapter for
+  both state and power-on starts. Missing, corrupt or unforwarded savefiles
+  fail before launch; a pinned save never falls back to an empty one.
 - `--select` takes an id glob or `tag=value[,value]`; repeated filters must
   all match. `--select tier=smoke --select mode=battle` selects smoke battle
   scenarios.

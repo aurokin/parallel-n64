@@ -153,8 +153,9 @@ def parse_scenario(path: Path) -> Scenario:
          "start.kind must be power-on or state")
     if start["kind"] == "state":
         need(bool(SHA_RE.match(str(start.get("state_sha256", "")))), "start.state_sha256 must be a sha256")
-        srm = start.get("savefile_sha256")
-        need(srm is None or bool(SHA_RE.match(str(srm))), "start.savefile_sha256 must be a sha256 or null")
+    srm = start.get("savefile_sha256")
+    need(srm is None or (isinstance(srm, str) and bool(SHA_RE.fullmatch(srm))),
+         "start.savefile_sha256 must be a sha256 or null")
 
     program = data.get("program")
     need(isinstance(program, list), "program must be a list")
@@ -609,10 +610,9 @@ class Inputs:
 
 def resolve_inputs(scenario: Scenario, ctx: RunContext, stage_dir: Path) -> Inputs:
     rom = resolve_rom(scenario, ctx)
-    if scenario.start["kind"] != "state":
-        return Inputs(rom, None, None)
     blobs = ctx.args.blobs
-    state = resolve_blob(blobs, "states", scenario.start["state_sha256"], ".state", stage_dir)
+    state = (resolve_blob(blobs, "states", scenario.start["state_sha256"], ".state", stage_dir)
+             if scenario.start["kind"] == "state" else None)
     srm_sha = scenario.start.get("savefile_sha256")
     savefile = resolve_blob(blobs, "savefiles", srm_sha, ".srm", stage_dir) if srm_sha else None
     return Inputs(rom, state, savefile)
@@ -620,6 +620,12 @@ def resolve_inputs(scenario: Scenario, ctx: RunContext, stage_dir: Path) -> Inpu
 
 def execute(scenario: Scenario, ctx: RunContext, session: Session, record: dict[str, Any],
             inputs: Inputs, stage_dir: Path) -> None:
+    # A pinned save is part of the start identity, including at power-on. Never
+    # silently fall back to an empty save if an input path stops forwarding it.
+    pinned_save = scenario.start.get("savefile_sha256")
+    if pinned_save is not None and inputs.savefile is None:
+        raise RunFailure("not-run", f"{scenario.start['kind']} start cannot honour pinned savefile {pinned_save}: "
+                         "no resolved savefile to pass to the adapter")
     args = ctx.args
     start = ["--rom", str(inputs.rom), "--core", str(args.core), "--mode", args.mode,
              "--retroarch-bin", str(args.retroarch_bin), "--base-config", str(args.base_config),

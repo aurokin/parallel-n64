@@ -106,6 +106,26 @@ int main(void)
    expect_header("NK4J", 2, 0x123456789ABCDEF0ULL, EEPROM_16KB, 2, 0, 0);
    expect_header("NWRJ", 1, 0x123456789ABCDEF0ULL, EEPROM_4KB, 2, 0, 0);
    expect_header("NWRJ", 2, 0x123456789ABCDEF0ULL, EEPROM_4KB, 3, 0, 0);
+   /* Conflicting catalog entries must not replace cartridge save/timing rows. */
+   assert(romdatabase_lookup(NULL, 0x34AEB154A4253B86ULL, &result));
+   assert(result.countperop == 2); /* Conker translation inherits the catalog default. */
+   expect_header("NFUE", 0, 0x34AEB154A4253B86ULL, EEPROM_16KB, 3, 0, 0);
+   expect_header("NKIE", 1, 0x9E8FCDFA49F5652BULL, EEPROM_4KB, 1, 0, 0);
+   expect_header("NIJE", 0, 0xAF9DCC151A723D88ULL, EEPROM_4KB, 1, 0, 0);
+   assert(romdatabase_lookup(NULL, 0x0A1667C7293346A6ULL, &result));
+   assert(result.countperop == 4);
+   expect_header("NXFP", 0, 0x0A1667C7293346A6ULL, NONE, 3, 0, 0);
+   /* Deliberately conflicting Robopon CRC: catalog fallback timing loses. */
+   expect_header("NNCE", 0, 0x272B690FAD0A7A77ULL, EEPROM_16KB, 1, 0, 0);
+   expect_header("NDQE", 0, 0xC16C421BA21580F7ULL, EEPROM_4KB, 3, 0, 0);
+   expect_header("NDQP", 0, 0x3DF17480193DED5AULL, EEPROM_4KB, 3, 0, 0);
+   expect_header("NMGD", 0, 0x2877AC2DC3DC139AULL, EEPROM_4KB, 2, 0, 0);
+   expect_header("NTRE", 0, 0x62269B3DFE11B1E8ULL, EEPROM_4KB, 2, 0, 0);
+   /* No timing row: RE2 and Smash use catalog CountPerOp=1. */
+   expect_header("NREE", 1, 0xAA18B1A507DB6AEBULL, SRAM, 1, 0, 0);
+   expect_header("NALE", 0, 0x8CF1CECBC8902FF4ULL, SRAM, 1, 0, 0);
+   /* CRC-specific timing still wins over an ID row and a conflicting catalog. */
+   expect_header("NFUE", 0, 0xD52FE29D8EA6A759ULL, EEPROM_16KB, 1, 0, 0);
    /* Loading an unknown ROM after patched titles must reset timing and memory. */
    expect_header("NZZE", 0, 0x123456789ABCDEF0ULL, EEPROM_4KB, 2, 0, 0);
    assert(!romdatabase_lookup(NULL, 0x123456789ABCDEF0ULL, &result));

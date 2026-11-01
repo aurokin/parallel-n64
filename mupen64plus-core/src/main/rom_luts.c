@@ -1,6 +1,6 @@
 /* Cartridge settings restored from merge base 38cfe49a. */
 
-/* Title-wide overrides keyed on the cartridge ID; see the lut_cart_save
+/* Title-wide settings keyed on the cartridge ID; see the lut_cart_save
  * provenance comment for the scheme.  Hash-keyed predecessors of these
  * tables listed individual releases; every title here carried the same
  * value across all of its releases. */
@@ -64,7 +64,9 @@ static const struct cart_sidma_entry { char id[4]; unsigned char sidmaduration; 
  * id.  This is the scheme EverDrive save databases use, so romhacks --
  * which change the header CRCs but keep the game code -- inherit the
  * base game's save hardware automatically.  Derived from ares'
- * mia/medium/nintendo-64.cpp (ISC licensed) save-type research. */
+ * mia/medium/nintendo-64.cpp (ISC licensed) save-type research.
+ * Matching cartridge rows win over catalog save types; the catalog supplies
+ * a save type only when no cartridge row (or revision exception) matches. */
 static const struct cart_save_entry { char id[4]; char region; unsigned char savetype; } lut_cart_save[] = {
    { "CDZ", 0  , SRAM        /* 96KiB unsupported; 32KiB attached */ }, /* Dezaemon 3D */
    { "CFZ", 0  , SRAM }, /* F-Zero X (J) */
@@ -252,12 +254,13 @@ static const struct cart_save_entry { char id[4]; char region; unsigned char sav
    { "NZS", 0  , FLASH_RAM }, /* Legend of Zelda: Majora's Mask [Zelda no Densetsu - Mujura no Kamen (J)] */
 };
 
-/* CountPerOp overrides keyed on the cartridge ID, same scheme and
+/* CountPerOp settings keyed on the cartridge ID, same scheme and
  * rationale as lut_cart_save above: one row per title instead of one
  * per release, and romhacks inherit the base game's timing.  Titles
  * without a stable retail cartridge ID (ALECK64 conversions, homebrew,
  * prototypes) and build-specific overrides (Wave Race 64 Shindou)
- * remain in the header-CRC table below. */
+ * remain in the header-CRC table below.  A matching CRC row wins over an ID
+ * row; both take precedence over catalog CountPerOp, even its default. */
 static const struct cart_cpop_entry { char id[4]; unsigned char cpop; } lut_cpop_id[] = {
    { "CLB", 1 }, /* Mario Party */
    { "N22", 1 }, /* Ready 2 Rumble Boxing - Round 2 */

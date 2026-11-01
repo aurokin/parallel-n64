@@ -321,6 +321,7 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    char cart_id[4];
    struct romdatabase_settings database;
    int database_matched;
+   int cartridge_save_matched = 0, cartridge_cpop_matched = 0;
    int patch_applied = 0;
 
    /* check input requirements */
@@ -379,10 +380,11 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    memcpy(cart_id, g_rom + 0x3b, 3);
    cart_id[3] = '\0';
 
-   /* Cartridge fallback also covers revisions and hacks absent from the catalog. */
+   /* Cartridge rows take precedence, including revisions and catalogued images. */
    if (!strcmp(cart_id, "NK4") && ROM_HEADER.destination_code == 'J'
          && ROM_HEADER.mask_ROM_version < 2)
    {
+      cartridge_save_matched = 1;
       ROM_SETTINGS.savetype = SRAM;
       patch_applied = 1;
    }
@@ -393,6 +395,7 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
          if (!strcmp(lut_cart_save[i].id, cart_id) &&
                (!lut_cart_save[i].region || lut_cart_save[i].region == ROM_HEADER.destination_code))
          {
+            cartridge_save_matched = 1;
             ROM_SETTINGS.savetype = lut_cart_save[i].savetype;
             patch_applied = 1;
             break;
@@ -488,6 +491,7 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    {
       if (!strcmp(lut_cpop_id[i].id, cart_id))
       {
+         cartridge_cpop_matched = 1;
          count_per_op = lut_cpop_id[i].cpop;
          break;
       }
@@ -496,12 +500,16 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    /* Shindou's timing differs from the original Wave Race releases. */
    if (!strcmp(cart_id, "NWR") && ROM_HEADER.destination_code == 'J'
          && ROM_HEADER.mask_ROM_version >= 2)
+   {
+      cartridge_cpop_matched = 1;
       count_per_op = 3;
+   }
 
    for (i = 0; i < sizeof(lut_cpop)/sizeof(lut_cpop[0]); ++i)
    {
       if (lut_cpop[i][0] == lut_id)
       {
+         cartridge_cpop_matched = 1;
          count_per_op = lut_cpop[i][1];
          DebugMessage(M64MSG_INFO, "CountPerOp set to %u.", count_per_op);
          break;
@@ -524,9 +532,12 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    {
       char md5[33];
       strcpy(md5, ROM_SETTINGS.MD5);
+      if (cartridge_save_matched)
+         database.settings.savetype = ROM_SETTINGS.savetype;
       ROM_SETTINGS = database.settings;
       strcpy(ROM_SETTINGS.MD5, md5);
-      count_per_op = database.countperop;
+      if (!cartridge_cpop_matched)
+         count_per_op = database.countperop;
       ROM_PARAMS.disableextramem = database.disableextramem;
    }
    else if (patch_applied)

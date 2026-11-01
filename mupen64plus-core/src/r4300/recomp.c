@@ -2461,7 +2461,9 @@ void recompile_block(const uint32_t *source, struct precomp_block *block, uint32
          recomp_func();
 #endif
       i++;
-      if (i < length-1+(length>>2)) // useful when last opcode is a jump
+      /* A cutoff branch uses the first sentinel as its delay slot.
+       * Initialize its fallthrough too, within the allocated block capacity. */
+      if (i < (length + 1) + (length >> 2))
       {
          dst = block->block + i;
          dst->addr = block->start + i*4;

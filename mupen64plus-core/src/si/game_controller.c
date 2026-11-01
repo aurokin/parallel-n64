@@ -145,7 +145,7 @@ static void controller_read_pak_command(struct game_controller* cont, uint8_t* c
           DebugMessage(M64MSG_WARNING, "Unknown plugged pak %d", (int)pak);
     }
 
-    *crc = pak_data_crc(data);
+    *crc = (pak == PAK_NONE) ? ~pak_data_crc(data) : pak_data_crc(data);
 }
 
 static void controller_write_pak_command(struct game_controller* cont, uint8_t* cmd)
@@ -184,7 +184,7 @@ static void controller_write_pak_command(struct game_controller* cont, uint8_t* 
           DebugMessage(M64MSG_WARNING, "Unknown plugged pak %d", (int)pak);
     }
 
-    *crc = pak_data_crc(data);
+    *crc = (pak == PAK_NONE) ? ~pak_data_crc(data) : pak_data_crc(data);
 }
 
 extern struct si_controller g_si;

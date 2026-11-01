@@ -35,6 +35,7 @@
 
 #include "md5.h"
 #include "rom.h"
+#include "mupen64plus.ini.h"
 #include "main.h"
 #include "util.h"
 
@@ -147,6 +148,185 @@ static void swap_rom(unsigned char* localrom, unsigned char* imagetype, int load
       *imagetype = Z64IMAGE;
 }
 
+/* The upstream catalog is immutable and small enough to scan at ROM open.
+ * Keep its MD5-first / unique-CRC fallback and RefMD5 inheritance without
+ * introducing a runtime data-file search path or a second database lifetime. */
+struct romdatabase_settings
+{
+   m64p_rom_settings settings;
+   unsigned int countperop;
+   unsigned int disableextramem;
+};
+
+/* Join bounded catalog literals once; all existing parser cursors stay valid. */
+static void romdatabase_init(void)
+{
+   size_t i;
+   char *cursor = inifile;
+   if (inifile[0])
+      return;
+   for (i = 0; i < sizeof(inifile_chunks)/sizeof(inifile_chunks[0]); ++i)
+   {
+      size_t length = strlen(inifile_chunks[i]);
+      memcpy(cursor, inifile_chunks[i], length);
+      cursor += length;
+   }
+   *cursor = '\0';
+}
+
+static ini_line romdatabase_next_line(const char **cursor, char *buffer, size_t size)
+{
+   const char *nl = strchr(*cursor, '\n');
+   size_t length = nl ? (size_t)(nl - *cursor) : strlen(*cursor);
+   char *line = buffer;
+   size_t copied = length < size - 1 ? length : size - 1;
+   memcpy(buffer, *cursor, copied);
+   buffer[copied] = '\0';
+   *cursor += length + (nl != NULL);
+   return ini_parse_line(&line);
+}
+
+static const char *romdatabase_find(const md5_byte_t *md5, uint64_t crc)
+{
+   const char *cursor = inifile;
+   const char *section = NULL;
+   const char *found = NULL;
+   char buffer[256];
+   while (*cursor)
+   {
+      ini_line line = romdatabase_next_line(&cursor, buffer, sizeof(buffer));
+      if (line.type == INI_SECTION)
+      {
+         md5_byte_t digest[16];
+         section = cursor;
+         if (md5 && parse_hex(line.name, digest, sizeof(digest))
+               && !memcmp(md5, digest, sizeof(digest)))
+            found = section; /* Upstream indexes the last duplicate MD5 first. */
+      }
+      else if (!md5 && section && line.type == INI_PROPERTY && !strcmp(line.name, "CRC"))
+      {
+         unsigned int crc1, crc2;
+         char extra;
+         if (sscanf(line.value, "%X %X%c", &crc1, &crc2, &extra) == 2
+               && (((uint64_t)crc1 << 32) | crc2) == crc)
+         {
+            /* Upstream rejects CRCs shared by multiple catalog entries. */
+            if (found)
+               return NULL;
+            found = section;
+         }
+      }
+   }
+   return found;
+}
+
+static int romdatabase_lookup(const md5_byte_t *md5, uint64_t crc,
+      struct romdatabase_settings *result)
+{
+   const char *section;
+   const char *visited[32];
+   unsigned int depth = 0, flags = 0;
+   enum { GOODNAME = 1, SAVE = 2, STATUS = 4, PLAYERS = 8, RUMBLE = 16,
+      COUNT = 32, EXTRAMEM = 64, SIDMA = 128 };
+   romdatabase_init();
+   section = md5 ? romdatabase_find(md5, 0) : NULL;
+   if (!section)
+      section = romdatabase_find(NULL, crc);
+   if (!section)
+      return 0;
+
+   memset(result, 0, sizeof(*result));
+   result->settings.savetype = EEPROM_4KB;
+   result->settings.players = 4;
+   result->settings.rumble = 1;
+   result->settings.sidmaduration = 0x900;
+   result->countperop = 2;
+
+   /* Most-specific properties win; missing properties inherit from RefMD5. */
+   while (section)
+   {
+      const char *cursor = section;
+      md5_byte_t refmd5[16];
+      int has_ref = 0;
+      unsigned int i;
+      char buffer[256];
+      if (depth == sizeof(visited)/sizeof(visited[0]))
+         return 0;
+      for (i = 0; i < depth; ++i)
+         if (visited[i] == section)
+            return 0;
+      visited[depth++] = section;
+      while (*cursor)
+      {
+         int value;
+         ini_line line = romdatabase_next_line(&cursor, buffer, sizeof(buffer));
+         if (line.type == INI_SECTION)
+            break;
+         if (line.type != INI_PROPERTY)
+            continue;
+         if (!strcmp(line.name, "RefMD5"))
+            has_ref = parse_hex(line.value, refmd5, sizeof(refmd5));
+         else if (!(flags & GOODNAME) && !strcmp(line.name, "GoodName"))
+         {
+            strncpy(result->settings.goodname, line.value, sizeof(result->settings.goodname) - 1);
+            flags |= GOODNAME;
+         }
+         else if (!(flags & SAVE) && !strcmp(line.name, "SaveType"))
+         {
+            static const struct { const char *name; unsigned char type; } types[] = {
+               { "Eeprom 4KB", EEPROM_4KB }, { "Eeprom 16KB", EEPROM_16KB },
+               { "SRAM", SRAM }, { "Flash RAM", FLASH_RAM },
+               { "Controller Pack", CONTROLLER_PACK }, { "None", NONE }
+            };
+            for (i = 0; i < sizeof(types)/sizeof(types[0]); ++i)
+               if (!strcmp(line.value, types[i].name))
+               {
+                  result->settings.savetype = types[i].type;
+                  flags |= SAVE;
+                  break;
+               }
+         }
+         else if (!(flags & STATUS) && !strcmp(line.name, "Status")
+               && string_to_int(line.value, &value) && value >= 0 && value <= 5)
+         {
+            result->settings.status = value;
+            flags |= STATUS;
+         }
+         else if (!(flags & PLAYERS) && !strcmp(line.name, "Players")
+               && string_to_int(line.value, &value) && value >= 0 && value <= 7)
+         {
+            result->settings.players = value;
+            flags |= PLAYERS;
+         }
+         else if (!(flags & RUMBLE) && !strcmp(line.name, "Rumble")
+               && (!strcmp(line.value, "Yes") || !strcmp(line.value, "No")))
+         {
+            result->settings.rumble = !strcmp(line.value, "Yes");
+            flags |= RUMBLE;
+         }
+         else if (!(flags & COUNT) && !strcmp(line.name, "CountPerOp")
+               && string_to_int(line.value, &value) && value >= 1 && value <= 4)
+         {
+            result->countperop = value;
+            flags |= COUNT;
+         }
+         else if (!(flags & EXTRAMEM) && !strcmp(line.name, "DisableExtraMem"))
+         {
+            result->disableextramem = atoi(line.value);
+            flags |= EXTRAMEM;
+         }
+         else if (!(flags & SIDMA) && !strcmp(line.name, "SiDmaDuration")
+               && string_to_int(line.value, &value) && value >= 0 && value <= 0x10000)
+         {
+            result->settings.sidmaduration = value;
+            flags |= SIDMA;
+         }
+      }
+      section = has_ref ? romdatabase_find(refmd5, 0) : NULL;
+   }
+   return 1;
+}
+
 m64p_error open_rom(const unsigned char* romimage, unsigned int size)
 {
 #include "rom_luts.c"
@@ -156,6 +336,10 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    unsigned char imagetype;
    int i;
    uint64_t lut_id;
+   char cart_id[4];
+   struct romdatabase_settings database;
+   int database_matched;
+   int cartridge_save_matched = 0, cartridge_cpop_matched = 0;
    int patch_applied = 0;
 
    /* check input requirements */
@@ -191,9 +375,14 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    for ( i = 0; i < 16; ++i )
       sprintf(buffer+i*2, "%02X", digest[i]);
    buffer[32] = '\0';
+   memset(&ROM_SETTINGS, 0, sizeof(ROM_SETTINGS));
    strcpy(ROM_SETTINGS.MD5, buffer);
-   
+   ROM_SETTINGS.savetype = EEPROM_4KB;
+   ROM_SETTINGS.players = 4;
+   ROM_SETTINGS.rumble = 1;
    ROM_SETTINGS.sidmaduration = 0x900;
+   count_per_op = 2;
+   ROM_PARAMS.disableextramem = 0;
 
    /* add some useful properties to ROM_PARAMS */
    ROM_PARAMS.systemtype = rom_country_code_to_system_type(ROM_HEADER.destination_code);
@@ -206,22 +395,35 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
 
    lut_id = (((uint64_t)sl(ROM_HEADER.CRC1)) << 32) | sl(ROM_HEADER.CRC2);
 
-   for (i = 0; i < sizeof(lut_ee16k)/sizeof(lut_ee16k[0]); ++i)
-   {
-      if (lut_ee16k[i] == lut_id)
-      {
-         strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
-         ROM_SETTINGS.savetype = EEPROM_16KB;
-         DebugMessage(M64MSG_INFO, "%s INI patches applied.", ROM_PARAMS.headername);
+   memcpy(cart_id, g_rom + 0x3b, 3);
+   cart_id[3] = '\0';
 
-         patch_applied = 1;
-         break;
+   /* Cartridge rows take precedence, including revisions and catalogued images. */
+   if (!strcmp(cart_id, "NK4") && ROM_HEADER.destination_code == 'J'
+         && ROM_HEADER.mask_ROM_version < 2)
+   {
+      cartridge_save_matched = 1;
+      ROM_SETTINGS.savetype = SRAM;
+      patch_applied = 1;
+   }
+   else
+   {
+      for (i = 0; i < sizeof(lut_cart_save)/sizeof(lut_cart_save[0]); ++i)
+      {
+         if (!strcmp(lut_cart_save[i].id, cart_id) &&
+               (!lut_cart_save[i].region || lut_cart_save[i].region == ROM_HEADER.destination_code))
+         {
+            cartridge_save_matched = 1;
+            ROM_SETTINGS.savetype = lut_cart_save[i].savetype;
+            patch_applied = 1;
+            break;
+         }
       }
    }
 
-   for (i = 0; i < sizeof(lut_audiosignal)/sizeof(lut_audiosignal[0]); ++i)
+   for (i = 0; i < sizeof(lut_audiosignal_id)/sizeof(lut_audiosignal_id[0]); ++i)
    {
-      if (lut_audiosignal[i] == lut_id)
+      if (!strcmp(lut_audiosignal_id[i], cart_id))
       {
          strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
          ROM_PARAMS.audiosignal = 1;
@@ -232,9 +434,9 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
       }
    }
 
-   for (i = 0; i < sizeof(lut_fixedaudiopos)/sizeof(lut_fixedaudiopos[0]); ++i)
+   for (i = 0; i < sizeof(lut_fixedaudiopos_id)/sizeof(lut_fixedaudiopos_id[0]); ++i)
    {
-      if (lut_fixedaudiopos[i] == lut_id)
+      if (!strcmp(lut_fixedaudiopos_id[i], cart_id))
       {
          strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
          ROM_PARAMS.fixedaudiopos = 1;
@@ -245,9 +447,9 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
       }
    }
 
-   for (i = 0; i < sizeof(lut_alternate_vi)/sizeof(lut_alternate_vi[0]); ++i)
+   for (i = 0; i < sizeof(lut_alternate_vi_id)/sizeof(lut_alternate_vi_id[0]); ++i)
    {
-      if (lut_alternate_vi[i] == lut_id)
+      if (!strcmp(lut_alternate_vi_id[i], cart_id))
       {
          strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
          alternate_vi_timing = 1;
@@ -258,9 +460,9 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
       }
    }
 
-   for (i = 0; i < sizeof(lut_vi_clock_1500)/sizeof(lut_vi_clock_1500[0]); ++i)
+   for (i = 0; i < sizeof(lut_vi_clock_1500_id)/sizeof(lut_vi_clock_1500_id[0]); ++i)
    {
-      if (lut_vi_clock_1500[i] == lut_id)
+      if (!strcmp(lut_vi_clock_1500_id[i], cart_id))
       {
          strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
          DebugMessage(M64MSG_INFO, "%s INI patches applied.", ROM_PARAMS.headername);
@@ -271,9 +473,9 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
       }
    }
 
-   for (i = 0; i < sizeof(lut_vi_clock_1600)/sizeof(lut_vi_clock_1600[0]); ++i)
+   for (i = 0; i < sizeof(lut_vi_clock_1600_id)/sizeof(lut_vi_clock_1600_id[0]); ++i)
    {
-      if (lut_vi_clock_1600[i] == lut_id)
+      if (!strcmp(lut_vi_clock_1600_id[i], cart_id))
       {
          strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
          DebugMessage(M64MSG_INFO, "%s INI patches applied.", ROM_PARAMS.headername);
@@ -284,9 +486,9 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
       }
    }
 
-   for (i = 0; i < sizeof(lut_vi_clock_2200)/sizeof(lut_vi_clock_2200[0]); ++i)
+   for (i = 0; i < sizeof(lut_vi_clock_2200_id)/sizeof(lut_vi_clock_2200_id[0]); ++i)
    {
-      if (lut_vi_clock_2200[i] == lut_id)
+      if (!strcmp(lut_vi_clock_2200_id[i], cart_id))
       {
          strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
          DebugMessage(M64MSG_INFO, "%s INI patches applied.", ROM_PARAMS.headername);
@@ -297,67 +499,86 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
       }
    }
 
-   for (i = 0; i < sizeof(lut_ee4k)/sizeof(lut_ee4k[0]); ++i)
-   {
-      if (lut_ee4k[i] == lut_id)
-      {
-         strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
-         ROM_SETTINGS.savetype = EEPROM_4KB;
-         DebugMessage(M64MSG_INFO, "%s INI patches applied.", ROM_PARAMS.headername);
-
-         patch_applied = 1;
-         break;
-      }
-   }
-
-   for (i = 0; i < sizeof(lut_flashram)/sizeof(lut_flashram[0]); ++i)
-   {
-      if (lut_flashram[i] == lut_id)
-      {
-         strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
-         ROM_SETTINGS.savetype = FLASH_RAM;
-         DebugMessage(M64MSG_INFO, "%s INI patches applied.", ROM_PARAMS.headername);
-
-         patch_applied = 1;
-         break;
-      }
-   }
-
    if (!patch_applied)
    {
       strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
       strcat(ROM_SETTINGS.goodname, " (unknown rom)");
-      ROM_SETTINGS.savetype = NONE;
-      ROM_SETTINGS.sidmaduration = 0x900;
-      ROM_SETTINGS.status = 0;
-      ROM_SETTINGS.players = 0;
-      ROM_SETTINGS.rumble = 0;
+   }
+
+   for (i = 0; i < sizeof(lut_cpop_id)/sizeof(lut_cpop_id[0]); ++i)
+   {
+      if (!strcmp(lut_cpop_id[i].id, cart_id))
+      {
+         cartridge_cpop_matched = 1;
+         count_per_op = lut_cpop_id[i].cpop;
+         break;
+      }
+   }
+
+   /* Shindou's timing differs from the original Wave Race releases. */
+   if (!strcmp(cart_id, "NWR") && ROM_HEADER.destination_code == 'J'
+         && ROM_HEADER.mask_ROM_version >= 2)
+   {
+      cartridge_cpop_matched = 1;
+      count_per_op = 3;
    }
 
    for (i = 0; i < sizeof(lut_cpop)/sizeof(lut_cpop[0]); ++i)
    {
       if (lut_cpop[i][0] == lut_id)
       {
+         cartridge_cpop_matched = 1;
          count_per_op = lut_cpop[i][1];
          DebugMessage(M64MSG_INFO, "CountPerOp set to %u.", count_per_op);
          break;
       }
    }
 
-   for (i = 0; i < sizeof(lut_sidmaduration)/sizeof(lut_sidmaduration[0]); ++i)
+   for (i = 0; i < sizeof(lut_sidmaduration_id)/sizeof(lut_sidmaduration_id[0]); ++i)
    {
-      if (lut_sidmaduration[i][0] == lut_id)
+      if (!strcmp(lut_sidmaduration_id[i].id, cart_id))
       {
-         ROM_SETTINGS.sidmaduration = lut_sidmaduration[i][1];
+         ROM_SETTINGS.sidmaduration = lut_sidmaduration_id[i].sidmaduration;
          DebugMessage(M64MSG_INFO, "SI DMA Duration set to %u.", ROM_SETTINGS.sidmaduration);
          break;
       }
    }
 
+   /* As upstream: exact MD5 first, then CRC only when it is unambiguous. */
+   database_matched = romdatabase_lookup(digest, lut_id, &database);
+   if (database_matched)
+   {
+      char md5[33];
+      strcpy(md5, ROM_SETTINGS.MD5);
+      if (cartridge_save_matched)
+         database.settings.savetype = ROM_SETTINGS.savetype;
+      ROM_SETTINGS = database.settings;
+      strcpy(ROM_SETTINGS.MD5, md5);
+      if (!cartridge_cpop_matched)
+         count_per_op = database.countperop;
+      ROM_PARAMS.disableextramem = database.disableextramem;
+   }
+   else if (patch_applied)
+      strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
+
    if (frame_dupe)
       count_per_op = 1;
 
+   DebugMessage(M64MSG_INFO, "CountPerOp set to %u.", count_per_op);
+   DebugMessage(M64MSG_INFO, "Save type: %u; DisableExtraMem: %u; ROM catalog: %s.",
+         ROM_SETTINGS.savetype, ROM_PARAMS.disableextramem,
+         database_matched ? "matched" : "unmatched (cartridge fallback)");
+
    g_delay_si = 1; /* default */
+
+   for (i = 0; i < sizeof(lut_delaysi_id)/sizeof(lut_delaysi_id[0]); ++i)
+   {
+      if (!strcmp(lut_delaysi_id[i].id, cart_id))
+      {
+         g_delay_si = lut_delaysi_id[i].delaysi;
+         break;
+      }
+   }
 
    for (i = 0; i < sizeof(lut_delaysi)/sizeof(lut_delaysi[0]); ++i)
    {

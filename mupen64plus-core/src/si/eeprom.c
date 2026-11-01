@@ -41,6 +41,17 @@ void init_eeprom(struct eeprom *eeprom,
    eeprom->id        = id;
 }
 
+size_t eeprom_size_with_legacy_save(size_t configured_size, const uint8_t data[0x800])
+{
+   size_t i;
+   if (configured_size != 0)
+      return configured_size;
+   for (i = 0x800; i > 0; --i)
+      if (data[i - 1] != 0xff)
+         return i > 0x200 ? 0x800 : 0x200;
+   return 0;
+}
+
 void eeprom_save(struct eeprom* eeprom)
 {
    eeprom->save(eeprom->user_data);
@@ -53,6 +64,12 @@ void format_eeprom(uint8_t* eeprom, size_t size)
 
 void eeprom_status_command(struct eeprom* eeprom, uint8_t* cmd)
 {
+   if (eeprom->size == 0)
+   {
+      cmd[1] |= 0x80;
+      return;
+   }
+
    /* check size */
    if (cmd[1] != 3)
    {
@@ -76,6 +93,11 @@ void eeprom_read_command(struct eeprom* eeprom, uint8_t* cmd)
 {
    uint16_t address = cmd[3] * 8;
    uint8_t* data = &cmd[4];
+   if (eeprom->size == 0)
+   {
+      cmd[1] |= 0x80;
+      return;
+   }
    /* read 8-byte block */
    if (address < eeprom->size)
    {
@@ -91,6 +113,11 @@ void eeprom_write_command(struct eeprom* eeprom, uint8_t* cmd)
 {
    uint16_t address = cmd[3] * 8;
    const uint8_t* data = &cmd[4];
+   if (eeprom->size == 0)
+   {
+      cmd[1] |= 0x80;
+      return;
+   }
    /* write 8-byte block */
    if (address < eeprom->size)
    {

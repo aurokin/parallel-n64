@@ -261,6 +261,15 @@ unsigned int get_event(int type)
       : 0;
 }
 
+int has_interrupt_event(int type)
+{
+   struct node* event;
+   for (event = q.first; event != NULL; event = event->next)
+      if (event->data.type == type)
+         return 1;
+   return 0;
+}
+
 int get_next_event_type(void)
 {
    return (q.first == NULL)

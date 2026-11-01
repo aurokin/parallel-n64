@@ -35,7 +35,6 @@ struct cart_rom
    size_t rom_size;
 
    uint32_t last_write;
-   uint32_t rom_written;
 };
 
 void init_cart_rom(struct cart_rom* cart_rom,

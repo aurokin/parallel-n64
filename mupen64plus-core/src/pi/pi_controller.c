@@ -28,6 +28,7 @@
 #include "../main/device.h"
 #include "../memory/memory.h"
 #include "../r4300/cp0.h"
+#include "../r4300/interrupt.h"
 #include "../r4300/cp0_private.h"
 #include "../r4300/r4300_core.h"
 #include "../ri/rdram_detection_hack.h"
@@ -39,17 +40,31 @@
 
 extern int g_rom_size;
 
-enum
+int validate_pi_request(struct pi_controller *pi)
 {
-   /* PI_STATUS - read */
-   PI_STATUS_DMA_BUSY  = 0x01,
-   PI_STATUS_IO_BUSY   = 0x02,
-   PI_STATUS_ERROR     = 0x04,
+   /* Legacy overlapping DMAs can leave queued completions after busy clears.
+    * A CPU IO event must start with an empty PI queue to retain its identity. */
+   if ((pi->regs[PI_STATUS_REG] & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY)) ||
+       has_interrupt_event(PI_INT))
+   {
+      static unsigned rejected;
+      pi->regs[PI_STATUS_REG] |= PI_STATUS_ERROR;
+      ++rejected;
+      if (rejected <= 4 || (rejected & (rejected - 1)) == 0)
+         DebugMessage(M64MSG_WARNING, "PI request rejected while busy (status=%x)", pi->regs[PI_STATUS_REG]);
+      return 0;
+   }
+   return 1;
+}
 
-   /* PI_STATUS - write */
-   PI_STATUS_RESET     = 0x01,
-   PI_STATUS_CLR_INTR  = 0x02
-};
+static int validate_pi_dma_request(struct pi_controller *pi)
+{
+   /* Keep existing DMA overlap behavior. An IO-only event belongs to its
+    * CPU bus write and must not be replaced by a new DMA. */
+   if ((pi->regs[PI_STATUS_REG] & (PI_STATUS_IO_BUSY | PI_STATUS_DMA_BUSY)) != PI_STATUS_IO_BUSY)
+      return 1;
+   return validate_pi_request(pi);
+}
 
 /* Copies data from the PI into RDRAM */
 static void dma_pi_read(struct pi_controller *pi)
@@ -59,6 +74,9 @@ static void dma_pi_read(struct pi_controller *pi)
    uint32_t rom_address;
    const uint8_t* dram;
    uint8_t* rom;
+
+   if (!validate_pi_dma_request(pi))
+      return;
 
    /* XXX: end of domain is wrong ? */
    if (pi->regs[PI_CART_ADDR_REG] >= 0x05000000 && pi->regs[PI_CART_ADDR_REG] < 0x06000000)
@@ -136,6 +154,9 @@ static void dma_pi_write(struct pi_controller *pi)
    size_t buffer_size;
    uint8_t* dram;
    const uint8_t* rom;
+
+   if (!validate_pi_dma_request(pi))
+      return;
 
    if (pi->regs[PI_CART_ADDR_REG] < 0x10000000 && !(pi->regs[PI_CART_ADDR_REG] >= 0x06000000 && pi->regs[PI_CART_ADDR_REG] < 0x08000000))
    {
@@ -400,7 +421,13 @@ int write_pi_regs(void* opaque, uint32_t address,
          return 0;
 
       case PI_STATUS_REG:
-         if (value & mask & 2)
+         if (value & mask & PI_STATUS_RESET)
+         {
+            pi->regs[PI_STATUS_REG] = 0;
+            while (has_interrupt_event(PI_INT))
+               remove_event(PI_INT);
+         }
+         if (value & mask & PI_STATUS_CLR_INTR)
             clear_rcp_interrupt(pi->r4300, MI_INTR_PI);
          return 0;
 
@@ -424,6 +451,12 @@ int write_pi_regs(void* opaque, uint32_t address,
 
 void pi_end_of_dma_event(struct pi_controller* pi)
 {
+   /* A CPU bus write expires without a DMA completion interrupt. */
+   if ((pi->regs[PI_STATUS_REG] & (PI_STATUS_IO_BUSY | PI_STATUS_DMA_BUSY)) == PI_STATUS_IO_BUSY)
+   {
+      pi->regs[PI_STATUS_REG] &= ~PI_STATUS_IO_BUSY;
+      return;
+   }
    pi->regs[PI_STATUS_REG] &= ~(PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY);
    raise_rcp_interrupt(pi->r4300, MI_INTR_PI);
 

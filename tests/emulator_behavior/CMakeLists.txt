@@ -872,3 +872,16 @@ target_include_directories(emu_unit_recomp_block_end_test PRIVATE
 target_compile_definitions(emu_unit_recomp_block_end_test PRIVATE M64P_CORE_PROTOTYPES)
 target_compile_features(emu_unit_recomp_block_end_test PRIVATE c_std_99)
 add_test(NAME emu.unit.recomp_block_end COMMAND emu_unit_recomp_block_end_test)
+
+add_executable(emu_unit_pi_cart_io_test
+  emu_unit_pi_cart_io_test.c
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/pi/pi_controller.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/pi/cart_rom.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/pi/flashram.c")
+target_include_directories(emu_unit_pi_cart_io_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/api"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+  "${CMAKE_SOURCE_DIR}/libretro")
+target_compile_features(emu_unit_pi_cart_io_test PRIVATE c_std_99)
+add_test(NAME emu.unit.pi_cart_io COMMAND emu_unit_pi_cart_io_test)

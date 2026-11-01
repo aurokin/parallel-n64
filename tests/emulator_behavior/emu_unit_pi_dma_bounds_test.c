@@ -9,6 +9,8 @@ struct device g_dev;
 int g_rom_size = 0x4000000; /* Cart size must not be used as a DD buffer bound. */
 void cp0_update_count(void) {}
 void add_interrupt_event(int type, unsigned int delay) { (void)type; (void)delay; }
+void remove_event(int type) { (void)type; }
+int has_interrupt_event(int type) { (void)type; return 0; }
 void raise_rcp_interrupt(struct r4300_core* cpu, uint32_t intr) { (void)cpu; (void)intr; }
 void clear_rcp_interrupt(struct r4300_core* cpu, uint32_t intr) { (void)cpu; (void)intr; }
 void invalidate_r4300_cached_code(uint32_t addr, size_t size) { (void)addr; (void)size; }
@@ -61,6 +63,7 @@ int main(void)
         pi->regs[PI_DRAM_ADDR_REG] = addresses[a];
         /* A huge requested length must stop at the 256-byte sector buffer. */
         write_pi_regs(pi, PI_RD_LEN_REG * 4, 0xffffff, ~0u);
+        pi_end_of_dma_event(pi);
         unsigned int copied = addresses[a] >= 0x800000 ? 0 :
             (addresses[a] == 0x7ffffe ? 2 : sizeof(g_dev.dd.sec_buf));
         for (unsigned int i = 0; i < sizeof(g_dev.dd.sec_buf); ++i)
@@ -77,6 +80,7 @@ int main(void)
             memset(&g_dev.dd, 0x77, sizeof(g_dev.dd));
             pi->regs[PI_CART_ADDR_REG] = c2 ? 0x05000000 : 0x05000400;
             write_pi_regs(pi, PI_WR_LEN_REG * 4, 0xffffff, ~0u);
+            pi_end_of_dma_event(pi);
             unsigned int n = addresses[a] >= 0x800000 ? 0 :
                 (addresses[a] == 0x7ffffe ? 2 : (c2 ? 0x400 : 0x100));
             if (n)

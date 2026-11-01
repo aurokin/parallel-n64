@@ -40,6 +40,7 @@ void remove_event(int type);
 void add_interrupt_event_count(int type, unsigned int count);
 void add_interrupt_event(int type, unsigned int delay);
 unsigned int get_event(int type);
+int has_interrupt_event(int type);
 int get_next_event_type(void);
 
 int save_eventqueue_infos(char *buf);

@@ -98,6 +98,15 @@ static void fire_completion(void)
 int main(void)
 {
     reset();
+    assert(!has_interrupt_event(PI_INT));
+    add_interrupt_event_count(PI_INT, 0);
+    assert(get_event(PI_INT) == 0 && has_interrupt_event(PI_INT));
+    add_interrupt_event_count(PI_INT, 42);
+    while (has_interrupt_event(PI_INT))
+        remove_event(PI_INT);
+    assert(!has_interrupt_event(PI_INT));
+
+    reset();
     write_rsp_regs(&g_dev.sp, 0x10, 0x125, UINT32_MAX);
     assert(g_dev.r4300.mi.regs[MI_INTR_REG] == 0);
     assert((g_cp0_regs[CP0_CAUSE_REG] & CP0_CAUSE_IP2) == 0);

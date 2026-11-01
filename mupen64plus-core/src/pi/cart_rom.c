@@ -21,6 +21,8 @@
 
 #include "cart_rom.h"
 #include "pi_controller.h"
+#include "../r4300/cp0.h"
+#include "../r4300/interrupt.h"
 
 void init_cart_rom(struct cart_rom* cart_rom,
                       uint8_t* rom, size_t rom_size)
@@ -32,7 +34,6 @@ void init_cart_rom(struct cart_rom* cart_rom,
 void poweron_cart_rom(struct cart_rom* cart_rom)
 {
     cart_rom->last_write  = 0;
-    cart_rom->rom_written = 0;
 }
 
 
@@ -41,10 +42,10 @@ int read_cart_rom(void* opaque, uint32_t address, uint32_t* value)
     struct pi_controller* pi    = (struct pi_controller*)opaque;
     uint32_t addr               = ROM_ADDR(address);
 
-    if (pi->cart_rom.rom_written)
+    /* Legacy DMA states can have both busy bits; only CPU IO echoes. */
+    if ((pi->regs[PI_STATUS_REG] & (PI_STATUS_IO_BUSY | PI_STATUS_DMA_BUSY)) == PI_STATUS_IO_BUSY)
     {
         *value                   = pi->cart_rom.last_write;
-        pi->cart_rom.rom_written = 0;
     }
     else
     {
@@ -57,8 +58,14 @@ int read_cart_rom(void* opaque, uint32_t address, uint32_t* value)
 int write_cart_rom(void* opaque, uint32_t address, uint32_t value, uint32_t mask)
 {
     struct pi_controller* pi     = (struct pi_controller*)opaque;
+    /* Match upstream's bus-latch update even when busy rejects the operation. */
     pi->cart_rom.last_write      = value & mask;
-    pi->cart_rom.rom_written     = 1;
+    if (!validate_pi_request(pi))
+        return 0;
 
+    /* The cartridge echoes a CPU bus write only while that IO is pending. */
+    pi->regs[PI_STATUS_REG] |= PI_STATUS_IO_BUSY;
+    cp0_update_count();
+    add_interrupt_event(PI_INT, 0x1000);
     return 0;
 }

@@ -275,7 +275,8 @@ extern uint32_t send_allist_to_hle_rsp;
 void do_SP_Task(struct rsp_core* sp)
 {
     uint32_t save_pc = sp->regs2[SP_PC_REG] & ~0xfff;
-    uint32_t completion_delay = sp->mem[0xfc0/4] == 2 ? 4000 : 1000;
+    uint32_t task_type = sp->mem[0xfc0/4];
+    uint32_t completion_delay = task_type == 2 ? 4000 : (task_type == 1 ? 1000 : 0);
     uint32_t sp_intr_pending = sp->r4300->mi.regs[MI_INTR_REG] & MI_INTR_SP;
 
     if (sp->mem[0xfc0/4] == 1)

@@ -130,6 +130,15 @@ int main(void)
     fire_completion();
     assert(g_dev.r4300.mi.regs[MI_INTR_REG] == MI_INTR_SP);
 
+    /* Other task types queue completion at the current Count, as upstream does. */
+    reset();
+    g_dev.sp.mem[0xfc0 / 4] = 4;
+    write_rsp_regs(&g_dev.sp, 0x10, 0x125, UINT32_MAX);
+    assert(g_dev.sp.mem[0xfc0 / 4] == 0xdeadbeef);
+    assert(has_interrupt_event(SP_INT) && get_event(SP_INT) == 100);
+    fire_completion();
+    assert(g_dev.r4300.mi.regs[MI_INTR_REG] == MI_INTR_SP);
+
     /* A microcode SET_INTR with INTR_BREAK clear is not replayed by SP_INT. */
     reset();
     task = SOFTWARE_IRQ;

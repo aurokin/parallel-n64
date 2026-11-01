@@ -269,7 +269,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 			tile_info0.size = u8(TEX_SIZE);
 		}
 #endif
-		texel0 = sample_texture(tile_info0, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel, false, i16x4(0));
+		texel0 = sample_texture(tile_info0, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel, false, bilerp0, derived.factors, i16x4(0));
 		if (!sample_quad && !bilerp0)
 			texel0 = texture_convert_factors(texel0, derived.factors);
 	}
@@ -317,7 +317,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 			}
 #endif
 			texel1 = sample_texture(tile_info1, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel,
-			                        convert_one, texel0);
+			                        convert_one, bilerp1, derived.factors, texel0);
 
 			if (!sample_quad && !tlut && !bilerp1)
 				texel1 = texture_convert_factors(texel1, derived.factors);

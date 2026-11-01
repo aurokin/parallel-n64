@@ -734,9 +734,20 @@ i16x2 bilinear_3tap(i16x2 t00, i16x2 t10, i16x2 t01, i16x2 t11, ivec2 frac)
 	return accum;
 }
 
+i16x4 texture_convert_factors(i16x4 texel_in, i16x4 factors)
+{
+	ivec4 texel = bitfieldExtract(ivec4(texel_in), 0, 9);
+
+	int r = texel.b + ((factors.x * texel.g + 0x80) >> 8);
+	int g = texel.b + ((factors.y * texel.r + factors.z * texel.g + 0x80) >> 8);
+	int b = texel.b + ((factors.w * texel.r + 0x80) >> 8);
+	int a = texel.b;
+	return i16x4(r, g, b, a);
+}
+
 i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, ivec2 st_ddy,
                      bool tlut, bool tlut_type, bool sample_quad, bool mid_texel, bool convert_one,
-                     i16x4 prev_cycle)
+                     bool bilerp, i16x4 conversion_factors, i16x4 prev_cycle)
 {
 	// Replacement addressing applies the clamp and mask in replacement space,
 	// so keep the shifted coordinate from before the native clamp.
@@ -766,14 +777,15 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 
 	i16x4 t_base, t10, t01, t11;
 
-	mid_texel = all(bvec3(mid_texel, equal(frac, ivec2(0x10))));
+	mid_texel = all(bvec4(mid_texel, bilerp, equal(frac, ivec2(0x10))));
 	if (mid_texel)
 		sum_frac = 0;
 
 	bool yuv = tile.fmt == TEXTURE_FORMAT_YUV;
 	ivec2 base_st = sum_frac >= 0x20 ? ivec2(s1, t1) : ivec2(s0, t0);
 
-	if (tile_uses_hires_replacement(tile))
+	bool replaced = tile_uses_hires_replacement(tile);
+	if (replaced)
 	{
 		bool hires_linear = global_constants.fb_info.hires_filter != HIRES_FILTER_NEAREST;
 
@@ -1082,19 +1094,35 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 	if (convert_one)
 	{
 		ivec4 prev_sext = bitfieldExtract(ivec4(prev_cycle), 0, 9);
-		ivec2 factors = sum_frac >= 32 ? prev_sext.gr : prev_sext.rg;
-		ivec4 converted = factors.r * (t10 - t_base) + factors.g * (t01 - t_base) + 0x80;
-		converted >>= 8;
-		converted += prev_sext.b;
-		accum = i16x4(converted);
+		if (sample_quad)
+		{
+			ivec2 factors = sum_frac >= 32 ? prev_sext.gr : prev_sext.rg;
+			ivec4 converted = factors.r * (t10 - t_base) + factors.g * (t01 - t_base) + 0x80;
+			converted >>= 8;
+			converted += prev_sext.b;
+			accum = i16x4(converted);
+		}
+		else
+			accum = i16x4(prev_sext.bbbb);
 	}
 	else if (yuv)
 	{
 		if (sample_quad)
 		{
 			int chroma_frac = ((s0 & 1) << 4) | (frac.x >> 1);
-			i16x2 accum_chroma = bilinear_3tap(t_base.xy, t10.xy, t01.xy, t11.xy, ivec2(chroma_frac, frac.y));
-			i16x2 accum_luma = bilinear_3tap(t_base.zw, t10.zw, t01.zw, t11.zw, frac);
+			i16x2 accum_chroma;
+			i16x2 accum_luma;
+			if (bilerp)
+			{
+				accum_chroma = bilinear_3tap(t_base.xy, t10.xy, t01.xy, t11.xy, ivec2(chroma_frac, frac.y));
+				accum_luma = bilinear_3tap(t_base.zw, t10.zw, t01.zw, t11.zw, frac);
+			}
+			else
+			{
+				// A filter footprint without bilerp selects a nearest sample per plane.
+				accum_luma = frac.x + frac.y >= 32 ? t11.zw : t_base.zw;
+				accum_chroma = chroma_frac + frac.y >= 32 ? t11.xy : t_base.xy;
+			}
 			accum = i16x4(accum_chroma, accum_luma);
 		}
 		else
@@ -1104,7 +1132,7 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 	{
 		accum = (t_base + t01 + t10 + t11 + I16_C(2)) >> I16_C(2);
 	}
-	else
+	else if (bilerp && sample_quad)
 	{
 		i16x2 flip_frac = i16x2(sum_frac >= 32 ? (32 - frac.yx) : frac);
 		accum = (t10 - t_base) * flip_frac.x;
@@ -1113,6 +1141,13 @@ i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, 
 		accum >>= I16_C(5);
 		accum += t_base;
 	}
+	else
+		accum = t_base;
+	// SAMPLE_TYPE selects the footprint; a cycle with bilerp bypassed converts
+	// the native sample instead. Point-sampled conversion remains at the caller.
+	// Replacement pixels already contain RGBA and retain their existing rule.
+	if (sample_quad && !bilerp && !convert_one && !replaced)
+		accum = texture_convert_factors(accum, conversion_factors);
 	return accum;
 }
 
@@ -1194,17 +1229,6 @@ void compute_lod_2cycle(inout uint tile0, inout uint tile1, out i16 lod_frac, ui
 			tile0 = (tile0 + tile_offset + (magnify ? 0 : 1)) & 7u;
 		}
 	}
-}
-
-i16x4 texture_convert_factors(i16x4 texel_in, i16x4 factors)
-{
-	ivec4 texel = bitfieldExtract(ivec4(texel_in), 0, 9);
-
-	int r = texel.b + ((factors.x * texel.g + 0x80) >> 8);
-	int g = texel.b + ((factors.y * texel.r + factors.z * texel.g + 0x80) >> 8);
-	int b = texel.b + ((factors.w * texel.r + 0x80) >> 8);
-	int a = texel.b;
-	return i16x4(r, g, b, a);
 }
 
 #endif

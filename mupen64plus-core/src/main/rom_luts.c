@@ -16,6 +16,13 @@ static const char lut_vi_clock_1600_id[][4] = {
    "NSB", /* Twisted Edge / King Hill 64 - Extreme Snowboarding */
 };
 
+/* Cruis'n Exotica hangs during boot at 1500. 1542 is the half-line period
+ * derived from the NTSC video clock (48.68 MHz / 60 Hz / 526 half-lines), which
+ * completes its boot sequence. Other games keep 1500 (closer to hardware). */
+static const char lut_vi_clock_1542_id[][4] = {
+   "NXO", /* Cruis'n Exotica */
+};
+
 static const char lut_vi_clock_2200_id[][4] = {
    "NB5", /* Biohazard 2 (J) */
    "NIJ", /* Indiana Jones and the Infernal Machine */

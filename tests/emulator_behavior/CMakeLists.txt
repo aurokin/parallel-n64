@@ -206,6 +206,21 @@ target_include_directories(emu_unit_vi_refresh_rate_test PRIVATE
 target_compile_features(emu_unit_vi_refresh_rate_test PRIVATE c_std_99)
 add_test(NAME emu.unit.vi_refresh_rate COMMAND emu_unit_vi_refresh_rate_test)
 
+add_executable(emu_unit_rom_timing_test
+  emu_unit_rom_timing_test.c
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/main/rom.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/main/md5.c"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/main/util.c"
+)
+target_include_directories(emu_unit_rom_timing_test PRIVATE
+  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
+  "${CMAKE_SOURCE_DIR}/libretro-common/include"
+  "${CMAKE_SOURCE_DIR}/libretro"
+  "${CMAKE_SOURCE_DIR}/include"
+)
+target_compile_features(emu_unit_rom_timing_test PRIVATE c_std_99)
+add_test(NAME emu.unit.rom_timing COMMAND emu_unit_rom_timing_test)
+
 set(cxd4_dispatch_variants predecode portable)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
   list(APPEND cxd4_dispatch_variants sse2)

@@ -339,7 +339,7 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    char cart_id[4];
    struct romdatabase_settings database;
    int database_matched;
-   int cartridge_save_matched = 0, cartridge_cpop_matched = 0;
+   int cartridge_save_matched = 0, cartridge_cpop_matched = 0, cartridge_sidma_matched = 0;
    int patch_applied = 0;
 
    /* check input requirements */
@@ -486,6 +486,19 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
       }
    }
 
+   for (i = 0; i < sizeof(lut_vi_clock_1542_id)/sizeof(lut_vi_clock_1542_id[0]); ++i)
+   {
+      if (!strcmp(lut_vi_clock_1542_id[i], cart_id))
+      {
+         strcpy(ROM_SETTINGS.goodname, ROM_PARAMS.headername);
+         DebugMessage(M64MSG_INFO, "%s INI patches applied.", ROM_PARAMS.headername);
+         g_vi_refresh_rate = 1542;
+
+         patch_applied = 1;
+         break;
+      }
+   }
+
    for (i = 0; i < sizeof(lut_vi_clock_2200_id)/sizeof(lut_vi_clock_2200_id[0]); ++i)
    {
       if (!strcmp(lut_vi_clock_2200_id[i], cart_id))
@@ -538,6 +551,7 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
    {
       if (!strcmp(lut_sidmaduration_id[i].id, cart_id))
       {
+         cartridge_sidma_matched = 1;
          ROM_SETTINGS.sidmaduration = lut_sidmaduration_id[i].sidmaduration;
          DebugMessage(M64MSG_INFO, "SI DMA Duration set to %u.", ROM_SETTINGS.sidmaduration);
          break;
@@ -552,6 +566,8 @@ m64p_error open_rom(const unsigned char* romimage, unsigned int size)
       strcpy(md5, ROM_SETTINGS.MD5);
       if (cartridge_save_matched)
          database.settings.savetype = ROM_SETTINGS.savetype;
+      if (cartridge_sidma_matched)
+         database.settings.sidmaduration = ROM_SETTINGS.sidmaduration;
       ROM_SETTINGS = database.settings;
       strcpy(ROM_SETTINGS.MD5, md5);
       if (!cartridge_cpop_matched)

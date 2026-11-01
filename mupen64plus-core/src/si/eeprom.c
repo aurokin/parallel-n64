@@ -41,6 +41,17 @@ void init_eeprom(struct eeprom *eeprom,
    eeprom->id        = id;
 }
 
+size_t eeprom_size_with_legacy_save(size_t configured_size, const uint8_t data[0x800])
+{
+   size_t i;
+   if (configured_size != 0)
+      return configured_size;
+   for (i = 0x800; i > 0; --i)
+      if (data[i - 1] != 0xff)
+         return i > 0x200 ? 0x800 : 0x200;
+   return 0;
+}
+
 void eeprom_save(struct eeprom* eeprom)
 {
    eeprom->save(eeprom->user_data);

@@ -67,6 +67,7 @@
 #include "../rsp/rsp_core.h"
 #include "../ri/ri_controller.h"
 #include "../si/si_controller.h"
+#include "../si/eeprom.h"
 #include "../vi/vi_controller.h"
 #include "../dd/dd_controller.h"
 #include "../dd/dd_rom.h"
@@ -317,6 +318,10 @@ m64p_error main_init(void)
 {
    size_t i;
    unsigned int disable_extra_mem;
+   size_t eeprom_size = eeprom_size_with_legacy_save(
+         ROM_SETTINGS.savetype == EEPROM_16KB ? 0x800 :
+         ROM_SETTINGS.savetype == EEPROM_4KB ? 0x200 : 0,
+         saved_memory.eeprom);
    /* take the r4300 emulator mode from the config file at this point and cache it in a global variable */
    unsigned int emumode = ConfigGetParamInt(g_CoreConfig, "R4300Emulator");
 
@@ -360,10 +365,9 @@ m64p_error main_init(void)
          NULL, dummy_save, saved_memory.sram,
          g_rdram, (disable_extra_mem == 0) ? 0x800000 : 0x400000,
          NULL,dummy_save,saved_memory.eeprom,
-         ROM_SETTINGS.savetype == EEPROM_16KB ? 0x800 :
-            ROM_SETTINGS.savetype == EEPROM_4KB ? 0x200 : 0,    /* eeprom_size */
-         ROM_SETTINGS.savetype == EEPROM_16KB ? 0xc000 :
-            ROM_SETTINGS.savetype == EEPROM_4KB ? 0x8000 : 0,   /* eeprom_id   */
+         eeprom_size,
+         eeprom_size == 0x800 ? 0xc000 :
+            eeprom_size == 0x200 ? 0x8000 : 0,                  /* eeprom_id */
          NULL,                                                    /* af_rtc_userdata */
          get_time_using_C_localtime,                              /* af_rtc_get_time */
 	 ROM_PARAMS.audiosignal,

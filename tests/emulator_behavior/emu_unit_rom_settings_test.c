@@ -76,6 +76,23 @@ static void expect_eeprom(void)
    assert(cmd[1] == 3 && cmd[4] == 0x80);
 }
 
+static void expect_legacy_eeprom(void)
+{
+   uint8_t storage[0x800];
+   memset(storage, 0xff, sizeof(storage));
+   assert(eeprom_size_with_legacy_save(0, storage) == 0);
+   assert(eeprom_size_with_legacy_save(0x200, storage) == 0x200);
+   assert(eeprom_size_with_legacy_save(0x800, storage) == 0x800);
+   storage[0x1ff] = 0;
+   assert(eeprom_size_with_legacy_save(0, storage) == 0x200);
+   storage[0x200] = 0;
+   assert(eeprom_size_with_legacy_save(0, storage) == 0x800);
+   assert(eeprom_size_with_legacy_save(0x200, storage) == 0x200);
+   memset(storage, 0xff, sizeof(storage));
+   storage[0x7ff] = 0;
+   assert(eeprom_size_with_legacy_save(0, storage) == 0x800);
+}
+
 int main(void)
 {
    struct romdatabase_settings result;
@@ -132,5 +149,6 @@ int main(void)
    /* Iggy's CRC is duplicated in the catalog, so it cannot resolve alone. */
    assert(!romdatabase_lookup(NULL, 0xE616B5BCC9658B88ULL, &result));
    expect_eeprom();
+   expect_legacy_eeprom();
    return 0;
 }

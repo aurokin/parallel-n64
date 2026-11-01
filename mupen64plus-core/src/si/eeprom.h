@@ -42,6 +42,10 @@ void init_eeprom(struct eeprom *eeprom,
       size_t size,
       uint16_t id);
 
+/* Preserve EEPROM data loaded from older cores that attached it unconditionally.
+ * Call after the frontend has loaded the full 0x800-byte save region. */
+size_t eeprom_size_with_legacy_save(size_t configured_size, const uint8_t data[0x800]);
+
 void eeprom_save(struct eeprom* eeprom);
 
 void format_eeprom(uint8_t* eeprom, size_t size);

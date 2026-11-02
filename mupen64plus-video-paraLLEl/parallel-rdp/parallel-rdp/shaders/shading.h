@@ -242,6 +242,11 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	}
 #endif
 
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	ivec4 hires_point_stzw = span_setup.stzw;
+	int hires_point_dx = dx;
+#endif
+
 	// Sample textures.
 	uint tile0 = uint(setup_tile) & 7u;
 	uint tile1 = (tile0 + 1) & 7u;
@@ -269,7 +274,15 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 			tile_info0.size = u8(TEX_SIZE);
 		}
 #endif
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+		ivec2 native_st0 = st;
+		if (!sample_quad && tile_uses_hires_replacement(tile_info0))
+			st = interpolate_hires_point_center(hires_point_stzw, attr.dstzw_dx, attr.dstzw_dy, hires_point_dx, perspective);
+#endif
 		texel0 = sample_texture(tile_info0, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel, false, bilerp0, derived.factors, i16x4(0));
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+		st = native_st0;
+#endif
 		if (!sample_quad && !bilerp0)
 			texel0 = texture_convert_factors(texel0, derived.factors);
 	}
@@ -284,6 +297,10 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		if (end_span && long_span && valid_line)
 		{
 			ivec3 stw = span_setups.elems[SCALING_FACTOR * span_offsets.offset + (y - SCALING_FACTOR * span_offsets.ylo + 1)].stzw.xyw >> 16;
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			hires_point_stzw = span_setups.elems[SCALING_FACTOR * span_offsets.offset + (y - SCALING_FACTOR * span_offsets.ylo + 1)].stzw;
+			hires_point_dx = 0;
+#endif
 			if (perspective)
 			{
 				bool st_overflow;
@@ -293,7 +310,12 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 				st = no_perspective_divide(stw);
 		}
 		else
+		{
 			st = interpolate_st_single(span_setup.stzw, attr.dstzw_dx, dx + interpolation_direction * SCALING_FACTOR, perspective);
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			hires_point_dx = dx + interpolation_direction * SCALING_FACTOR;
+#endif
+		}
 
 		tile1 = tile0;
 		uses_texel1 = true;
@@ -316,8 +338,16 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 				tile_info1.size = u8(TEX_SIZE);
 			}
 #endif
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			ivec2 native_st1 = st;
+			if (!sample_quad && tile_uses_hires_replacement(tile_info1))
+				st = interpolate_hires_point_center(hires_point_stzw, attr.dstzw_dx, attr.dstzw_dy, hires_point_dx, perspective);
+#endif
 			texel1 = sample_texture(tile_info1, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel,
 			                        convert_one, bilerp1, derived.factors, texel0);
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			st = native_st1;
+#endif
 
 			if (!sample_quad && !tlut && !bilerp1)
 				texel1 = texture_convert_factors(texel1, derived.factors);

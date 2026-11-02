@@ -11,6 +11,16 @@
 // Scalar int/float arithmetic keeps these helpers usable by both GLSL and the
 // display-free C++ test.
 
+// N64 point draws interpolate ST at the output pixel's upper-left sample.
+// A continuous replacement reconstructs at its center. Keep the signed screen
+// derivatives (including W) and offset before perspective division; a fixed
+// texture-space bias would be wrong for scaled or rotated draws.
+int hires_point_center_offset(int delta_x, int delta_y, int scaling_log2)
+{
+	return ((delta_x & ~0x1f) >> (scaling_log2 + 1)) +
+	       ((delta_y & ~0x7fff) >> (scaling_log2 + 1));
+}
+
 const int HIRES_ADDRESS_CLAMP = 0;
 const int HIRES_ADDRESS_WRAP = 1;
 const int HIRES_ADDRESS_MIRROR = 2;

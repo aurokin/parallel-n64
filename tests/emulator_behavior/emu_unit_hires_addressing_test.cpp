@@ -45,6 +45,38 @@ int point_texel(int coord_fp5, float scale, bool clamp_bit, int extent, int leve
 
 int main()
 {
+	// Center an output pixel before reconstructing point-sampled art. Deltas
+	// are the RDP's fp5 attributes with 16 interpolation fraction bits.
+	const int texel_step = 32 << 16;
+	check((hires_point_center_offset(texel_step, 0, 0) >> 16) == 16,
+	      "1x unit mapping advances half a native texel to the output center");
+	check((hires_point_center_offset(texel_step, 0, 2) >> 16) == 4,
+	      "4x unit mapping advances an eighth of a native texel");
+	check((hires_point_center_offset(texel_step / 2, 0, 0) >> 16) == 8,
+	      "a magnified UI glyph uses its actual half-pixel footprint");
+	check((hires_point_center_offset(0, -texel_step, 0) >> 16) == -16,
+	      "rotated or reflected mappings keep the derivative sign");
+	check((hires_point_center_offset(texel_step / 2, texel_step / 4, 0) >> 16) == 12,
+	      "sheared mappings include both screen derivatives");
+	const int center_1x = 3 * 32 + (hires_point_center_offset(texel_step, 0, 0) >> 16);
+	const int center_4x = 3 * 32 + (hires_point_center_offset(texel_step, 0, 2) >> 16);
+	check(hires_tap_position(center_1x, false, true, 1.0f, false, 32) == 3.0f,
+	      "minified point art samples one mip texel's center, not two glyph cells");
+	check(hires_tap_position(center_4x, false, true, 4.0f, false, 32) == 12.0f,
+	      "4x point art samples the first replacement texel's center");
+
+	// A tiled logo uses separate images with a native wrap period. At its
+	// first output pixel, an edge-centered tap would blend the opposite edge
+	// of this image into the neighboring tile. Centering makes the tap exact.
+	const int first_center = hires_point_center_offset(texel_step, 0, 2) >> 16;
+	const float first_position = hires_tap_position(first_center, false, true, 4.0f, false, 32);
+	const float last_position = hires_tap_position(31 * 32 + 24 + first_center, false, true, 4.0f, false, 32);
+	check(first_position == 0.0f && last_position == 127.0f,
+	      "abutting 4x point tiles reconstruct their first and last texel centers");
+	check(hires_address_texel(int(first_position), 128, 128, HIRES_ADDRESS_WRAP) == 0 &&
+	      hires_address_texel(int(last_position), 128, 128, HIRES_ADDRESS_WRAP) == 127,
+	      "tile-boundary samples do not fetch the opposite edge of a wrapping image");
+
 	check(hires_address_mode(0, false, false, 32) == HIRES_ADDRESS_CLAMP, "unmasked axis clamps");
 	check(hires_address_mode(5, true, false, 32) == HIRES_ADDRESS_CLAMP,
 	      "clamp bit within one period clamps");

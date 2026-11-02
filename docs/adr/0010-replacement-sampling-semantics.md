@@ -91,6 +91,19 @@ Replacement sampling operates in replacement-texel space, with these rules:
    compiled; non-copy replacement ST has always been native-domain. The dead
    block was removed with no behavior change.
 
+   *Point reconstruction phase (2026-11-02):* non-copy point draws evaluate
+   replacement ST at the output pixel's center. The N64 point path evaluates
+   its upper-left sample; feeding that coordinate directly into continuous
+   replacement filtering samples between texel centers. On abutting,
+   wrapping replacement tiles this mixed the opposite image edge into the
+   first row/column (Big Mountain 2000's title logo). Offset the interpolated
+   S, T and W by half their signed output-screen derivatives before
+   perspective division, retaining the point footprint convention above.
+   This accounts for rotated, reflected, sheared and magnified mappings;
+   a fixed half-native-texel offset does not. Native point sampling, native
+   bilinear draws, copy draws, addressing periods and lookup stay unchanged.
+   Only replacement rasterizer SPIR-V changes.
+
 Replaced draws thereby diverge deliberately from N64 filter semantics — sanctioned,
 because direct sampling is the point of replacement. Feature-off is provably inert
 for every rule (digest checks, ADR-0002).

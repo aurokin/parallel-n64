@@ -3,6 +3,7 @@
 #undef private
 #include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_renderer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -377,7 +378,7 @@ static void test_phrb_v8_jabo_records()
 	      "the Jabo asset decodes from the package blob");
 	// The same Jabo key can be interpreted under different native formats.
 	const std::vector<uint8_t> opaque = {
-		0, 0, 0, 255, 30, 60, 90, 255, 255, 0, 1, 255, 255, 255, 255, 255
+		0, 0, 0, 254, 30, 60, 90, 255, 255, 0, 1, 254, 255, 255, 255, 255
 	};
 	std::copy(opaque.begin(), opaque.end(), data.begin() + header.blob_offset);
 	std::copy(opaque.begin(), opaque.end(), data.begin() + header.blob_offset + 16);
@@ -395,16 +396,16 @@ static void test_phrb_v8_jabo_records()
 			expected[7] = 60;
 			expected[11] = 85;
 		}
-		check(image.rgba8 == expected, "only native I derives alpha, preserving RGB and integer average");
+		check(image.rgba8 == expected, "only native I derives alpha for 254/255, preserving RGB and integer average");
 	}
 	auto authored = opaque;
-	authored[7] = 254;
+	authored[7] = 253;
 	std::copy(authored.begin(), authored.end(), data.begin() + header.blob_offset + 16);
 	write_file(dir + "/jabo.phrb", data);
 	check(provider.load_cache_dir(dir), "reload a Jabo image with authored transparency");
 	provider.set_enabled(true);
 	check(provider.decode_rgba8_jabo(resolution.resolved_checksum64, resolution.resolved_selector_checksum64, 4, &image) &&
-	      image.rgba8 == authored, "one authored alpha byte preserves the entire I image");
+	      image.rgba8 == authored, "one alpha below 254 preserves the entire I image");
 
 	check(provider.decode_rgba8_compat_with_selector(0x1234abcdull, 0x0104, 0, &image) &&
 	      image.rgba8 == opaque, "a non-Jabo native I record keeps opaque authored alpha");

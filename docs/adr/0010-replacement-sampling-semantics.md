@@ -1,6 +1,6 @@
 # ADR-0010: Replacement sampling: sub-texel fp5, direct sampling, CPU mips, trilinear
 
-- Status: Accepted, amended (latest 2026-10-15)
+- Status: Accepted, amended (latest 2026-11-02)
 - Date: 2026-06-10 (sequence of commits, each falsification-backed)
 
 ## Context
@@ -64,9 +64,9 @@ Replacement sampling operates in replacement-texel space, with these rules:
 
    *Jabo import qualification (2026-11-02):* direct Jabo MD5 packages lack
    native-format metadata at conversion time. On a native I draw only, a
-   completely opaque source image derives alpha as the integer average of
-   RGB, retaining RGB. Any authored transparency preserves the entire image;
-   IA and all other formats retain authored alpha. This matches the
+   source image whose alpha bytes are all at least 254 derives opacity as the
+   integer average of RGB, retaining RGB. Any alpha below 254 preserves the
+   entire image; IA and all other formats retain authored alpha. This matches the
    format-aware Rice import convention without applying it to already
    imported Rice/cache art. The provider decodes this Jabo-only variant at
    draw time, and the resident key includes native format/size so one MD5

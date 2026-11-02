@@ -698,15 +698,15 @@ bool ReplacementProvider::decode_rgba8_jabo(uint64_t key_lo, uint64_t key_hi, ui
 	if (!entry || !decode_entry_rgba8(*entry, out))
 		return false;
 
-	// Rice's I import treats a fully opaque repaint as an intensity mask.
+	// Rice's I import treats alpha 254/255 as opaque for an intensity mask.
 	// Apply this only in the Jabo namespace: its MD5 has no format metadata,
 	// so the converter cannot decide which interpretation a draw needs.
-	// IA has independent alpha, and any authored transparency is authoritative.
+	// IA has independent alpha; alpha below 254 preserves the entire image.
 	if (native_format == 4)
 	{
 		bool opaque = true;
 		for (size_t i = 3; i < out->rgba8.size(); i += 4)
-			opaque = opaque && out->rgba8[i] == 255;
+			opaque = opaque && out->rgba8[i] >= 254;
 		if (opaque)
 			for (size_t i = 0; i < out->rgba8.size(); i += 4)
 				out->rgba8[i + 3] = uint8_t((unsigned(out->rgba8[i]) + out->rgba8[i + 1] + out->rgba8[i + 2]) / 3);

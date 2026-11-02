@@ -245,6 +245,11 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 	ivec4 hires_point_stzw = span_setup.stzw;
 	int hires_point_dx = dx;
+	bool hires_point_rectangle = !perspective && (setup_flags & TRIANGLE_SETUP_TEX_RECT_BIT) != 0u;
+	// Swapped-axis rectangles currently snap to native output pixels. Center
+	// that native footprint, rather than a subpixel which is never traversed.
+	int hires_center_scaling_log2 = hires_point_rectangle &&
+		(setup_flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) != 0u ? 0 : SCALING_LOG2;
 #endif
 
 	// Sample textures.
@@ -276,10 +281,21 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 #endif
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 		ivec2 native_st0 = st;
+		ivec2 hires_point_bias0 = ivec2(0);
 		if (!sample_quad && tile_uses_hires_replacement(tile_info0))
-			st = interpolate_hires_point_center(hires_point_stzw, attr.dstzw_dx, attr.dstzw_dy, hires_point_dx, perspective);
+		{
+			st = interpolate_hires_point_center(hires_point_stzw, attr.dstzw_dx, attr.dstzw_dy,
+			                                    hires_point_dx, perspective, hires_center_scaling_log2);
+			if (hires_point_rectangle)
+				hires_point_bias0 = hires_point_rectangle_bias(tile_info0, attr.stzw.xy >> 16,
+				                                                attr.dstzw_dx.xy, attr.dstzw_dy.xy);
+		}
 #endif
-		texel0 = sample_texture(tile_info0, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel, false, bilerp0, derived.factors, i16x4(0));
+		texel0 = sample_texture(tile_info0, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel, false, bilerp0, derived.factors, i16x4(0)
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+		                        , hires_point_bias0
+#endif
+		                        );
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 		st = native_st0;
 #endif
@@ -340,11 +356,22 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 #endif
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 			ivec2 native_st1 = st;
+			ivec2 hires_point_bias1 = ivec2(0);
 			if (!sample_quad && tile_uses_hires_replacement(tile_info1))
-				st = interpolate_hires_point_center(hires_point_stzw, attr.dstzw_dx, attr.dstzw_dy, hires_point_dx, perspective);
+			{
+				st = interpolate_hires_point_center(hires_point_stzw, attr.dstzw_dx, attr.dstzw_dy,
+				                                    hires_point_dx, perspective, hires_center_scaling_log2);
+				if (hires_point_rectangle)
+					hires_point_bias1 = hires_point_rectangle_bias(tile_info1, attr.stzw.xy >> 16,
+					                                                attr.dstzw_dx.xy, attr.dstzw_dy.xy);
+			}
 #endif
 			texel1 = sample_texture(tile_info1, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel,
-			                        convert_one, bilerp1, derived.factors, texel0);
+			                        convert_one, bilerp1, derived.factors, texel0
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			                        , hires_point_bias1
+#endif
+			                        );
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 			st = native_st1;
 #endif

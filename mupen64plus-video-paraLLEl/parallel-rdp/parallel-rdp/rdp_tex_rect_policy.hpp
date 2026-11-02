@@ -40,7 +40,7 @@ inline TextureRectanglePolicyOutput build_texture_rectangle_policy(const Texture
 	out.setup.yh = in.rect.yh;
 	out.setup.tile = (in.word1 >> 24) & 0x7;
 
-	out.setup.flags = TRIANGLE_SETUP_FLIP_BIT;
+	out.setup.flags = TRIANGLE_SETUP_FLIP_BIT | TRIANGLE_SETUP_TEX_RECT_BIT;
 	if (in.flip || in.native_resolution_tex_rect)
 		out.setup.flags |= TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
 	if (in.native_texture_lod)

@@ -11,7 +11,7 @@
 // Scalar int/float arithmetic keeps these helpers usable by both GLSL and the
 // display-free C++ test.
 
-// N64 point draws interpolate ST at the output pixel's upper-left sample.
+// General N64 point triangles interpolate ST at the output pixel's upper-left sample.
 // A continuous replacement reconstructs at its center. Keep the signed screen
 // derivatives (including W) and offset before perspective division; a fixed
 // texture-space bias would be wrong for scaled or rotated draws.
@@ -19,6 +19,19 @@ int hires_point_center_offset(int delta_x, int delta_y, int scaling_log2)
 {
 	return ((delta_x & ~0x1f) >> (scaling_log2 + 1)) +
 	       ((delta_y & ~0x7fff) >> (scaling_log2 + 1));
+}
+
+// A point rectangle starts in floor(origin), including reflected rectangles
+// authored at either edge of that texel. Rebase the constant origin phase to
+// the low edge for positive traversal or the high edge for negative traversal;
+// the signed half output-pixel step then moves inward. Apply after tile shift.
+// Constant axes retain their authored phase. This is continuous reconstruction,
+// not exact native floor sampling at arbitrary fractional texture rates.
+int hires_point_rectangle_origin_bias(int origin_fp5, int delta_x, int delta_y)
+{
+	if (delta_x == 0 && delta_y == 0)
+		return 0;
+	return ((delta_x < 0 || delta_y < 0) ? 32 : 0) - (origin_fp5 & 31);
 }
 
 const int HIRES_ADDRESS_CLAMP = 0;

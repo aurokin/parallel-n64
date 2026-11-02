@@ -55,7 +55,7 @@ int main()
 	check((hires_point_center_offset(texel_step / 2, 0, 0) >> 16) == 8,
 	      "a magnified UI glyph uses its actual half-pixel footprint");
 	check((hires_point_center_offset(0, -texel_step, 0) >> 16) == -16,
-	      "rotated or reflected mappings keep the derivative sign");
+	      "general triangles retain signed derivatives before perspective division");
 	check((hires_point_center_offset(texel_step / 2, texel_step / 4, 0) >> 16) == 12,
 	      "sheared mappings include both screen derivatives");
 	const int center_1x = 3 * 32 + (hires_point_center_offset(texel_step, 0, 0) >> 16);
@@ -76,6 +76,42 @@ int main()
 	check(hires_address_texel(int(first_position), 128, 128, HIRES_ADDRESS_WRAP) == 0 &&
 	      hires_address_texel(int(last_position), 128, 128, HIRES_ADDRESS_WRAP) == 127,
 	      "tile-boundary samples do not fetch the opposite edge of a wrapping image");
+
+	// Review's 32-native/128-replacement strip, including both reflected
+	// origins used by games and the half-texel positive origin (F1/F2).
+	for (int scaling_log2 : {0, 2})
+	{
+		const int scale = 1 << scaling_log2;
+		for (bool reflected : {false, true})
+			for (int phase : {0, reflected ? 31 : 16})
+			{
+				const int origin = (reflected ? 31 * 32 : 0) + phase;
+				const int delta = reflected ? -texel_step : texel_step;
+				const int bias = hires_point_rectangle_origin_bias(origin, delta, 0);
+				for (int j = 0; j < 32 * scale; j++)
+				{
+					const int coordinate = origin + (reflected ? -1 : 1) * j * (32 / scale)
+						+ (hires_point_center_offset(delta, 0, scaling_log2) >> 16) + bias;
+					const float position = hires_tap_position(coordinate, false, true, 4.0f, false, 32);
+					const float expected = scaling_log2 == 0 ?
+						(reflected ? 125.5f - 4.0f * j : 1.5f + 4.0f * j) :
+						float(reflected ? 127 - j : j);
+					check(position == expected, "point rectangles traverse all 32 texels without opposite-edge taps");
+				}
+			}
+	}
+	check(hires_point_rectangle_origin_bias(16, 0, 0) == 0,
+	      "constant axes retain their authored phase");
+	check(hires_point_rectangle_origin_bias(31 * 32 + 31, 0, -texel_step) == 1,
+	      "swapped rectangle axes use the same negative origin rebase");
+	for (int delta : {texel_step / 2, texel_step * 2, -texel_step / 2, -texel_step * 2})
+	{
+		const int bias = hires_point_rectangle_origin_bias(16, delta, 0);
+		const int expected_bias = delta < 0 ? 16 : -16;
+		check(bias == expected_bias, "rectangle origin rebase does not alter signed texture rate");
+		check(hires_point_rectangle_origin_bias(16, 0, delta) == bias,
+		      "rectangle origin reconstruction is independent of screen axis");
+	}
 
 	check(hires_address_mode(0, false, false, 32) == HIRES_ADDRESS_CLAMP, "unmasked axis clamps");
 	check(hires_address_mode(5, true, false, 32) == HIRES_ADDRESS_CLAMP,

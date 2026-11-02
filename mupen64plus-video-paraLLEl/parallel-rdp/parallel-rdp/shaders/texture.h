@@ -745,14 +745,31 @@ i16x4 texture_convert_factors(i16x4 texel_in, i16x4 factors)
 	return i16x4(r, g, b, a);
 }
 
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+ivec2 hires_point_rectangle_bias(TileInfo tile, ivec2 origin, ivec2 delta_x, ivec2 delta_y)
+{
+	ivec2 shifted_origin = ivec2(shift_coord(origin.x, int(tile.slo), int(tile.shift_s)),
+	                             shift_coord(origin.y, int(tile.tlo), int(tile.shift_t)));
+	return ivec2(hires_point_rectangle_origin_bias(shifted_origin.x, delta_x.x, delta_y.x),
+	             hires_point_rectangle_origin_bias(shifted_origin.y, delta_x.y, delta_y.y));
+}
+#endif
+
 i16x4 sample_texture(TileInfo tile, uint tmem_instance, ivec2 st, ivec2 st_ddx, ivec2 st_ddy,
                      bool tlut, bool tlut_type, bool sample_quad, bool mid_texel, bool convert_one,
-                     bool bilerp, i16x4 conversion_factors, i16x4 prev_cycle)
+                     bool bilerp, i16x4 conversion_factors, i16x4 prev_cycle
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+                     , ivec2 hires_point_bias
+#endif
+                     )
 {
 	// Replacement addressing applies the clamp and mask in replacement space,
 	// so keep the shifted coordinate from before the native clamp.
 	ivec2 hires_st_fp5 = ivec2(shift_coord(st.x, int(tile.slo), int(tile.shift_s)),
 	                           shift_coord(st.y, int(tile.tlo), int(tile.shift_t)));
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	hires_st_fp5 += hires_point_bias;
+#endif
 	st.x = clamp_and_shift_coord((tile.flags & TILE_INFO_CLAMP_S_BIT) != 0, st.x, int(tile.slo), int(tile.shi), int(tile.shift_s));
 	st.y = clamp_and_shift_coord((tile.flags & TILE_INFO_CLAMP_T_BIT) != 0, st.y, int(tile.tlo), int(tile.thi), int(tile.shift_t));
 

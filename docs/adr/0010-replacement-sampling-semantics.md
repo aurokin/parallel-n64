@@ -92,17 +92,29 @@ Replacement sampling operates in replacement-texel space, with these rules:
    block was removed with no behavior change.
 
    *Point reconstruction phase (2026-11-02):* non-copy point draws evaluate
-   replacement ST at the output pixel's center. The N64 point path evaluates
-   its upper-left sample; feeding that coordinate directly into continuous
-   replacement filtering samples between texel centers. On abutting,
-   wrapping replacement tiles this mixed the opposite image edge into the
-   first row/column (Big Mountain 2000's title logo). Offset the interpolated
-   S, T and W by half their signed output-screen derivatives before
-   perspective division, retaining the point footprint convention above.
-   This accounts for rotated, reflected, sheared and magnified mappings;
-   a fixed half-native-texel offset does not. Native point sampling, native
-   bilinear draws, copy draws, addressing periods and lookup stay unchanged.
-   Only replacement rasterizer SPIR-V changes.
+   replacement ST at the output pixel's center. Feeding the N64 upper-left
+   sample directly into continuous filtering mixes opposite edges of wrapping
+   replacement tiles (Big Mountain 2000's title logo). General triangles offset
+   S, T and W by half their signed screen derivatives before perspective divide.
+
+   Texture rectangles additionally rebase the authored, tile-relative origin
+   to the selected native texel's low edge for positive traversal, or its high
+   edge for negative traversal. With origin q0, signed native-pixel rate d and
+   effective output scale N, reconstruction is q(j) - fract(q0) +
+   (d < 0 ? 1 : 0) + d/(2N). This retains both integer and fractional flipped
+   origins and handles positive half-texel starts. For a negative unit-rate
+   rectangle starting at 31, the correction is +1/2 at 1x and +7/8 at 4x;
+   a literal absolute half-step at 4x would still fetch across the opposite edge.
+   Origin phase is removed after each sampled tile's shift and origin
+   subtraction. Constant axes keep their phase. Swapped-axis rectangles retain
+   their existing native-pixel snapping, using N=1 for the reconstruction center.
+
+   This is continuous replacement reconstruction, not exact native floor
+   sampling at every fractional texture rate; authored subtexel scrolling can
+   change phase. General triangles retain signed centering and do not receive
+   rectangle origin rebasing. Native point sampling, bilinear draws, copy draws,
+   addressing periods and lookup remain unchanged. Only replacement rasterizer
+   SPIR-V changes.
 
 Replaced draws thereby diverge deliberately from N64 filter semantics — sanctioned,
 because direct sampling is the point of replacement. Feature-off is provably inert

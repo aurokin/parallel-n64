@@ -95,13 +95,13 @@ ivec2 interpolate_st_single(ivec4 stzw, ivec4 dstzw_dx, int dx, bool perspective
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
 #include "hires_addressing.h"
 
-ivec2 interpolate_hires_point_center(ivec4 stzw, ivec4 dstzw_dx, ivec4 dstzw_dy, int dx, bool perspective)
+ivec2 interpolate_hires_point_center(ivec4 stzw, ivec4 dstzw_dx, ivec4 dstzw_dy, int dx, bool perspective, int center_scaling_log2)
 {
 	ivec3 stw = stzw.xyw + ((dstzw_dx.xyw & ~0x1f) >> SCALING_LOG2) * dx;
 	stw += ivec3(
-			hires_point_center_offset(dstzw_dx.x, dstzw_dy.x, SCALING_LOG2),
-			hires_point_center_offset(dstzw_dx.y, dstzw_dy.y, SCALING_LOG2),
-			hires_point_center_offset(dstzw_dx.w, dstzw_dy.w, SCALING_LOG2));
+			hires_point_center_offset(dstzw_dx.x, dstzw_dy.x, center_scaling_log2),
+			hires_point_center_offset(dstzw_dx.y, dstzw_dy.y, center_scaling_log2),
+			hires_point_center_offset(dstzw_dx.w, dstzw_dy.w, center_scaling_log2));
 	if (perspective)
 	{
 		bool overflow = false;

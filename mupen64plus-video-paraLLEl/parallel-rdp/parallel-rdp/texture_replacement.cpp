@@ -689,13 +689,29 @@ bool ReplacementProvider::resolve_jabo_candidate(const uint8_t md5[16], Replacem
 	return populate_resolution_from_entry(find_jabo_entry(key[0], key[1]), ReplacementResolutionKind::JaboMd5, false, out);
 }
 
-bool ReplacementProvider::decode_rgba8_jabo(uint64_t key_lo, uint64_t key_hi, ReplacementImage *out) const
+bool ReplacementProvider::decode_rgba8_jabo(uint64_t key_lo, uint64_t key_hi, uint32_t native_format, ReplacementImage *out) const
 {
 	if (!enabled_ || !out)
 		return false;
 
 	const Entry *entry = find_jabo_entry(key_lo, key_hi);
-	return entry && decode_entry_rgba8(*entry, out);
+	if (!entry || !decode_entry_rgba8(*entry, out))
+		return false;
+
+	// Rice's I import treats a fully opaque repaint as an intensity mask.
+	// Apply this only in the Jabo namespace: its MD5 has no format metadata,
+	// so the converter cannot decide which interpretation a draw needs.
+	// IA has independent alpha, and any authored transparency is authoritative.
+	if (native_format == 4)
+	{
+		bool opaque = true;
+		for (size_t i = 3; i < out->rgba8.size(); i += 4)
+			opaque = opaque && out->rgba8[i] == 255;
+		if (opaque)
+			for (size_t i = 0; i < out->rgba8.size(); i += 4)
+				out->rgba8[i + 3] = uint8_t((unsigned(out->rgba8[i]) + out->rgba8[i + 1] + out->rgba8[i + 2]) / 3);
+	}
+	return true;
 }
 
 const ReplacementProvider::Entry *ReplacementProvider::find_any_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const

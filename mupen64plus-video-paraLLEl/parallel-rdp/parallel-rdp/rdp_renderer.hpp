@@ -290,7 +290,7 @@ private:
 	Vulkan::ImageHandle create_hires_replacement_image_with_mips(const ReplacementImage &replacement);
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta);
 	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta, const ReplacementPalette *palette = nullptr);
-	bool resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64_t key_hi, ReplacementMeta &meta);
+	bool resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64_t key_hi, uint16_t formatsize, ReplacementMeta &meta);
 	bool resolve_hires_jabo_draw_candidate(const TileMeta &tile_meta, const detail::HiresCompatView &view,
 	                                       uint64_t rice_checksum64, bool tlut_ia16, ReplacementResolution *out,
 	                                       uint64_t *source_hash);

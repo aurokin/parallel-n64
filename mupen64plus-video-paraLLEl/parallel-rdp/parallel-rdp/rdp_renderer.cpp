@@ -5147,6 +5147,7 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 		if (!resolve_hires_jabo_replacement_descriptor(
 			    resolution.resolved_checksum64,
 			    resolution.resolved_selector_checksum64,
+			    formatsize,
 			    resolved_meta))
 			return false;
 		resolved_meta.orig_w = orig_w;
@@ -5225,7 +5226,7 @@ bool Renderer::resolve_hires_compat_replacement_descriptor(uint64_t checksum64, 
 	return true;
 }
 
-bool Renderer::resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64_t key_hi, ReplacementMeta &meta)
+bool Renderer::resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64_t key_hi, uint16_t formatsize, ReplacementMeta &meta)
 {
 	meta.vk_image_index = detail::hires_invalid_descriptor_index();
 
@@ -5236,8 +5237,11 @@ bool Renderer::resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64
 	key.checksum64 = key_lo;
 	key.selector_checksum64 = key_hi;
 	key.source = HiresKeySource::Jabo;
+	// One MD5 can be drawn as I or a format with independent alpha.
+	// Keep their decoded mip chains and resident descriptors distinct.
+	key.formatsize = formatsize;
 	if (!load_hires_descriptor(key, meta, [&](ReplacementImage &replacement) {
-		return replacement_provider->decode_rgba8_jabo(key_lo, key_hi, &replacement);
+		return replacement_provider->decode_rgba8_jabo(key_lo, key_hi, formatsize & 0xffu, &replacement);
 	}))
 		return false;
 

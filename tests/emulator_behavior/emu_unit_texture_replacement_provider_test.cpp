@@ -342,7 +342,7 @@ static void test_phrb_v8_jabo_records()
 		asset.format = GL_RGBA8;
 		asset.texture_format = GL_RGBA;
 		asset.pixel_type = GL_UNSIGNED_BYTE;
-		asset.legacy_formatsize = kinds[i] == 0 ? 0x0102 : 0;
+		asset.legacy_formatsize = kinds[i] == 0 ? 0x0104 : 0;
 		asset.legacy_checksum64 = kinds[i] == 0 ? 0x1234abcdull : 0;
 		asset.rgba_blob_offset = 16 * i;
 		asset.rgba_blob_size = 16;
@@ -372,11 +372,45 @@ static void test_phrb_v8_jabo_records()
 	      resolution.resolved_selector_checksum64 == 0x10715b74bec51b15ull,
 	      "a Jabo hit reports the little-endian MD5 halves");
 	ReplacementImage image = {};
-	check(provider.decode_rgba8_jabo(resolution.resolved_checksum64, resolution.resolved_selector_checksum64, &image) &&
+	check(provider.decode_rgba8_jabo(resolution.resolved_checksum64, resolution.resolved_selector_checksum64, 4, &image) &&
 	      image.rgba8 == pixels[1],
 	      "the Jabo asset decodes from the package blob");
+	// The same Jabo key can be interpreted under different native formats.
+	const std::vector<uint8_t> opaque = {
+		0, 0, 0, 255, 30, 60, 90, 255, 255, 0, 1, 255, 255, 255, 255, 255
+	};
+	std::copy(opaque.begin(), opaque.end(), data.begin() + header.blob_offset);
+	std::copy(opaque.begin(), opaque.end(), data.begin() + header.blob_offset + 16);
+	write_file(dir + "/jabo.phrb", data);
+	check(provider.load_cache_dir(dir), "reload opaque Jabo pixels");
+	provider.set_enabled(true);
+	for (uint32_t fmt = 0; fmt <= 4; fmt++)
+	{
+		check(provider.decode_rgba8_jabo(resolution.resolved_checksum64, resolution.resolved_selector_checksum64, fmt, &image),
+		      "decode the same MD5 with a draw's native format");
+		auto expected = opaque;
+		if (fmt == 4)
+		{
+			expected[3] = 0;
+			expected[7] = 60;
+			expected[11] = 85;
+		}
+		check(image.rgba8 == expected, "only native I derives alpha, preserving RGB and integer average");
+	}
+	auto authored = opaque;
+	authored[7] = 254;
+	std::copy(authored.begin(), authored.end(), data.begin() + header.blob_offset + 16);
+	write_file(dir + "/jabo.phrb", data);
+	check(provider.load_cache_dir(dir), "reload a Jabo image with authored transparency");
+	provider.set_enabled(true);
+	check(provider.decode_rgba8_jabo(resolution.resolved_checksum64, resolution.resolved_selector_checksum64, 4, &image) &&
+	      image.rgba8 == authored, "one authored alpha byte preserves the entire I image");
+
+	check(provider.decode_rgba8_compat_with_selector(0x1234abcdull, 0x0104, 0, &image) &&
+	      image.rgba8 == opaque, "a non-Jabo native I record keeps opaque authored alpha");
+
 	ReplacementMeta meta = {};
-	check(provider.lookup(0x1234abcdull, 0x0102, &meta) && meta.repl_w == 2, "the Rice record still resolves");
+	check(provider.lookup(0x1234abcdull, 0x0104, &meta) && meta.repl_w == 2, "the Rice record still resolves");
 	uint8_t other[16];
 	std::memcpy(other, md5, sizeof(other));
 	other[15] ^= 1;

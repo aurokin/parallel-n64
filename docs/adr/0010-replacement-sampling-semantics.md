@@ -62,6 +62,17 @@ Replacement sampling operates in replacement-texel space, with these rules:
    side, fixed by the cutout/alpha kill rules in ADR-0018. Verbatim serving
    itself stands unchanged.
 
+   *Jabo import qualification (2026-11-02):* direct Jabo MD5 packages lack
+   native-format metadata at conversion time. On a native I draw only, a
+   completely opaque source image derives alpha as the integer average of
+   RGB, retaining RGB. Any authored transparency preserves the entire image;
+   IA and all other formats retain authored alpha. This matches the
+   format-aware Rice import convention without applying it to already
+   imported Rice/cache art. The provider decodes this Jabo-only variant at
+   draw time, and the resident key includes native format/size so one MD5
+   cannot reuse another format's alpha interpretation. No reference code is
+   incorporated.
+
 8. **Addressing happens in replacement-texel space** (2026-10-15). The sampler
    takes the tile-relative coordinate before the N64 clamp and mask, scales it
    to the replacement, and wraps, mirrors or clamps each bilinear tap with the

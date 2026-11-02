@@ -216,7 +216,9 @@ public:
 	// Project64/Jabo packs key replacements by a 16-byte MD5 (rdp_hires_jabo_key.hpp).
 	// A hit reports the key's little-endian halves as resolved checksum/selector.
 	bool resolve_jabo_candidate(const uint8_t md5[16], ReplacementResolution *out) const;
-	bool decode_rgba8_jabo(uint64_t key_lo, uint64_t key_hi, ReplacementImage *out) const;
+	// Jabo filenames do not encode native format. Only opaque I-format
+	// repaints derive alpha from intensity; authored transparency is retained.
+	bool decode_rgba8_jabo(uint64_t key_lo, uint64_t key_hi, uint32_t native_format, ReplacementImage *out) const;
 	bool lookup(uint64_t checksum64, uint16_t formatsize, ReplacementMeta *out) const;
 	bool probe_lookup(uint32_t texture_crc, uint32_t palette_crc, uint16_t formatsize, ReplacementMeta *out) const;
 	bool lookup_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta *out) const;

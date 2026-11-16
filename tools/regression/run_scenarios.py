@@ -440,7 +440,9 @@ def parse_hires(log_text: str) -> dict[str, Any]:
         entries=fields.get("entries"),
         hits=fields.get("hits"),
         misses=fields.get("misses"),
-        draw_hits=fields.get("compat_draw_hits"),
+        # Draw-time replacement hits; older summaries without the field fall
+        # back to lookup hits.
+        draw_hits=fields.get("compat_draw_hits", fields.get("hits")),
     )
     return hires
 
@@ -911,10 +913,12 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
             # Uploads do not prove a replacement was sampled by a draw.
             jabo = hires.get("jabo") or {}
             served = (hires["draw_hits"] or 0) + jabo.get("hits", 0)
+            looked_up = served + (hires["hits"] or 0) + (hires["misses"] or 0)
             detail = f"hits={hires['hits']} draw_hits={hires['draw_hits']} misses={hires['misses']}"
             if jabo:
                 detail += f" jabo_hits={jabo['hits']} jabo_misses={jabo['misses']}"
-            gates.append(gate("hires.served", "pass" if served >= 1 else "fail", detail))
+            gates.append(gate("hires.served", "pass" if served >= 1 else "skip" if looked_up == 0 else "fail",
+                              detail if looked_up else "no texture lookups"))
         else:
             active = hires["provider"] == "on"
             gates.append(gate("hires.inert", "fail" if active else "pass",

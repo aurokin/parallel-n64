@@ -235,9 +235,9 @@ def main(argv: list[str] | None = None) -> int:
     if doctor.returncode != 0:
         print(f"[conformance] host is not idle; refusing to start:\n{doctor.stdout}{doctor.stderr}", file=sys.stderr)
         return 2
-    os.environ["PARALLEL_N64_CPUCORE_OVERRIDE"] = args.cpucore
     runner_args = argparse.Namespace(
         core=args.core, retroarch_bin=args.retroarch_bin, base_config=args.base_config,
+        env={"PARALLEL_N64_CPUCORE_OVERRIDE": args.cpucore},
         extra_append_config=args.extra_append_config, mode="off", pack=None, pack_map=None,
         rom=None, rom_map=None, blobs=None, ttl=None, step_chunk=600, orphan_grace=args.orphan_grace,
         hires_summary_interval=600, runtime_class=f"{args.runtime_class}.{args.cpucore}")

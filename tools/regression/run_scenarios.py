@@ -26,6 +26,7 @@ import re
 import shutil
 import signal
 import subprocess
+import struct
 import sys
 import tempfile
 import time
@@ -580,7 +581,12 @@ def take_checkpoint(session: Session, cp: Checkpoint, out: Path) -> dict[str, An
                              timeout=CAPTURE_WAIT_SECONDS + 30)
         if not reply.ok:
             raise session.fail(reply, "timeout", f"screenshot at {cp.after_frames}")
-        capture = Path(reply.stdout.strip().splitlines()[-1])
+        paths = reply.stdout.strip().splitlines()
+        if not paths:
+            raise RunFailure("capture-failed", f"screenshot at {cp.after_frames}: empty reply")
+        capture = Path(paths[-1])
+        if not capture.is_file():
+            raise RunFailure("capture-failed", f"screenshot at {cp.after_frames}: missing file {capture}")
         warnings = session.bundle / "logs" / "capture.warnings.log"
         observed["capture_path"] = os.path.relpath(capture, out)
         observed["capture_sha256"] = sha256_file(capture)
@@ -625,15 +631,11 @@ def execute(scenario: Scenario, ctx: RunContext, session: Session, record: dict[
              "--retroarch-bin", str(args.retroarch_bin), "--base-config", str(args.base_config),
              "--ttl-seconds", str(args.ttl or max(600, 180 + scenario.total_frames // 10)),
              "--start-paused"]
-    extra_config = args.extra_append_config
-    if args.mode == "on":
-        # Vulkan viewport screenshots can include frontend messages. Suppress
-        # notifications in captures, preserving any caller's other settings.
-        extra_config = stage_dir / "capture.cfg"
-        extra_config.write_text((args.extra_append_config.read_text() if args.extra_append_config else "")
-                                + '\nvideo_font_enable = "false"\nmenu_enable_widgets = "false"\n')
-    if extra_config:
-        start += ["--extra-append-config", str(extra_config)]
+    # Frontend notifications must not contaminate captures in either mode.
+    extra_config = stage_dir / "capture.cfg"
+    extra_config.write_text((args.extra_append_config.read_text() if args.extra_append_config else "")
+                            + '\nvideo_font_enable = "false"\nmenu_enable_widgets = "false"\n')
+    start += ["--extra-append-config", str(extra_config)]
     if inputs.state:
         # The adapter copies a "ParaLLEish" source into the core's sorted
         # state directory; RetroArch names slots after the content basename.
@@ -686,14 +688,16 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
     runtime_slug = re.sub(r"[^A-Za-z0-9._-]+", "_", args.runtime_class)
     if args.mode == "on" and args.hires_budget_mb != 8192:
         runtime_slug += f"__hires-budget-{args.hires_budget_mb}mb"
+    if getattr(args, "env", {}):
+        runtime_slug += "__env-" + sha256_bytes(json.dumps(args.env, sort_keys=True).encode())
     bundle = ctx.out / "bundles" / f"{scenario.id}__{args.mode}__{runtime_slug}"
     if bundle.exists():
         bundle.rename(bundle.with_name(f"{bundle.name}.interrupted-{int(time.time())}"))
     (bundle / "logs").mkdir(parents=True)
-    env = dict(os.environ)
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith(("PARALLEL_RDP_", "RDP_")) and key != "PARALLEL_N64_CPUCORE_OVERRIDE"}
     if args.mode == "on":
         env["PARALLEL_RDP_HIRES_GPU_BUDGET_MB"] = str(args.hires_budget_mb)
-        env["PARALLEL_RDP_HIRES_LOAD"] = "sync"
     pack = ctx.pack_for(scenario)
     pack_sha = ctx.pack_sha(pack) if pack else None
     if pack:
@@ -703,10 +707,12 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
     else:
         for key in ("PARALLEL_RDP_HIRES_CACHE_PATH", "PARALLEL_RDP_HIRES_CACHE_SHA256"):
             env.pop(key, None)
+    env.update(getattr(args, "env", {}))
     session = Session(ctx.adapter, bundle, env)
 
     record: dict[str, Any] = {
         "scenario": scenario.id, "condition": ctx.condition, "mode": args.mode,
+        "env": getattr(args, "env", {}),
         "runtime_class": args.runtime_class, **ctx.identities, "pack_sha256": pack_sha,
         "rom_sha256": scenario.rom_sha256,
         "scenario_file": str(scenario.path), "bundle": os.path.relpath(bundle, ctx.out),
@@ -723,6 +729,9 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
         inputs = resolve_inputs(scenario, ctx, stage_dir)
         launched = True
         execute(scenario, ctx, session, record, inputs, stage_dir)
+    except (OSError, ValueError, EOFError, zlib.error, struct.error) as failure:
+        record["exit_class"] = "artifact-failed"
+        record["error"] = str(failure)
     except RunFailure as failure:
         record["exit_class"] = failure.exit_class
         record["error"] = str(failure)
@@ -877,11 +886,10 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
     if hires is not None:
         if mode == "on":
             residency = hires.get("residency") or {}
-            deterministic = residency.get("mode") == "sync"
             bounded = (residency.get("budget", 0) > 0
                        and residency.get("resident_bytes", -1) >= 0
                        and residency["resident_bytes"] <= residency["budget"])
-            gates.append(gate("hires.residency", "pass" if deterministic and bounded else "fail",
+            gates.append(gate("hires.residency", "pass" if bounded else "fail",
                               f"mode={residency.get('mode')} resident_bytes={residency.get('resident_bytes')} "
                               f"budget={residency.get('budget')}"))
             loaded = not hires["cache_load_failed"] and hires["provider"] == "on"
@@ -934,6 +942,7 @@ def expectation_entry(scenario: Scenario, record: dict[str, Any], mode: str) -> 
 def record_expectation(scenario: Scenario, record: dict[str, Any], ctx: RunContext) -> str:
     complete = record["exit_class"] == "clean" and not any(
         cp["ram_errors"] for cp in record["checkpoints"])
+    complete = complete and not any(g["status"] == "fail" for g in record["gates"])
     if not complete:
         return "not recorded: run was not clean"
     path = ctx.out / "expectations" / f"{scenario.id}.expect.json"
@@ -964,7 +973,13 @@ def latest_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def outcome(rec: dict[str, Any]) -> str:
     statuses = {g["status"] for g in rec["gates"]}
-    return "fail" if "fail" in statuses else "review" if "review" in statuses else "pass"
+    if "fail" in statuses:
+        return "fail"
+    comparisons = [g for g in rec["gates"] if g["name"].startswith(("ram@", "capture@"))
+                   or g["name"] in ("end_state", "end_savefile")]
+    if not comparisons or all(g["status"] == "skip" for g in comparisons):
+        return "no-coverage"
+    return "review" if "review" in statuses else "pass"
 
 
 def write_report(out: Path, records: list[dict[str, Any]]) -> None:
@@ -998,11 +1013,9 @@ def write_report(out: Path, records: list[dict[str, Any]]) -> None:
                 path = (by_frame.get(frame) or {}).get("capture_path")
                 reviews.append(f"- `{rec['scenario']}` {rec['condition']} {g['name']}: `{path}` ({g['detail']})")
     lines += reviews or ["None."]
-    report_only = [(r, g) for r in records for g in r["gates"]
-                   if g["name"] == "end_state" and "differs" in g["detail"] and g["status"] == "skip"]
-    if report_only:
-        lines += ["", "## Report-only differences", ""]
-        lines += [f"- `{r['scenario']}` {r['condition']} end state {g['detail']}" for r, g in report_only]
+    lines += ["", "## No coverage", ""]
+    lines += [f"- `{r['scenario']}` {r['condition']}: no comparison expectations"
+              for r in records if outcome(r) == "no-coverage"] or ["None."]
     flagged = [r for r in records if r["log_flags"]]
     lines += ["", "## Log flags", ""]
     lines += [f"- `{r['scenario']}` {r['condition']}: {', '.join(r['log_flags'])}" for r in flagged] or ["None."]
@@ -1047,6 +1060,10 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
                         help="id glob or tag=value[,value]; repeated filters must all match")
     parser.add_argument("--record-expectations", action="store_true",
                         help="write observed values to OUT/expectations/<id>.expect.json")
+    parser.add_argument("--allow-missing-expectations", action="store_true",
+                        help="allow scenarios without comparison expectations")
+    parser.add_argument("--env", action="append", default=[], metavar="NAME=VALUE",
+                        help="explicit session environment override (repeatable)")
     parser.add_argument("--expectations", type=Path, help="directory of <id>.expect.json files to gate against")
     parser.add_argument("--step-chunk", type=int, default=120, help="largest single STEP_FRAME (default 120)")
     parser.add_argument("--ttl", type=int, help="session TTL seconds (default scales with program length)")
@@ -1057,6 +1074,13 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--hires-summary-interval", type=int, default=600,
                         help="frames between periodic hi-res summaries where the core supports them")
     args = parser.parse_args(argv)
+    overrides = {}
+    for entry in args.env:
+        name, sep, value = entry.partition("=")
+        if not sep or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            parser.error("--env requires NAME=VALUE")
+        overrides[name] = value
+    args.env = overrides
     if args.step_chunk < 1:
         parser.error("--step-chunk must be positive")
     if args.hires_budget_mb < 1:
@@ -1119,6 +1143,8 @@ def main(argv: list[str] | None = None) -> int:
     condition = f"{args.mode}:{args.runtime_class}"
     if args.mode == "on" and args.hires_budget_mb != 8192:
         condition += f":hires-budget-{args.hires_budget_mb}mb"
+    if args.env:
+        condition += ":env-" + sha256_bytes(json.dumps(args.env, sort_keys=True).encode())
     done = {(r["scenario"], r["condition"]) for r in read_results(results_path)} if args.resume else set()
     pending = [s for s in selected if (s.id, condition) not in done]
     print(f"[regression] {len(selected)} selected, {len(selected) - len(pending)} already recorded, "
@@ -1154,7 +1180,9 @@ def main(argv: list[str] | None = None) -> int:
 
     records = latest_records(read_results(results_path))
     write_report(out, records)
-    failed = any(outcome(r) == "fail" for r in records)
+    failed = any(outcome(r) == "fail" or
+                 (outcome(r) == "no-coverage" and args.expectations and not args.allow_missing_expectations)
+                 for r in records)
     print(f"[regression] report: {out / 'report.md'}")
     return 1 if failed else 0
 

@@ -145,7 +145,7 @@ separate qualification checks. They are not yet pre-deploy golden coverage.
 | `hires.provider` — summary has `provider=on`, no cache load failure | — | fail |
 | `hires.entries`, `hires.served` (upload or draw-time hits) — at least one; `served` skips a session with no texture lookups | — | fail |
 | `hires.inert` — no `provider=on` summary | fail | — |
-| `hires.residency` — synchronous loading and computed resident bytes within budget | — | fail |
+| `hires.residency` — computed resident bytes within budget | — | fail |
 
 - End-state and RAM-cue gates follow
   [ADR-0019](../../docs/adr/0019-deterministic-emulation-state-gates.md):
@@ -172,8 +172,7 @@ separate qualification checks. They are not yet pre-deploy golden coverage.
   `PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES` in on mode so a core that
   emits periodic summaries leaves evidence even when shutdown is forced; cores
   without it log only at shutdown.
-- On-mode runs pin `PARALLEL_RDP_HIRES_GPU_BUDGET_MB=8192` and
-  `PARALLEL_RDP_HIRES_LOAD=sync`, overriding inherited environment values.
+- On-mode runs pin `PARALLEL_RDP_HIRES_GPU_BUDGET_MB=8192`.
   Use `--hires-budget-mb N` for an explicit positive budget in MiB (e.g. 64 or
   256 for pressure runs). The selected budget is recorded as `hires_budget_mb`;
   non-default budgets append `:hires-budget-Nmb` to the condition and
@@ -205,3 +204,10 @@ too: pass `--strict-rdram` to fail on any RDRAM difference. With `PARALLEL_RDP_H
 1x presented pass), replacement changes the framebuffer and depth-buffer contents
 written back, and those ranges are expected.
 
+
+Runs with no comparison expectations have outcome `no-coverage`. With
+`--expectations`, they fail the invocation unless `--allow-missing-expectations`
+is given. `--record-expectations` only records runs without failed gates.
+Inherited `PARALLEL_RDP_*`, `RDP_*`, and `PARALLEL_N64_CPUCORE_OVERRIDE` variables
+are stripped. Repeat `--env NAME=VALUE` for explicit overrides; these are recorded
+and included in the condition identity. Loading is always synchronous.

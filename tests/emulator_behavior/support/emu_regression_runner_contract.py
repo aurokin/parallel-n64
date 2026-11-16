@@ -47,9 +47,12 @@ def emit(line):
 if sub == "start":
     (bundle / "start-options.json").write_text(json.dumps(opts))
     assert "--start-paused" in flags and opts["--mode"] in ("off", "on")
+    (bundle / "session-env.json").write_text(json.dumps(dict(os.environ)))
+    config = Path(opts["--extra-append-config"]).read_text()
+    assert 'video_font_enable = "false"' in config
     if opts["--mode"] == "on":
         assert os.environ["PARALLEL_RDP_HIRES_GPU_BUDGET_MB"] == str(plan.get("budget_mb", 8192))
-        assert os.environ["PARALLEL_RDP_HIRES_LOAD"] == "sync"
+        assert "PARALLEL_RDP_HIRES_LOAD" not in os.environ
         config = Path(opts["--extra-append-config"]).read_text()
         assert 'video_font_enable = "false"' in config
     (bundle / "captures").mkdir(parents=True, exist_ok=True)
@@ -97,10 +100,19 @@ elif sub == "load-slot":
     st["body"] = staged.read_bytes().hex()
     emit("[State] Loading state")
 elif sub == "screenshot":
+    if plan.get("fail") == "empty-capture":
+        raise SystemExit(0)
     capture = bundle / "captures" / f"shot-{st['frame']:06d}.png"
+    if plan.get("fail") == "missing-capture":
+        print(capture)
+        raise SystemExit(0)
     capture.write_bytes(f"png:{st['frame']}:{plan.get('capture', 'base')}".encode())
     print(capture)
 elif sub == "save-slot":
+    if plan.get("fail") == "corrupt-state":
+        core_states.mkdir(parents=True, exist_ok=True)
+        (core_states / f"{st['stem']}.state{opts['--slot']}").write_bytes(b"#RZIPv\x01#" + b"x" * 13)
+        raise SystemExit(0)
     body = bytes.fromhex(st["body"]) if st["body"] else b"M64+SAVE"
     body += f"|frame={st['frame']}|inputs={st['inputs']}|{plan.get('state', '')}".encode()
     packed = zlib.compress(body)
@@ -193,7 +205,8 @@ class RegressionRunnerContract(unittest.TestCase):
         if mode == "on":
             argv += packs if packs is not None else ["--pack", str(self.root / "pack.phrb")]
         env = {**os.environ, "FAKE_ADAPTER_PLAN": json.dumps(plan or {}),
-               "PARALLEL_RDP_HIRES_GPU_BUDGET_MB": "1", "PARALLEL_RDP_HIRES_LOAD": "background"}
+               "PARALLEL_RDP_HIRES_GPU_BUDGET_MB": "1", "PARALLEL_RDP_HIRES_LOAD": "background",
+               "RDP_INHERITED": "bad", "PARALLEL_N64_CPUCORE_OVERRIDE": "bad"}
         result = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=120)
         results_path = self.root / out / "results.jsonl"
         records = [json.loads(line) for line in results_path.read_text().splitlines()] if results_path.is_file() else []
@@ -297,6 +310,44 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual(rerun.returncode, 0)
         self.assertEqual(len((self.root / "clean/results.jsonl").read_text().splitlines()), 2)
 
+    def test_missing_expectations_fail_unless_allowed(self):
+        for flags, rc in (((), 1), (("--allow-missing-expectations",), 0)):
+            result, records = self.run_runner("missing" + str(rc), "--expectations", str(self.root / "absent"), *flags)
+            self.assertEqual(result.returncode, rc, result.stdout + result.stderr)
+            self.assertTrue(all(runner.outcome(r) == "no-coverage" for r in records.values()))
+
+    def test_failed_gate_cannot_record_expectations(self):
+        result, records = self.run_runner("bad-golden", "--record-expectations", mode="on",
+                                          plan={"residency": "budget=100 resident_bytes=101"})
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse((self.root / "bad-golden/expectations").exists())
+
+    def test_environment_is_isolated_and_explicit_overrides_change_condition(self):
+        _, records = self.run_runner("isolated", "--select", "field-state")
+        rec = records["field-state"]
+        env = json.loads((self.root / "isolated" / rec["bundle"] / "session-env.json").read_text())
+        for name in ("PARALLEL_RDP_HIRES_GPU_BUDGET_MB", "RDP_INHERITED", "PARALLEL_N64_CPUCORE_OVERRIDE"):
+            self.assertNotIn(name, env)
+        _, records = self.run_runner("explicit", "--select", "field-state", "--env", "RDP_TEST=hello")
+        rec = records["field-state"]
+        env = json.loads((self.root / "explicit" / rec["bundle"] / "session-env.json").read_text())
+        self.assertEqual(env["RDP_TEST"], "hello")
+        self.assertEqual(rec["env"], {"RDP_TEST": "hello"})
+        self.assertIn(":env-", rec["condition"])
+
+    def test_capture_failure_records_failure_and_continues(self):
+        path = self.scenarios / "boot-power-on.json"
+        scenario = json.loads(path.read_text())
+        scenario["checkpoints"][0]["capture"] = True
+        self.write_scenario(scenario)
+        for fault, exit_class in (("empty-capture", "capture-failed"),
+                                  ("missing-capture", "capture-failed"),
+                                  ("corrupt-state", "artifact-failed")):
+            result, records = self.run_runner("capture-failure-" + fault, plan={"fail": fault})
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(len(records), 2)
+            self.assertTrue(all(r["exit_class"] == exit_class for r in records.values()), records)
+
     def test_off_mode_mismatches_fail(self):
         expectations = self.record_golden()
         result, records = self.run_runner("ram", "--expectations", str(expectations),
@@ -332,9 +383,8 @@ class RegressionRunnerContract(unittest.TestCase):
         review = report.split("## Review queue")[1]
         self.assertIn(record["checkpoints"][0]["capture_path"], review)
 
-    def test_residency_gate_rejects_async_or_over_budget(self):
-        for name, fields in (("async", "mode=background budget=100 resident_bytes=50"),
-                             ("overflow", "mode=sync budget=100 resident_bytes=101")):
+    def test_residency_gate_rejects_over_budget(self):
+        for name, fields in (("overflow", "budget=100 resident_bytes=101"),):
             result, records = self.run_runner(name, mode="on", plan={"residency": fields})
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(self.gates(records["field-state"])["hires.residency"], "fail")

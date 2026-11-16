@@ -87,6 +87,28 @@ def compare(off_run: Path, on_run: Path, strict_rdram: bool = False) -> list[dic
             entry["detail"].append(f"no {'off' if scenario not in off_results else 'on'} result")
             report.append(entry)
             continue
+        off, on = off_results[scenario], on_results[scenario]
+        problems = []
+        if off_run.resolve() == on_run.resolve():
+            problems.append("same run directory supplied twice")
+        for mode, record in (("off", off), ("on", on)):
+            if record.get("mode") != mode:
+                problems.append(f"{mode} record has mode {record.get('mode')!r}")
+            if record.get("exit_class") != "clean":
+                problems.append(f"{mode} run did not exit cleanly")
+            if not (record.get("load") == "ok" or
+                    (record.get("start_kind") == "power-on" and record.get("exit_class") == "clean")):
+                problems.append(f"{mode} run has no successful load")
+        if not off.get("core_sha256") or off.get("core_sha256") != on.get("core_sha256"):
+            problems.append("core sha256 differs or is missing")
+        hires = on.get("hires") or {}
+        if hires.get("provider") != "on" or (hires.get("entries") or 0) < 1:
+            problems.append("on run has no active hi-res provider with entries")
+        if problems:
+            entry["status"] = "fail"
+            entry["detail"].extend(problems)
+            report.append(entry)
+            continue
         off_cues = [c.get("ram", {}) for c in off_results[scenario].get("checkpoints", [])]
         on_cues = [c.get("ram", {}) for c in on_results[scenario].get("checkpoints", [])]
         if off_cues != on_cues:

@@ -762,6 +762,16 @@ int main()
 			return 1;
 		}
 
+		if (std::getenv("PARALLEL_N64_PROVIDER_VERIFY_ROUND_TRIP"))
+		{
+			provider.set_enabled(true);
+			check(provider.get_stats().entry_count == 1, "converter package must load one entry");
+			ReplacementImage image;
+			check(provider.decode_rgba8(0xaaaabbbb11111111ull, 258, &image), "converter pixel must decode");
+			check(image.rgba8.size() >= 4 && image.rgba8[0] == 255 && image.rgba8[1] == 0 &&
+			      image.rgba8[2] == 0 && image.rgba8[3] == 255, "converter preserves the red source pixel");
+		}
+
 		const auto stats = provider.get_stats();
 		std::cout
 			<< "provider_load_ok path=" << load_path

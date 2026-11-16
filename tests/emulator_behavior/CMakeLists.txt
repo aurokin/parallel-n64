@@ -42,7 +42,7 @@ set(EMU_BEHAVIOR_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/support")
 
 add_test(
   NAME emu.support.hts2phrb_round_trip
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_round_trip.sh"
+  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_round_trip.sh" "$<TARGET_FILE:emu_unit_texture_replacement_provider_test>"
 )
 
 add_test(

@@ -234,3 +234,6 @@ if float(stage_timings.get("total", -1)) < 0:
 PY
 
 echo "emu_hts2phrb_round_trip: PASS"
+
+PARALLEL_N64_PROVIDER_LOAD_CACHE_PATH="$OUTPUT_DIR" \
+PARALLEL_N64_PROVIDER_VERIFY_ROUND_TRIP=1 "$1"

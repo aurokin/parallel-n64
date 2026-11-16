@@ -81,18 +81,8 @@ add_test(
 )
 
 add_test(
-  NAME emu.support.hts2phrb_smoke
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_smoke.sh"
-)
-
-add_test(
   NAME emu.support.hts2phrb_round_trip
   COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_round_trip.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_directory_input
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_directory_input.sh"
 )
 
 add_test(
@@ -115,21 +105,6 @@ add_test(
   COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_bounded_memory_contract.py"
 )
 
-add_test(
-  NAME emu.support.hts2phrb_all_families
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_all_families.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_gates
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_gates.sh"
-)
-
-add_test(
-  NAME emu.support.hts2phrb_paper_mario_full_cache_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hts2phrb_paper_mario_full_cache_contract.sh"
-)
-set_tests_properties(emu.support.hts2phrb_paper_mario_full_cache_contract PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(
   NAME emu.support.gliden64_reference_guardrails

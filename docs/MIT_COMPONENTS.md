@@ -27,15 +27,11 @@ files that contain local modifications.
 | `parallel-rdp/rdp_hires_ci_palette_policy.hpp` | `3317ec66` |
 | `parallel-rdp/rdp_hires_compat_view.hpp` | `9f134ee2` |
 | `parallel-rdp/rdp_hires_jabo_key.hpp` | `6820a4b1` |
-| `parallel-rdp/rdp_hires_key_state_policy.hpp` | `0a18f945` |
 | `parallel-rdp/rdp_hires_load_origin_policy.hpp` | `9e866127` |
-| `parallel-rdp/rdp_hires_lookup_policy.hpp` | `e3d15e45` |
 | `parallel-rdp/rdp_hires_pass_policy.hpp` | `553e4a27` |
 | `parallel-rdp/rdp_hires_residency_policy.hpp` | Phase 1 residency replacement (2026-10-30; original MIT policy `2aece304`) |
 | `parallel-rdp/rdp_hires_runtime_policy.hpp` | `94dd3e86` |
-| `parallel-rdp/rdp_hires_state_policy.hpp` | `582872a4` |
 | `parallel-rdp/rdp_hires_strong_hash.hpp` | `65341153` |
-| `parallel-rdp/rdp_hires_summary_interval.hpp` | `1764dd53` |
 | `parallel-rdp/rdp_hires_texture_layout.hpp` | `c2522872` |
 | `parallel-rdp/rdp_memory_path_policy.hpp` | `31ff74e2` |
 | `parallel-rdp/rdp_other_modes_policy.hpp` | `ab6975a3` |

@@ -29,7 +29,6 @@
 #include "video_interface.hpp"
 #include "rdp_renderer.hpp"
 #include "rdp_common.hpp"
-#include "rdp_hires_summary_interval.hpp"
 #include "command_ring.hpp"
 #include "worker_thread.hpp"
 #include "texture_replacement.hpp"

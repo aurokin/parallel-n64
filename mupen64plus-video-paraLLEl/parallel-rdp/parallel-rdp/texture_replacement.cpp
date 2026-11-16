@@ -2276,13 +2276,6 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 	if (header.string_table_offset > header.blob_offset || header.blob_offset > static_cast<size_t>(size))
 		return ReplacementLoadStatus::Invalid;
 
-	// Read the metadata region: from after the header through end of string table (up to blob_offset).
-	const size_t metadata_size = static_cast<size_t>(header.blob_offset);
-	std::vector<uint8_t> blob(metadata_size);
-	file.seekg(0, std::ios::beg);
-	if (!read_exact(file, blob))
-		return ReplacementLoadStatus::Invalid;
-
 	const bool version3 = header.version >= 3;
 	const bool version4 = header.version >= 4;
 	const bool version5 = header.version >= 5;
@@ -2292,11 +2285,34 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 	const size_t record_size = version8 ? sizeof(PHRBRecordV8) : version4 ? sizeof(PHRBRecordV4) : sizeof(PHRBRecordV2);
 	const size_t asset_size = version7 ? sizeof(PHRBAssetV7) : version6 ? sizeof(PHRBAssetV6) :
 	                          version5 ? sizeof(PHRBAssetV5) : version3 ? sizeof(PHRBAssetV3) : sizeof(PHRBAssetV2);
-	if (header.record_table_offset > metadata_size ||
-	    header.record_count > (metadata_size - header.record_table_offset) / record_size ||
-	    header.asset_table_offset > metadata_size ||
-	    header.asset_count > (metadata_size - header.asset_table_offset) / asset_size)
+	const size_t metadata_size = static_cast<size_t>(header.blob_offset);
+	if (header.record_table_offset < sizeof(PHRBHeader) ||
+	    header.record_table_offset > header.asset_table_offset ||
+	    header.asset_table_offset > header.string_table_offset ||
+	    header.record_count > (header.asset_table_offset - header.record_table_offset) / record_size ||
+	    header.asset_count > (header.string_table_offset - header.asset_table_offset) / asset_size)
 		return ReplacementLoadStatus::Invalid;
+	// Read the metadata region: from after the header through end of string table (up to blob_offset).
+	std::vector<uint8_t> blob(metadata_size);
+	file.seekg(0, std::ios::beg);
+	if (!read_exact(file, blob))
+		return ReplacementLoadStatus::Invalid;
+
+	// Validate every candidate slice before publishing entries from any record.
+	uint32_t asset_total = 0;
+	for (uint32_t i = 0; i < header.record_count; i++)
+	{
+		uint32_t count = 0;
+		const size_t count_offset = version4 ? offsetof(PHRBRecordV4, asset_candidate_count) :
+		                                      offsetof(PHRBRecordV2, asset_candidate_count);
+		if (!read_pod_from_blob(blob, size_t(header.record_table_offset) + size_t(i) * record_size + count_offset, count) ||
+		    count > header.asset_count - asset_total)
+			return ReplacementLoadStatus::Invalid;
+		asset_total += count;
+	}
+	if (asset_total != header.asset_count)
+		return ReplacementLoadStatus::Invalid;
+
 	const bool phrb_debug = []() {
 		if (const char *env = getenv("PARALLEL_RDP_HIRES_PHRB_DEBUG"))
 			return strtol(env, nullptr, 0) > 0;
@@ -2499,7 +2515,7 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 			record.width == 0 &&
 			record.height == 0;
 
-		for (uint32_t ai = 0; ai < record.asset_candidate_count && (asset_base + ai) < header.asset_count; ai++)
+		for (uint32_t ai = 0; ai < record.asset_candidate_count; ai++)
 		{
 			const uint32_t asset_index = asset_base + ai;
 			uint32_t width = 0;

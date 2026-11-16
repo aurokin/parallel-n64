@@ -748,8 +748,44 @@ static void test_package_overlap()
 	remove_tree(dir);
 }
 
+static void test_malformed_package_bounds()
+{
+	const auto dir = make_temp_dir();
+	const auto path = dir + "/bad.phrb";
+	for (unsigned fault = 0; fault < 3; fault++)
+	{
+		write_single_asset_phrb(path, "bounds", "bounds", "family", 0, 0, 0, 0, 0, 0,
+		                        768, 0x12345678, 0, 0, 1, 1, {255, 0, 0, 255});
+		std::fstream file(path, std::ios::binary | std::ios::in | std::ios::out);
+		PHRBHeader header = {};
+		file.read(reinterpret_cast<char *>(&header), sizeof(header));
+		if (fault == 0)
+		{
+			PHRBRecordV4 record = {};
+			file.seekg(header.record_table_offset);
+			file.read(reinterpret_cast<char *>(&record), sizeof(record));
+			record.asset_candidate_count = UINT32_MAX;
+			file.seekp(header.record_table_offset);
+			file.write(reinterpret_cast<const char *>(&record), sizeof(record));
+		}
+		else
+		{
+			if (fault == 1) header.record_count = UINT32_MAX;
+			else header.blob_offset = UINT32_MAX;
+			file.seekp(0);
+			file.write(reinterpret_cast<const char *>(&header), sizeof(header));
+		}
+		file.close();
+		ReplacementProvider provider;
+		check(!provider.load_cache_dir(path) && provider.load_error() == ReplacementLoadStatus::Invalid,
+		      "malformed candidate count, record table or blob offset must fail");
+	}
+	remove_tree(dir);
+}
+
 int main()
 {
+	test_malformed_package_bounds();
 	test_package_overlap();
 	test_rgba8_decode_payloads();
 	test_indexed_replacements();

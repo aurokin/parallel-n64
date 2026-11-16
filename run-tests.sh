@@ -25,7 +25,7 @@ Options:
                         libretro core rebuild for the runtime profile)
   --list                List tests without running them
   --build-dir PATH      Override build dir (default: ./build/ctest)
-  --profile NAME        Test profile: all|emu-required|emu-conformance|emu-runtime-conformance|emu-conformance-roms|emu-tsan
+  --profile NAME        Test profile: all|emu-required|emu-harness|emu-conformance|emu-runtime-conformance|emu-conformance-roms|emu-tsan
   -R REGEX              Pass test regex to ctest
   -h, --help            Show this help
 
@@ -139,7 +139,11 @@ fi
 case "$selected_profile" in
   all)
     ;;
+  emu-harness)
+    ctest_args+=(-R "^emu\\.support\\.(interactive_load|interactive_lifecycle|adapter_config)_contract$")
+    ;;
   emu-required)
+    ctest_args+=(-E "^emu\\.support\\.(interactive_load|interactive_lifecycle|adapter_config)_contract$")
     ctest_args+=(-R "^emu\\.(unit\\.|support\\.|conformance\\.(vi_scanout_range|vi_scaling_crop)$)")
     ;;
   emu-conformance)

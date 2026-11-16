@@ -16,6 +16,8 @@ provided.
 
 ## Profiles
 
+- `emu-harness`: fake-frontend adapter load, lifecycle and configuration tests.
+  These exercise harness behavior separately from the required product gate.
 - `emu-required`: display-free unit, support, and static conformance checks.
   This is the required change gate.
 - `emu-runtime-conformance`: lavapipe smoke. It enables runtime opt-in and rebuilds the live core.

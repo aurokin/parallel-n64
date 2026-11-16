@@ -196,10 +196,6 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 
 	if (const char *env = getenv("PARALLEL_RDP_HIRES_DEBUG"))
 		renderer.set_hires_debug(strtol(env, nullptr, 0) > 0);
-	if (const char *env = getenv("PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE"))
-		renderer.set_hires_debug_sampled_object_probe(strtol(env, nullptr, 0) > 0);
-	if (const char *env = getenv("PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP"))
-		renderer.set_hires_debug_sampled_object_exact_lookup(strtol(env, nullptr, 0) > 0);
 	hires_gliden64_compat_crc_override =
 		detail::parse_hires_gliden64_compat_crc_override(getenv("PARALLEL_RDP_HIRES_GLIDEN64_COMPAT_CRC"));
 	hires_summary_clock.interval =
@@ -259,8 +255,6 @@ void CommandProcessor::init_renderer()
 	renderer.set_rdram(rdram.get(), host_rdram, rdram_offset, rdram_size, is_host_coherent);
 	renderer.set_hidden_rdram(hidden_rdram.get());
 	renderer.set_tmem(tmem.get());
-	renderer.set_cpu_tmem((flags & COMMAND_PROCESSOR_FLAG_HOST_VISIBLE_TMEM_BIT) != 0 ?
-	                      static_cast<uint8_t *>(get_tmem()) : nullptr);
 	renderer.set_replacement_provider(nullptr);
 
 	unsigned factor = 1;

@@ -134,12 +134,9 @@ public:
 	void load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint32_t tmem_offset);
 	bool set_replacement_provider(const ReplacementProvider *provider);
 	void set_hires_debug(bool enable);
-	void set_cpu_tmem(uint8_t *host_tmem);
 	void set_hires_debug_filter(bool allow_tile,
 	                           bool allow_block,
 	                           std::unordered_set<std::string> &&blocked_signatures);
-	void set_hires_debug_sampled_object_probe(bool enable);
-	void set_hires_debug_sampled_object_exact_lookup(bool enable);
 	void begin_frame_context();
 	void set_hires_gliden64_compat_crc(bool enable);
 	void set_hires_filter(unsigned mode);
@@ -224,13 +221,10 @@ private:
 	Vulkan::Buffer *hidden_rdram = nullptr;
 	Vulkan::Buffer *tmem = nullptr;
 	uint8_t *cpu_rdram = nullptr;
-	uint8_t *cpu_tmem = nullptr;
 	const ShaderBank *shader_bank = nullptr;
 	const ReplacementProvider *replacement_provider = nullptr;
 	bool hires_debug = false;
 	HiresDebugFilterState hires_debug_filter;
-	bool hires_debug_sampled_object_probe = false;
-	bool hires_debug_sampled_object_exact_lookup = false;
 	bool hires_gliden64_compat_crc_enabled = false;
 	// 0 = nearest, 1 = bilinear, 2 = trilinear (see HIRES_FILTER_* in shaders).
 	unsigned hires_filter_mode = 2;
@@ -407,19 +401,6 @@ private:
 	std::unordered_map<detail::HiresJaboMemoKey, std::array<uint8_t, 16>, detail::HiresJaboMemoKeyHash> hires_jabo_memo;
 	std::vector<uint8_t> hires_jabo_scratch;
 	std::unordered_set<uint64_t> hires_jabo_miss_logged;
-	std::unordered_set<std::string> hires_sampled_object_probe_logged_contexts;
-	struct HiresSampledPoolStreamState
-	{
-		std::vector<uint64_t> unique_observed_selectors;
-		uint64_t last_observed_selector_checksum64 = 0;
-		uint32_t observed_count = 0;
-		uint32_t transition_count = 0;
-		uint32_t repeat_count = 0;
-		uint32_t current_run_length = 0;
-		uint32_t max_run_length = 0;
-	};
-	std::unordered_map<uint64_t, uint32_t> hires_ordered_surface_sequence_cursor;
-	std::unordered_map<uint64_t, HiresSampledPoolStreamState> hires_sampled_pool_stream_states;
 	Vulkan::BufferHandle tmem_instances;
 	Vulkan::BufferHandle span_setups;
 	Vulkan::BufferHandle blender_divider_lut_buffer;

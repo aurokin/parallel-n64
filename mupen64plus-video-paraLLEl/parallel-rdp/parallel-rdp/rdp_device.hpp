@@ -31,7 +31,6 @@
 #include "rdp_common.hpp"
 #include "command_ring.hpp"
 #include "worker_thread.hpp"
-#include "texture_replacement.hpp"
 
 #ifndef GRANITE_VULKAN_MT
 #error "Granite Vulkan backend must be built with multithreading support."

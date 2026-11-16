@@ -148,11 +148,10 @@ public:
 	               int32_t tmem_address, int32_t rdram_pitch);
 
 	// A draw sampling tile `tile` (and its TEXEL1 peer) with these raster flags,
-	// after the renderer has deduced its texture state.
+	// after the renderer has deduced its texture state. Settles the draw's
+	// bindings in the tiles' TileInfo::replacement and marks them used.
 	HiresDrawBinding prepare_draw(uint32_t tile, StaticRasterizationFlags raster_flags,
 	                              const DepthBlendState &depth_blend);
-	// Marks every bound replacement as used by the draw being queued.
-	void touch_bound_tiles();
 	// Binds the replacement descriptor set for a rasterization pass.
 	void bind(Vulkan::CommandBuffer &cmd) const;
 
@@ -160,6 +159,7 @@ private:
 	struct ReplacementTileState;
 	void emit_hires_summary(const char *label, bool include_duplicate_diagnostics) const;
 	void flush_and_signal() { flush_and_signal_callback(); }
+	void touch_bound_tiles();
 
 	bool init_hires_resources(unsigned requested_capacity);
 	enum class HiresNativeChecksumDetailClass : uint8_t

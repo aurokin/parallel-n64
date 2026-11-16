@@ -1448,7 +1448,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	indices.static_index = stream.static_raster_state_cache.add(normalized_static_state);
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);
 	indices.tile_instance_index = uint8_t(stream.tmem_upload_infos.size());
-	hires.touch_bound_tiles();
 	for (unsigned i = 0; i < 8; i++)
 		indices.tile_indices[i] = stream.tile_info_state_cache.add(tiles[i]);
 	stream.state_indices.add(indices);

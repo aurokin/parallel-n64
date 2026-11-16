@@ -1407,6 +1407,9 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 			binding.alpha_kill = true;
 		}
 	}
+
+	// The draw's bindings are final: mark them used before it is queued.
+	touch_bound_tiles();
 	return binding;
 }
 

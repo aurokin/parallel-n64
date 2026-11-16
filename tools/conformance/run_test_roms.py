@@ -10,7 +10,7 @@ Outcomes per test and CPU engine:
 
   pass        the decoder found the suite's pass evidence
   fail        failing evidence, an unfinished test, a session error or a wrong engine
-  known-fail  a failure, crash or hang the manifest lists for this engine (reported,
+  known-fail  a decoded failure the manifest lists for this engine (reported,
               not gating); a session on the wrong engine still fails
   fixed       a listed known failure that now passes (reported; update the manifest)
   missing     the ROM is not staged (skip, never a pass)
@@ -77,6 +77,11 @@ def classify(verdict_status: str, known: dict[str, Any] | None, observed: dict[s
     """Apply the manifest's known failures to a decoded verdict."""
     if known is None:
         return "pass" if verdict_status == "pass" else "fail"
+    if verdict_status not in ("pass", "fail"):
+        return "fail"
+    counts = known.get("counts")
+    if counts is not None and counts != {"pass": observed.get("pass_cells"), "fail": observed.get("fail_cells")}:
+        return "fail"
     if verdict_status == "pass":
         return "fixed"
     # A suite that reports named failures stays gating for names the manifest
@@ -136,9 +141,8 @@ def run_one(test: dict[str, Any], suite: dict[str, Any], rom: Path, ctx: rs.RunC
             result.update(verdict=verdict.status, detail=verdict.detail, observed=verdict.observed)
         except (IndexError, DecodeError, ValueError) as error:
             result.update(verdict="error", detail=f"end state unreadable: {error}")
-    # A known failure may be a crash or hang (a session error); a session on the
-    # wrong engine says nothing about the test and always fails.
-    result["outcome"] = ("fail" if result["verdict"] == "wrong-engine"
+    # Session errors and wrong engines never qualify for a waiver.
+    result["outcome"] = ("fail" if result["verdict"] in ("wrong-engine", "error")
                          else classify(result["verdict"], known, result["observed"]))
     if known:
         result["known_failure"] = known["reason"]
@@ -196,6 +200,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
                         help="parallel-n64-cpucore for every session (default dynamic_recompiler)")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--select", action="append", default=[], help="id glob or suite=a,b; all must match")
+    parser.add_argument("--record-waiver-counts", action="store_true",
+                        help="write observed waived-ROM cell counts to OUT/waiver-counts.json for review")
     parser.add_argument("--keep-bundles", action="store_true",
                         help="keep bundles of passing tests too (failing bundles are always kept)")
     parser.add_argument("--no-capture", action="store_true", help="skip the final screenshot")
@@ -264,6 +270,12 @@ def main(argv: list[str] | None = None) -> int:
                 print("[conformance] a frontend process survived reaping; stopping the run.", file=sys.stderr)
                 aborted = True
                 break
+    if args.record_waiver_counts:
+        review = [{"test": r["test"], "cpucores": [r["cpucore"]],
+                   "counts": {"pass": r["observed"]["pass_cells"], "fail": r["observed"]["fail_cells"]}}
+                  for r in results if r.get("known_failure") and r.get("verdict") in ("pass", "fail")
+                  and "pass_cells" in r.get("observed", {}) and "fail_cells" in r["observed"]]
+        (out / "waiver-counts.json").write_text(json.dumps(review, indent=2) + "\n")
     write_report(out, results, missing, manifest)
     print(f"[conformance] report: {out / 'report.md'}")
     # Staging is per suite, so a suite with only some ROMs staged is a broken

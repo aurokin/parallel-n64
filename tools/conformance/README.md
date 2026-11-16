@@ -104,3 +104,8 @@ Change the commit or URL in the suite's `fetch` entry, stage the new files,
 and replace each test's `sha256`. For `krom`, regenerate `reference_cells`
 by running `decoders.find_krom_cells` over the reference screenshot's RGBA
 bytes. Re-run all three engines and update `known_failures` with diagnoses.
+
+Waivers may include `"counts": {"pass": N, "fail": M}` to pin observed
+framebuffer cell counts. Different counts fail; session errors, hangs, and
+wrong engines always fail. `--record-waiver-counts` writes observed counts for
+waived ROMs to `OUT/waiver-counts.json` for review, without editing the manifest.

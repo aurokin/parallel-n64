@@ -18,6 +18,7 @@ import unittest
 REPO = Path(__file__).resolve().parents[3]
 TOOLS = REPO / "tools"
 sys.path.insert(0, str(TOOLS))
+from conformance import run_test_roms as runner
 from conformance import decoders  # noqa: E402
 from conformance.decoders import GPRS, PATTERNS, VI_ORIGIN, VI_WIDTH  # noqa: E402
 from savestate_bridge import RDRAM  # noqa: E402
@@ -275,6 +276,13 @@ class RunnerContract(unittest.TestCase):
         report = (self.root / "all" / "report.md").read_text()
         self.assertIn("1 ROM(s) not staged (skipped): dillon.unstaged", report)
         self.assertNotIn("dillon.unstaged", records)
+
+    def test_waiver_counts_and_session_errors(self):
+        known = {"counts": {"pass": 4, "fail": 2}}
+        self.assertEqual(runner.classify("fail", known, {"pass_cells": 4, "fail_cells": 2}), "known-fail")
+        self.assertEqual(runner.classify("fail", known, {"pass_cells": 3, "fail_cells": 3}), "fail")
+        for verdict in ("error", "incomplete", "wrong-engine"):
+            self.assertEqual(runner.classify(verdict, {"reason": "old failure"}, {}), "fail")
 
     def test_known_failure_that_passes_is_reported_fixed(self):
         self.plan["bodies"]["known"] = self.plan["bodies"]["good"]

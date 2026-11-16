@@ -2313,19 +2313,10 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 	if (asset_total != header.asset_count)
 		return ReplacementLoadStatus::Invalid;
 
-	const bool phrb_debug = []() {
-		if (const char *env = getenv("PARALLEL_RDP_HIRES_PHRB_DEBUG"))
-			return strtol(env, nullptr, 0) > 0;
-		return false;
-	}();
 	const uint8_t *string_blob = blob.data() + header.string_table_offset;
 	const size_t string_blob_size = size_t(header.blob_offset - header.string_table_offset);
 	const size_t rgba_blob_size = size_t(static_cast<size_t>(size) - header.blob_offset);
 	uint32_t loaded_count = 0;
-
-	if (phrb_debug)
-		LOGI("Hi-res PHRB load: path=%s version=%u record_count=%u asset_count=%u string_table_bytes=%zu blob_bytes=%zu.\n",
-		     path.c_str(), header.version, header.record_count, header.asset_count, string_blob_size, rgba_blob_size);
 
 	uint32_t asset_base = 0;
 	for (uint32_t record_index = 0; record_index < header.record_count; record_index++)
@@ -2386,18 +2377,9 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 		if ((record_flags & PHRB_RECORD_FLAG_RUNTIME_READY) == 0 ||
 		    (key_kind != PHRB_KEY_KIND_RICE && key_kind != PHRB_KEY_KIND_JABO_MD5))
 		{
-			if (phrb_debug)
-				LOGI("Hi-res PHRB record skipped: policy=%s runtime_ready=0 asset_candidates=%u.\n",
-				     policy_key.c_str(), record.asset_candidate_count);
 			asset_base += record.asset_candidate_count;
 			continue;
 		}
-
-		uint32_t loaded_asset_count = 0;
-		uint32_t zero_selector_count = 0;
-		uint32_t duplicate_selector_count = 0;
-		std::vector<uint64_t> unique_selectors;
-		std::vector<uint64_t> duplicate_selectors;
 
 		auto add_sampled_entry = [&](uint32_t palette_crc,
 		                            uint64_t selector_checksum64,
@@ -2626,26 +2608,6 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 			}
 			const uint32_t rgba_size_u32 = uint32_t(rgba_size);
 
-			loaded_asset_count++;
-			if (selector_checksum64 == 0)
-				zero_selector_count++;
-			bool selector_seen = false;
-			for (uint64_t existing : unique_selectors)
-			{
-				if (existing == selector_checksum64)
-				{
-					selector_seen = true;
-					break;
-				}
-			}
-			if (selector_seen)
-			{
-				duplicate_selector_count++;
-				push_unique(duplicate_selectors, selector_checksum64);
-			}
-			else
-				unique_selectors.push_back(selector_checksum64);
-
 			if (key_kind == PHRB_KEY_KIND_JABO_MD5)
 			{
 				add_jabo_entry(replacement_id, width, height, format, texture_format, pixel_type, rgba_offset,
@@ -2715,36 +2677,6 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 					rgba_size_u32);
 		}
 		asset_base += record.asset_candidate_count;
-
-		if (phrb_debug)
-		{
-			const uint64_t first_selector = !unique_selectors.empty() ? unique_selectors.front() : 0;
-			const uint64_t last_selector = !unique_selectors.empty() ? unique_selectors.back() : 0;
-			const uint32_t self_test_palette_crc =
-				record.sampled_sparse_pcrc != 0 ? record.sampled_sparse_pcrc : record.sampled_entry_pcrc;
-			const uint64_t self_test_checksum64 = (uint64_t(self_test_palette_crc) << 32u) | uint64_t(record.sampled_low32);
-			const Entry *self_test_entry = loaded_asset_count != 0
-				? find_sampled_entry(record.fmt, record.siz, record.tex_offset, record.stride,
-				                     record.width, record.height, record.sampled_low32,
-				                     self_test_palette_crc, uint16_t(record.formatsize), first_selector)
-				: nullptr;
-			LOGI("Hi-res PHRB record: policy=%s sampled_low32=%08x fs=%u asset_candidates=%u loaded_assets=%u unique_selectors=%zu duplicate_selectors=%u zero_selectors=%u first_selector=%016llx last_selector=%016llx self_test=%u self_test_key=%016llx.\n",
-			     policy_key.c_str(),
-			     record.sampled_low32,
-			     record.formatsize,
-			     record.asset_candidate_count,
-			     loaded_asset_count,
-			     unique_selectors.size(),
-			     duplicate_selector_count,
-			     zero_selector_count,
-			     static_cast<unsigned long long>(first_selector),
-			     static_cast<unsigned long long>(last_selector),
-			     self_test_entry ? 1u : 0u,
-			     static_cast<unsigned long long>(self_test_checksum64));
-			for (uint64_t selector : duplicate_selectors)
-				LOGI("Hi-res PHRB duplicate selector: policy=%s selector=%016llx.\n",
-				     policy_key.c_str(), static_cast<unsigned long long>(selector));
-		}
 	}
 
 	return loaded_count ? ReplacementLoadStatus::Loaded : ReplacementLoadStatus::Invalid;

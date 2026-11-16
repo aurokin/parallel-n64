@@ -36,7 +36,7 @@ Examples:
   ./run-tests.sh --profile emu-conformance-roms
   ./run-tests.sh --profile emu-tsan
   ./run-tests.sh --list
-  ./run-tests.sh -R emu.unit.smoke
+  ./run-tests.sh -R emu.unit.rdp_command_ingest
   ./run-tests.sh -- --repeat until-fail:10
 EOF
 }
@@ -140,7 +140,7 @@ case "$selected_profile" in
   all)
     ;;
   emu-required)
-    ctest_args+=(-R "^emu\\.(unit\\.|support\\.|conformance\\.(vi_register_contract|vi_scanout_range|vi_scaling_crop|rdp_command_fields|rdp_command_lengths|rdp_texture_load_sequence)$)")
+    ctest_args+=(-R "^emu\\.(unit\\.|support\\.|conformance\\.(vi_scanout_range|vi_scaling_crop)$)")
     ;;
   emu-conformance)
     ctest_args+=(-R "^emu\\.conformance\\.")

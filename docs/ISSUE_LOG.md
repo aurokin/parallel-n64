@@ -843,8 +843,8 @@ Six focused offline CLI checks exercise verifier/digest failures, wrong selected
 bytes/mode, changed candidate and successful publication through the real helper.
 No actual remint, asset change or authority promotion was performed.
 
-The retargeted `remint-paper-mario-kmr-03-entry-2-authority.sh` no longer
-bootstraps. It stages a caller-supplied recorded state, requires its pinned
+The kmr03 remint helper (retired on 2026-11-16) no longer
+bootstrapped. It stages a caller-supplied recorded state, requires its pinned
 M64+SAVE body digest (RetroArch containers are unwrapped) and verifies through
 the canonical load, settle and capture scenario. It also requires the scene
 decoded by that run to equal the tracked profile's pinned area, map and entry.

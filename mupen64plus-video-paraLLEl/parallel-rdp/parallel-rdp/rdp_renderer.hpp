@@ -176,7 +176,7 @@ public:
 	void configure_hires_gpu_budget(unsigned option_mb);
 	const HiresResidencyStatus &get_hires_residency_status() const { return hires_residency_status; }
 	// Final summary, emitted once at teardown. Its line format is parsed by
-	// tools/scenarios/lib/common.sh and must stay stable.
+	// tools/regression/run_scenarios.py and must stay stable.
 	void log_hires_summary() const;
 	// Cumulative snapshot of the same counters, labelled with the presented
 	// frame count so log parsers can tell it apart from the final summary.

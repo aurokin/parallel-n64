@@ -19,8 +19,7 @@ paraLLEl-RSP remain available; Vulkan graphics uses an LLE RSP.
 - Replacement-aware texrect, sampling, mip, alpha, and view-key behavior.
 - Deterministic RetroArch control through the maintained `agent-control`
   frontend branch.
-- Paper Mario fixture authorities plus opt-in SM64 and OoT compatibility lanes;
-  MK64 and MM are manual breadth checks.
+- Portable regression scenarios and pre-merge runtime qualification.
 - Class-level runtime evidence and explicit fallback reporting.
 
 Paper Mario is the strict renderer-validation title. The other games exercise
@@ -88,7 +87,6 @@ Pack source and conversion provenance lives in
 - [ParaLLEl video implementation](mupen64plus-video-paraLLEl/)
 - [Libretro integration](libretro/libretro.c)
 - [Renderer behavior tests](tests/emulator_behavior/)
-- [Fixture manifests](tools/fixtures/)
 - [Scenario runners](tools/scenarios/)
 - [RetroArch adapters](tools/adapters/)
 - [Architecture decisions](docs/adr/README.md)

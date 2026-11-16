@@ -359,17 +359,6 @@ class RegressionRunnerContract(unittest.TestCase):
         for record in records:
             self.assertTrue((self.root / "budgets" / record["bundle"] / "logs/retroarch.log").is_file())
 
-    def test_shared_scenario_budget_requires_named_override(self):
-        for override, expected in (("", "8192"), ("64", "64"), ("256", "256")):
-            with self.subTest(override=override):
-                result = subprocess.run(
-                    ["bash", "-c", 'source "$1"; printf "%s" "$PARALLEL_RDP_HIRES_GPU_BUDGET_MB"',
-                     "bash", str(REPO / "tools/scenarios/lib/common.sh")],
-                    env={**os.environ, "PARALLEL_RDP_HIRES_GPU_BUDGET_MB": "1",
-                         "N64_SCENARIO_HIRES_BUDGET_MB": override},
-                    capture_output=True, text=True, check=True)
-                self.assertEqual(result.stdout, expected)
-
     def pack_map(self, name, mapping):
         path = self.root / name
         path.write_text(json.dumps({sha: str(self.root / pack) for sha, pack in mapping.items()}))
@@ -464,6 +453,11 @@ class RegressionRunnerContract(unittest.TestCase):
         _, records = self.run_runner("unserved", "--select", "boot-power-on", mode="on",
                                      plan={"lookups": "lookups=3 hits=0 misses=3", "draw_hits": 0})
         self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], "fail")
+
+    def test_upload_only_hits_do_not_prove_served_replacements(self):
+        result, records = self.run_runner("upload-only", mode="on", plan={"draw_hits": 0})
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.gates(records["field-state"])["hires.served"], "fail")
 
     def test_served_gate_counts_jabo_hits(self):
         _, records = self.run_runner("jabo", "--select", "boot-power-on", mode="on",

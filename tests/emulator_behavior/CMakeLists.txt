@@ -4,16 +4,6 @@ add_test(
 )
 
 add_test(
-  NAME emu.support.state_promotion_contract
-  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_state_promotion_contract.py"
-)
-
-add_test(
-  NAME emu.support.batch_lifecycle_contract
-  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_batch_lifecycle_contract.py"
-)
-
-add_test(
   NAME emu.support.interactive_load_contract
   COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_interactive_load_contract.py"
 )
@@ -26,11 +16,6 @@ add_test(
 add_test(
   NAME emu.support.adapter_config_contract
   COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_adapter_config_contract.py"
-)
-
-add_test(
-  NAME emu.support.runtime_paths_contract
-  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_runtime_paths_contract.py"
 )
 
 add_test(
@@ -54,31 +39,6 @@ add_test(
 )
 
 set(EMU_BEHAVIOR_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/support")
-
-add_test(
-  NAME emu.support.paper_mario_fixture_verification_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_fixture_verification_contract.sh"
-)
-
-add_test(
-  NAME emu.support.paper_mario_memory_decoder_contract
-  COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_memory_decoder_contract.py"
-)
-
-add_test(
-  NAME emu.support.kmr03_import_remint_publication_contract
-  COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_kmr03_import_remint_publication_contract.py"
-)
-
-add_test(
-  NAME emu.support.paper_mario_authority_evidence_contract
-  COMMAND python3 "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_paper_mario_authority_evidence_contract.py"
-)
-
-add_test(
-  NAME emu.support.hires_capability_runtime_contract
-  COMMAND bash "${EMU_BEHAVIOR_SUPPORT_DIR}/emu_hires_capability_runtime_contract.sh"
-)
 
 add_test(
   NAME emu.support.hts2phrb_round_trip
@@ -546,35 +506,10 @@ add_test(
 )
 set_tests_properties(emu.conformance.runtime_smoke_lavapipe PROPERTIES SKIP_RETURN_CODE 77)
 
-add_test(
-  NAME emu.conformance.paper_mario_full_cache_phrb_authorities
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_paper_mario_full_cache_phrb_authorities.sh"
-)
-set_tests_properties(emu.conformance.paper_mario_full_cache_phrb_authorities PROPERTIES SKIP_RETURN_CODE 77)
 
-add_test(
-  NAME emu.conformance.sm64_hires_boot
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_sm64_hires_boot.sh"
-)
-set_tests_properties(emu.conformance.sm64_hires_boot PROPERTIES SKIP_RETURN_CODE 77)
 
-add_test(
-  NAME emu.conformance.sm64_hires_title_fixture
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_sm64_hires_title_fixture.sh"
-)
-set_tests_properties(emu.conformance.sm64_hires_title_fixture PROPERTIES SKIP_RETURN_CODE 77)
 
-add_test(
-  NAME emu.conformance.oot_hires_boot
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_oot_hires_boot.sh"
-)
-set_tests_properties(emu.conformance.oot_hires_boot PROPERTIES SKIP_RETURN_CODE 77)
 
-add_test(
-  NAME emu.conformance.oot_hires_title_fixture
-  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_oot_hires_title_fixture.sh"
-)
-set_tests_properties(emu.conformance.oot_hires_title_fixture PROPERTIES SKIP_RETURN_CODE 77)
 
 # Public conformance test ROMs (tools/conformance), one test per suite. Opt-in
 # runtime lanes: they skip unless EMU_ENABLE_RUNTIME_CONFORMANCE=1 and the

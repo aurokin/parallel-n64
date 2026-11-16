@@ -22,7 +22,6 @@
 
 ## Operational Components
 
-- [Fixtures](../tools/fixtures/)
 - [Scenarios](../tools/scenarios/)
 - [Adapters](../tools/adapters/)
 - [Regression scenario runner](../tools/regression/)

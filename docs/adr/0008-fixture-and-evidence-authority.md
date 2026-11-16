@@ -32,6 +32,10 @@ hit/fallback evidence, and available semantic traces.
 
 ## Evidence
 
-- [fixture manifests](../../tools/fixtures/);
+- [regression scenarios](../../tools/regression/README.md);
 - [scenario contract](../../tools/scenarios/);
-- fixture verification support tests.
+
+## Amendment (2026-11-16)
+
+The legacy YAML authority graph and remint scripts are retired. Runtime
+qualification now uses the regression runner pre-merge lanes and explicit blobs.

@@ -259,24 +259,10 @@ misses, MD5 computations and memo hits; Jabo hits are not counted in
 Formats keyed for a PC port, Ship of Harkinian, Citra, or another console are
 not interchangeable with GlideN64/Rice identities.
 
-## Observed Package Selection
+## Package Selection
 
-The checked-in behavior currently differs by consumer:
-
-- `tools/scenarios/lib/common.sh` checks the path-stable
-  `local-pm64-exact-variant-set` package first, then zero-config. The current
-  staged package at that stable path is byte-identical to curated-r2
-  (`sha256: 388bce41777a45eecd7581fc03bf67c7c36512cc7d1dd786ddfb38a90964d71f`),
-  despite the path not carrying the curation suffix.
-- The Paper Mario runtime-conformance wrapper defaults to that same stable
-  exact-variant-set path.
-- Fixture YAML files still declare the zero-config package.
-- External callers may provide another package explicitly.
-
-This describes the code and current staged identity as they exist; it is not
-authorization to change a runtime default. Because curation is not encoded in
-the stable path, every evidence bundle must record the package hash actually
-used.
+The regression runner takes explicit `--pack` or `--pack-map` inputs and records
+the package hash. See [runtime qualification](../tools/regression/README.md).
 
 ## Paper Mario Curation
 

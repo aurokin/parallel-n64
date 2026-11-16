@@ -890,14 +890,10 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
                                                  else f"no provider=on summary (provider {hires['provider']})")))
             entries = hires["entries"]
             gates.append(gate("hires.entries", "pass" if (entries or 0) >= 1 else "fail", f"entries={entries}"))
-            # A replacement is served when bound at upload (hits) or at draw time
-            # (draw_hits); scenes served entirely at upload, such as boot logos,
-            # report no draw-time hits.
-            # A session that looked up no texture at all (a few frames after
-            # power-on) has nothing to serve; misses without hits still fail.
+            # Uploads do not prove a replacement was sampled by a draw.
             jabo = hires.get("jabo") or {}
-            served = max(hires["hits"] or 0, hires["draw_hits"] or 0) + jabo.get("hits", 0)
-            looked_up = served + (hires["misses"] or 0)
+            served = (hires["draw_hits"] or 0) + jabo.get("hits", 0)
+            looked_up = served + (hires["hits"] or 0) + (hires["misses"] or 0)
             detail = f"hits={hires['hits']} draw_hits={hires['draw_hits']} misses={hires['misses']}"
             if jabo:
                 detail += f" jabo_hits={jabo['hits']} jabo_misses={jabo['misses']}"

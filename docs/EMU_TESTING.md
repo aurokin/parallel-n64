@@ -18,8 +18,7 @@ provided.
 
 - `emu-required`: display-free unit, support, and static conformance checks.
   This is the required change gate.
-- `emu-runtime-conformance`: lavapipe smoke plus the Paper Mario
-  authority lane. It enables runtime opt-in and rebuilds the live core.
+- `emu-runtime-conformance`: lavapipe smoke. It enables runtime opt-in and rebuilds the live core.
 - `emu-conformance-roms`: public CPU, COP0, COP1, exception and RSP test
   ROMs on each CPU engine ([Conformance Test ROMs](#conformance-test-roms)).
   It enables runtime opt-in and rebuilds the live core.
@@ -42,78 +41,19 @@ Useful forms:
 The required profile covers:
 
 - renderer-policy and data-structure unit tests;
-- fixture, converter, and capability shell contracts;
+- converter and scenario runner contracts;
 - GlideN64 oracle guardrails;
 - static VI and RDP conformance checks;
 - conformance-ROM decoder, manifest and runner contracts.
 
 It does not launch an emulator or prove runtime rendering.
 
-## Runtime Lane
+## Runtime Qualification
 
-`emu.conformance.paper_mario_full_cache_phrb_authorities` runs the
-title-screen, file-select, and `kmr_03 ENTRY_2` authorities. It asserts:
-
-- at least one hi-res entry loaded;
-- draw-time replacement traffic exists;
-- the source mode is `phrb-only`;
-- fallbacks carry explicit reasons;
-- the bundle records ROM, state, pack, and configuration identity.
-
-The kmr03 authority is `paper-mario-kmr-03-entry-2`, imported from the
-`landing-control` checkpoint of a qualified Linux progression recording. It
-replaces the retired `kmr_03 ENTRY_5` authority, whose retained bytes decoded
-as area 6/map 5/entry 2. Its feature-off capture digest is pinned, and the
-remint helper publishes the state under
-`assets/states/paper-mario-kmr-03-entry-2/` only when a fresh capture matches
-it. Without the published state, the lane fails loudly on the missing
-prerequisite.
-The lane itself runs hi-res-on and does not use the digest. A passing required
-profile does not qualify the runtime authority.
-
-The wrapper's observed default is
-`artifacts/hts2phrb-review/local-pm64-exact-variant-set/package.phrb`.
-Override it with `EMU_RUNTIME_PM64_FULL_CACHE_PHRB`. Fixture manifests
-still name the zero-config package as their declared input; scenario runners
-record the package actually selected at runtime.
-
-The lane never uses an on-path capture digest or exact metadata count as a
-correctness gate. Digests are limited to feature-off parity and authority
-remint verification.
-
-Paper Mario hi-res fixtures require positive Rice-compatible draw-hit evidence;
-loaded entries or upload hits alone do not qualify. Compatibility-only packs
-are valid. Native sampled-entry counts are diagnostic, since ADR-0006 freezes
-that enrichment path. Automated semantic checks must accompany explicit visual
-review for missing/wrong textures, wrong regions and corruption.
-
-## Skip And Failure Policy
-
-Clean skips are limited to deliberate opt-outs or unavailable optional
-capabilities:
-
-- runtime tests without `EMU_ENABLE_RUNTIME_CONFORMANCE=1`;
-- lavapipe smoke without a lavapipe ICD;
-- full-cache converter coverage without the local Paper Mario source cache;
-- TSAN when the preflight proves it unsupported;
-- on-demand breadth lanes with unstaged inputs;
-- conformance-ROM suites with no staged ROM (a partially staged suite fails).
-
-Once a gating runtime lane is opted in, missing ROMs, packs, states, core, or
-frontend are failures with staging guidance.
-
-## Compatibility Breadth
-
-SM64 and OoT boot/title lanes are registered but excluded from gating profiles.
-Run them explicitly when their inputs are staged:
-
-```sh
-EMU_ENABLE_RUNTIME_CONFORMANCE=1 ./run-tests.sh \
-  -R 'emu.conformance.(sm64|oot)_hires_(boot|title_fixture)'
-```
-
-MK64 and MM remain manual breadth checks unless a behavior-backed test is
-added.
+Use the [scenario runner pre-merge lanes](../tools/regression/README.md).
+Hi-res qualification requires loaded entries and draw-time replacement hits.
+The optional `emu-runtime-conformance` profile retains only the lavapipe smoke.
+Runtime tests require explicit local inputs and exclusive host runtime access.
 
 ## Conformance Test ROMs
 

@@ -147,7 +147,7 @@ case "$selected_profile" in
     ;;
   emu-runtime-conformance)
     enable_runtime_conformance=1
-    ctest_args+=(-R "^emu\\.conformance\\.(runtime_smoke_lavapipe|paper_mario_full_cache_phrb_authorities)$")
+    ctest_args+=(-R "^emu\\.conformance\\.(runtime_smoke_lavapipe)$")
     ;;
   emu-conformance-roms)
     enable_runtime_conformance=1

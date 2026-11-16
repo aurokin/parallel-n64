@@ -14,9 +14,6 @@ core, fixture manifests, and scenario verification.
   bundle for a compatible MoltenVK runtime.
 - `build_retroarch_agent_control_macos.sh` — build/deploy helper for
   the agent-control frontend.
-- `promote_interactive_state.py` — manual state bundling with recorded ROM
-  identity and configuration provenance; promotion does not qualify a renderer
-  authority.
 - `png_uniform_black.py` — exact black-capture detection.
 
 The eval-specific vision shim now belongs to the external eval harness.

@@ -18,9 +18,11 @@
 #include "rdp_hires_jabo_key.hpp"
 #include "rdp_hires_residency_policy.hpp"
 #include "rdp_hires_strong_hash.hpp"
+#include "texture_replacement.hpp"
 #include "device.hpp"
 #include <array>
 #include <functional>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -28,11 +30,18 @@
 namespace RDP
 {
 struct LoadTileInfo;
-struct ReplacementMeta;
-struct ReplacementResolution;
-struct ReplacementImage;
-struct ReplacementPalette;
-class ReplacementProvider;
+class Renderer;
+
+enum class HiresPackState { Disabled, NotFound, Rejected, Loaded, Unsupported };
+
+struct HiresPackStatus
+{
+	HiresPackState state = HiresPackState::Disabled;
+	ReplacementLoadStatus load_error = ReplacementLoadStatus::NotFound;
+	std::string loaded_path, rejected_path;
+	size_t entries = 0;
+	std::vector<ReplacementPackageStats> packages;
+};
 
 // What a draw's replacement bindings ask of the renderer.
 struct HiresDrawBinding
@@ -311,4 +320,7 @@ private:
 	bool hires_memory_budget_supported = false;
 
 };
+
+HiresPackStatus configure_hires_packages(Renderer &renderer, ReplacementProvider &provider, bool enable,
+                                         const std::vector<std::string> &cache_paths, unsigned budget_mb);
 }

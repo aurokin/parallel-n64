@@ -1810,4 +1810,74 @@ void HiresReplacement::apply_hires_tile_binding(unsigned tile, const Replacement
 	tiles[tile].replacement.repl_desc_index = state.vk_image_index;
 }
 
+
+// Loads the configured packages into provider and attaches it to the renderer.
+// The caller has drained all queued RDP work.
+HiresPackStatus configure_hires_packages(Renderer &renderer, ReplacementProvider &provider, bool enable,
+                                         const std::vector<std::string> &cache_paths, unsigned budget_mb)
+{
+	HiresPackStatus status;
+	renderer.set_replacement_provider(nullptr);
+	provider.clear();
+	provider.set_enabled(enable);
+	if (enable)
+	{
+		status.state = HiresPackState::NotFound;
+		renderer.get_hires().configure_gpu_budget(budget_mb);
+	}
+	renderer.get_hires().set_gliden64_compat_crc(false);
+
+	const char *first_path = cache_paths.empty() ? nullptr : cache_paths.front().c_str();
+	auto outcome = detail::classify_hires_configure_outcome(enable, first_path, false);
+	if (outcome == detail::HiresConfigureOutcome::Disabled)
+		return status;
+
+	if (outcome == detail::HiresConfigureOutcome::MissingPath)
+	{
+		LOGW("Hi-res replacement enabled, but cache path is empty.\n");
+		return status;
+	}
+
+	for (const auto &path : cache_paths)
+	{
+		const auto previous_entries = provider.entry_count();
+		if (provider.load_cache_dir(path, true))
+			LOGI("Hi-res replacement cache loaded: %zu entries from %s\n",
+			     provider.entry_count() - previous_entries, path.c_str());
+		else if (!provider.rejected_path().empty())
+			LOGW("Hi-res replacement cache load failed for path: %s\n", path.c_str());
+	}
+	status.packages = provider.package_stats();
+	for (const auto &pack : status.packages)
+		LOGI("Hi-res package: path=%s records=%zu hidden_by_later=%zu.\n",
+		     pack.path.c_str(), pack.records, pack.hidden_by_later);
+	status.loaded_path = provider.loaded_path();
+	status.rejected_path = provider.rejected_path();
+	status.load_error = provider.load_error();
+	if (!status.rejected_path.empty())
+		status.state = HiresPackState::Rejected;
+	outcome = detail::classify_hires_configure_outcome(enable, first_path,
+	                                                provider.entry_count() != 0);
+	if (outcome == detail::HiresConfigureOutcome::LoadFailed)
+	{
+		LOGI("Hi-res replacement disabled: no entries in checked paths.\n");
+		return status;
+	}
+	if (detail::should_attach_hires_provider(outcome))
+	{
+		if (!renderer.set_replacement_provider(&provider))
+		{
+			status.state = HiresPackState::Unsupported;
+			return status;
+		}
+		status.state = HiresPackState::Loaded;
+		status.entries = provider.entry_count();
+	}
+
+	// The draw-time compat lane runs only for compat- or Jabo-bearing PHRB payloads;
+	// Jabo MD5 lookups run inside it, after its Rice key misses.
+	renderer.get_hires().set_gliden64_compat_crc(
+		provider.has_phrb_compat_entries() || provider.has_jabo_entries());
+	return status;
+}
 }

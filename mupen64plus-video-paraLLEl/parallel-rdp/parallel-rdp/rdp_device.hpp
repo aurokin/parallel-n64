@@ -111,17 +111,6 @@ struct Quirks
 	} u;
 };
 
-enum class HiresPackState { Disabled, NotFound, Rejected, Loaded, Unsupported };
-
-struct HiresPackStatus
-{
-	HiresPackState state = HiresPackState::Disabled;
-	ReplacementLoadStatus load_error = ReplacementLoadStatus::NotFound;
-	std::string loaded_path, rejected_path;
-	size_t entries = 0;
-	std::vector<ReplacementPackageStats> packages;
-};
-
 class CommandProcessor
 {
 public:

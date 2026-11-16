@@ -362,7 +362,7 @@ static void test_phrb_v8_jabo_records()
 	check(stats.jabo_entry_count == 1 && stats.compat_entry_count == 1,
 	      "Jabo entries are counted apart from Rice compat entries");
 	check(provider.has_jabo_entries(), "a Jabo record enables Jabo lookups");
-	check(provider.compat_checksum_index_.size() == 1 && provider.compat_checksum_low32_index_.size() == 1,
+	check(provider.compat_checksum_index_.size() == 1,
 	      "Jabo entries stay out of the Rice checksum indices");
 
 	ReplacementResolution resolution = {};
@@ -623,15 +623,15 @@ static void test_indexed_replacements()
 	qualified.set_enabled(true);
 	check(qualified.load_cache_dir(qualified_path), "palette-qualified indexed package should load");
 	ReplacementMeta meta;
-	check(qualified.probe_lookup(0x87654321, 0xaabbccdd, 2, &meta), "qualified indexed key must match its palette CRC");
-	check(!qualified.probe_lookup(0x87654321, 0x11223344, 2, &meta), "qualified indexed key must not ignore its palette CRC");
+	check(qualified.lookup(0xaabbccdd87654321ull, 2, &meta), "qualified indexed key must match its palette CRC");
+	check(!qualified.lookup(0x1122334487654321ull, 2, &meta), "qualified indexed key must not ignore its palette CRC");
 	const auto coloured_path = dir + "/coloured.phrb";
 	write_single_asset_phrb(coloured_path, "coloured", "coloured", "family", 0, 0, 0, 0, 0, 0,
 							2, 0x87654321, 0, 0, 2, 2, std::vector<uint8_t>(16, 255));
 	ReplacementProvider coloured;
 	coloured.set_enabled(true);
 	check(coloured.load_cache_dir(coloured_path), "pre-coloured CI package should load");
-	check(!coloured.probe_lookup(0x87654321, 0xaabbccdd, 2, &meta), "pre-coloured CI lookup policy must remain unchanged");
+	check(!coloured.lookup(0xaabbccdd87654321ull, 2, &meta), "pre-coloured CI lookup policy must remain unchanged");
 	remove_tree(dir);
 }
 
@@ -928,7 +928,6 @@ int main()
 	check(entry.formatsize == record.formatsize, "formatsize should remain preserved");
 	check(provider.sampled_index_.size() == 4, "sampled lookup index should contain both palette aliases for both selectors");
 	check(provider.sampled_family_index_.size() == 2, "sampled family index should collapse selectors into palette families");
-	check(provider.compat_checksum_low32_index_.empty(), "native PHRB entries should not populate compat low32 families");
 	check(!provider.has_phrb_compat_entries(), "pure native PHRB inputs should not trigger compat-bearing runtime auto-enable");
 
 	const auto *structured_sparse_entry = provider.find_sampled_entry(
@@ -1013,53 +1012,6 @@ int main()
 	          &resolved_selector_checksum64),
 	      "family-unique sampled lookup should stay disabled for multi-selector pools");
 
-	SampledFamilyDiagnostics sampled_diag = {};
-	check(provider.describe_sampled_family(
-	          record.fmt,
-	          record.siz,
-	          record.tex_offset,
-	          record.stride,
-	          record.width,
-	          record.height,
-	          record.sampled_low32,
-	          record.sampled_sparse_pcrc,
-	          record.formatsize,
-	          0xaaaaaaaa55555555ull,
-	          &sampled_diag),
-	      "sampled family diagnostics should be available for native PHRB records");
-	check(sampled_diag.available, "sampled family diagnostics should report availability");
-	check(sampled_diag.prefer_exact_formatsize, "sampled family diagnostics should prefer exact formatsize");
-	check(sampled_diag.exact_formatsize_entries == 2, "sampled family diagnostics should see both selector variants");
-	check(sampled_diag.generic_formatsize_entries == 0, "sampled family diagnostics should not report generic entries");
-	check(sampled_diag.active_entry_count == 2, "sampled family diagnostics should stay inside the sparse palette family");
-	check(sampled_diag.active_unique_checksum_count == 1, "sampled family diagnostics should preserve a single checksum alias");
-	check(sampled_diag.active_unique_selector_count == 2, "sampled family diagnostics should preserve both selectors");
-	check(sampled_diag.active_matching_selector_count == 0, "sampled family diagnostics should report selector conflicts");
-	check(sampled_diag.active_has_any_selector, "sampled family diagnostics should report selector availability");
-	check(!sampled_diag.active_has_ordered_surface_selectors, "sampled family diagnostics should not invent ordered selectors");
-	check(sampled_diag.active_is_pool, "sampled family diagnostics should classify multi-selector sampled families as pools");
-	check(sampled_diag.sample_repl_w == asset.width && sampled_diag.sample_repl_h == asset.height,
-	      "sampled family diagnostics should preserve replacement dimensions");
-	check(sampled_diag.sample_policy_key == policy_key, "sampled family diagnostics should preserve the policy key");
-	check(sampled_diag.sample_sampled_object_id == sampled_object_id,
-	      "sampled family diagnostics should preserve the sampled object id");
-	check(!provider.lookup_ci_low32_any(
-	          record.sampled_low32,
-	          record.formatsize,
-	          record.sampled_sparse_pcrc,
-	          &sampled_meta,
-	          &resolved_checksum64),
-	      "compat low32 fallback should ignore native sampled records");
-	ReplacementResolution ci_low32_any_resolution = {};
-	check(!provider.resolve_ci_low32_candidate(
-	          record.sampled_low32,
-	          record.formatsize,
-	          record.sampled_sparse_pcrc,
-	          0,
-	          0,
-	          CILow32ResolutionMode::Any,
-	          &ci_low32_any_resolution),
-	      "typed compat low32 resolution should ignore native sampled records");
 
 	// Capture checksum64 before add_entry() — the pointer into entries_ may be
 	// invalidated by vector reallocation.
@@ -1089,40 +1041,6 @@ int main()
 	          record.formatsize,
 	          asset.selector_checksum64)->source_path == dir + "/compat.phrb",
 	      "compat alias should be reachable via explicit compat lookup");
-	check(provider.compat_checksum_low32_index_.size() == 1,
-	      "compat aliases should populate the explicit compat low32 index");
-	check(provider.lookup_ci_low32_any(
-	          record.sampled_low32,
-	          record.formatsize,
-	          record.sampled_sparse_pcrc,
-	          &compat_meta,
-	          &resolved_checksum64),
-	      "compat low32 fallback should resolve explicit compat aliases");
-	check(provider.find_compat_entry(
-	          resolved_checksum64,
-	          record.formatsize,
-	          asset.selector_checksum64)->source_path == dir + "/compat.phrb",
-	      "compat low32 fallback should stay inside the compat alias pool");
-	check(provider.resolve_ci_low32_candidate(
-	          record.sampled_low32,
-	          record.formatsize,
-	          record.sampled_sparse_pcrc,
-	          0,
-	          0,
-	          CILow32ResolutionMode::Any,
-	          &ci_low32_any_resolution),
-	      "typed compat low32 resolution should resolve explicit compat aliases");
-	check(ci_low32_any_resolution.kind == ReplacementResolutionKind::CILow32Any,
-	      "typed compat low32 resolution should classify any-mode results");
-	check(ci_low32_any_resolution.source_class == ResolvedEntrySourceClass::Compat,
-	      "typed compat low32 resolution should classify compat-source results");
-	check(ci_low32_any_resolution.resolved_checksum64 == resolved_checksum64,
-	      "typed compat low32 resolution should preserve the compat checksum");
-	check(ci_low32_any_resolution.matched_preferred_palette,
-	      "typed compat low32 resolution should preserve preferred-palette matches");
-	check(ci_low32_any_resolution.meta.repl_w == compat_meta.repl_w &&
-	          ci_low32_any_resolution.meta.repl_h == compat_meta.repl_h,
-	      "typed compat low32 resolution should preserve replacement dimensions");
 
 	ReplacementImage compat_image = {};
 	check(provider.decode_rgba8_compat_with_selector(
@@ -1182,7 +1100,6 @@ int main()
 	check(stats.sampled_duplicate_key_count == 0, "provider stats should report zero sampled duplicate keys for unique inputs");
 	check(stats.sampled_duplicate_entry_count == 0, "provider stats should report zero sampled duplicate entries for unique inputs");
 	check(stats.sampled_family_count == 2, "provider stats should report sampled family count");
-	check(stats.compat_low32_family_count == 1, "provider stats should report compat low32 family count");
 	check(stats.source_phrb_entry_count == 5, "provider stats should report PHRB-backed entries");
 	check(provider.has_phrb_compat_entries(), "compat-bearing PHRB inputs should be detectable for runtime auto-enable");
 
@@ -1359,25 +1276,6 @@ int main()
 	check(family_entry->phrb_policy_key == "family-runtime-ready", "family runtime-ready record should preserve its policy key");
 	check(family_entry->phrb_sampled_object_id == "legacy-family-01020304-fs258",
 	      "family runtime-ready record should preserve its sampled object id");
-	ReplacementMeta family_meta = {};
-	NativeSampledIdentity family_identity = {};
-	ResolvedEntrySourceClass family_source_class = ResolvedEntrySourceClass::Unknown;
-	check(family_provider.lookup_with_selector_and_identity(
-	          family_checksum64,
-	          258,
-	          0,
-	          &family_meta,
-	          &family_identity,
-	          &family_source_class,
-	          &resolved_checksum64),
-	      "family runtime-ready PHRB record should resolve through the generic exact checksum path");
-	check(!family_identity.valid, "family runtime-ready PHRB record should not synthesize native sampled identity");
-	check(family_source_class == ResolvedEntrySourceClass::Compat,
-	      "family runtime-ready PHRB record should classify the generic winning entry as compat");
-	check(family_meta.repl_w == 2 && family_meta.repl_h == 2,
-	      "family runtime-ready PHRB record should preserve replacement dimensions");
-	check(resolved_checksum64 == family_checksum64,
-	      "family runtime-ready PHRB record should preserve the exact legacy checksum");
 	ReplacementImage family_image = {};
 	check(family_provider.decode_rgba8(family_checksum64, 258, &family_image),
 	      "family runtime-ready PHRB record should decode through the generic exact checksum path");
@@ -1498,8 +1396,6 @@ int main()
 	phrb_only_provider.set_enabled(true);
 	check(phrb_only_provider.entry_count() == 1,
 	      "provider should fence out legacy runtime files when PHRB data is available");
-	check(!phrb_only_provider.has_compat_entries(),
-	      "provider should keep compat disabled for pure native PHRB runtime loads");
 	check(!phrb_only_provider.has_phrb_compat_entries(),
 	      "provider should not report compat-bearing PHRB state for pure native loads");
 	const auto *mixed_native_entry = phrb_only_provider.find_native_entry(mixed_checksum64, 258, 0);
@@ -1609,85 +1505,6 @@ int main()
 	      "typed upload resolution should preserve sampled identity for ordered-surface singletons");
 	check(ordered_singleton_resolution.resolved_selector_checksum64 == ordered_singleton_selector,
 	      "typed upload resolution should preserve the ordered-surface selector");
-	ReplacementResolution ordered_singleton_reserved_resolution = {};
-	check(ordered_singleton_provider.resolve_reserved_ordered_surface_candidate(
-	          2,
-	          1,
-	          96,
-	          16,
-	          2,
-	          2,
-	          ordered_singleton_sampled_low32,
-	          ordered_singleton_palette_crc,
-	          258,
-	          ordered_singleton_selector,
-	          &ordered_singleton_reserved_resolution),
-	      "typed reserved ordered-surface resolution should resolve the explicit reserved selector path");
-	check(ordered_singleton_reserved_resolution.kind ==
-	          ReplacementResolutionKind::SampledOrderedSurfaceReservedSelector,
-	      "typed reserved ordered-surface resolution should keep the ordered-surface path distinct from normal exact selectors");
-	check(!ordered_singleton_reserved_resolution.ordered_surface_singleton,
-	      "typed reserved ordered-surface resolution should not relabel the reserved selector path as family-singleton fallback");
-	check(ordered_singleton_reserved_resolution.resolved_selector_checksum64 == ordered_singleton_selector,
-	      "typed reserved ordered-surface resolution should preserve the reserved selector");
-	check(ordered_singleton_reserved_resolution.resolved_checksum64 == ordered_singleton_checksum64,
-	      "typed reserved ordered-surface resolution should preserve the ordered-surface checksum");
-	ReplacementResolution ordered_singleton_exact_resolution = {};
-	check(ordered_singleton_provider.resolve_sampled_candidate(
-	          2,
-	          1,
-	          96,
-	          16,
-	          2,
-	          2,
-	          ordered_singleton_sampled_low32,
-	          ordered_singleton_palette_crc,
-	          258,
-	          ordered_singleton_selector,
-	          &ordered_singleton_exact_resolution),
-	      "typed sampled resolution should preserve exact selector hits before falling back to sampled-family singleton logic");
-	check(ordered_singleton_exact_resolution.kind == ReplacementResolutionKind::SampledExactSelector,
-	      "typed sampled resolution should classify exact selector hits distinctly");
-	check(!ordered_singleton_exact_resolution.ordered_surface_singleton,
-	      "typed sampled resolution should not relabel exact selector hits as ordered-surface singleton fallback");
-	ReplacementResolution ordered_singleton_family_resolution = {};
-	check(ordered_singleton_provider.resolve_sampled_candidate(
-	          2,
-	          1,
-	          96,
-	          16,
-	          2,
-	          2,
-	          ordered_singleton_sampled_low32,
-	          ordered_singleton_palette_crc,
-	          258,
-	          0,
-	          &ordered_singleton_family_resolution),
-	      "typed sampled resolution should still expose ordered-surface singleton family fallback when no selector is requested");
-	check(ordered_singleton_family_resolution.kind == ReplacementResolutionKind::SampledFamilySingleton,
-	      "typed sampled resolution should classify selector-free ordered-surface singleton fallback distinctly");
-	check(ordered_singleton_family_resolution.ordered_surface_singleton,
-	      "typed sampled resolution should preserve ordered-surface singleton family fallback classification");
-	SampledFamilyDiagnostics ordered_singleton_diag = {};
-	check(ordered_singleton_provider.describe_sampled_family(
-	          2,
-	          1,
-	          96,
-	          16,
-	          2,
-	          2,
-	          ordered_singleton_sampled_low32,
-	          ordered_singleton_palette_crc,
-	          258,
-	          ordered_singleton_selector,
-	          &ordered_singleton_diag),
-	      "ordered-surface singleton sampled family should expose diagnostics");
-	check(ordered_singleton_diag.active_has_ordered_surface_selectors,
-	      "ordered-surface singleton diagnostics should report ordered selectors");
-	check(ordered_singleton_diag.active_ordered_surface_selector_count == 1,
-	      "ordered-surface singleton diagnostics should preserve the ordered selector count");
-	check(!ordered_singleton_diag.active_is_pool,
-	      "ordered-surface singleton diagnostics should not classify the family as a pool");
 	ReplacementImage ordered_singleton_image = {};
 	check(ordered_singleton_provider.decode_sampled_rgba8_with_selector(
 	          2,
@@ -1780,33 +1597,6 @@ int main()
 	      "generic entry lookup should prefer native sampled PHRB entries over later family-runtime compat records");
 	check(phrb_preference_entry->width == 2 && phrb_preference_entry->height == 2,
 	      "generic entry lookup should preserve the native replacement dimensions");
-	ReplacementMeta phrb_preference_meta = {};
-	NativeSampledIdentity phrb_preference_identity = {};
-	ResolvedEntrySourceClass phrb_preference_source_class = ResolvedEntrySourceClass::Unknown;
-	uint64_t phrb_preference_resolved_checksum64 = 0;
-	uint64_t phrb_preference_resolved_selector_checksum64 = 0xffffffffu;
-	check(phrb_preference_provider.lookup_with_selector_and_identity(
-	          phrb_preference_checksum64,
-	          258,
-	          0,
-	          &phrb_preference_meta,
-	          &phrb_preference_identity,
-	          &phrb_preference_source_class,
-	          &phrb_preference_resolved_checksum64,
-	          &phrb_preference_resolved_selector_checksum64),
-	      "generic lookup helper should resolve native sampled PHRB entries ahead of family-runtime compat duplicates");
-	check(phrb_preference_meta.repl_w == 2 && phrb_preference_meta.repl_h == 2,
-	      "generic lookup helper should preserve native replacement dimensions when a compat family stub shares the checksum");
-	check(phrb_preference_identity.valid,
-	      "generic lookup helper should preserve native sampled identity when a compat family stub shares the checksum");
-	check(phrb_preference_source_class == ResolvedEntrySourceClass::Native,
-	      "generic lookup helper should classify native sampled PHRB winners explicitly");
-	check(phrb_preference_identity.sampled_low32 == phrb_preference_sampled_low32 &&
-	          phrb_preference_identity.sampled_palette_crc == phrb_preference_palette_crc,
-	      "generic lookup helper should expose the native sampled checksum identity");
-	check(phrb_preference_resolved_checksum64 == phrb_preference_checksum64 &&
-	          phrb_preference_resolved_selector_checksum64 == 0,
-	      "generic lookup helper should report the native exact checksum and selector");
 	ReplacementResolution phrb_preference_resolution = {};
 	check(phrb_preference_provider.resolve_upload_candidate(
 	          258,
@@ -1818,14 +1608,8 @@ int main()
 	      "upload candidate resolution should not fall through to compat when native sampled exists");
 	check(phrb_preference_resolution.identity.valid,
 	      "upload candidate resolution should preserve native sampled identity");
-	ReplacementMeta phrb_preference_compat_meta = {};
-	check(phrb_preference_provider.lookup_compat_with_selector(
-	          phrb_preference_checksum64,
-	          258,
-	          0,
-	          &phrb_preference_compat_meta),
-	      "compat lookup should still expose the family-runtime fallback explicitly");
-	check(phrb_preference_compat_meta.repl_w == 4 && phrb_preference_compat_meta.repl_h == 1,
+	const auto *phrb_preference_compat = phrb_preference_provider.find_compat_entry(phrb_preference_checksum64, 258, 0);
+	check(phrb_preference_compat && phrb_preference_compat->width == 4 && phrb_preference_compat->height == 1,
 	      "compat lookup should preserve the family-runtime fallback dimensions");
 	ReplacementImage phrb_preference_image = {};
 	check(phrb_preference_provider.decode_rgba8_with_selector(
@@ -1912,29 +1696,6 @@ int main()
 	check(duplicate_diags[0].active_replacement_id == "duplicate-a", "duplicate diagnostic should report the stable replacement id");
 	check(duplicate_diags[0].active_repl_w == 2 && duplicate_diags[0].active_repl_h == 2,
 	      "duplicate diagnostic should preserve active replacement dimensions");
-	ReplacementMeta duplicate_lookup_meta = {};
-	NativeSampledIdentity duplicate_lookup_identity = {};
-	ResolvedEntrySourceClass duplicate_lookup_source_class = ResolvedEntrySourceClass::Unknown;
-	uint64_t duplicate_resolved_checksum64 = 0;
-	uint64_t duplicate_resolved_selector_checksum64 = 0;
-	check(duplicate_provider.lookup_with_selector_and_identity(
-	          duplicate_diags[0].active_checksum64,
-	          768,
-	          duplicate_selector,
-	          &duplicate_lookup_meta,
-	          &duplicate_lookup_identity,
-	          &duplicate_lookup_source_class,
-	          &duplicate_resolved_checksum64,
-	          &duplicate_resolved_selector_checksum64),
-	      "selector-bearing generic lookup helper should resolve duplicate sampled entries");
-	check(duplicate_lookup_identity.valid,
-	      "selector-bearing generic lookup helper should preserve native sampled identity");
-	check(duplicate_lookup_source_class == ResolvedEntrySourceClass::Native,
-	      "selector-bearing generic lookup helper should classify sampled duplicate winners as native");
-	check(duplicate_resolved_checksum64 == duplicate_diags[0].active_checksum64,
-	      "selector-bearing generic lookup helper should report the resolved checksum");
-	check(duplicate_resolved_selector_checksum64 == duplicate_selector,
-	      "selector-bearing generic lookup helper should report the resolved selector checksum");
 
 	ReplacementImage duplicate_image = {};
 	check(duplicate_provider.decode_sampled_rgba8_with_selector(

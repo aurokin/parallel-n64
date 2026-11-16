@@ -40,54 +40,6 @@ struct ReplacementImage
 	std::vector<uint8_t> rgba8;
 };
 
-struct CILow32FamilyDiagnostics
-{
-	bool available = false;
-	bool prefer_exact_formatsize = false;
-	uint32_t exact_formatsize_entries = 0;
-	uint32_t generic_formatsize_entries = 0;
-	uint32_t active_entry_count = 0;
-	uint32_t active_unique_checksum_count = 0;
-	uint32_t active_unique_palette_count = 0;
-	uint32_t active_unique_repl_dim_count = 0;
-	uint32_t active_preferred_palette_match_count = 0;
-	uint32_t sample_repl_w = 0;
-	uint32_t sample_repl_h = 0;
-	bool active_repl_dims_uniform = false;
-};
-
-struct SampledFamilyDiagnostics
-{
-	bool available = false;
-	bool prefer_exact_formatsize = false;
-	bool active_repl_dims_uniform = false;
-	bool active_has_any_selector = false;
-	bool active_has_ordered_surface_selectors = false;
-	bool active_is_pool = false;
-	uint32_t exact_formatsize_entries = 0;
-	uint32_t generic_formatsize_entries = 0;
-	uint32_t active_entry_count = 0;
-	uint32_t active_unique_checksum_count = 0;
-	uint32_t active_unique_selector_count = 0;
-	uint32_t active_zero_selector_count = 0;
-	uint32_t active_matching_selector_count = 0;
-	uint32_t active_ordered_surface_selector_count = 0;
-	uint32_t active_unique_repl_dim_count = 0;
-	uint32_t sample_repl_w = 0;
-	uint32_t sample_repl_h = 0;
-	std::string sample_policy_key;
-	std::string sample_replacement_id;
-	std::string sample_sampled_object_id;
-};
-
-struct CILow32DimsSelector
-{
-	uint32_t checksum_low32 = 0;
-	uint16_t formatsize = 0;
-	uint32_t repl_w = 0;
-	uint32_t repl_h = 0;
-};
-
 struct ReplacementProviderStats
 {
 	uint32_t entry_count = 0;
@@ -97,7 +49,6 @@ struct ReplacementProviderStats
 	uint32_t sampled_duplicate_key_count = 0;
 	uint32_t sampled_duplicate_entry_count = 0;
 	uint32_t sampled_family_count = 0;
-	uint32_t compat_low32_family_count = 0;
 	uint32_t source_phrb_entry_count = 0;
 	uint32_t jabo_entry_count = 0;
 };
@@ -147,28 +98,15 @@ enum class ResolvedEntrySourceClass
 	Compat,
 };
 
-enum class CILow32ResolutionMode
-{
-	SelectedDims = 0,
-	ReplacementDimsUnique,
-	Unique,
-	Any,
-};
-
 enum class ReplacementResolutionKind
 {
 	None = 0,
 	SampledExactSelector,
-	SampledOrderedSurfaceReservedSelector,
 	SampledFamilySingleton,
 	ExactNativeSampled,
 	GenericNativeIdentity,
 	GenericNativeChecksum,
 	GenericCompat,
-	CILow32SelectedDims,
-	CILow32ReplacementDimsUnique,
-	CILow32Unique,
-	CILow32Any,
 	JaboMd5,
 };
 
@@ -182,7 +120,6 @@ struct ReplacementResolution
 	uint64_t resolved_checksum64 = 0;
 	uint64_t resolved_selector_checksum64 = 0;
 	bool ordered_surface_singleton = false;
-	bool matched_preferred_palette = false;
 };
 
 enum class ReplacementLoadStatus { Loaded, NotFound, UnsupportedVersion, Invalid };
@@ -210,7 +147,6 @@ public:
 	const std::string &rejected_path() const { return rejected_path_; }
 	const std::string &loaded_path() const { return loaded_path_; }
 	std::vector<ReplacementPackageStats> package_stats() const;
-	bool has_compat_entries() const;
 	bool has_phrb_compat_entries() const;
 	bool has_jabo_entries() const;
 	// Project64/Jabo packs key replacements by a 16-byte MD5 (rdp_hires_jabo_key.hpp).
@@ -220,16 +156,7 @@ public:
 	// repaints (all alpha >= 254) derive opacity from intensity. Lower alpha is retained.
 	bool decode_rgba8_jabo(uint64_t key_lo, uint64_t key_hi, uint32_t native_format, ReplacementImage *out) const;
 	bool lookup(uint64_t checksum64, uint16_t formatsize, ReplacementMeta *out) const;
-	bool probe_lookup(uint32_t texture_crc, uint32_t palette_crc, uint16_t formatsize, ReplacementMeta *out) const;
 	bool lookup_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta *out) const;
-	bool lookup_with_selector_and_identity(uint64_t checksum64,
-	                                       uint16_t formatsize,
-	                                       uint64_t selector_checksum64,
-	                                       ReplacementMeta *out,
-	                                       NativeSampledIdentity *identity,
-	                                       ResolvedEntrySourceClass *resolved_source_class = nullptr,
-	                                       uint64_t *resolved_checksum64 = nullptr,
-	                                       uint64_t *resolved_selector_checksum64 = nullptr) const;
 	bool resolve_upload_candidate(uint16_t formatsize,
 	                              uint32_t sampled_fmt,
 	                              uint32_t sampled_siz,
@@ -241,35 +168,6 @@ public:
 	                              uint32_t palette_crc,
 	                              uint64_t selector_checksum64,
 	                              ReplacementResolution *out) const;
-	bool resolve_sampled_candidate(uint32_t sampled_fmt,
-	                               uint32_t sampled_siz,
-	                               uint32_t sampled_tex_offset,
-	                               uint32_t sampled_stride,
-	                               uint32_t sampled_width,
-	                               uint32_t sampled_height,
-	                               uint32_t sampled_low32,
-	                               uint32_t palette_crc,
-	                               uint16_t formatsize,
-	                               uint64_t selector_checksum64,
-	                               ReplacementResolution *out) const;
-	bool resolve_reserved_ordered_surface_candidate(uint32_t sampled_fmt,
-	                                                uint32_t sampled_siz,
-	                                                uint32_t sampled_tex_offset,
-	                                                uint32_t sampled_stride,
-	                                                uint32_t sampled_width,
-	                                                uint32_t sampled_height,
-	                                                uint32_t sampled_low32,
-	                                                uint32_t palette_crc,
-	                                                uint16_t formatsize,
-	                                                uint64_t ordered_surface_selector_checksum64,
-	                                                ReplacementResolution *out) const;
-	bool lookup_native_with_selector(uint64_t checksum64,
-	                                 uint16_t formatsize,
-	                                 uint64_t selector_checksum64,
-	                                 ReplacementMeta *out,
-	                                 NativeSampledIdentity *identity = nullptr,
-	                                 uint64_t *resolved_checksum64 = nullptr) const;
-	bool lookup_compat_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta *out) const;
 	bool lookup_sampled_with_selector(uint32_t sampled_fmt,
 	                                  uint32_t sampled_siz,
 	                                  uint32_t sampled_tex_offset,
@@ -319,45 +217,7 @@ public:
 	                                        uint64_t selector_checksum64,
 	                                        ReplacementImage *out,
 	                                        uint64_t *resolved_checksum64 = nullptr) const;
-	uint32_t ordered_surface_selector_count(uint32_t texture_crc, uint32_t palette_crc, uint16_t formatsize) const;
-	uint64_t ordered_surface_selector_checksum64(uint32_t texture_crc, uint32_t palette_crc, uint16_t formatsize, uint32_t selector_index) const;
 	static uint64_t ordered_surface_slot_selector_checksum64(uint32_t slot_index);
-	bool lookup_ci_low32_unique(uint32_t checksum_low32, uint16_t formatsize, ReplacementMeta *out, uint64_t *resolved_checksum64 = nullptr) const;
-	bool lookup_ci_low32_repl_dims_unique(uint32_t checksum_low32, uint16_t formatsize, ReplacementMeta *out, uint64_t *resolved_checksum64 = nullptr) const;
-	bool lookup_ci_low32_selected_dims(uint32_t checksum_low32,
-	                                   uint16_t formatsize,
-	                                   uint32_t repl_w,
-	                                   uint32_t repl_h,
-	                                   ReplacementMeta *out,
-	                                   uint64_t *resolved_checksum64 = nullptr) const;
-	bool lookup_ci_low32_any(uint32_t checksum_low32,
-	                         uint16_t formatsize,
-	                         uint32_t preferred_palette_crc,
-	                         ReplacementMeta *out,
-	                         uint64_t *resolved_checksum64 = nullptr,
-	                         bool *matched_preferred_palette = nullptr) const;
-	bool resolve_ci_low32_candidate(uint32_t checksum_low32,
-	                                uint16_t formatsize,
-	                                uint32_t preferred_palette_crc,
-	                                uint32_t repl_w,
-	                                uint32_t repl_h,
-	                                CILow32ResolutionMode mode,
-	                                ReplacementResolution *out) const;
-	bool describe_sampled_family(uint32_t sampled_fmt,
-	                             uint32_t sampled_siz,
-	                             uint32_t sampled_tex_offset,
-	                             uint32_t sampled_stride,
-	                             uint32_t sampled_width,
-	                             uint32_t sampled_height,
-	                             uint32_t sampled_low32,
-	                             uint32_t palette_crc,
-	                             uint16_t formatsize,
-	                             uint64_t requested_selector_checksum64,
-	                             SampledFamilyDiagnostics *out) const;
-	bool describe_ci_low32_family(uint32_t checksum_low32,
-	                              uint16_t formatsize,
-	                              uint32_t preferred_palette_crc,
-	                              CILow32FamilyDiagnostics *out) const;
 	bool decode_rgba8(uint64_t checksum64, uint16_t formatsize, ReplacementImage *out) const;
 	bool decode_rgba8_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementImage *out) const;
 	bool decode_rgba8_native_with_selector(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementImage *out) const;
@@ -518,13 +378,6 @@ private:
 	                                                 bool allow_ordered_surface_selectors,
 	                                                 uint64_t *resolved_selector_checksum64 = nullptr,
 	                                                 bool *resolved_ordered_surface_singleton = nullptr) const;
-	const Entry *find_ci_low32_entry(uint32_t checksum_low32,
-	                                 uint16_t formatsize,
-	                                 uint32_t preferred_palette_crc,
-	                                 uint32_t repl_w,
-	                                 uint32_t repl_h,
-	                                 CILow32ResolutionMode mode,
-	                                 bool *matched_preferred_palette = nullptr) const;
 	ReplacementLoadStatus load_phrb(const std::string &path);
 	bool read_blob(const Entry &entry, std::vector<uint8_t> &blob) const;
 	bool decode_entry_rgba8(const Entry &entry, ReplacementImage *out, const ReplacementPalette *palette = nullptr) const;
@@ -564,11 +417,9 @@ private:
 	std::vector<Entry> entries_;
 	std::unordered_map<uint64_t, std::vector<size_t>> native_checksum_index_;
 	std::unordered_map<uint64_t, std::vector<size_t>> compat_checksum_index_;
-	std::unordered_map<uint32_t, std::vector<size_t>> compat_checksum_low32_index_;
 	std::unordered_map<SampledLookupKey, size_t, SampledLookupKeyHash> sampled_index_;
 	std::unordered_map<SampledLookupKey, uint32_t, SampledLookupKeyHash> sampled_duplicate_index_;
 	std::unordered_map<SampledFamilyLookupKey, std::vector<size_t>, SampledFamilyLookupKeyHash> sampled_family_index_;
-	std::unordered_map<uint64_t, std::vector<uint64_t>> ordered_surface_selectors_;
 	std::unordered_map<JaboKey, size_t, JaboKeyHash> jabo_index_;
 	ReplacementLoadStatus load_error_ = ReplacementLoadStatus::NotFound;
 	std::string rejected_path_, loaded_path_;

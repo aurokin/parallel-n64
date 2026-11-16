@@ -134,7 +134,7 @@ elif sub == "stop":
         emit(f"[INFO] Hi-res keying summary: {counts} "
              f"compat_draw_hits={draw_hits} compat_draw_ci_hits=0 compat_draw_ci_attempts=0 compat_draw_bank0_hits=0 "
              "provider=on entries=12 native_sampled=0 compat=12 sampled_index=0 sampled_dupe_keys=0 "
-             "sampled_dupe_entries=0 sampled_families=0 compat_low32_families=12 sources(phrb=12) "
+             "sampled_dupe_entries=0 sampled_families=0 sources(phrb=12) "
              "descriptor_paths(sampled=0 native_checksum=0 generic=0 compat=3) "
              "sampled_detail(family_singleton=0 ordered_surface_singleton=0 exact_selector=0) "
              "generic_detail(identity_assisted=0 plain=0 native=0 compat=0 unknown=0).")

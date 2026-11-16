@@ -1211,7 +1211,7 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 	     label, static_cast<unsigned long long>(hires_strong_draw_hits),
 	     static_cast<unsigned long long>(strong_computations), static_cast<unsigned long long>(strong_memo_hits));
 	ReplacementProviderStats provider_stats = replacement_provider->get_stats();
-	LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
+	LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
 	     label,
 	     static_cast<unsigned long long>(hires_lookup_total),
 	     static_cast<unsigned long long>(hires_lookup_hits),
@@ -1227,7 +1227,6 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 	     provider_stats.sampled_duplicate_key_count,
 	     provider_stats.sampled_duplicate_entry_count,
 	     provider_stats.sampled_family_count,
-	     provider_stats.compat_low32_family_count,
 	     provider_stats.source_phrb_entry_count,
 	     static_cast<unsigned long long>(hires_descriptor_sampled_resolutions),
 	     static_cast<unsigned long long>(hires_descriptor_native_checksum_resolutions),
@@ -4195,7 +4194,6 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 	switch (resolution.kind)
 	{
 	case ReplacementResolutionKind::SampledExactSelector:
-	case ReplacementResolutionKind::SampledOrderedSurfaceReservedSelector:
 	case ReplacementResolutionKind::SampledFamilySingleton:
 		return try_sampled(resolution.resolved_selector_checksum64);
 
@@ -4215,10 +4213,6 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 		return try_native_checksum(resolution.resolved_selector_checksum64, HiresNativeChecksumDetailClass::GenericFallback);
 
 	case ReplacementResolutionKind::GenericCompat:
-	case ReplacementResolutionKind::CILow32SelectedDims:
-	case ReplacementResolutionKind::CILow32ReplacementDimsUnique:
-	case ReplacementResolutionKind::CILow32Unique:
-	case ReplacementResolutionKind::CILow32Any:
 		return try_compat(resolution.resolved_selector_checksum64);
 
 	case ReplacementResolutionKind::JaboMd5:
@@ -5110,11 +5104,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						hires_descriptor_sampled_exact_selector_resolutions++;
 						break;
 
-					case ReplacementResolutionKind::SampledOrderedSurfaceReservedSelector:
-					case ReplacementResolutionKind::CILow32SelectedDims:
-					case ReplacementResolutionKind::CILow32ReplacementDimsUnique:
-					case ReplacementResolutionKind::CILow32Unique:
-					case ReplacementResolutionKind::CILow32Any:
 					case ReplacementResolutionKind::None:
 						break;
 					}

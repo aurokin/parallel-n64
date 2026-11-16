@@ -12,9 +12,8 @@ same scenarios, compare each scenario's end savestate and checkpoint RAM cues:
 * RDRAM differences are reported as address ranges. With `--strict-rdram` any
   RDRAM difference fails: replacement stays out of the RDRAM render targets at
   every upscale factor (ADR-0020), so the whole end state must match. Without
-  it, framebuffer and depth-buffer ranges are expected
-  (PARALLEL_RDP_HIRES_NATIVE_PASS=replace, or cores without the 1x presented
-  pass) and anything else is for review.
+  it, framebuffer and depth-buffer ranges are expected (cores without the 1x
+  presented pass) and anything else is for review.
 
 Exit status is nonzero when any scenario fails.
 """

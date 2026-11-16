@@ -28,8 +28,9 @@ registers followed (see the
    replacements and VI scans out the presented copy. Without a pack, 1x keeps
    the single upstream pass. (Amended October 25, 2026; the original decision
    let the 1x native pass replace, and a pack could change game state.)
-3. `PARALLEL_RDP_HIRES_NATIVE_PASS=replace` restores the earlier behavior for
-   comparison; `native` is the default.
+3. `PARALLEL_RDP_HIRES_NATIVE_PASS=replace` restored the earlier behavior for
+   comparison; `native` was the default. (Removed November 16, 2026: no tool
+   set it, and the shipped renderer keeps only the native-pass rule.)
 
 ## Consequences
 

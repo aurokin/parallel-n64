@@ -200,9 +200,9 @@ must match; RDRAM differences are listed by address range. The native pass
 renders without replacements at every upscale factor
 ([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md); at 1x a
 separate presented pass is added while a pack is loaded), so RDRAM should match
-too: pass `--strict-rdram` to fail on any RDRAM difference. With `PARALLEL_RDP_HIRES_NATIVE_PASS=replace` (or a core older than the
-1x presented pass), replacement changes the framebuffer and depth-buffer contents
-written back, and those ranges are expected.
+too: pass `--strict-rdram` to fail on any RDRAM difference. With a core older
+than the 1x presented pass, replacement changes the framebuffer and depth-buffer
+contents written back, and those ranges are expected.
 
 
 Runs with no comparison expectations have outcome `no-coverage`. With

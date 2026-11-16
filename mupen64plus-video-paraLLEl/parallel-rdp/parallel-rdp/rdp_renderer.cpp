@@ -981,8 +981,7 @@ void Renderer::update_hires_presented_pass()
 		return;
 
 	const bool presented_pass = detail::needs_presented_pass(
-			caps.upscaling, replacement_provider && caps.hires_replacement_shader,
-			hires_native_pass_replacement);
+			caps.upscaling, replacement_provider && caps.hires_replacement_shader);
 	if (presented_pass == caps.upscaled_domain)
 		return;
 
@@ -1163,15 +1162,6 @@ void Renderer::set_hires_gliden64_compat_crc(bool enable)
 	hires_gliden64_compat_crc_enabled = enable;
 	if (enable)
 		LOGI("Hi-res GlideN64-compat RDRAM CRC fallback enabled.\n");
-}
-
-void Renderer::set_hires_native_pass_replacement(bool enable)
-{
-	hires_native_pass_replacement = enable;
-	LOGI("Hi-res native pass: %s.\n", enable ? "replace" : "native (RDRAM matches feature-off)");
-	if (enable)
-		LOGI("Hi-res loading stays synchronous for native-pass comparison.\n");
-	update_hires_presented_pass();
 }
 
 void Renderer::set_hires_filter(unsigned mode)
@@ -2951,7 +2941,7 @@ void Renderer::submit_rasterization(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &
 	global_fb_info->base_primitive_index = base_primitive_index;
 	global_fb_info->hires_filter = hires_filter_mode;
 	global_fb_info->hires_replacement = detail::pass_samples_replacements(
-			upscaling, caps.upscaled_domain, hires_native_pass_replacement) ? 1u : 0u;
+			upscaling, caps.upscaled_domain) ? 1u : 0u;
 
 #ifdef PARALLEL_RDP_SHADER_DIR
 	cmd.set_program("rdp://rasterizer.comp", {
@@ -3291,7 +3281,7 @@ void Renderer::submit_depth_blend(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &tm
 	global_fb_info->base_primitive_index = base_primitive_index;
 	global_fb_info->hires_filter = hires_filter_mode;
 	global_fb_info->hires_replacement = detail::pass_samples_replacements(
-			upscaled, caps.upscaled_domain, hires_native_pass_replacement) ? 1u : 0u;
+			upscaled, caps.upscaled_domain) ? 1u : 0u;
 
 	push.depth_addr_index = fb.depth_addr >> 1;
 	unsigned num_primitives_32 = (stream.triangle_setup.size() + 31) / 32;

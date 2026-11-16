@@ -160,16 +160,6 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 		renderer.set_hires_debug(strtol(env, nullptr, 0) > 0);
 	hires_summary_clock.interval =
 		detail::parse_hires_summary_interval_frames(getenv("PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES"));
-
-	// PARALLEL_RDP_HIRES_NATIVE_PASS: "native" (default) or "replace". See
-	// Renderer::set_hires_native_pass_replacement() and ADR-0020.
-	if (const char *env = getenv("PARALLEL_RDP_HIRES_NATIVE_PASS"))
-	{
-		if (strcmp(env, "replace") == 0)
-			renderer.set_hires_native_pass_replacement(true);
-		else if (strcmp(env, "native") != 0)
-			LOGW("Ignoring PARALLEL_RDP_HIRES_NATIVE_PASS=%s; expected native or replace.\n", env);
-	}
 }
 
 CommandProcessor::~CommandProcessor()

@@ -134,12 +134,6 @@ public:
 	// carried in savestates so a loaded state continues the saving run's noise.
 	uint32_t get_base_primitive_index() const { return base_primitive_index; }
 	void set_base_primitive_index(uint32_t index) { base_primitive_index = index; }
-	// When false (the default), the native pass renders without replacements so RDRAM
-	// (color and depth the CPU can read) matches feature-off; only the presented pass
-	// replaces. Without upscaling, a 1x presented pass is added while a replacement
-	// provider is attached. When true, the native pass replaces too and 1x keeps a
-	// single pass (the pre-ADR-0020 behavior, for comparison).
-	void set_hires_native_pass_replacement(bool enable);
 	void configure_hires_gpu_budget(unsigned option_mb);
 	const HiresResidencyStatus &get_hires_residency_status() const { return hires_residency_status; }
 	// Final summary, emitted once at teardown. Its line format is parsed by
@@ -217,7 +211,6 @@ private:
 	bool hires_gliden64_compat_crc_enabled = false;
 	// 0 = nearest, 1 = bilinear, 2 = trilinear (see HIRES_FILTER_* in shaders).
 	unsigned hires_filter_mode = 2;
-	bool hires_native_pass_replacement = false;
 
 	bool init_caps();
 	void init_blender_lut();

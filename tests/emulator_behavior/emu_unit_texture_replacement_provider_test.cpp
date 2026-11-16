@@ -1969,6 +1969,12 @@ int main()
 	      rejected_provider.load_error() == ReplacementLoadStatus::UnsupportedVersion &&
 	      rejected_provider.rejected_path() == rejected_path && rejected_provider.entry_count() == 0,
 	      "unsupported PHRB version reports rejection without loading entries");
+	unsupported.version = 6;
+	memcpy(header_bytes.data(), &unsupported, sizeof(unsupported));
+	write_file(rejected_path, header_bytes);
+	check(!rejected_provider.load_cache_dir(rejected_path) &&
+	      rejected_provider.load_error() == ReplacementLoadStatus::UnsupportedVersion,
+	      "a pre-version-7 PHRB is rejected as unsupported rather than damaged");
 	write_file(rejected_path, {1, 2, 3});
 	check(!rejected_provider.load_cache_dir(rejected_path) &&
 	      rejected_provider.load_error() == ReplacementLoadStatus::Invalid,

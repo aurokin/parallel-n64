@@ -154,7 +154,7 @@ static void show_hires_status()
 		std::snprintf(message, sizeof(message), "Hi-res textures: %s not loaded (%s)",
 		              detail::hires_path_filename(pack.rejected_path).c_str(),
 		              pack.load_error == ReplacementLoadStatus::UnsupportedVersion ?
-		                  "unsupported PHRB version; use a compatible pack or newer core" : "unreadable or damaged");
+		                  "unsupported PHRB version; reconvert the pack or use a newer core" : "unreadable or damaged");
 		hires_message_once(PackRejected, message);
 	}
 	if (pack.state == HiresPackState::Loaded)

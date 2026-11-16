@@ -80,23 +80,6 @@ struct PHRBHeader
 	uint32_t blob_offset = 0;
 };
 
-struct PHRBRecordV2
-{
-	uint32_t policy_key_offset = 0;
-	uint32_t sampled_object_id_offset = 0;
-	uint32_t fmt = 0;
-	uint32_t siz = 0;
-	uint32_t tex_offset = 0;
-	uint32_t stride = 0;
-	uint32_t width = 0;
-	uint32_t height = 0;
-	uint32_t formatsize = 0;
-	uint32_t sampled_low32 = 0;
-	uint32_t sampled_entry_pcrc = 0;
-	uint32_t sampled_sparse_pcrc = 0;
-	uint32_t asset_candidate_count = 0;
-};
-
 struct PHRBRecordV4
 {
 	uint32_t policy_key_offset = 0;
@@ -127,75 +110,6 @@ constexpr uint32_t PHRB_RECORD_FLAG_RUNTIME_READY = 1u << 0;
 constexpr uint32_t PHRB_KEY_KIND_RICE = 0;
 constexpr uint32_t PHRB_KEY_KIND_JABO_MD5 = 1;
 
-struct PHRBAssetV2
-{
-	uint32_t record_index = 0;
-	uint32_t replacement_id_offset = 0;
-	uint32_t legacy_source_path_offset = 0;
-	uint32_t rgba_rel_path_offset = 0;
-	uint32_t variant_group_id_offset = 0;
-	uint32_t width = 0;
-	uint32_t height = 0;
-	uint32_t texture_format = 0;
-	uint32_t pixel_type = 0;
-	uint32_t legacy_formatsize = 0;
-	uint32_t rgba_blob_offset = 0;
-	uint32_t rgba_blob_size = 0;
-};
-
-struct PHRBAssetV3
-{
-	uint32_t record_index = 0;
-	uint32_t replacement_id_offset = 0;
-	uint32_t legacy_source_path_offset = 0;
-	uint32_t rgba_rel_path_offset = 0;
-	uint32_t variant_group_id_offset = 0;
-	uint32_t width = 0;
-	uint32_t height = 0;
-	uint32_t texture_format = 0;
-	uint32_t pixel_type = 0;
-	uint32_t legacy_formatsize = 0;
-	uint64_t selector_checksum64 = 0;
-	uint32_t rgba_blob_offset = 0;
-	uint32_t rgba_blob_size = 0;
-};
-
-struct PHRBAssetV5
-{
-	uint32_t record_index = 0;
-	uint32_t replacement_id_offset = 0;
-	uint32_t legacy_source_path_offset = 0;
-	uint32_t rgba_rel_path_offset = 0;
-	uint32_t variant_group_id_offset = 0;
-	uint32_t width = 0;
-	uint32_t height = 0;
-	uint32_t texture_format = 0;
-	uint32_t pixel_type = 0;
-	uint32_t legacy_formatsize = 0;
-	uint64_t selector_checksum64 = 0;
-	uint64_t legacy_checksum64 = 0;
-	uint32_t rgba_blob_offset = 0;
-	uint32_t rgba_blob_size = 0;
-};
-
-struct PHRBAssetV6
-{
-	uint32_t record_index = 0;
-	uint32_t replacement_id_offset = 0;
-	uint32_t legacy_source_path_offset = 0;
-	uint32_t rgba_rel_path_offset = 0;
-	uint32_t variant_group_id_offset = 0;
-	uint32_t width = 0;
-	uint32_t height = 0;
-	uint32_t texture_format = 0;
-	uint32_t pixel_type = 0;
-	uint32_t legacy_formatsize = 0;
-	uint64_t selector_checksum64 = 0;
-	uint64_t legacy_checksum64 = 0;
-	uint64_t rgba_blob_offset = 0;
-	uint64_t rgba_blob_size = 0;
-};
-
 struct PHRBAssetV7
 {
 	uint32_t record_index = 0;
@@ -218,13 +132,8 @@ struct PHRBAssetV7
 #pragma pack(pop)
 
 static_assert(sizeof(PHRBHeader) == 32, "PHRBHeader must stay packed on disk.");
-static_assert(sizeof(PHRBRecordV2) == 52, "PHRBRecordV2 must stay packed on disk.");
 static_assert(sizeof(PHRBRecordV4) == 56, "PHRBRecordV4 must stay packed on disk.");
 static_assert(sizeof(PHRBRecordV8) == 76, "PHRBRecordV8 must stay packed on disk.");
-static_assert(sizeof(PHRBAssetV2) == 48, "PHRBAssetV2 must stay packed on disk.");
-static_assert(sizeof(PHRBAssetV3) == 56, "PHRBAssetV3 must stay packed on disk.");
-static_assert(sizeof(PHRBAssetV5) == 64, "PHRBAssetV5 must stay packed on disk.");
-static_assert(sizeof(PHRBAssetV6) == 72, "PHRBAssetV6 must stay packed on disk.");
 static_assert(sizeof(PHRBAssetV7) == 76, "PHRBAssetV7 must stay packed on disk.");
 
 inline bool phrb_magic_ok(const char magic[4])
@@ -2271,20 +2180,19 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 	}
 	if (!phrb_magic_ok(header.magic))
 		return ReplacementLoadStatus::Invalid;
-	if (header.version < 2 || header.version > 8)
+	// hts2phrb writes version 7, or 8 when a record carries a Jabo MD5.
+	if (header.version < 7 || header.version > 8)
+	{
+		LOGW("Hi-res PHRB %s is version %u; this core reads versions 7 and 8.%s\n", path.c_str(), header.version,
+		     header.version < 7 ? " Reconvert the source pack with tools/hts2phrb.py." : "");
 		return ReplacementLoadStatus::UnsupportedVersion;
+	}
 	if (header.string_table_offset > header.blob_offset || header.blob_offset > static_cast<size_t>(size))
 		return ReplacementLoadStatus::Invalid;
 
-	const bool version3 = header.version >= 3;
-	const bool version4 = header.version >= 4;
-	const bool version5 = header.version >= 5;
-	const bool version6 = header.version >= 6;
-	const bool version7 = header.version >= 7;
 	const bool version8 = header.version >= 8;
-	const size_t record_size = version8 ? sizeof(PHRBRecordV8) : version4 ? sizeof(PHRBRecordV4) : sizeof(PHRBRecordV2);
-	const size_t asset_size = version7 ? sizeof(PHRBAssetV7) : version6 ? sizeof(PHRBAssetV6) :
-	                          version5 ? sizeof(PHRBAssetV5) : version3 ? sizeof(PHRBAssetV3) : sizeof(PHRBAssetV2);
+	const size_t record_size = version8 ? sizeof(PHRBRecordV8) : sizeof(PHRBRecordV4);
+	const size_t asset_size = sizeof(PHRBAssetV7);
 	const size_t metadata_size = static_cast<size_t>(header.blob_offset);
 	if (header.record_table_offset < sizeof(PHRBHeader) ||
 	    header.record_table_offset > header.asset_table_offset ||
@@ -2303,8 +2211,7 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 	for (uint32_t i = 0; i < header.record_count; i++)
 	{
 		uint32_t count = 0;
-		const size_t count_offset = version4 ? offsetof(PHRBRecordV4, asset_candidate_count) :
-		                                      offsetof(PHRBRecordV2, asset_candidate_count);
+		const size_t count_offset = offsetof(PHRBRecordV4, asset_candidate_count);
 		if (!read_pod_from_blob(blob, size_t(header.record_table_offset) + size_t(i) * record_size + count_offset, count) ||
 		    count > header.asset_count - asset_total)
 			return ReplacementLoadStatus::Invalid;
@@ -2321,50 +2228,26 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 	uint32_t asset_base = 0;
 	for (uint32_t record_index = 0; record_index < header.record_count; record_index++)
 	{
-		PHRBRecordV2 record = {};
-		uint32_t record_flags = PHRB_RECORD_FLAG_RUNTIME_READY;
+		PHRBRecordV4 record = {};
 		uint32_t key_kind = PHRB_KEY_KIND_RICE;
 		uint8_t record_key[16] = {};
-		if (version4)
+		if (version8)
 		{
-			PHRBRecordV4 record_v4 = {};
-			if (version8)
-			{
-				PHRBRecordV8 record_v8 = {};
-				const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV8);
-				if (!read_pod_from_blob(blob, record_offset, record_v8))
-					return ReplacementLoadStatus::Invalid;
-				record_v4 = record_v8.v4;
-				key_kind = record_v8.key_kind;
-				memcpy(record_key, record_v8.key, sizeof(record_key));
-			}
-			else
-			{
-				const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV4);
-				if (!read_pod_from_blob(blob, record_offset, record_v4))
-					return ReplacementLoadStatus::Invalid;
-			}
-			record.policy_key_offset = record_v4.policy_key_offset;
-			record.sampled_object_id_offset = record_v4.sampled_object_id_offset;
-			record.fmt = record_v4.fmt;
-			record.siz = record_v4.siz;
-			record.tex_offset = record_v4.tex_offset;
-			record.stride = record_v4.stride;
-			record.width = record_v4.width;
-			record.height = record_v4.height;
-			record.formatsize = record_v4.formatsize;
-			record.sampled_low32 = record_v4.sampled_low32;
-			record.sampled_entry_pcrc = record_v4.sampled_entry_pcrc;
-			record.sampled_sparse_pcrc = record_v4.sampled_sparse_pcrc;
-			record.asset_candidate_count = record_v4.asset_candidate_count;
-			record_flags = record_v4.record_flags;
+			PHRBRecordV8 record_v8 = {};
+			const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV8);
+			if (!read_pod_from_blob(blob, record_offset, record_v8))
+				return ReplacementLoadStatus::Invalid;
+			record = record_v8.v4;
+			key_kind = record_v8.key_kind;
+			memcpy(record_key, record_v8.key, sizeof(record_key));
 		}
 		else
 		{
-			const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV2);
+			const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV4);
 			if (!read_pod_from_blob(blob, record_offset, record))
 				return ReplacementLoadStatus::Invalid;
 		}
+		const uint32_t record_flags = record.record_flags;
 
 		std::string policy_key;
 		if (!read_c_string_from_blob(string_blob, string_blob_size, record.policy_key_offset, policy_key))
@@ -2500,112 +2383,27 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 		for (uint32_t ai = 0; ai < record.asset_candidate_count; ai++)
 		{
 			const uint32_t asset_index = asset_base + ai;
-			uint32_t width = 0;
-			uint32_t height = 0;
-			uint32_t format = GL_RGBA8;
-			uint32_t texture_format = GL_RGBA;
-			uint32_t pixel_type = GL_UNSIGNED_BYTE;
-			uint64_t rgba_offset = 0;
-			uint64_t rgba_size = 0;
-			uint64_t selector_checksum64 = 0;
-			uint64_t legacy_checksum64 = 0;
-			uint16_t legacy_formatsize = 0;
-			size_t asset_offset = 0;
+			PHRBAssetV7 asset = {};
+			const size_t asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV7);
+			if (!read_pod_from_blob(blob, asset_offset, asset))
+				return ReplacementLoadStatus::Invalid;
+			const uint32_t width = asset.width;
+			const uint32_t height = asset.height;
+			const uint32_t format = asset.format;
+			const uint32_t texture_format = asset.texture_format;
+			const uint32_t pixel_type = asset.pixel_type;
+			const uint64_t rgba_offset = asset.rgba_blob_offset;
+			const uint64_t rgba_size = asset.rgba_blob_size;
+			const uint16_t legacy_formatsize = uint16_t(asset.legacy_formatsize);
+			const uint64_t selector_checksum64 = asset.selector_checksum64;
+			const uint64_t legacy_checksum64 = asset.legacy_checksum64;
 			std::string replacement_id;
-			if (version7)
-			{
-				PHRBAssetV7 asset = {};
-				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV7);
-				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return ReplacementLoadStatus::Invalid;
-				width = asset.width;
-				height = asset.height;
-				format = asset.format;
-				texture_format = asset.texture_format;
-				pixel_type = asset.pixel_type;
-				rgba_offset = asset.rgba_blob_offset;
-				rgba_size = asset.rgba_blob_size;
-				legacy_formatsize = uint16_t(asset.legacy_formatsize);
-				selector_checksum64 = asset.selector_checksum64;
-				legacy_checksum64 = asset.legacy_checksum64;
-				read_c_string_from_blob(string_blob, string_blob_size, asset.replacement_id_offset, replacement_id);
-			}
-			else if (version6)
-			{
-				PHRBAssetV6 asset = {};
-				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV6);
-				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return ReplacementLoadStatus::Invalid;
-				width = asset.width;
-				height = asset.height;
-				texture_format = asset.texture_format;
-				pixel_type = asset.pixel_type;
-				rgba_offset = asset.rgba_blob_offset;
-				rgba_size = asset.rgba_blob_size;
-				legacy_formatsize = uint16_t(asset.legacy_formatsize);
-				selector_checksum64 = asset.selector_checksum64;
-				legacy_checksum64 = asset.legacy_checksum64;
-				read_c_string_from_blob(string_blob, string_blob_size, asset.replacement_id_offset, replacement_id);
-			}
-			else if (version5)
-			{
-				PHRBAssetV5 asset = {};
-				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV5);
-				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return ReplacementLoadStatus::Invalid;
-				width = asset.width;
-				height = asset.height;
-				texture_format = asset.texture_format;
-				pixel_type = asset.pixel_type;
-				rgba_offset = asset.rgba_blob_offset;
-				rgba_size = asset.rgba_blob_size;
-				legacy_formatsize = uint16_t(asset.legacy_formatsize);
-				selector_checksum64 = asset.selector_checksum64;
-				legacy_checksum64 = asset.legacy_checksum64;
-				read_c_string_from_blob(string_blob, string_blob_size, asset.replacement_id_offset, replacement_id);
-			}
-			else if (version3)
-			{
-				PHRBAssetV3 asset = {};
-				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV3);
-				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return ReplacementLoadStatus::Invalid;
-				width = asset.width;
-				height = asset.height;
-				texture_format = asset.texture_format;
-				pixel_type = asset.pixel_type;
-				rgba_offset = asset.rgba_blob_offset;
-				rgba_size = asset.rgba_blob_size;
-				legacy_formatsize = uint16_t(asset.legacy_formatsize);
-				selector_checksum64 = asset.selector_checksum64;
-				read_c_string_from_blob(string_blob, string_blob_size, asset.replacement_id_offset, replacement_id);
-			}
-			else
-			{
-				PHRBAssetV2 asset = {};
-				asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV2);
-				if (!read_pod_from_blob(blob, asset_offset, asset))
-					return ReplacementLoadStatus::Invalid;
-				width = asset.width;
-				height = asset.height;
-				texture_format = asset.texture_format;
-				pixel_type = asset.pixel_type;
-				rgba_offset = asset.rgba_blob_offset;
-				rgba_size = asset.rgba_blob_size;
-				legacy_formatsize = uint16_t(asset.legacy_formatsize);
-				read_c_string_from_blob(string_blob, string_blob_size, asset.replacement_id_offset, replacement_id);
-			}
+			read_c_string_from_blob(string_blob, string_blob_size, asset.replacement_id_offset, replacement_id);
 
 			if (rgba_offset > rgba_blob_size || rgba_size > (rgba_blob_size - rgba_offset))
 				continue;
 			if (width == 0 || height == 0 || rgba_size == 0 || rgba_size > uint64_t(UINT32_MAX))
 				continue;
-			if (!version7)
-			{
-				const uint64_t expected_rgba_size = uint64_t(width) * uint64_t(height) * 4ull;
-				if (rgba_size != expected_rgba_size)
-					continue;
-			}
 			const uint32_t rgba_size_u32 = uint32_t(rgba_size);
 
 			if (key_kind == PHRB_KEY_KIND_JABO_MD5)

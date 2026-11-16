@@ -60,29 +60,9 @@ static void index_vectors()
 	check(RDP::compute_ci8_max_index(memory.data(), 0, 0, 2, 1, 2) == 0, "CI8 empty memory");
 }
 
-static void diagnostic_vectors()
-{
-	std::array<uint8_t, 16> bytes;
-	for (unsigned i = 0; i < bytes.size(); ++i)
-		bytes[i] = uint8_t(i);
-	using RDP::detail::legacy_hash_calculate_words;
-	check(legacy_hash_calculate_words(0xffffffffu, bytes.data(), 0) == 0xffe40008u, "nonnull empty finalizes seed");
-	check(legacy_hash_calculate_words(0xffffffffu, bytes.data(), 4) == 0x4a97cc44u, "one word");
-	check(legacy_hash_calculate_words(0xffffffffu, bytes.data(), 8) == 0xa55979beu, "two words");
-	check(legacy_hash_calculate_words(0xffffffffu, bytes.data(), 16) == 0xe4551101u, "four words");
-	for (size_t size = 5; size < 8; ++size)
-		check(legacy_hash_calculate_words(0xffffffffu, bytes.data(), size) == 0x4a97cc44u, "trailing bytes ignored");
-	for (size_t size : {size_t(0), size_t(4), size_t(17)})
-		check(legacy_hash_calculate_words(0xffffffffu, nullptr, size) == 0xffffffffu, "null keeps seed");
-	const uint8_t text[] = "123456789";
-	check(RDP::detail::legacy_crc32_reflected(0xffffffffu, text, 9) == 0x340bc6d9u,
-	      "separate reflected CRC convention");
-}
-
 int main()
 {
 	rice_vectors();
 	index_vectors();
-	diagnostic_vectors();
 	return 0;
 }

@@ -68,42 +68,6 @@ static const char *load_mode_to_string(UploadMode mode)
 	}
 }
 
-static bool hires_debug_filter_is_active(const HiresDebugFilterState &filter)
-{
-	return !filter.allow_tile || !filter.allow_block || !filter.blocked_signatures.empty();
-}
-
-static std::string make_hires_debug_signature(UploadMode mode, uint32_t tile,
-                                              TextureFormat fmt, TextureSize size,
-                                              uint32_t key_width_pixels, uint32_t key_height_pixels,
-                                              uint16_t formatsize)
-{
-	char signature[128] = {};
-	std::snprintf(signature, sizeof(signature),
-	              "mode=%s fmt=%u siz=%u wh=%ux%u fs=%u tile=%u",
-	              load_mode_to_string(mode),
-	              unsigned(fmt),
-	              unsigned(size),
-	              key_width_pixels,
-	              key_height_pixels,
-	              unsigned(formatsize),
-	              tile);
-	return signature;
-}
-
-static const char *get_hires_debug_filter_reason(const HiresDebugFilterState &filter,
-                                                 UploadMode mode,
-                                                 const std::string &signature)
-{
-	if (mode == UploadMode::Tile && !filter.allow_tile)
-		return "mode-disabled";
-	if (mode == UploadMode::Block && !filter.allow_block)
-		return "mode-disabled";
-	if (filter.blocked_signatures.find(signature) != filter.blocked_signatures.end())
-		return "signature-disabled";
-	return nullptr;
-}
-
 static uint32_t compute_hires_texture_source_span_bytes(uint32_t row_stride_bytes, uint32_t row_bytes, uint32_t height)
 {
 	if (row_bytes == 0 || height == 0)
@@ -1121,7 +1085,6 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 			replacement_tiles, tlut_shadow_valid, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
 	memset(tlut_shadow, 0, sizeof(tlut_shadow));
 	memset(tlut_tmem_shadow, 0, sizeof(tlut_tmem_shadow));
-	hires_lookup_filtered = 0;
 	hires_descriptor_sampled_resolutions = 0;
 	hires_descriptor_sampled_family_singleton_resolutions = 0;
 	hires_descriptor_sampled_ordered_surface_singleton_resolutions = 0;
@@ -1181,23 +1144,6 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 void Renderer::set_hires_debug(bool enable)
 {
 	hires_debug = enable;
-}
-
-void Renderer::set_hires_debug_filter(bool allow_tile,
-                                      bool allow_block,
-                                      std::unordered_set<std::string> &&blocked_signatures)
-{
-	hires_debug_filter.allow_tile = allow_tile;
-	hires_debug_filter.allow_block = allow_block;
-	hires_debug_filter.blocked_signatures = std::move(blocked_signatures);
-
-	if (!hires_debug_filter_is_active(hires_debug_filter))
-		return;
-
-	LOGI("Hi-res debug filter: allow_tile=%d allow_block=%d signature_count=%u.\n",
-	     hires_debug_filter.allow_tile ? 1 : 0,
-	     hires_debug_filter.allow_block ? 1 : 0,
-	     unsigned(hires_debug_filter.blocked_signatures.size()));
 }
 
 void Renderer::begin_frame_context()
@@ -1377,12 +1323,11 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 		     label, static_cast<unsigned long long>(hires_strong_draw_hits),
 		     static_cast<unsigned long long>(strong_computations), static_cast<unsigned long long>(strong_memo_hits));
 		ReplacementProviderStats provider_stats = replacement_provider->get_stats();
-		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu filtered=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
+		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
 		     label,
 		     static_cast<unsigned long long>(hires_lookup_total),
 		     static_cast<unsigned long long>(hires_lookup_hits),
 		     static_cast<unsigned long long>(hires_lookup_misses),
-		     static_cast<unsigned long long>(hires_lookup_filtered),
 		     static_cast<unsigned long long>(hires_compat_draw_time_hits),
 		     static_cast<unsigned long long>(hires_compat_draw_time_ci_hits),
 		     static_cast<unsigned long long>(hires_compat_draw_time_ci_attempts),
@@ -1449,12 +1394,11 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 	}
 	else
 	{
-		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu filtered=%llu provider=off.\n",
+		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu provider=off.\n",
 		     label,
 		     static_cast<unsigned long long>(hires_lookup_total),
 		     static_cast<unsigned long long>(hires_lookup_hits),
-		     static_cast<unsigned long long>(hires_lookup_misses),
-		     static_cast<unsigned long long>(hires_lookup_filtered));
+		     static_cast<unsigned long long>(hires_lookup_misses));
 	}
 }
 
@@ -5361,8 +5305,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			uint64_t resolved_checksum64 = checksum64;
 			uint64_t resolved_selector_checksum64 = 0;
 			const uint16_t formatsize = formatsize_key(meta.fmt, meta.size);
-			const std::string hires_signature = make_hires_debug_signature(
-					info.mode, tile, meta.fmt, meta.size, key_width_pixels, key_height_pixels, formatsize);
 			ReplacementMeta repl_meta = {};
 			const char *native_lookup_resolution_reason = nullptr;
 			const char *descriptor_path_class = nullptr;
@@ -5512,14 +5454,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					}
 				}
 			}
-			const char *filter_reason = nullptr;
-			if (hit && hires_debug_filter_is_active(hires_debug_filter))
-			{
-				filter_reason = get_hires_debug_filter_reason(hires_debug_filter, info.mode, hires_signature);
-				if (filter_reason)
-					hit = false;
-			}
-
 			auto &repl_state = replacement_tiles[tile & (Limits::MaxNumTiles - 1)];
 			detail::write_hires_lookup_tile_state(
 					repl_state,
@@ -5552,22 +5486,13 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			}
 
 			hires_lookup_total++;
-			if (filter_reason)
-				hires_lookup_filtered++;
-			else if (hit)
+			if (hit)
 				hires_lookup_hits++;
 			else
 				hires_lookup_misses++;
 
 				if (hires_debug)
 				{
-					if (filter_reason)
-					{
-						LOGI("Hi-res keying filtered: reason=%s %s key=%016llx.\n",
-					     filter_reason,
-					     hires_signature.c_str(),
-					     static_cast<unsigned long long>(resolved_checksum64));
-				}
 					LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u pal=%u wh=%ux%u key=%016llx pcrc=%08x fs=%u descriptor_path=%s resolution_reason=%s hit=%d.\n",
 					     hit ? "hit" : "miss",
 					     load_mode_to_string(info.mode),
@@ -5582,11 +5507,10 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					     lookup_palette_crc,
 					     unsigned(lookup_formatsize),
 					     hit ? (descriptor_path_class ? descriptor_path_class : "unknown") : "none",
-					     native_lookup_resolution_reason ? native_lookup_resolution_reason :
-						 (filter_reason ? filter_reason : "none"),
+					     native_lookup_resolution_reason ? native_lookup_resolution_reason : "none",
 					     hit ? 1 : 0);
 					LOGI("Hi-res keying provenance: outcome=%s source_class=%s provenance_class=%s mode=%s addr=0x%06x tile=%u fmt=%u siz=%u pal=%u wh=%ux%u key=%016llx pcrc=%08x fs=%u upload=%s cycle=%s copy=%u tlut=%u tlut_type=%u framebuffer=%u color_fb=%u depth_fb=%u tmem=0x%03x line=%u key_xy=%ux%u.\n",
-					     filter_reason ? "filtered" : (hit ? "hit" : "miss"),
+					     hit ? "hit" : "miss",
 					     source_class,
 					     provenance_class,
 					     load_mode_to_string(info.mode),

@@ -52,43 +52,6 @@ using namespace Vulkan;
 
 namespace RDP
 {
-namespace
-{
-static bool parse_optional_bool_env(const char *env, bool fallback)
-{
-	if (!env || !*env)
-		return fallback;
-	return strtol(env, nullptr, 0) > 0;
-}
-
-static std::unordered_set<std::string> parse_hires_filter_signatures_env(const char *env)
-{
-	std::unordered_set<std::string> signatures;
-	if (!env || !*env)
-		return signatures;
-
-	const std::string raw(env);
-	size_t start = 0;
-	while (start < raw.size())
-	{
-		size_t end = raw.find(';', start);
-		if (end == std::string::npos)
-			end = raw.size();
-
-		std::string signature = raw.substr(start, end - start);
-		size_t first = signature.find_first_not_of(" \t\r\n");
-		size_t last = signature.find_last_not_of(" \t\r\n");
-		if (first != std::string::npos && last != std::string::npos)
-			signatures.emplace(signature.substr(first, last - first + 1));
-
-		start = end + 1;
-	}
-
-	return signatures;
-}
-
-}
-
 CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
                                    size_t rdram_offset_, size_t rdram_size_, size_t hidden_rdram_size,
                                    CommandProcessorFlags flags_)
@@ -210,11 +173,6 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 		else if (strcmp(env, "native") != 0)
 			LOGW("Ignoring PARALLEL_RDP_HIRES_NATIVE_PASS=%s; expected native or replace.\n", env);
 	}
-
-	const bool allow_tile = parse_optional_bool_env(getenv("PARALLEL_RDP_HIRES_FILTER_ALLOW_TILE"), true);
-	const bool allow_block = parse_optional_bool_env(getenv("PARALLEL_RDP_HIRES_FILTER_ALLOW_BLOCK"), true);
-	auto blocked_signatures = parse_hires_filter_signatures_env(getenv("PARALLEL_RDP_HIRES_FILTER_SIGNATURES"));
-	renderer.set_hires_debug_filter(allow_tile, allow_block, std::move(blocked_signatures));
 }
 
 CommandProcessor::~CommandProcessor()

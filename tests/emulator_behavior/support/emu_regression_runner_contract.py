@@ -131,7 +131,7 @@ elif sub == "stop":
              "decode_failures=0 load_ms_total=1.500 load_ms_max_frame=0.750 heap_usage=0 heap_budget=0."))
         counts = plan.get("lookups", "lookups=5 hits=4 misses=1")
         draw_hits = plan.get("draw_hits", 3)
-        emit(f"[INFO] Hi-res keying summary: {counts} filtered=0 "
+        emit(f"[INFO] Hi-res keying summary: {counts} "
              f"compat_draw_hits={draw_hits} compat_draw_ci_hits=0 compat_draw_ci_attempts=0 compat_draw_bank0_hits=0 "
              "provider=on entries=12 native_sampled=0 compat=12 sampled_index=0 sampled_dupe_keys=0 "
              "sampled_dupe_entries=0 sampled_families=0 compat_low32_families=12 sources(phrb=12) "

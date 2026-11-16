@@ -83,13 +83,6 @@ struct RendererOptions
 	unsigned upscaling_factor = 1;
 };
 
-struct HiresDebugFilterState
-{
-	bool allow_tile = true;
-	bool allow_block = true;
-	std::unordered_set<std::string> blocked_signatures;
-};
-
 enum class HiresDrawClass : uint8_t
 {
 	Triangle = 0,
@@ -134,9 +127,6 @@ public:
 	void load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint32_t tmem_offset);
 	bool set_replacement_provider(const ReplacementProvider *provider);
 	void set_hires_debug(bool enable);
-	void set_hires_debug_filter(bool allow_tile,
-	                           bool allow_block,
-	                           std::unordered_set<std::string> &&blocked_signatures);
 	void begin_frame_context();
 	void set_hires_gliden64_compat_crc(bool enable);
 	void set_hires_filter(unsigned mode);
@@ -224,7 +214,6 @@ private:
 	const ShaderBank *shader_bank = nullptr;
 	const ReplacementProvider *replacement_provider = nullptr;
 	bool hires_debug = false;
-	HiresDebugFilterState hires_debug_filter;
 	bool hires_gliden64_compat_crc_enabled = false;
 	// 0 = nearest, 1 = bilinear, 2 = trilinear (see HIRES_FILTER_* in shaders).
 	unsigned hires_filter_mode = 2;
@@ -366,7 +355,6 @@ private:
 	uint64_t hires_lookup_total = 0;
 	uint64_t hires_lookup_hits = 0;
 	uint64_t hires_lookup_misses = 0;
-	uint64_t hires_lookup_filtered = 0;
 	uint64_t hires_descriptor_sampled_resolutions = 0;
 	uint64_t hires_descriptor_sampled_family_singleton_resolutions = 0;
 	uint64_t hires_descriptor_sampled_ordered_surface_singleton_resolutions = 0;

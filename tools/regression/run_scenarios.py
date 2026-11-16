@@ -677,6 +677,14 @@ def execute(scenario: Scenario, ctx: RunContext, session: Session, record: dict[
             record["checkpoints"].append(take_checkpoint(session, item, ctx.out))
     if scenario.save_end:
         record["end_state_sha256"] = end_state_sha(session)
+        reply = session.send("SAVE_FILES", timeout=30)
+        if not reply.ok or "[SRAM] Saved successfully to" not in reply.stdout:
+            raise RunFailure("savefile-failed", "SAVE_FILES did not acknowledge flushed save memory")
+        saves = list((session.bundle / "savefiles").rglob(f"{inputs.rom.stem}.srm"))
+        if len(saves) == 1:
+            record["end_savefile_sha256"] = sha256_file(saves[0])
+        elif scenario.start.get("savefile_sha256"):
+            raise RunFailure("savefile-failed", "no unambiguous end savefile")
 
 
 def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
@@ -717,7 +725,7 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
         "scenario_file": str(scenario.path), "bundle": os.path.relpath(bundle, ctx.out),
         "start_kind": scenario.start["kind"], "started": utc_now(), "ended": None,
         "exit_class": "clean", "error": None, "load": None, "frames_run": 0,
-        "wall_seconds": None, "fps": None, "checkpoints": [], "end_state_sha256": None,
+        "wall_seconds": None, "fps": None, "checkpoints": [], "end_state_sha256": None, "end_savefile_sha256": None,
         "hires": None, "orphans": [], "gates": [], "log_flags": [],
     }
     flags: set[str] = set()
@@ -878,6 +886,9 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
     if scenario.save_end:
         # Both modes are deterministic, so the end state gates in each (ADR-0019, ADR-0020).
         gates.append(compare("end_state", record["end_state_sha256"], expected.get("end_state_sha256")))
+    if expected.get("end_savefile_sha256"):
+        gates.append(compare("end_savefile", record.get("end_savefile_sha256"),
+                             expected["end_savefile_sha256"]))
     if mode == "on" and expected.get("pack_sha256"):
         # Goldens recorded with another pack describe different replacement content.
         gates.append(compare("pack", record["pack_sha256"], expected["pack_sha256"], on_mismatch="review"))
@@ -933,6 +944,7 @@ def expectation_entry(scenario: Scenario, record: dict[str, Any], mode: str) -> 
     }
     if scenario.save_end:
         entry["end_state_sha256"] = record["end_state_sha256"]
+        entry["end_savefile_sha256"] = record.get("end_savefile_sha256")
     return entry
 
 

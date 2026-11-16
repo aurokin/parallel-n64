@@ -124,7 +124,7 @@ The runner appends one JSON line per scenario run to `<out>/results.jsonl`:
   step-timeout | orphan-reaped | not-run` (`not-run`: inputs missing or
   mismatched, nothing launched);
 - `checkpoints[{after_frames, ram{}, ram_errors{}, capture_path,
-  capture_sha256, uniform_black}]`, `end_state_sha256`;
+  capture_sha256, uniform_black}]`, `end_state_sha256`, `end_savefile_sha256`;
 - `hires {summary_lines, summary_count, provider, entries, hits, draw_hits,
   misses, fallback_reasons, cache_load_failed}`;
 - `gates[{name, status: pass|fail|review|skip, detail}]`, `log_flags[]`,
@@ -136,3 +136,6 @@ Hi-res-on captures must match the expectation's reference capture hash by
 default. A mismatch fails. Pass `--renderer-change` only when the change is
 expected to alter replacement output; mismatches then require visual review.
 GLideN64 output and similarity metrics never enter gates.
+
+End savefiles are flushed with `SAVE_FILES` after saving the end state. When an
+expectation carries `end_savefile_sha256`, a mismatch fails in both modes.

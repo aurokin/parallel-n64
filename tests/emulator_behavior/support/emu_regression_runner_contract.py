@@ -83,6 +83,10 @@ elif sub == "send":
             raise SystemExit(1)
         st["frame"] += int(args[0])
         print(command)
+    elif verb == "SAVE_FILES":
+        for path in (bundle / "savefiles").rglob("*.srm"):
+            path.write_bytes(bytes.fromhex(plan["savefile"]) if "savefile" in plan else path.read_bytes())
+        print("[SRAM] Saved successfully to savefile")
     elif verb == "READ_CORE_MEMORY":
         size = int(args[1])
         data = bytes.fromhex(plan["ram"]) if "ram" in plan else bytes(
@@ -482,6 +486,15 @@ class RegressionRunnerContract(unittest.TestCase):
                                           plan={"state": "drifted"}, mode="on")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertEqual(self.gates(records["field-state"])["end_state"], "fail")
+
+    def test_end_savefile_mismatch_fails_both_modes(self):
+        for mode in ("off", "on"):
+            expectations = self.record_golden(mode)
+            result, records = self.run_runner("save-" + mode, "--expectations", str(expectations),
+                                              mode=mode, plan={"savefile": "1234"})
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(self.gates(records["field-state"])["end_savefile"], "fail")
+            self.assertEqual(records["field-state"]["end_savefile_sha256"], sha256(bytes.fromhex("1234")))
 
     def test_step_timeout_is_classified(self):
         result, records = self.run_runner("step", "--select", "field-state", plan={"fail": "step"})

@@ -201,7 +201,7 @@ elif sub == "send":
     verb, *args = opts["--command"].split()
     if verb == "STEP_FRAME":
         st["frame"] += int(args[0])
-    print(opts["--command"])
+    print("[SRAM] Saved successfully to savefile" if verb == "SAVE_FILES" else opts["--command"])
 elif sub == "save-slot":
     target = bundle / "states/ParaLLEish" / f"{st['stem']}.state{opts['--slot']}"
     target.parent.mkdir(parents=True, exist_ok=True)

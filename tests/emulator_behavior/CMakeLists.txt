@@ -201,16 +201,6 @@ target_compile_features(emu_unit_cp0_exception_cause_new_dynarec_test PRIVATE c_
 add_test(NAME emu.unit.cp0_exception_cause_new_dynarec
   COMMAND emu_unit_cp0_exception_cause_new_dynarec_test)
 
-add_executable(emu_unit_rdp_hires_compat_crc_override_test
-  emu_unit_rdp_hires_compat_crc_override_test.cpp
-)
-target_include_directories(emu_unit_rdp_hires_compat_crc_override_test PRIVATE
-  "${CMAKE_SOURCE_DIR}"
-  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp"
-)
-target_compile_features(emu_unit_rdp_hires_compat_crc_override_test PRIVATE cxx_std_17)
-add_test(NAME emu.unit.rdp_hires_compat_crc_override COMMAND emu_unit_rdp_hires_compat_crc_override_test)
-
 add_executable(emu_unit_hires_cache_path_test emu_unit_hires_cache_path_test.cpp)
 target_include_directories(emu_unit_hires_cache_path_test PRIVATE "${CMAKE_SOURCE_DIR}")
 target_compile_features(emu_unit_hires_cache_path_test PRIVATE cxx_std_17)

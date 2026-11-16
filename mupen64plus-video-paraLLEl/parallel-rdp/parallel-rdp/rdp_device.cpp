@@ -21,7 +21,6 @@
  */
 
 #include "rdp_device.hpp"
-#include "rdp_hires_runtime_config.hpp"
 #include "rdp_common.hpp"
 #include "rdp_hires_runtime_policy.hpp"
 #include "rdp_memory_path_policy.hpp"
@@ -159,8 +158,6 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 
 	if (const char *env = getenv("PARALLEL_RDP_HIRES_DEBUG"))
 		renderer.set_hires_debug(strtol(env, nullptr, 0) > 0);
-	hires_gliden64_compat_crc_override =
-		detail::parse_hires_gliden64_compat_crc_override(getenv("PARALLEL_RDP_HIRES_GLIDEN64_COMPAT_CRC"));
 	hires_summary_clock.interval =
 		detail::parse_hires_summary_interval_frames(getenv("PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES"));
 
@@ -889,15 +886,10 @@ void CommandProcessor::configure_hires_replacement(bool enable, const std::vecto
 		hires_pack_status.entries = replacement_provider.entry_count();
 	}
 
-	// Jabo MD5 lookups run inside the draw-time compat lane, after its Rice key misses.
-	const bool compat_crc_auto_enabled = detail::resolve_hires_gliden64_compat_crc_auto_enabled(
-		replacement_provider.has_phrb_compat_entries() || replacement_provider.has_jabo_entries());
-
-	// Auto-enable compat CRC only for compat- or Jabo-bearing PHRB payloads.
-	// Explicit env overrides still win, and pure native loads remain compat-disabled by default.
+	// The draw-time compat lane runs only for compat- or Jabo-bearing PHRB payloads;
+	// Jabo MD5 lookups run inside it, after its Rice key misses.
 	renderer.set_hires_gliden64_compat_crc(
-		detail::resolve_hires_gliden64_compat_crc_enabled(hires_gliden64_compat_crc_override,
-		                                                 compat_crc_auto_enabled));
+		replacement_provider.has_phrb_compat_entries() || replacement_provider.has_jabo_entries());
 }
 
 void CommandProcessor::set_vi_register(VIRegister reg, uint32_t value)

@@ -143,8 +143,8 @@ public:
 	void tmem_load_begin(unsigned tile);
 	// The same iteration once decomposed: tmem_address is where it writes TMEM
 	// and rdram_pitch the RDRAM row pitch in texels the RDP walks.
-	// split_offset is the line offset of a load split into 4 KiB iterations.
-	void tmem_load(unsigned tile, const LoadTileInfo &info, uint32_t split_offset,
+	// tmem_offset is the line offset of a load split into 4 KiB iterations.
+	void tmem_load(unsigned tile, const LoadTileInfo &info, uint32_t tmem_offset,
 	               int32_t tmem_address, int32_t rdram_pitch);
 
 	// A draw sampling tile `tile` (and its TEXEL1 peer) with these raster flags,

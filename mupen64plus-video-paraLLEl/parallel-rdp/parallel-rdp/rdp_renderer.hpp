@@ -71,13 +71,12 @@ struct RendererOptions
 	unsigned upscaling_factor = 1;
 };
 
+// Non-flipped texture rectangles may drop their native-resolution snap when
+// a hi-res replacement is bound (see HiresDrawBinding::lifts_tex_rect_snap).
 enum class HiresDrawClass : uint8_t
 {
-	Triangle = 0,
-	TexRect,
-	TexRectFlip,
-	FillRect,
-	FillTriangle
+	Primitive = 0,
+	TexRect
 };
 
 class Renderer : public Vulkan::DebugChannelInterface
@@ -96,9 +95,9 @@ public:
 
 	bool init_renderer(const RendererOptions &options);
 
-	void draw_flat_primitive(const TriangleSetup &setup, HiresDrawClass draw_class = HiresDrawClass::Triangle);
+	void draw_flat_primitive(const TriangleSetup &setup);
 	void draw_shaded_primitive(const TriangleSetup &setup, const AttributeSetup &attr,
-	                          HiresDrawClass draw_class = HiresDrawClass::Triangle);
+	                           HiresDrawClass draw_class = HiresDrawClass::Primitive);
 
 	void set_color_framebuffer(uint32_t addr, uint32_t width, FBFormat fmt);
 	void set_depth_framebuffer(uint32_t addr);

@@ -734,9 +734,9 @@ void Renderer::set_depth_blend_state(const DepthBlendState &state)
 	stream.depth_blend_state = state;
 }
 
-void Renderer::draw_flat_primitive(const TriangleSetup &setup, HiresDrawClass draw_class)
+void Renderer::draw_flat_primitive(const TriangleSetup &setup)
 {
-	draw_shaded_primitive(setup, {}, draw_class);
+	draw_shaded_primitive(setup, {});
 }
 
 static int normalize_dzpix(int dz)

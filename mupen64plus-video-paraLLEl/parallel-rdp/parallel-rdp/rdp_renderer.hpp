@@ -126,7 +126,6 @@ public:
 	void load_tile(uint32_t tile, const LoadTileInfo &info);
 	void load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint32_t tmem_offset);
 	bool set_replacement_provider(const ReplacementProvider *provider);
-	void set_hires_debug(bool enable);
 	void begin_frame_context();
 	void set_hires_gliden64_compat_crc(bool enable);
 	void set_hires_filter(unsigned mode);
@@ -207,7 +206,6 @@ private:
 	uint8_t *cpu_rdram = nullptr;
 	const ShaderBank *shader_bank = nullptr;
 	const ReplacementProvider *replacement_provider = nullptr;
-	bool hires_debug = false;
 	bool hires_gliden64_compat_crc_enabled = false;
 	// 0 = nearest, 1 = bilinear, 2 = trilinear (see HIRES_FILTER_* in shaders).
 	unsigned hires_filter_mode = 2;
@@ -371,7 +369,6 @@ private:
 	uint64_t hires_compat_draw_time_ci_hits = 0;
 	// Retired cross-bank fallback; retain its zero-valued summary field.
 	uint64_t hires_compat_draw_time_bank0_hits = 0;
-	std::unordered_set<uint64_t> hires_compat_draw_miss_logged;
 	// Jabo MD5 lane: runs after a draw-time Rice miss, only for packages with
 	// Jabo records. The memo maps draw views to MD5s and is bounded by clearing.
 	bool hires_jabo_lane_enabled = false;
@@ -381,7 +378,6 @@ private:
 	uint64_t hires_jabo_memo_hits = 0;
 	std::unordered_map<detail::HiresJaboMemoKey, std::array<uint8_t, 16>, detail::HiresJaboMemoKeyHash> hires_jabo_memo;
 	std::vector<uint8_t> hires_jabo_scratch;
-	std::unordered_set<uint64_t> hires_jabo_miss_logged;
 	Vulkan::BufferHandle tmem_instances;
 	Vulkan::BufferHandle span_setups;
 	Vulkan::BufferHandle blender_divider_lut_buffer;

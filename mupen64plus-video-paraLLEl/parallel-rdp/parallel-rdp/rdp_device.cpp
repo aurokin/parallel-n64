@@ -156,8 +156,6 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 	if (const char *env = getenv("PARALLEL_RDP_BENCH"))
 		timestamp = strtol(env, nullptr, 0) > 0;
 
-	if (const char *env = getenv("PARALLEL_RDP_HIRES_DEBUG"))
-		renderer.set_hires_debug(strtol(env, nullptr, 0) > 0);
 	hires_summary_clock.interval =
 		detail::parse_hires_summary_interval_frames(getenv("PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES"));
 }

@@ -53,32 +53,6 @@ namespace RDP
 {
 namespace
 {
-static const char *load_mode_to_string(UploadMode mode)
-{
-	switch (mode)
-	{
-	case UploadMode::Tile:
-		return "tile";
-	case UploadMode::TLUT:
-		return "tlut";
-	case UploadMode::Block:
-		return "block";
-	default:
-		return "unknown";
-	}
-}
-
-static uint32_t compute_hires_texture_source_span_bytes(uint32_t row_stride_bytes, uint32_t row_bytes, uint32_t height)
-{
-	if (row_bytes == 0 || height == 0)
-		return 0;
-
-	if (height == 1)
-		return row_bytes;
-
-	return row_stride_bytes * (height - 1) + row_bytes;
-}
-
 static bool compute_hires_tile_size_pixels(const TileSize &size, uint32_t &width_pixels, uint32_t &height_pixels)
 {
 	const uint32_t sl = size.slo >> 2;
@@ -223,74 +197,6 @@ static uint64_t compute_gliden64_compat_checksum64(
 	}
 
 	return uint64_t(texture_crc);
-}
-
-static bool ranges_overlap_u32(uint32_t a_addr, uint32_t a_size, uint32_t b_addr, uint32_t b_size)
-{
-	if (a_size == 0 || b_size == 0)
-		return false;
-
-	const uint64_t a_begin = a_addr;
-	const uint64_t a_end = a_begin + a_size;
-	const uint64_t b_begin = b_addr;
-	const uint64_t b_end = b_begin + b_size;
-	return a_begin < b_end && b_begin < a_end;
-}
-
-static const char *get_hires_cycle_class(StaticRasterizationFlags flags)
-{
-	if ((flags & RASTERIZATION_COPY_BIT) != 0)
-		return "copy";
-	if ((flags & RASTERIZATION_FILL_BIT) != 0)
-		return "fill";
-	if ((flags & RASTERIZATION_MULTI_CYCLE_BIT) != 0)
-		return "2cycle";
-	return "1cycle";
-}
-
-static const char *get_hires_draw_class(HiresDrawClass draw_class)
-{
-	switch (draw_class)
-	{
-	case HiresDrawClass::Triangle:
-		return "triangle";
-	case HiresDrawClass::TexRect:
-		return "texrect";
-	case HiresDrawClass::TexRectFlip:
-		return "texrect-flip";
-	case HiresDrawClass::FillRect:
-		return "fill-rect";
-	case HiresDrawClass::FillTriangle:
-		return "fill-triangle";
-	default:
-		return "unknown";
-	}
-}
-
-static const char *get_hires_source_class(bool overlaps_color_fb, bool overlaps_depth_fb)
-{
-	return (overlaps_color_fb || overlaps_depth_fb) ? "framebuffer-derived" : "authored-rdram";
-}
-
-static const char *get_hires_provenance_class(bool overlaps_color_fb, bool overlaps_depth_fb,
-                                              StaticRasterizationFlags flags, UploadMode mode)
-{
-	if (overlaps_color_fb || overlaps_depth_fb)
-		return "framebuffer-derived";
-	if ((flags & RASTERIZATION_COPY_BIT) != 0)
-		return "copy-cycle";
-
-	switch (mode)
-	{
-	case UploadMode::Block:
-		return "loadblock";
-	case UploadMode::Tile:
-		return "loadtile";
-	case UploadMode::TLUT:
-		return "tlut";
-	default:
-		return "unknown";
-	}
 }
 
 static uint16_t emulate_load_tlut_entry_word(const uint8_t *rdram, size_t rdram_size, uint32_t addr)
@@ -1112,7 +1018,6 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_jabo_md5_computations = 0;
 	hires_jabo_memo_hits = 0;
 	hires_jabo_memo.clear();
-	hires_jabo_miss_logged.clear();
 
 	bool ready = true;
 	if (provider)
@@ -1138,11 +1043,6 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 
 	update_hires_presented_pass();
 	return ready;
-}
-
-void Renderer::set_hires_debug(bool enable)
-{
-	hires_debug = enable;
 }
 
 void Renderer::begin_frame_context()
@@ -1282,113 +1182,102 @@ void Renderer::log_hires_summary_periodic(uint64_t frame) const
 // loaded pack rather than runtime traffic, and parsers count them per line.
 void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diagnostics) const
 {
-	if (!replacement_provider && !hires_debug)
+	if (!replacement_provider)
 		return;
 
-	if (replacement_provider)
+	VkPhysicalDeviceMemoryBudgetPropertiesEXT heap = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT };
+	if (hires_memory_budget_supported)
 	{
-		VkPhysicalDeviceMemoryBudgetPropertiesEXT heap = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT };
-		if (hires_memory_budget_supported)
-		{
-			VkPhysicalDeviceMemoryProperties2 props = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2 };
-			props.pNext = &heap;
-			vkGetPhysicalDeviceMemoryProperties2(device->get_physical_device(), &props);
-		}
-		const auto &r = hires_residency_status;
-		LOGI("Hi-res residency summary%s: mode=sync budget=%llu resident=%u resident_bytes=%llu high_water_bytes=%llu uploads=%llu upload_bytes=%llu evictions=%llu refused_saturated=%llu refused_too_large=%llu refused_no_slot=%llu decode_failures=%llu upload_failures=%llu load_ms_total=%.3f load_ms_max_frame=%.3f heap_usage=%llu heap_budget=%llu.\n",
-		     label, (unsigned long long)r.budget, hires_resources.residency.resident_count,
-		     (unsigned long long)hires_resources.residency.resident_bytes, (unsigned long long)r.high_water_bytes,
-		     (unsigned long long)r.uploads, (unsigned long long)r.upload_bytes, (unsigned long long)r.evictions,
-		     (unsigned long long)r.refused_saturated, (unsigned long long)r.refused_too_large, (unsigned long long)r.refused_no_slot,
-		     (unsigned long long)r.decode_failures, (unsigned long long)r.upload_failures,
-		     r.load_ms_total, r.load_ms_max_frame,
-		     (unsigned long long)heap.heapUsage[hires_heap_index], (unsigned long long)heap.heapBudget[hires_heap_index]);
-		uint64_t strong_computations = 0, strong_memo_hits = 0;
-		for (const auto &memo : hires_strong_memo)
-		{
-			strong_computations += memo.computations;
-			strong_memo_hits += memo.hits;
-		}
-		LOGI("Hi-res strong-hash summary%s: draw_hits=%llu computations=%llu memo_hits=%llu.\n",
-		     label, static_cast<unsigned long long>(hires_strong_draw_hits),
-		     static_cast<unsigned long long>(strong_computations), static_cast<unsigned long long>(strong_memo_hits));
-		ReplacementProviderStats provider_stats = replacement_provider->get_stats();
-		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
-		     label,
-		     static_cast<unsigned long long>(hires_lookup_total),
-		     static_cast<unsigned long long>(hires_lookup_hits),
-		     static_cast<unsigned long long>(hires_lookup_misses),
-		     static_cast<unsigned long long>(hires_compat_draw_time_hits),
-		     static_cast<unsigned long long>(hires_compat_draw_time_ci_hits),
-		     static_cast<unsigned long long>(hires_compat_draw_time_ci_attempts),
-		     static_cast<unsigned long long>(hires_compat_draw_time_bank0_hits),
-		     provider_stats.entry_count,
-		     provider_stats.native_sampled_entry_count,
-		     provider_stats.compat_entry_count,
-		     provider_stats.sampled_index_count,
-		     provider_stats.sampled_duplicate_key_count,
-		     provider_stats.sampled_duplicate_entry_count,
-		     provider_stats.sampled_family_count,
-		     provider_stats.compat_low32_family_count,
-		     provider_stats.source_phrb_entry_count,
-		     static_cast<unsigned long long>(hires_descriptor_sampled_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_native_checksum_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_generic_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_compat_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_sampled_family_singleton_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_sampled_ordered_surface_singleton_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_sampled_exact_selector_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_generic_identity_assisted_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_generic_plain_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_generic_native_plain_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_generic_compat_plain_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_generic_unknown_plain_resolutions));
-		LOGI("Hi-res native checksum detail%s: exact=%llu identity_assisted=%llu generic_fallback=%llu.\n",
-		     label,
-		     static_cast<unsigned long long>(hires_descriptor_native_checksum_exact_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_native_checksum_identity_assisted_resolutions),
-		     static_cast<unsigned long long>(hires_descriptor_native_checksum_generic_fallback_resolutions));
-		if (hires_jabo_lane_enabled)
-			LOGI("Hi-res Jabo summary%s: entries=%u hits=%llu misses=%llu md5=%llu memo_hits=%llu.\n",
-			     label,
-			     provider_stats.jabo_entry_count,
-			     static_cast<unsigned long long>(hires_jabo_draw_hits),
-			     static_cast<unsigned long long>(hires_jabo_draw_misses),
-			     static_cast<unsigned long long>(hires_jabo_md5_computations),
-			     static_cast<unsigned long long>(hires_jabo_memo_hits));
-		if (!include_duplicate_diagnostics)
-			return;
-		for (const auto &diag : replacement_provider->get_sampled_duplicate_diagnostics(10))
-		{
-			LOGI("Hi-res sampled duplicate: sampled_fmt=%u sampled_siz=%u tex_offset=%u stride=%u wh=%ux%u sampled_low32=%08x palette_crc=%08x fs=%u selector=%016llx total_entries=%u duplicate_entries=%u active_checksum=%016llx repl=%ux%u policy=%s replacement_id=%s sampled_object=%s source=%s.\n",
-			     diag.sampled_fmt,
-			     diag.sampled_siz,
-			     diag.sampled_tex_offset,
-			     diag.sampled_stride,
-			     diag.sampled_width,
-			     diag.sampled_height,
-			     diag.sampled_low32,
-			     diag.sampled_palette_crc,
-			     diag.formatsize,
-			     static_cast<unsigned long long>(diag.selector_checksum64),
-			     diag.total_entry_count,
-			     diag.duplicate_entry_count,
-			     static_cast<unsigned long long>(diag.active_checksum64),
-			     diag.active_repl_w,
-			     diag.active_repl_h,
-			     diag.active_policy_key.empty() ? "<none>" : diag.active_policy_key.c_str(),
-			     diag.active_replacement_id.empty() ? "<none>" : diag.active_replacement_id.c_str(),
-			     diag.active_sampled_object_id.empty() ? "<none>" : diag.active_sampled_object_id.c_str(),
-			     diag.active_source_path.empty() ? "<none>" : diag.active_source_path.c_str());
-		}
+		VkPhysicalDeviceMemoryProperties2 props = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2 };
+		props.pNext = &heap;
+		vkGetPhysicalDeviceMemoryProperties2(device->get_physical_device(), &props);
 	}
-	else
+	const auto &r = hires_residency_status;
+	LOGI("Hi-res residency summary%s: mode=sync budget=%llu resident=%u resident_bytes=%llu high_water_bytes=%llu uploads=%llu upload_bytes=%llu evictions=%llu refused_saturated=%llu refused_too_large=%llu refused_no_slot=%llu decode_failures=%llu upload_failures=%llu load_ms_total=%.3f load_ms_max_frame=%.3f heap_usage=%llu heap_budget=%llu.\n",
+	     label, (unsigned long long)r.budget, hires_resources.residency.resident_count,
+	     (unsigned long long)hires_resources.residency.resident_bytes, (unsigned long long)r.high_water_bytes,
+	     (unsigned long long)r.uploads, (unsigned long long)r.upload_bytes, (unsigned long long)r.evictions,
+	     (unsigned long long)r.refused_saturated, (unsigned long long)r.refused_too_large, (unsigned long long)r.refused_no_slot,
+	     (unsigned long long)r.decode_failures, (unsigned long long)r.upload_failures,
+	     r.load_ms_total, r.load_ms_max_frame,
+	     (unsigned long long)heap.heapUsage[hires_heap_index], (unsigned long long)heap.heapBudget[hires_heap_index]);
+	uint64_t strong_computations = 0, strong_memo_hits = 0;
+	for (const auto &memo : hires_strong_memo)
 	{
-		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu provider=off.\n",
+		strong_computations += memo.computations;
+		strong_memo_hits += memo.hits;
+	}
+	LOGI("Hi-res strong-hash summary%s: draw_hits=%llu computations=%llu memo_hits=%llu.\n",
+	     label, static_cast<unsigned long long>(hires_strong_draw_hits),
+	     static_cast<unsigned long long>(strong_computations), static_cast<unsigned long long>(strong_memo_hits));
+	ReplacementProviderStats provider_stats = replacement_provider->get_stats();
+	LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
+	     label,
+	     static_cast<unsigned long long>(hires_lookup_total),
+	     static_cast<unsigned long long>(hires_lookup_hits),
+	     static_cast<unsigned long long>(hires_lookup_misses),
+	     static_cast<unsigned long long>(hires_compat_draw_time_hits),
+	     static_cast<unsigned long long>(hires_compat_draw_time_ci_hits),
+	     static_cast<unsigned long long>(hires_compat_draw_time_ci_attempts),
+	     static_cast<unsigned long long>(hires_compat_draw_time_bank0_hits),
+	     provider_stats.entry_count,
+	     provider_stats.native_sampled_entry_count,
+	     provider_stats.compat_entry_count,
+	     provider_stats.sampled_index_count,
+	     provider_stats.sampled_duplicate_key_count,
+	     provider_stats.sampled_duplicate_entry_count,
+	     provider_stats.sampled_family_count,
+	     provider_stats.compat_low32_family_count,
+	     provider_stats.source_phrb_entry_count,
+	     static_cast<unsigned long long>(hires_descriptor_sampled_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_native_checksum_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_generic_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_compat_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_sampled_family_singleton_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_sampled_ordered_surface_singleton_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_sampled_exact_selector_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_generic_identity_assisted_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_generic_plain_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_generic_native_plain_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_generic_compat_plain_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_generic_unknown_plain_resolutions));
+	LOGI("Hi-res native checksum detail%s: exact=%llu identity_assisted=%llu generic_fallback=%llu.\n",
+	     label,
+	     static_cast<unsigned long long>(hires_descriptor_native_checksum_exact_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_native_checksum_identity_assisted_resolutions),
+	     static_cast<unsigned long long>(hires_descriptor_native_checksum_generic_fallback_resolutions));
+	if (hires_jabo_lane_enabled)
+		LOGI("Hi-res Jabo summary%s: entries=%u hits=%llu misses=%llu md5=%llu memo_hits=%llu.\n",
 		     label,
-		     static_cast<unsigned long long>(hires_lookup_total),
-		     static_cast<unsigned long long>(hires_lookup_hits),
-		     static_cast<unsigned long long>(hires_lookup_misses));
+		     provider_stats.jabo_entry_count,
+		     static_cast<unsigned long long>(hires_jabo_draw_hits),
+		     static_cast<unsigned long long>(hires_jabo_draw_misses),
+		     static_cast<unsigned long long>(hires_jabo_md5_computations),
+		     static_cast<unsigned long long>(hires_jabo_memo_hits));
+	if (!include_duplicate_diagnostics)
+		return;
+	for (const auto &diag : replacement_provider->get_sampled_duplicate_diagnostics(10))
+	{
+		LOGI("Hi-res sampled duplicate: sampled_fmt=%u sampled_siz=%u tex_offset=%u stride=%u wh=%ux%u sampled_low32=%08x palette_crc=%08x fs=%u selector=%016llx total_entries=%u duplicate_entries=%u active_checksum=%016llx repl=%ux%u policy=%s replacement_id=%s sampled_object=%s source=%s.\n",
+		     diag.sampled_fmt,
+		     diag.sampled_siz,
+		     diag.sampled_tex_offset,
+		     diag.sampled_stride,
+		     diag.sampled_width,
+		     diag.sampled_height,
+		     diag.sampled_low32,
+		     diag.sampled_palette_crc,
+		     diag.formatsize,
+		     static_cast<unsigned long long>(diag.selector_checksum64),
+		     diag.total_entry_count,
+		     diag.duplicate_entry_count,
+		     static_cast<unsigned long long>(diag.active_checksum64),
+		     diag.active_repl_w,
+		     diag.active_repl_h,
+		     diag.active_policy_key.empty() ? "<none>" : diag.active_policy_key.c_str(),
+		     diag.active_replacement_id.empty() ? "<none>" : diag.active_replacement_id.c_str(),
+		     diag.active_sampled_object_id.empty() ? "<none>" : diag.active_sampled_object_id.c_str(),
+		     diag.active_source_path.empty() ? "<none>" : diag.active_source_path.c_str());
 	}
 }
 
@@ -2141,8 +2030,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 	                         (raster_flags & RASTERIZATION_USES_PIPELINED_TEXEL1_BIT) != 0;
 	const unsigned base_tile = setup.tile & 7u;
 	const unsigned texel1_tile = (base_tile + 1u) & 7u;
-	const auto &base_meta = tiles[base_tile].meta;
-	const auto &base_size = tiles[base_tile].size;
 	// Equal-offset load propagation preserves a pending render descriptor.
 	// Once sampled, however, each CI4 tile must use the palette bank that
 	// actually produced its replacement lookup, including the TEXEL1 peer.
@@ -2194,10 +2081,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			if (state.hit && !detail::hires_ci4_binding_matches(
 				state.ci4_palette, meta.fmt, meta.size, meta.palette, sampled_slots[slot]))
 			{
-				if (hires_debug)
-					LOGI("Hi-res CI4 palette binding dropped: tile=%u key=%016llx keyed_pal=%u keyed_pal_valid=%u draw_pal=%u.\n",
-					     t, static_cast<unsigned long long>(state.checksum64),
-					     unsigned(state.ci4_palette.palette), unsigned(state.ci4_palette.valid), unsigned(meta.palette));
 				replacement_tiles[t] = {};
 				clear_hires_tile_binding(t);
 			}
@@ -2341,27 +2224,7 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 								hires_compat_draw_time_ci_hits++;
 						}
 
-						if (hires_debug && !jabo_hit)
-						{
-							LOGI("Hi-res GlideN64-compat draw-time hit: tile=%u key=%016llx w=%u h=%u stride=%u addr=0x%06x.\n",
-							     resolve_tile,
-							     static_cast<unsigned long long>(lookup_checksum64),
-							     compat_w, compat_h, compat_view.row_stride,
-							     compat_view.address & 0x00ffffffu);
-						}
 					}
-				}
-				else if (hires_debug && hires_compat_draw_miss_logged.insert(compat_checksum64).second)
-				{
-					uint32_t miss_w = 0, miss_h = 0;
-					compute_hires_tile_size_pixels(resolve_size, miss_w, miss_h);
-					LOGI("Hi-res GlideN64-compat draw-time miss: tile=%u key=%016llx fmt=%u siz=%u wh=%ux%u stride=%u addr=0x%06x tlut_valid=%u.\n",
-					     resolve_tile,
-					     static_cast<unsigned long long>(compat_checksum64),
-					     unsigned(resolve_meta.fmt), unsigned(resolve_meta.size),
-					     miss_w, miss_h, resolve_meta.stride,
-					     hires_rdram_load_addr[resolve_tile] & 0x00ffffffu,
-					     unsigned(tlut_shadow_valid));
 				}
 			}
 		}
@@ -2402,14 +2265,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			// own identity.
 			if (repl_state.formatsize != formatsize_key(tiles[t].meta.fmt, tiles[t].meta.size))
 			{
-				if (hires_debug)
-				{
-					LOGI("Hi-res formatsize-mismatch binding dropped: tile=%u key=%016llx keyed_fs=%u tile_fs=%u offset=0x%03x.\n",
-					     t, static_cast<unsigned long long>(repl_state.checksum64),
-					     unsigned(repl_state.formatsize),
-					     unsigned(formatsize_key(tiles[t].meta.fmt, tiles[t].meta.size)),
-					     tiles[t].meta.offset);
-				}
 				replacement_tiles[t] = {};
 				clear_hires_tile_binding(t);
 				continue;
@@ -2424,13 +2279,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			if (repl_state.keyed_rdram_addr != 0 && hires_rdram_load_addr[t] != 0 &&
 			    repl_state.keyed_rdram_addr != hires_rdram_load_addr[t])
 			{
-				if (hires_debug)
-				{
-					LOGI("Hi-res stale binding dropped: tile=%u key=%016llx keyed_addr=0x%06x load_addr=0x%06x.\n",
-					     t, static_cast<unsigned long long>(repl_state.checksum64),
-					     repl_state.keyed_rdram_addr & 0x00ffffffu,
-					     hires_rdram_load_addr[t] & 0x00ffffffu);
-				}
 				replacement_tiles[t] = {};
 				clear_hires_tile_binding(t);
 				continue;
@@ -2462,13 +2310,6 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 			if (!detail::hires_compat_view_fits_key(display_view, repl_state.key_w, repl_state.key_h,
 			        TextureSize(repl_state.formatsize >> 8), tiles[t].meta.stride))
 			{
-				if (hires_debug)
-				{
-					LOGI("Hi-res view exceeds keyed window: tile=%u key=%016llx key_wh=%ux%u view_wh=%ux%u stride=%u -> serving native.\n",
-					     t, static_cast<unsigned long long>(repl_state.checksum64),
-					     unsigned(repl_state.key_w), unsigned(repl_state.key_h),
-					     display_w, display_h, tiles[t].meta.stride);
-				}
 				clear_hires_tile_binding(t);
 			}
 			else if (detail::hires_descriptor_index_valid(tiles[t].replacement.repl_desc_index) &&
@@ -2519,127 +2360,10 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 
 		// Copy-rect geometry telemetry: screen rect + S origin is what locates
 		// strip-junction defects (wrapped parallax backdrops split mid-screen).
-		if (hires_debug && (raster_flags & RASTERIZATION_COPY_BIT) != 0)
-		{
-			const auto &queued_attr = stream.attribute_setup.last();
-			LOGI("Hi-res copy-lift rect: key=%016llx xh_q=%d xl_q=%d yh_q=%d yl_q=%d s=%d t=%d dsdx=%d.\n",
-			     static_cast<unsigned long long>(texel0_state.checksum64),
-			     int(queued_setup.xh >> 13), int(queued_setup.xl >> 13),
-			     int(queued_setup.yh), int(queued_setup.yl),
-			     int(queued_attr.s >> 16), int(queued_attr.t >> 16),
-			     int(queued_attr.dsdx >> 11));
-		}
 	}
 
-	if (hires_debug && (texel0_state.hit || texel1_state.hit))
-	{
-		// Combine/blend forensics for replaced draws: raw decoded combiner
-		// inputs per cycle, blend mux, and the per-draw constant colors --
-		// what locates composition divergences on served replacements.
-		const auto *c0 = reinterpret_cast<const uint8_t *>(&stream.static_raster_state.combiner[0]);
-		const auto *c1 = reinterpret_cast<const uint8_t *>(&stream.static_raster_state.combiner[1]);
-		const auto *b = reinterpret_cast<const uint8_t *>(&stream.depth_blend_state.blend_cycles[0]);
-		const auto &cst = stream.derived_setup.last().constants;
-		LOGI("Hi-res draw combine: comb0=%02x%02x%02x%02x.%02x%02x%02x%02x comb1=%02x%02x%02x%02x.%02x%02x%02x%02x blend=%02x%02x%02x%02x.%02x%02x%02x%02x db_flags=%02x cov=%u raster_flags=%08x const0_mul=%02x%02x%02x%02x const0_add=%02x%02x%02x%02x const1_mul=%02x%02x%02x%02x const1_add=%02x%02x%02x%02x.\n",
-		     c0[0], c0[1], c0[2], c0[3], c0[4], c0[5], c0[6], c0[7],
-		     c1[0], c1[1], c1[2], c1[3], c1[4], c1[5], c1[6], c1[7],
-		     b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
-		     unsigned(stream.depth_blend_state.flags),
-		     unsigned(stream.depth_blend_state.coverage_mode),
-		     raster_flags,
-		     cst[0].mul[0], cst[0].mul[1], cst[0].mul[2], cst[0].mul[3],
-		     cst[0].add[0], cst[0].add[1], cst[0].add[2], cst[0].add[3],
-		     cst[1].mul[0], cst[1].mul[1], cst[1].mul[2], cst[1].mul[3],
-		     cst[1].add[0], cst[1].add[1], cst[1].add[2], cst[1].add[3]);
-	}
 
-	if (hires_debug)
-	{
-		LOGI("Hi-res draw usage: draw_class=%s cycle=%s copy=%u tlut=%u tlut_type=%u base_tile=%u uses_texel0=%u uses_texel1=%u texel0_hit=%u texel0_key=%016llx texel0_fs=%u texel0_w=%u texel0_h=%u texel1_tile=%u texel1_hit=%u texel1_key=%016llx texel1_fs=%u texel1_w=%u texel1_h=%u fmt=%u siz=%u pal=%u offset=%u stride=%u sl=%u tl=%u sh=%u th=%u mask_s=%u shift_s=%u mask_t=%u shift_t=%u clamp_s=%u mirror_s=%u clamp_t=%u mirror_t=%u.\n",
-		     get_hires_draw_class(draw_class),
-		     get_hires_cycle_class(raster_flags),
-		     (raster_flags & RASTERIZATION_COPY_BIT) != 0 ? 1 : 0,
-		     (raster_flags & RASTERIZATION_TLUT_BIT) != 0 ? 1 : 0,
-		     (raster_flags & RASTERIZATION_TLUT_TYPE_BIT) != 0 ? 1 : 0,
-		     base_tile,
-		     uses_texel0 ? 1 : 0,
-		     uses_texel1 ? 1 : 0,
-		     texel0_state.hit ? 1 : 0,
-		     static_cast<unsigned long long>(texel0_state.checksum64),
-		     unsigned(texel0_state.formatsize),
-		     unsigned(texel0_state.orig_w),
-		     unsigned(texel0_state.orig_h),
-		     texel1_tile,
-		     texel1_state.hit ? 1 : 0,
-		     static_cast<unsigned long long>(texel1_state.checksum64),
-		     unsigned(texel1_state.formatsize),
-		     unsigned(texel1_state.orig_w),
-		     unsigned(texel1_state.orig_h),
-		     unsigned(base_meta.fmt),
-		     unsigned(base_meta.size),
-		     unsigned(base_meta.palette),
-		     unsigned(base_meta.offset),
-		     unsigned(base_meta.stride),
-		     unsigned(base_size.slo),
-		     unsigned(base_size.tlo),
-		     unsigned(base_size.shi),
-		     unsigned(base_size.thi),
-		     unsigned(base_meta.mask_s),
-		     unsigned(base_meta.shift_s),
-		     unsigned(base_meta.mask_t),
-		     unsigned(base_meta.shift_t),
-		     (base_meta.flags & TILE_INFO_CLAMP_S_BIT) != 0 ? 1u : 0u,
-		     (base_meta.flags & TILE_INFO_MIRROR_S_BIT) != 0 ? 1u : 0u,
-		     (base_meta.flags & TILE_INFO_CLAMP_T_BIT) != 0 ? 1u : 0u,
-		     (base_meta.flags & TILE_INFO_MIRROR_T_BIT) != 0 ? 1u : 0u);
-	}
 
-	if (hires_debug && (uses_texel0 || uses_texel1 || (raster_flags & RASTERIZATION_COPY_BIT) != 0))
-	{
-		// Report both physical tiles, including the unsampled peer, so a
-		// binding retained across SetTile changes can be compared to the
-		// tile that the current combiner actually samples.
-		const unsigned debug_tiles[2] = { base_tile, texel1_tile };
-		for (unsigned slot = 0; slot < 2; slot++)
-		{
-			const unsigned t = debug_tiles[slot];
-			const auto &meta = tiles[t].meta;
-			const auto &size = tiles[t].size;
-			const auto &state = replacement_tiles[t];
-			LOGI("Hi-res draw tile: phase=pre-sampled-exact slot=%u tile=%u bound=%u desc=%u key=%016llx upload=%016llx selector=%016llx keyed_addr=0x%06x load_addr=0x%06x key_wh=%ux%u repl_wh=%ux%u fmt=%u siz=%u pal=%u offset=%u stride=%u sl=%u tl=%u sh=%u th=%u mask_s=%u shift_s=%u mask_t=%u shift_t=%u clamp_s=%u mirror_s=%u clamp_t=%u mirror_t=%u.\n",
-			     slot, t, slot == 0 ? unsigned(texel0_bound) : unsigned(texel1_bound),
-			     unsigned(tiles[t].replacement.repl_desc_index),
-			     static_cast<unsigned long long>(state.checksum64),
-			     static_cast<unsigned long long>(state.upload_checksum64),
-			     static_cast<unsigned long long>(state.selector_checksum64),
-			     state.keyed_rdram_addr & 0x00ffffffu,
-			     hires_rdram_load_addr[t] & 0x00ffffffu,
-			     unsigned(state.key_w), unsigned(state.key_h),
-			     unsigned(state.repl_w), unsigned(state.repl_h),
-			     unsigned(meta.fmt), unsigned(meta.size), unsigned(meta.palette),
-			     unsigned(meta.offset), unsigned(meta.stride),
-			     unsigned(size.slo), unsigned(size.tlo), unsigned(size.shi), unsigned(size.thi),
-			     unsigned(meta.mask_s), unsigned(meta.shift_s), unsigned(meta.mask_t), unsigned(meta.shift_t),
-			     (meta.flags & TILE_INFO_CLAMP_S_BIT) != 0 ? 1u : 0u,
-			     (meta.flags & TILE_INFO_MIRROR_S_BIT) != 0 ? 1u : 0u,
-			     (meta.flags & TILE_INFO_CLAMP_T_BIT) != 0 ? 1u : 0u,
-			     (meta.flags & TILE_INFO_MIRROR_T_BIT) != 0 ? 1u : 0u);
-		}
-		if (draw_class == HiresDrawClass::Triangle)
-		{
-			// Raw queued fixed-point setup, not a screen-space bounding box.
-			// X has 15 fractional bits, Y has 2, and RGBA has 16.
-			const auto &q = stream.triangle_setup.last();
-			const auto &a = stream.attribute_setup.last();
-			LOGI("Hi-res draw triangle raw: x_frac=15 y_frac=2 rgba_frac=16 xh=%d xm=%d xl=%d yh=%d ym=%d yl=%d dxhdy=%d dxmdy=%d dxldy=%d flags=%u tile=%u rgba=%d,%d,%d,%d drgba_dx=%d,%d,%d,%d drgba_de=%d,%d,%d,%d drgba_dy=%d,%d,%d,%d.\n",
-			     int(q.xh), int(q.xm), int(q.xl), int(q.yh), int(q.ym), int(q.yl),
-			     int(q.dxhdy), int(q.dxmdy), int(q.dxldy), unsigned(q.flags), unsigned(q.tile),
-			     int(a.r), int(a.g), int(a.b), int(a.a),
-			     int(a.drdx), int(a.dgdx), int(a.dbdx), int(a.dadx),
-			     int(a.drde), int(a.dgde), int(a.dbde), int(a.dade),
-			     int(a.drdy), int(a.dgdy), int(a.dbdy), int(a.dady));
-		}
-	}
 
 	InstanceIndices indices = {};
 	auto normalized_static_state = normalize_static_state(stream.static_raster_state);
@@ -4116,12 +3840,6 @@ void Renderer::set_tile(uint32_t tile, const TileMeta &meta)
 	if (replacement_provider && tiles[tile].meta.offset != meta.offset &&
 	    (replacement_tiles[tile].valid || hires_rdram_load_addr[tile] != 0))
 	{
-		if (hires_debug && replacement_tiles[tile].hit)
-		{
-			LOGI("Hi-res tile re-point invalidated binding: tile=%u key=%016llx old_offset=0x%03x new_offset=0x%03x.\n",
-			     tile, static_cast<unsigned long long>(replacement_tiles[tile].checksum64),
-			     tiles[tile].meta.offset, meta.offset);
-		}
 		replacement_tiles[tile] = {};
 		clear_hires_tile_binding(tile);
 		// The old load address describes the old window; adopt the address
@@ -4612,16 +4330,6 @@ bool Renderer::resolve_hires_jabo_draw_candidate(const TileMeta &tile_meta, cons
 	const bool hit = replacement_provider->resolve_jabo_candidate(md5.data(), out);
 	if (!hit)
 		hires_jabo_draw_misses++;
-	if (hires_debug && (hit || hires_jabo_miss_logged.insert(detail::hires_jabo_key_halves(md5.data())[0]).second))
-	{
-		char md5_hex[33];
-		for (unsigned i = 0; i < 16; i++)
-			std::snprintf(md5_hex + 2 * i, 3, "%02X", md5[i]);
-		LOGI("Hi-res Jabo draw-time %s: md5=%s fmt=%u siz=%u pal=%u tlut_ia16=%u wh=%ux%u stride=%u addr=0x%06x rice_key=%016llx.\n",
-		     hit ? "hit" : "miss", md5_hex, unsigned(tile_meta.fmt), unsigned(tile_meta.size),
-		     unsigned(tile_meta.palette), unsigned(tlut_ia16), view.width, view.height, view.row_stride,
-		     view.address & 0x00ffffffu, static_cast<unsigned long long>(rice_checksum64));
-	}
 	return hit;
 }
 
@@ -5177,12 +4885,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 
 				if (detail::hires_tmem_spans_overlap(load_begin, load_bytes, t_begin, t_bytes, tmem_bytes))
 				{
-					if (hires_debug && replacement_tiles[i].hit)
-					{
-						LOGI("Hi-res overlapped-load invalidated binding: tile=%u key=%016llx tile_span=0x%03x+%u load_span=0x%03x+%u.\n",
-						     i, static_cast<unsigned long long>(replacement_tiles[i].checksum64),
-						     t_begin, t_bytes, load_begin, load_bytes);
-					}
 					replacement_tiles[i] = {};
 					clear_hires_tile_binding(i);
 					// The tile's tracked load no longer describes its TMEM
@@ -5238,16 +4940,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				tlut_shadow[tlut_shadow_offset + i] = wrapped_read_u8(cpu_rdram, rdram_size, info.tex_addr + i);
 			tlut_shadow_valid = tlut_shadow_valid || (max_copy > 0);
 
-			if (hires_debug)
-			{
-				LOGI("Hi-res keying TLUT update: addr=0x%06x base=0x%06x sxy=%ux%u bytes=%u tile=%u tmem=0x%03x shadow_off=%u.\n",
-				     src_base_addr & 0x00ffffffu,
-				     info.tex_addr & 0x00ffffffu,
-				     key_start_x, key_start_y,
-				     max_copy, tile,
-				     unsigned(upload.tmem_offset) & 0xfff,
-				     tlut_shadow_offset);
-			}
 		}
 		else if (detail::should_run_hires_lookup(
 		             rdram_view_ok,
@@ -5260,20 +4952,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 				                                          key_width_pixels, key_height_pixels,
 				                                          uint32_t(info.size), row_stride_bytes);
 				uint32_t palette_crc = 0;
-				const auto raster_flags = stream.static_raster_state.flags;
-				const bool tlut_enabled = (raster_flags & RASTERIZATION_TLUT_BIT) != 0;
-				const bool tlut_type = (raster_flags & RASTERIZATION_TLUT_TYPE_BIT) != 0;
-				const bool copy_cycle = (raster_flags & RASTERIZATION_COPY_BIT) != 0;
-				const uint32_t source_row_bytes = detail::compute_hires_texture_row_bytes(key_width_pixels, info.size);
-				const uint32_t source_span_bytes = compute_hires_texture_source_span_bytes(
-						row_stride_bytes, source_row_bytes, key_height_pixels);
-				const bool overlaps_color_fb = ranges_overlap_u32(
-						src_base_addr, source_span_bytes, fb.addr, get_byte_size_for_bound_color_framebuffer());
-				const bool overlaps_depth_fb = ranges_overlap_u32(
-						src_base_addr, source_span_bytes, fb.depth_addr, get_byte_size_for_bound_depth_framebuffer());
-				const char *source_class = get_hires_source_class(overlaps_color_fb, overlaps_depth_fb);
-				const char *provenance_class = get_hires_provenance_class(
-						overlaps_color_fb, overlaps_depth_fb, raster_flags, info.mode);
 
 				if (meta.fmt == TextureFormat::CI && tlut_shadow_valid)
 				{
@@ -5328,7 +5006,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			// CI8 extent over a 16-entry TLUT and can never match the pack.
 			// Re-key the same load extent as CI4 texels with the 16-entry bank
 			// palette and probe again; the texel CRC is byte-extent invariant.
-			uint32_t lookup_palette_crc = palette_crc;
 			uint64_t lookup_checksum64 = checksum64;
 			uint16_t lookup_formatsize = formatsize;
 			uint32_t lookup_key_w = key_width_pixels;
@@ -5376,7 +5053,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					resolved_checksum64 = ci4_resolution.resolved_checksum64;
 					resolved_selector_checksum64 = ci4_resolution.resolved_selector_checksum64;
 					native_lookup_resolution_reason = "ci4-reinterpreted-upload";
-					lookup_palette_crc = ci4_palette_crc;
 					lookup_checksum64 = detail::compose_hires_checksum64(texture_crc, ci4_palette_crc);
 					lookup_formatsize = ci4_formatsize;
 					lookup_key_w = ci4_width;
@@ -5481,93 +5157,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			else
 				hires_lookup_misses++;
 
-				if (hires_debug)
-				{
-					LOGI("Hi-res keying %s: mode=%s addr=0x%06x tile=%u fmt=%u siz=%u pal=%u wh=%ux%u key=%016llx pcrc=%08x fs=%u descriptor_path=%s resolution_reason=%s hit=%d.\n",
-					     hit ? "hit" : "miss",
-					     load_mode_to_string(info.mode),
-					     src_base_addr & 0x00ffffffu,
-					     tile,
-					     unsigned(meta.fmt),
-					     unsigned(meta.size),
-					     meta.palette,
-					     lookup_key_w,
-					     lookup_key_h,
-					     static_cast<unsigned long long>(resolved_checksum64),
-					     lookup_palette_crc,
-					     unsigned(lookup_formatsize),
-					     hit ? (descriptor_path_class ? descriptor_path_class : "unknown") : "none",
-					     native_lookup_resolution_reason ? native_lookup_resolution_reason : "none",
-					     hit ? 1 : 0);
-					LOGI("Hi-res keying provenance: outcome=%s source_class=%s provenance_class=%s mode=%s addr=0x%06x tile=%u fmt=%u siz=%u pal=%u wh=%ux%u key=%016llx pcrc=%08x fs=%u upload=%s cycle=%s copy=%u tlut=%u tlut_type=%u framebuffer=%u color_fb=%u depth_fb=%u tmem=0x%03x line=%u key_xy=%ux%u.\n",
-					     hit ? "hit" : "miss",
-					     source_class,
-					     provenance_class,
-					     load_mode_to_string(info.mode),
-					     src_base_addr & 0x00ffffffu,
-					     tile,
-					     unsigned(meta.fmt),
-					     unsigned(meta.size),
-					     meta.palette,
-					     lookup_key_w,
-					     lookup_key_h,
-					     static_cast<unsigned long long>(resolved_checksum64),
-					     lookup_palette_crc,
-					     unsigned(lookup_formatsize),
-					     load_mode_to_string(info.mode),
-					     get_hires_cycle_class(raster_flags),
-					     copy_cycle ? 1 : 0,
-					     tlut_enabled ? 1 : 0,
-					     tlut_type ? 1 : 0,
-					     (overlaps_color_fb || overlaps_depth_fb) ? 1 : 0,
-					     overlaps_color_fb ? 1 : 0,
-					     overlaps_depth_fb ? 1 : 0,
-					     unsigned(upload.tmem_offset) & 0xfff,
-					     unsigned(meta.stride),
-					     key_start_x,
-					     key_start_y);
-					{
-						// GlideN64-compat CRC diagnostic: compute what CRC would be with GlideN64-style parameters
-						uint32_t compat_bpl = meta.stride;
-						if (meta.size == TextureSize::Bpp32)
-							compat_bpl <<= 1; // GlideN64: pTile->line << 4 for 32bpp
-						uint32_t compat_width = key_width_pixels;
-						uint32_t compat_height = key_height_pixels;
-						uint32_t compat_size = uint32_t(info.size);
-						if (info.mode == UploadMode::Block && compat_bpl > 0)
-						{
-							// Reconstruct 2D dims from tile line stride (approximate, before SetTileSize)
-							uint32_t texels_per_row = (compat_bpl << 1) >> uint32_t(info.size);
-							if (texels_per_row > 0)
-							{
-								compat_width = texels_per_row;
-								compat_height = (key_width_pixels + texels_per_row - 1) / texels_per_row;
-							}
-						}
-						uint32_t compat_crc = 0;
-						if (compat_width > 0 && compat_height > 0 && compat_bpl > 0)
-							compat_crc = rice_crc32_wrapped(cpu_rdram, rdram_size, src_base_addr,
-							                                compat_width, compat_height,
-							                                compat_size, compat_bpl);
-						LOGI("Hi-res CRC diagnostic: our_crc=%08x compat_crc=%08x stride_ours=%u stride_compat=%u "
-						     "w_ours=%u h_ours=%u w_compat=%u h_compat=%u mode=%s info_size=%u meta_size=%u.\n",
-						     texture_crc, compat_crc, row_stride_bytes, compat_bpl,
-						     key_width_pixels, key_height_pixels, compat_width, compat_height,
-						     info.mode == UploadMode::Block ? "block" : "tile",
-						     uint32_t(info.size), uint32_t(meta.size));
-					}
-					if (hit && native_lookup_resolution_reason)
-					{
-						LOGI("Hi-res keying native: reason=%s mode=%s addr=0x%06x wh=%ux%u selector=%016llx resolved_key=%016llx.\n",
-						     native_lookup_resolution_reason,
-						     load_mode_to_string(info.mode),
-						     src_base_addr & 0x00ffffffu,
-						     key_width_pixels,
-						     key_height_pixels,
-						     static_cast<unsigned long long>(resolved_selector_checksum64),
-						     static_cast<unsigned long long>(resolved_checksum64));
-					}
-					}
 			}
 		}
 

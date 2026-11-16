@@ -143,7 +143,7 @@ separate qualification checks. They are not yet pre-deploy golden coverage.
 | `end_state` — end-state body sha | fail | fail ([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md)) |
 | `pack` — the run's pack is the one the on-mode expectation was recorded with | — | review |
 | `hires.provider` — summary has `provider=on`, no cache load failure | — | fail |
-| `hires.entries`, `hires.served` (upload or draw-time hits) — at least one; `served` skips a session with no texture lookups | — | fail |
+| `hires.entries`, `hires.served` (draw-time hits) — at least one | — | fail |
 | `hires.inert` — no `provider=on` summary | fail | — |
 | `hires.residency` — computed resident bytes within budget | — | fail |
 
@@ -166,7 +166,7 @@ separate qualification checks. They are not yet pre-deploy golden coverage.
   ([ADR-0005](../../docs/adr/0005-gliden64-oracle-policy.md)).
 - `draw_hits` uses the summary's `compat_draw_hits` (draw-time replacement,
   per [Emulator Testing](../../docs/EMU_TESTING.md)); summaries without that
-  field fall back to lookup hits.
+  field cannot prove draw-time replacement.
 - The hi-res summary is read from the bundle's RetroArch log; the last
   `Hi-res keying summary` line wins. The runner sets
   `PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES` in on mode so a core that

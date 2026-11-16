@@ -127,8 +127,9 @@ elif sub == "stop":
              "decode_failures=0 load_ms_total=1.500 load_ms_max_frame=0.750 heap_usage=0 heap_budget=0."))
         counts = plan.get("lookups", "lookups=5 hits=4 misses=1")
         draw_hits = plan.get("draw_hits", 3)
+        draw_field = "" if plan.get("omit_draw_hits") else f"compat_draw_hits={draw_hits} "
         emit(f"[INFO] Hi-res keying summary: {counts} filtered=0 block_probe_hits=0 "
-             f"compat_draw_hits={draw_hits} compat_draw_ci_hits=0 compat_draw_ci_attempts=0 compat_draw_bank0_hits=0 "
+             f"{draw_field}compat_draw_ci_hits=0 compat_draw_ci_attempts=0 compat_draw_bank0_hits=0 "
              "provider=on entries=12 native_sampled=0 compat=12 sampled_index=0 sampled_dupe_keys=0 "
              "sampled_dupe_entries=0 sampled_families=0 compat_low32_families=12 sources(phrb=12) "
              "descriptor_paths(sampled=0 native_checksum=0 generic=0 compat=3) "
@@ -496,13 +497,18 @@ class RegressionRunnerContract(unittest.TestCase):
             time.sleep(0.1)
         self.assertNotIn(marker, listing)
 
-    def test_served_gate_skips_sessions_without_lookups(self):
+    def test_served_gate_rejects_sessions_without_draws(self):
         _, records = self.run_runner("idle", "--select", "boot-power-on", mode="on",
                                      plan={"lookups": "lookups=0 hits=0 misses=0", "draw_hits": 0})
-        self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], "skip")
+        self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], "fail")
         _, records = self.run_runner("unserved", "--select", "boot-power-on", mode="on",
                                      plan={"lookups": "lookups=3 hits=0 misses=3", "draw_hits": 0})
         self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], "fail")
+
+    def test_missing_draw_counter_cannot_use_upload_hits(self):
+        result, records = self.run_runner("missing-draw", mode="on", plan={"omit_draw_hits": True})
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.gates(records["field-state"])["hires.served"], "fail")
 
     def test_upload_only_hits_do_not_prove_served_replacements(self):
         result, records = self.run_runner("upload-only", mode="on", plan={"draw_hits": 0})

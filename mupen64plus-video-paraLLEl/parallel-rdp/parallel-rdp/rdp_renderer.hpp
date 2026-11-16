@@ -43,7 +43,6 @@ struct ReplacementMeta;
 struct ReplacementResolution;
 struct ReplacementImage;
 struct ReplacementPalette;
-struct CILow32DimsSelector;
 class ReplacementProvider;
 
 struct SyncObject
@@ -89,20 +88,6 @@ struct HiresDebugFilterState
 	bool allow_tile = true;
 	bool allow_block = true;
 	std::unordered_set<std::string> blocked_signatures;
-};
-
-enum class HiresDebugCILow32FallbackMode : uint8_t
-{
-	Off = 0,
-	Unique,
-	Any,
-	ReplacementDimsUnique
-};
-
-enum class HiresCICompatibilityMode : uint8_t
-{
-	Off = 0,
-	ReplacementDimsUnique
 };
 
 enum class HiresDrawClass : uint8_t
@@ -156,9 +141,6 @@ public:
 	void set_hires_debug_sampled_object_probe(bool enable);
 	void set_hires_debug_sampled_object_exact_lookup(bool enable);
 	void begin_frame_context();
-	void set_hires_ci_compatibility_mode(HiresCICompatibilityMode mode);
-	void set_hires_debug_ci_selectors(std::vector<CILow32DimsSelector> selectors);
-	void set_hires_debug_ci_low32_fallback(HiresDebugCILow32FallbackMode mode);
 	void set_hires_gliden64_compat_crc(bool enable);
 	void set_hires_filter(unsigned mode);
 	// Running primitive count that offsets every primitive's noise seed. It is
@@ -249,9 +231,6 @@ private:
 	HiresDebugFilterState hires_debug_filter;
 	bool hires_debug_sampled_object_probe = false;
 	bool hires_debug_sampled_object_exact_lookup = false;
-	HiresCICompatibilityMode hires_ci_compatibility_mode = HiresCICompatibilityMode::Off;
-	std::vector<CILow32DimsSelector> hires_debug_ci_selectors;
-	HiresDebugCILow32FallbackMode hires_debug_ci_low32_fallback = HiresDebugCILow32FallbackMode::Off;
 	bool hires_gliden64_compat_crc_enabled = false;
 	// 0 = nearest, 1 = bilinear, 2 = trilinear (see HIRES_FILTER_* in shaders).
 	unsigned hires_filter_mode = 2;

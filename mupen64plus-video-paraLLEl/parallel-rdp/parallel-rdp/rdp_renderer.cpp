@@ -1324,31 +1324,6 @@ void Renderer::begin_frame_context()
 	hires_sampled_pool_stream_states.clear();
 }
 
-void Renderer::set_hires_ci_compatibility_mode(HiresCICompatibilityMode mode)
-{
-	hires_ci_compatibility_mode = mode;
-	if (hires_ci_compatibility_mode == HiresCICompatibilityMode::ReplacementDimsUnique)
-		LOGI("Hi-res CI compatibility enabled: replacement-dims-unique.\n");
-}
-
-void Renderer::set_hires_debug_ci_selectors(std::vector<CILow32DimsSelector> selectors)
-{
-	hires_debug_ci_selectors = std::move(selectors);
-	if (!hires_debug_ci_selectors.empty())
-		LOGI("Hi-res debug CI selector count: %u.\n", unsigned(hires_debug_ci_selectors.size()));
-}
-
-void Renderer::set_hires_debug_ci_low32_fallback(HiresDebugCILow32FallbackMode mode)
-{
-	hires_debug_ci_low32_fallback = mode;
-	if (hires_debug_ci_low32_fallback == HiresDebugCILow32FallbackMode::Unique)
-		LOGI("Hi-res debug CI low32 fallback enabled: unique.\n");
-	else if (hires_debug_ci_low32_fallback == HiresDebugCILow32FallbackMode::Any)
-		LOGI("Hi-res debug CI low32 fallback enabled: any.\n");
-	else if (hires_debug_ci_low32_fallback == HiresDebugCILow32FallbackMode::ReplacementDimsUnique)
-		LOGI("Hi-res debug CI low32 fallback enabled: replacement-dims-unique.\n");
-}
-
 void Renderer::set_hires_gliden64_compat_crc(bool enable)
 {
 	hires_gliden64_compat_crc_enabled = enable;
@@ -6051,103 +6026,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					lookup_key_h = key_height_pixels;
 				}
 			}
-			const char *ci_lookup_resolution_reason = nullptr;
-			auto apply_ci_low32_resolution = [&](const ReplacementResolution &candidate, const char *reason) {
-				resolution = candidate;
-				repl_meta = candidate.meta;
-				repl_meta.orig_w = key_width_pixels;
-				repl_meta.orig_h = key_height_pixels;
-				resolved_checksum64 = candidate.resolved_checksum64;
-				resolved_selector_checksum64 = candidate.resolved_selector_checksum64;
-				hit = true;
-				ci_lookup_resolution_reason = reason;
-				return true;
-			};
-			if (!hit &&
-			    meta.fmt == TextureFormat::CI &&
-			    !hires_debug_ci_selectors.empty())
-			{
-				for (const auto &selector : hires_debug_ci_selectors)
-				{
-					if (selector.checksum_low32 != texture_crc || selector.formatsize != formatsize)
-						continue;
-
-					ReplacementResolution selected_resolution = {};
-					if (replacement_provider->resolve_ci_low32_candidate(
-							    texture_crc,
-							    formatsize,
-							    0,
-							    selector.repl_w,
-							    selector.repl_h,
-							    CILow32ResolutionMode::SelectedDims,
-							    &selected_resolution) &&
-					    apply_ci_low32_resolution(selected_resolution, "ci-debug-selected-dims"))
-						break;
-				}
-			}
-			if (!hit &&
-			    meta.fmt == TextureFormat::CI &&
-			    hires_ci_compatibility_mode == HiresCICompatibilityMode::ReplacementDimsUnique)
-			{
-				ReplacementResolution compat_resolution = {};
-				if (replacement_provider->resolve_ci_low32_candidate(
-						    texture_crc,
-						    formatsize,
-						    0,
-						    0,
-						    0,
-						    CILow32ResolutionMode::ReplacementDimsUnique,
-						    &compat_resolution))
-					apply_ci_low32_resolution(compat_resolution, "ci-compat-repl-dims-unique");
-			}
-			if (!hit &&
-			    meta.fmt == TextureFormat::CI &&
-			    hires_debug_ci_low32_fallback != HiresDebugCILow32FallbackMode::Off)
-			{
-				ReplacementResolution compat_resolution = {};
-				const char *fallback_reason = nullptr;
-				if (hires_debug_ci_low32_fallback == HiresDebugCILow32FallbackMode::Unique)
-				{
-					if (replacement_provider->resolve_ci_low32_candidate(
-							    texture_crc,
-							    formatsize,
-							    0,
-							    0,
-							    0,
-							    CILow32ResolutionMode::Unique,
-							    &compat_resolution))
-						fallback_reason = "ci-low32-unique";
-				}
-				else if (hires_debug_ci_low32_fallback == HiresDebugCILow32FallbackMode::ReplacementDimsUnique)
-				{
-					if (replacement_provider->resolve_ci_low32_candidate(
-							    texture_crc,
-							    formatsize,
-							    0,
-							    0,
-							    0,
-							    CILow32ResolutionMode::ReplacementDimsUnique,
-							    &compat_resolution))
-						fallback_reason = "ci-low32-repl-dims-unique";
-				}
-				else if (hires_debug_ci_low32_fallback == HiresDebugCILow32FallbackMode::Any)
-				{
-					if (replacement_provider->resolve_ci_low32_candidate(
-							    texture_crc,
-							    formatsize,
-							    palette_crc,
-							    0,
-							    0,
-							    CILow32ResolutionMode::Any,
-							    &compat_resolution))
-						fallback_reason = compat_resolution.matched_preferred_palette
-							                  ? "ci-low32-any-preferred"
-							                  : "ci-low32-any";
-				}
-
-				if (fallback_reason)
-					apply_ci_low32_resolution(compat_resolution, fallback_reason);
-			}
 			// Residency cannot influence which candidate or selector wins.
 			if (hit)
 			{
@@ -6160,7 +6038,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					&descriptor_path_kind,
 					&resolved_selector_checksum64,
 					&descriptor_path_class);
-				if (hit && !native_lookup_resolution_reason && !ci_lookup_resolution_reason)
+				if (hit && !native_lookup_resolution_reason)
 				{
 					switch (resolution.kind)
 					{
@@ -6280,8 +6158,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					     unsigned(lookup_formatsize),
 					     hit ? (descriptor_path_class ? descriptor_path_class : "unknown") : "none",
 					     native_lookup_resolution_reason ? native_lookup_resolution_reason :
-						 (ci_lookup_resolution_reason ? ci_lookup_resolution_reason :
-						  (filter_reason ? filter_reason : "none")),
+						 (filter_reason ? filter_reason : "none"),
 					     hit ? 1 : 0);
 					LOGI("Hi-res keying provenance: outcome=%s source_class=%s provenance_class=%s mode=%s addr=0x%06x tile=%u fmt=%u siz=%u pal=%u wh=%ux%u key=%016llx pcrc=%08x fs=%u upload=%s cycle=%s copy=%u tlut=%u tlut_type=%u framebuffer=%u color_fb=%u depth_fb=%u tmem=0x%03x line=%u key_xy=%ux%u.\n",
 					     filter_reason ? "filtered" : (hit ? "hit" : "miss"),
@@ -6339,16 +6216,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 						     key_width_pixels, key_height_pixels, compat_width, compat_height,
 						     info.mode == UploadMode::Block ? "block" : "tile",
 						     uint32_t(info.size), uint32_t(meta.size));
-					}
-					if (hit && ci_lookup_resolution_reason)
-					{
-						LOGI("Hi-res keying compatibility: reason=%s mode=%s addr=0x%06x wh=%ux%u resolved_key=%016llx.\n",
-						     ci_lookup_resolution_reason,
-						     load_mode_to_string(info.mode),
-						     src_base_addr & 0x00ffffffu,
-						     key_width_pixels,
-						     key_height_pixels,
-						     static_cast<unsigned long long>(resolved_checksum64));
 					}
 					if (hit && native_lookup_resolution_reason)
 					{

@@ -104,11 +104,6 @@ static const char *get_hires_debug_filter_reason(const HiresDebugFilterState &fi
 	return nullptr;
 }
 
-static uint32_t compute_hires_texture_total_bytes(uint32_t width, uint32_t height, TextureSize size)
-{
-	return detail::compute_hires_texture_row_bytes(width, size) * height;
-}
-
 static uint32_t compute_hires_texture_source_span_bytes(uint32_t row_stride_bytes, uint32_t row_bytes, uint32_t height)
 {
 	if (row_bytes == 0 || height == 0)
@@ -1215,7 +1210,6 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	memset(tlut_shadow, 0, sizeof(tlut_shadow));
 	memset(tlut_tmem_shadow, 0, sizeof(tlut_tmem_shadow));
 	hires_lookup_filtered = 0;
-	hires_lookup_block_shape_probe_hits = 0;
 	hires_descriptor_sampled_resolutions = 0;
 	hires_descriptor_sampled_family_singleton_resolutions = 0;
 	hires_descriptor_sampled_ordered_surface_singleton_resolutions = 0;
@@ -1245,8 +1239,6 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_jabo_memo_hits = 0;
 	hires_jabo_memo.clear();
 	hires_jabo_miss_logged.clear();
-	hires_block_shape_probe_logged_hits.clear();
-	hires_block_shape_probe_logged_contexts.clear();
 	hires_ci_palette_probe_logged_hits.clear();
 	hires_ci_palette_probe_logged_contexts.clear();
 	hires_sampled_object_probe_logged_contexts.clear();
@@ -1304,13 +1296,6 @@ void Renderer::set_hires_debug_filter(bool allow_tile,
 	     hires_debug_filter.allow_tile ? 1 : 0,
 	     hires_debug_filter.allow_block ? 1 : 0,
 	     unsigned(hires_debug_filter.blocked_signatures.size()));
-}
-
-void Renderer::set_hires_debug_block_shape_probe(bool enable)
-{
-	hires_debug_block_shape_probe = enable;
-	if (hires_debug_block_shape_probe)
-		LOGI("Hi-res debug block-shape probe enabled.\n");
 }
 
 void Renderer::set_hires_debug_ci_palette_probe(bool enable)
@@ -1538,13 +1523,12 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 		     label, static_cast<unsigned long long>(hires_strong_draw_hits),
 		     static_cast<unsigned long long>(strong_computations), static_cast<unsigned long long>(strong_memo_hits));
 		ReplacementProviderStats provider_stats = replacement_provider->get_stats();
-		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu filtered=%llu block_probe_hits=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
+		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu filtered=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u compat_low32_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
 		     label,
 		     static_cast<unsigned long long>(hires_lookup_total),
 		     static_cast<unsigned long long>(hires_lookup_hits),
 		     static_cast<unsigned long long>(hires_lookup_misses),
 		     static_cast<unsigned long long>(hires_lookup_filtered),
-		     static_cast<unsigned long long>(hires_lookup_block_shape_probe_hits),
 		     static_cast<unsigned long long>(hires_compat_draw_time_hits),
 		     static_cast<unsigned long long>(hires_compat_draw_time_ci_hits),
 		     static_cast<unsigned long long>(hires_compat_draw_time_ci_attempts),
@@ -1611,13 +1595,12 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 	}
 	else
 	{
-		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu filtered=%llu block_probe_hits=%llu provider=off.\n",
+		LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu filtered=%llu provider=off.\n",
 		     label,
 		     static_cast<unsigned long long>(hires_lookup_total),
 		     static_cast<unsigned long long>(hires_lookup_hits),
 		     static_cast<unsigned long long>(hires_lookup_misses),
-		     static_cast<unsigned long long>(hires_lookup_filtered),
-		     static_cast<unsigned long long>(hires_lookup_block_shape_probe_hits));
+		     static_cast<unsigned long long>(hires_lookup_filtered));
 	}
 }
 
@@ -6842,107 +6825,6 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 							char scheme_name[64] = {};
 							std::snprintf(scheme_name, sizeof(scheme_name), "%s%u", bank_scheme.scheme, bank);
 							log_ci_palette_probe_hit(scheme_name, candidate_palette_crc, candidate_meta, -1);
-						}
-					}
-				}
-
-				if (!hit &&
-				    info.mode == UploadMode::Block &&
-				    hires_debug_block_shape_probe &&
-				    replacement_provider &&
-				    !filter_reason)
-				{
-					const bool first_context_log = hires_block_shape_probe_logged_contexts.insert(hires_signature).second;
-					if (hires_debug && first_context_log)
-					{
-						LOGI("Hi-res block-shape probe context: raw=%ux%u addr=0x%06x upload_mode=%s upload=%dx%d vram_width=%d vram_effective_width=%d tmem_stride_words=%d dxt=%d min_t_mod=%.6f max_t_mod=%.6f.\n",
-						     key_width_pixels,
-						     key_height_pixels,
-						     src_base_addr & 0x00ffffffu,
-						     load_mode_to_string(upload_mode),
-						     upload.width,
-						     upload.height,
-						     upload.vram_width,
-						     upload.vram_effective_width,
-						     upload.tmem_stride_words,
-						     upload.dxt,
-						     upload.min_t_mod,
-						     upload.max_t_mod);
-					}
-
-					const uint32_t total_bytes = compute_hires_texture_total_bytes(
-							key_width_pixels,
-							key_height_pixels,
-							info.size);
-					for (uint32_t candidate_width = key_width_pixels >> 1u;
-					     candidate_width > 0;
-					     candidate_width >>= 1u)
-					{
-						const uint32_t candidate_row_stride_bytes = detail::compute_hires_texture_row_bytes(candidate_width, info.size);
-						if (candidate_row_stride_bytes == 0 || candidate_row_stride_bytes > total_bytes)
-							continue;
-						if ((total_bytes % candidate_row_stride_bytes) != 0)
-							continue;
-
-						const uint32_t candidate_height = total_bytes / candidate_row_stride_bytes;
-						if (candidate_height <= 1)
-							continue;
-
-						const uint32_t candidate_texture_crc = rice_crc32_wrapped(
-								cpu_rdram,
-								rdram_size,
-								src_base_addr,
-								candidate_width,
-								candidate_height,
-								uint32_t(info.size),
-								candidate_row_stride_bytes);
-						uint32_t candidate_palette_crc = 0;
-						if (meta.fmt == TextureFormat::CI && tlut_shadow_valid)
-						{
-							candidate_palette_crc = detail::compute_hires_ci_palette_crc(
-									meta.size,
-									meta.palette,
-									cpu_rdram,
-									rdram_size,
-									src_base_addr,
-									candidate_width,
-									candidate_height,
-									candidate_row_stride_bytes,
-									tlut_shadow,
-									sizeof(tlut_shadow),
-									tlut_shadow_valid);
-						}
-
-						ReplacementMeta candidate_meta = {};
-						if (!replacement_provider->probe_lookup(candidate_texture_crc, candidate_palette_crc, formatsize, &candidate_meta))
-							continue;
-
-						const uint64_t candidate_checksum64 = detail::compose_hires_checksum64(
-								candidate_texture_crc,
-								candidate_palette_crc);
-						char probe_key[256] = {};
-						std::snprintf(probe_key, sizeof(probe_key),
-						              "%s->%ux%u:%016llx",
-						              hires_signature.c_str(),
-						              candidate_width,
-						              candidate_height,
-						              static_cast<unsigned long long>(candidate_checksum64));
-
-						const bool first_log = hires_block_shape_probe_logged_hits.insert(probe_key).second;
-						hires_lookup_block_shape_probe_hits++;
-						if (hires_debug && first_log)
-						{
-							LOGI("Hi-res block-shape probe hit: raw=%ux%u addr=0x%06x candidate=%ux%u stride=%u key=%016llx fs=%u repl=%ux%u.\n",
-							     key_width_pixels,
-							     key_height_pixels,
-							     src_base_addr & 0x00ffffffu,
-							     candidate_width,
-							     candidate_height,
-							     candidate_row_stride_bytes,
-							     static_cast<unsigned long long>(candidate_checksum64),
-							     unsigned(formatsize),
-							     candidate_meta.repl_w,
-							     candidate_meta.repl_h);
 						}
 					}
 				}

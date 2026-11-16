@@ -23,8 +23,7 @@ service, port, or renderer meaning to RetroArch.
 - Free-running control is exploratory, not replay authority.
 
 RetroArch changes remain generic and are maintained in its `agent-control`
-branch. [The historical patch set](../../tools/retroarch-patches/) reconstructs
-the older stdin-control series, not the full maintained frontend.
+branch. The historical stdin patch series has been retired; use the maintained frontend.
 
 ## Consequences
 

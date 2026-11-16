@@ -18,8 +18,7 @@ paraLLEl-RSP remain available; Vulkan graphics uses an LLE RSP.
 - Offline `.hts`/`.htc` to `.phrb` conversion; runtime loading is `.phrb` only.
 - Replacement-aware texrect, sampling, mip, alpha, and view-key behavior.
 - Deterministic RetroArch control through the maintained `agent-control`
-  frontend branch; [`tools/retroarch-patches/`](tools/retroarch-patches/)
-  reconstructs the older stdin-control series.
+  frontend branch.
 - Paper Mario fixture authorities plus opt-in SM64 and OoT compatibility lanes;
   MK64 and MM are manual breadth checks.
 - Class-level runtime evidence and explicit fallback reporting.

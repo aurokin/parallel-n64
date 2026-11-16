@@ -711,6 +711,7 @@ def run_scenario(scenario: Scenario, ctx: RunContext) -> dict[str, Any]:
     record: dict[str, Any] = {
         "scenario": scenario.id, "condition": ctx.condition, "mode": args.mode,
         "env": getattr(args, "env", {}),
+        "renderer_change": getattr(args, "renderer_change", False),
         "runtime_class": args.runtime_class, **ctx.identities, "pack_sha256": pack_sha,
         "rom_sha256": scenario.rom_sha256,
         "scenario_file": str(scenario.path), "bundle": os.path.relpath(bundle, ctx.out),
@@ -842,7 +843,8 @@ def liveness(record: dict[str, Any], expected: dict[str, Any]) -> dict[str, str]
     return gate("liveness", "skip", "insufficient reference captures or blackness flags")
 
 
-def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any], mode: str) -> list[dict[str, str]]:
+def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any], mode: str,
+             renderer_change: bool = False) -> list[dict[str, str]]:
     gates = [gate("exit", "pass" if record["exit_class"] == "clean" else "fail",
                   "" if record["exit_class"] == "clean" else f"{record['exit_class']}: {record['error'] or ''}".strip())]
     if scenario.start["kind"] == "state":
@@ -868,12 +870,11 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
             if seen is None:
                 gates.append(gate(name, "skip", "not reached"))
             elif mode == "off":
-                # ADR-0002: digest equality is a valid gate only feature-off.
                 gates.append(compare(name, seen["capture_sha256"], want.get("capture_sha256")))
             else:
-                # ADR-0004: a changed hi-res-on capture is nominated for review, never failed.
+                # Declared renderer changes require visual review of changed output.
                 reference = want.get("reference_capture_sha256") or want.get("capture_sha256")
-                gates.append(compare(name, seen["capture_sha256"], reference, on_mismatch="review"))
+                gates.append(compare(name, seen["capture_sha256"], reference, on_mismatch="review" if renderer_change else "fail"))
     if scenario.save_end:
         # Both modes are deterministic, so the end state gates in each (ADR-0019, ADR-0020).
         gates.append(compare("end_state", record["end_state_sha256"], expected.get("end_state_sha256")))
@@ -999,7 +1000,7 @@ def write_report(out: Path, records: list[dict[str, Any]]) -> None:
     lines += [f"- `{r['scenario']}` {r['condition']} **{g['name']}**: {g['detail']} (bundle `{r['bundle']}`)"
               for r, g in failures] or ["None."]
     lines += ["", "## Review queue", "",
-              "Changed hi-res-on captures are nominated for visual review (ADR-0004); they never fail a run.", ""]
+              "Changed hi-res-on captures require --renderer-change to enter visual review (ADR-0004).", ""]
     reviews = []
     for rec in records:
         by_frame = {str(cp["after_frames"]): cp for cp in rec["checkpoints"]}
@@ -1042,6 +1043,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--base-config", type=Path, required=True)
     parser.add_argument("--extra-append-config", type=Path,
                         help="config loaded after the adapter's generated settings (e.g. capture profile)")
+    parser.add_argument("--renderer-change", action="store_true",
+                        help="review changed hi-res-on captures instead of failing")
     parser.add_argument("--mode", choices=("off", "on"), default="off")
     parser.add_argument("--hires-budget-mb", type=int, default=8192,
                         help="hi-res memory budget in MiB for on-mode runs (default 8192)")
@@ -1141,7 +1144,8 @@ def main(argv: list[str] | None = None) -> int:
         condition += f":hires-budget-{args.hires_budget_mb}mb"
     if args.env:
         condition += ":env-" + sha256_bytes(json.dumps(args.env, sort_keys=True).encode())
-    done = {(r["scenario"], r["condition"]) for r in read_results(results_path)} if args.resume else set()
+    done = {(r["scenario"], r["condition"]) for r in read_results(results_path)
+            if r.get("renderer_change", False) == args.renderer_change} if args.resume else set()
     pending = [s for s in selected if (s.id, condition) not in done]
     print(f"[regression] {len(selected)} selected, {len(selected) - len(pending)} already recorded, "
           f"condition {condition}")
@@ -1164,7 +1168,7 @@ def main(argv: list[str] | None = None) -> int:
         expected, source = load_expectation(scenario, ctx)
         record["expectation_source"] = source
         record["expectation_core_sha256"] = expected.get("core_sha256")
-        record["gates"] = evaluate(scenario, record, expected, args.mode)
+        record["gates"] = evaluate(scenario, record, expected, args.mode, args.renderer_change)
         if args.record_expectations:
             record["expectation_recorded"] = record_expectation(scenario, record, ctx)
         with results_path.open("a") as results:

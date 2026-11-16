@@ -363,12 +363,16 @@ class RegressionRunnerContract(unittest.TestCase):
         self.assertEqual((gates["capture@42"], gates["capture@150"], gates["end_state"]), ("fail", "fail", "pass"))
         self.assertIn("capture@42", (self.root / "capture/report.md").read_text())
 
-    def test_on_mode_capture_change_is_review_not_failure(self):
+    def test_on_mode_capture_change_requires_declared_renderer_change(self):
         expectations = self.record_golden(mode="on")
         golden = json.loads((expectations / "field-state.expect.json").read_text())
         self.assertNotIn("capture_sha256", golden["conditions"]["on:fake-4x"]["checkpoints"]["42"])
 
-        result, records = self.run_runner("on", "--expectations", str(expectations),
+        result, records = self.run_runner("on-default", "--expectations", str(expectations),
+                                          plan={"capture": "changed"}, mode="on")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.gates(records["field-state"])["capture@42"], "fail")
+        result, records = self.run_runner("on", "--expectations", str(expectations), "--renderer-change",
                                           plan={"capture": "changed"}, mode="on")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         record = records["field-state"]
@@ -383,6 +387,10 @@ class RegressionRunnerContract(unittest.TestCase):
         report = (self.root / "on/report.md").read_text()
         review = report.split("## Review queue")[1]
         self.assertIn(record["checkpoints"][0]["capture_path"], review)
+        resumed, resumed_records = self.run_runner("on", "--expectations", str(expectations), "--resume",
+                                                   plan={"capture": "changed"}, mode="on")
+        self.assertEqual(resumed.returncode, 1)
+        self.assertEqual(self.gates(resumed_records["field-state"])["capture@42"], "fail")
 
     def test_residency_gate_rejects_over_budget(self):
         for name, fields in (("overflow", "budget=100 resident_bytes=101"),):

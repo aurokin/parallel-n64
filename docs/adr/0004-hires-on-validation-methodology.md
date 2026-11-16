@@ -82,3 +82,10 @@ condition, not proof that the defect persists or is fixed on the current core.
 
 The required gate enforces the no-metric policy; runtime authority runners emit
 the class-level evidence consumed by reviewers.
+
+## Amendment (2026-11-16)
+
+Regression captures in hi-res-on mode now fail on reference hash changes by
+default. `--renderer-change` declares expected replacement-output changes and
+downgrades those differences to visual review. GLideN64 output and similarity
+metrics remain excluded from gates.

@@ -97,7 +97,8 @@ embedded `expect` entry for that condition.
 ```
 
 `reference_capture_sha256` identifies the last reviewed hi-res-on capture. A
-different capture is nominated for review; it never fails a run.
+different capture fails unless `--renderer-change` declares an expected output change;
+then it is nominated for review.
 
 ## Blob store
 
@@ -128,3 +129,10 @@ The runner appends one JSON line per scenario run to `<out>/results.jsonl`:
   misses, fallback_reasons, cache_load_failed}`;
 - `gates[{name, status: pass|fail|review|skip, detail}]`, `log_flags[]`,
   `orphans[]`, `error`, `expectation_source`, `expectation_core_sha256`.
+
+## Capture policy (2026-11-16)
+
+Hi-res-on captures must match the expectation's reference capture hash by
+default. A mismatch fails. Pass `--renderer-change` only when the change is
+expected to alter replacement output; mismatches then require visual review.
+GLideN64 output and similarity metrics never enter gates.

@@ -139,7 +139,7 @@ separate qualification checks. They are not yet pre-deploy golden coverage.
 | `load` — paused load succeeded | fail | fail |
 | `liveness` — no static tail where the reference changes; no newly uniform-black checkpoint | fail | fail |
 | `ram@F:name` — RAM cue equals expectation | fail | fail |
-| `capture@F` — PNG sha equals expectation | fail ([ADR-0002](../../docs/adr/0002-protected-feature-off-property.md)) | review ([ADR-0004](../../docs/adr/0004-hires-on-validation-methodology.md)) |
+| `capture@F` — PNG sha equals expectation | fail ([ADR-0002](../../docs/adr/0002-protected-feature-off-property.md)) | fail; review with `--renderer-change` ([ADR-0004](../../docs/adr/0004-hires-on-validation-methodology.md)) |
 | `end_state` — end-state body sha | fail | fail ([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md)) |
 | `pack` — the run's pack is the one the on-mode expectation was recorded with | — | review |
 | `hires.provider` — summary has `provider=on`, no cache load failure | — | fail |
@@ -158,8 +158,8 @@ separate qualification checks. They are not yet pre-deploy golden coverage.
 - Corpus on-mode imports omit end-state goldens. Every on lane must instead run
   `compare_modes.py OFF_RUN ON_RUN --strict-rdram` against the same core's off
   lane; RAM cues, liveness and capture review remain in the runner.
-- Capture digests are gates only feature-off (ADR-0002). A changed hi-res-on
-  capture is nominated for visual review and never fails a run; presence gates
+- Capture digests gate both modes. A changed hi-res-on capture fails unless
+  `--renderer-change` declares expected output changes; presence gates
   are class-level semantics, not counts (ADR-0004,
   [ADR-0016](../../docs/adr/0016-test-surface-trim.md)).
 - No image-similarity metric or GlideN64 output enters any gate
@@ -211,3 +211,10 @@ is given. `--record-expectations` only records runs without failed gates.
 Inherited `PARALLEL_RDP_*`, `RDP_*`, and `PARALLEL_N64_CPUCORE_OVERRIDE` variables
 are stripped. Repeat `--env NAME=VALUE` for explicit overrides; these are recorded
 and included in the condition identity. Loading is always synchronous.
+
+## Capture policy (2026-11-16)
+
+Hi-res-on captures must match the expectation's reference capture hash by
+default. A mismatch fails. Pass `--renderer-change` only when the change is
+expected to alter replacement output; mismatches then require visual review.
+GLideN64 output and similarity metrics never enter gates.

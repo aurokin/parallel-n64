@@ -223,14 +223,6 @@ private:
 		IdentityAssisted,
 		GenericFallback
 	};
-	enum class HiresProviderDescriptorPathKind : uint8_t
-	{
-		None = 0,
-		Sampled,
-		NativeChecksum,
-		Compat,
-		Jabo,
-	};
 	struct HiresKey;
 	template <typename Decode>
 	bool load_hires_descriptor(const HiresKey &key, ReplacementMeta &meta, Decode decode);
@@ -262,9 +254,7 @@ private:
 	                                                  uint32_t orig_w,
 	                                                  uint32_t orig_h,
 	                                                  ReplacementMeta &meta,
-	                                                  Renderer::HiresProviderDescriptorPathKind *resolved_path_kind = nullptr,
 	                                                  uint64_t *resolved_selector_checksum64 = nullptr,
-	                                                  const char **resolved_path_class = nullptr,
 	                                                  const ReplacementPalette *palette = nullptr);
 	void apply_hires_tile_binding(unsigned tile, const ReplacementTileState &state);
 	void clear_hires_tile_binding(unsigned tile);
@@ -354,12 +344,6 @@ private:
 	uint64_t hires_descriptor_native_checksum_exact_resolutions = 0;
 	uint64_t hires_descriptor_native_checksum_identity_assisted_resolutions = 0;
 	uint64_t hires_descriptor_native_checksum_generic_fallback_resolutions = 0;
-	uint64_t hires_descriptor_generic_resolutions = 0;
-	uint64_t hires_descriptor_generic_identity_assisted_resolutions = 0;
-	uint64_t hires_descriptor_generic_plain_resolutions = 0;
-	uint64_t hires_descriptor_generic_native_plain_resolutions = 0;
-	uint64_t hires_descriptor_generic_compat_plain_resolutions = 0;
-	uint64_t hires_descriptor_generic_unknown_plain_resolutions = 0;
 	uint64_t hires_descriptor_compat_resolutions = 0;
 	detail::HiresStrongHashMemo hires_strong_memo[Limits::MaxNumTiles];
 	std::vector<uint8_t> hires_strong_scratch;
@@ -367,8 +351,6 @@ private:
 	uint64_t hires_compat_draw_time_hits = 0;
 	uint64_t hires_compat_draw_time_ci_attempts = 0;
 	uint64_t hires_compat_draw_time_ci_hits = 0;
-	// Retired cross-bank fallback; retain its zero-valued summary field.
-	uint64_t hires_compat_draw_time_bank0_hits = 0;
 	// Jabo MD5 lane: runs after a draw-time Rice miss, only for packages with
 	// Jabo records. The memo maps draw views to MD5s and is bounded by clearing.
 	bool hires_jabo_lane_enabled = false;

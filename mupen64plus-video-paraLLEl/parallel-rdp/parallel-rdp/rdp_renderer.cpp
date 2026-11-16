@@ -998,12 +998,6 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_descriptor_native_checksum_exact_resolutions = 0;
 	hires_descriptor_native_checksum_identity_assisted_resolutions = 0;
 	hires_descriptor_native_checksum_generic_fallback_resolutions = 0;
-	hires_descriptor_generic_resolutions = 0;
-	hires_descriptor_generic_identity_assisted_resolutions = 0;
-	hires_descriptor_generic_plain_resolutions = 0;
-	hires_descriptor_generic_native_plain_resolutions = 0;
-	hires_descriptor_generic_compat_plain_resolutions = 0;
-	hires_descriptor_generic_unknown_plain_resolutions = 0;
 	hires_descriptor_compat_resolutions = 0;
 	for (auto &memo : hires_strong_memo)
 		memo = {};
@@ -1011,7 +1005,6 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	hires_compat_draw_time_hits = 0;
 	hires_compat_draw_time_ci_attempts = 0;
 	hires_compat_draw_time_ci_hits = 0;
-	hires_compat_draw_time_bank0_hits = 0;
 	hires_jabo_lane_enabled = provider && provider->has_jabo_entries();
 	hires_jabo_draw_hits = 0;
 	hires_jabo_draw_misses = 0;
@@ -1211,7 +1204,7 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 	     label, static_cast<unsigned long long>(hires_strong_draw_hits),
 	     static_cast<unsigned long long>(strong_computations), static_cast<unsigned long long>(strong_memo_hits));
 	ReplacementProviderStats provider_stats = replacement_provider->get_stats();
-	LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu compat_draw_bank0_hits=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu generic=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu) generic_detail(identity_assisted=%llu plain=%llu native=%llu compat=%llu unknown=%llu).\n",
+	LOGI("Hi-res keying summary%s: lookups=%llu hits=%llu misses=%llu compat_draw_hits=%llu compat_draw_ci_hits=%llu compat_draw_ci_attempts=%llu provider=on entries=%u native_sampled=%u compat=%u sampled_index=%u sampled_dupe_keys=%u sampled_dupe_entries=%u sampled_families=%u sources(phrb=%u) descriptor_paths(sampled=%llu native_checksum=%llu compat=%llu) sampled_detail(family_singleton=%llu ordered_surface_singleton=%llu exact_selector=%llu).\n",
 	     label,
 	     static_cast<unsigned long long>(hires_lookup_total),
 	     static_cast<unsigned long long>(hires_lookup_hits),
@@ -1219,7 +1212,6 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 	     static_cast<unsigned long long>(hires_compat_draw_time_hits),
 	     static_cast<unsigned long long>(hires_compat_draw_time_ci_hits),
 	     static_cast<unsigned long long>(hires_compat_draw_time_ci_attempts),
-	     static_cast<unsigned long long>(hires_compat_draw_time_bank0_hits),
 	     provider_stats.entry_count,
 	     provider_stats.native_sampled_entry_count,
 	     provider_stats.compat_entry_count,
@@ -1230,16 +1222,10 @@ void Renderer::emit_hires_summary(const char *label, bool include_duplicate_diag
 	     provider_stats.source_phrb_entry_count,
 	     static_cast<unsigned long long>(hires_descriptor_sampled_resolutions),
 	     static_cast<unsigned long long>(hires_descriptor_native_checksum_resolutions),
-	     static_cast<unsigned long long>(hires_descriptor_generic_resolutions),
 	     static_cast<unsigned long long>(hires_descriptor_compat_resolutions),
 	     static_cast<unsigned long long>(hires_descriptor_sampled_family_singleton_resolutions),
 	     static_cast<unsigned long long>(hires_descriptor_sampled_ordered_surface_singleton_resolutions),
-	     static_cast<unsigned long long>(hires_descriptor_sampled_exact_selector_resolutions),
-	     static_cast<unsigned long long>(hires_descriptor_generic_identity_assisted_resolutions),
-	     static_cast<unsigned long long>(hires_descriptor_generic_plain_resolutions),
-	     static_cast<unsigned long long>(hires_descriptor_generic_native_plain_resolutions),
-	     static_cast<unsigned long long>(hires_descriptor_generic_compat_plain_resolutions),
-	     static_cast<unsigned long long>(hires_descriptor_generic_unknown_plain_resolutions));
+	     static_cast<unsigned long long>(hires_descriptor_sampled_exact_selector_resolutions));
 	LOGI("Hi-res native checksum detail%s: exact=%llu identity_assisted=%llu generic_fallback=%llu.\n",
 	     label,
 	     static_cast<unsigned long long>(hires_descriptor_native_checksum_exact_resolutions),
@@ -2185,17 +2171,13 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 					compat_repl_meta.orig_w = compat_w;
 					compat_repl_meta.orig_h = compat_h;
 
-					HiresProviderDescriptorPathKind compat_desc_path = HiresProviderDescriptorPathKind::None;
-					uint64_t compat_selector = 0;
-					const char *compat_desc_class = nullptr;
 					const auto palette = ReplacementPalette::from_tmem(
 						tlut_shadow_valid && (raster_flags & RASTERIZATION_TLUT_BIT) ? tlut_tmem_shadow : nullptr,
 						sizeof(tlut_tmem_shadow), resolve_meta.size == TextureSize::Bpp4,
 						resolve_meta.palette, tlut_ia16);
 					compat_hit = resolve_hires_provider_resolution_descriptor(
 						compat_resolution, compat_formatsize, compat_w, compat_h,
-						compat_repl_meta, &compat_desc_path, &compat_selector, &compat_desc_class,
-						palette.count ? &palette : nullptr);
+						compat_repl_meta, nullptr, palette.count ? &palette : nullptr);
 
 					auto &repl_state = replacement_tiles[resolve_tile];
 					detail::write_hires_lookup_tile_state(
@@ -4102,18 +4084,12 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
                                                             uint32_t orig_w,
                                                             uint32_t orig_h,
                                                             ReplacementMeta &meta,
-                                                            Renderer::HiresProviderDescriptorPathKind *resolved_path_kind,
                                                             uint64_t *resolved_selector_checksum64,
-                                                            const char **resolved_path_class,
                                                             const ReplacementPalette *palette)
 {
 	meta.vk_image_index = detail::hires_invalid_descriptor_index();
-	if (resolved_path_kind)
-		*resolved_path_kind = HiresProviderDescriptorPathKind::None;
 	if (resolved_selector_checksum64)
 		*resolved_selector_checksum64 = resolution.resolved_selector_checksum64;
-	if (resolved_path_class)
-		*resolved_path_class = nullptr;
 
 	if (!replacement_provider || !caps.hires_replacement_shader || !resolution.available)
 		return false;
@@ -4125,16 +4101,10 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 	resolved_meta.orig_w = orig_w;
 	resolved_meta.orig_h = orig_h;
 
-	auto finalize = [&](HiresProviderDescriptorPathKind path_kind,
-	                    const char *path_class,
-	                    uint64_t selector_checksum64) {
+	auto finalize = [&](uint64_t selector_checksum64) {
 		meta = resolved_meta;
-		if (resolved_path_kind)
-			*resolved_path_kind = path_kind;
 		if (resolved_selector_checksum64)
 			*resolved_selector_checksum64 = selector_checksum64;
-		if (resolved_path_class)
-			*resolved_path_class = path_class;
 		return true;
 	};
 	auto try_sampled = [&](uint64_t selector_checksum64) {
@@ -4154,7 +4124,7 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 			    selector_checksum64,
 			    resolved_meta))
 			return false;
-		return finalize(HiresProviderDescriptorPathKind::Sampled, "sampled", selector_checksum64);
+		return finalize(selector_checksum64);
 	};
 	auto try_native_checksum = [&](uint64_t selector_checksum64, HiresNativeChecksumDetailClass detail_class) {
 		if (!resolve_hires_native_checksum_replacement_descriptor(
@@ -4166,7 +4136,7 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 			return false;
 		resolved_meta.orig_w = orig_w;
 		resolved_meta.orig_h = orig_h;
-		return finalize(HiresProviderDescriptorPathKind::NativeChecksum, "native_checksum", selector_checksum64);
+		return finalize(selector_checksum64);
 	};
 	auto try_jabo = [&]() {
 		if (!resolve_hires_jabo_replacement_descriptor(
@@ -4177,7 +4147,7 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 			return false;
 		resolved_meta.orig_w = orig_w;
 		resolved_meta.orig_h = orig_h;
-		return finalize(HiresProviderDescriptorPathKind::Jabo, "jabo", resolution.resolved_selector_checksum64);
+		return finalize(resolution.resolved_selector_checksum64);
 	};
 	auto try_compat = [&](uint64_t selector_checksum64) {
 		if (!resolve_hires_compat_replacement_descriptor(
@@ -4188,7 +4158,7 @@ bool Renderer::resolve_hires_provider_resolution_descriptor(const ::RDP::Replace
 			return false;
 		resolved_meta.orig_w = orig_w;
 		resolved_meta.orig_h = orig_h;
-		return finalize(HiresProviderDescriptorPathKind::Compat, "compat", selector_checksum64);
+		return finalize(selector_checksum64);
 	};
 
 	switch (resolution.kind)
@@ -4968,9 +4938,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 			uint64_t resolved_selector_checksum64 = 0;
 			const uint16_t formatsize = formatsize_key(meta.fmt, meta.size);
 			ReplacementMeta repl_meta = {};
-			const char *native_lookup_resolution_reason = nullptr;
-			const char *descriptor_path_class = nullptr;
-			HiresProviderDescriptorPathKind descriptor_path_kind = HiresProviderDescriptorPathKind::None;
+			bool ci4_reinterpreted = false;
 			ReplacementResolution resolution = {};
 			bool hit = replacement_provider->resolve_upload_candidate(
 				formatsize,
@@ -5046,7 +5014,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					repl_meta = ci4_meta;
 					resolved_checksum64 = ci4_resolution.resolved_checksum64;
 					resolved_selector_checksum64 = ci4_resolution.resolved_selector_checksum64;
-					native_lookup_resolution_reason = "ci4-reinterpreted-upload";
+					ci4_reinterpreted = true;
 					lookup_checksum64 = detail::compose_hires_checksum64(texture_crc, ci4_palette_crc);
 					lookup_formatsize = ci4_formatsize;
 					lookup_key_w = ci4_width;
@@ -5062,51 +5030,19 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 					lookup_key_w,
 					lookup_key_h,
 					repl_meta,
-					&descriptor_path_kind,
-					&resolved_selector_checksum64,
-					&descriptor_path_class);
-				if (hit && !native_lookup_resolution_reason)
+					&resolved_selector_checksum64);
+				// Summary counters; a CI8-as-CI4 hit is not attributed to a sampled kind.
+				if (hit && !ci4_reinterpreted)
 				{
-					switch (resolution.kind)
+					if (resolution.kind == ReplacementResolutionKind::SampledFamilySingleton)
 					{
-					case ReplacementResolutionKind::SampledFamilySingleton:
-						native_lookup_resolution_reason =
-							resolution.ordered_surface_singleton
-								? "sampled-family-ordered-surface-singleton-upload"
-								: "sampled-family-unique-upload";
 						if (resolution.ordered_surface_singleton)
 							hires_descriptor_sampled_ordered_surface_singleton_resolutions++;
 						else
 							hires_descriptor_sampled_family_singleton_resolutions++;
-						break;
-
-					case ReplacementResolutionKind::ExactNativeSampled:
-						native_lookup_resolution_reason =
-							descriptor_path_kind == HiresProviderDescriptorPathKind::Sampled
-								? "native-checksum-exact-upload"
-								: "native-checksum-exact-fallback-upload";
-						break;
-
-					case ReplacementResolutionKind::GenericNativeIdentity:
-					case ReplacementResolutionKind::GenericNativeChecksum:
-						native_lookup_resolution_reason =
-							descriptor_path_kind == HiresProviderDescriptorPathKind::Sampled
-								? "native-checksum-generic-upload"
-								: "native-checksum-generic-fallback-upload";
-						break;
-
-					case ReplacementResolutionKind::GenericCompat:
-						native_lookup_resolution_reason = "generic-compat-upload";
-						break;
-
-					case ReplacementResolutionKind::SampledExactSelector:
-						native_lookup_resolution_reason = "sampled-exact-selector-upload";
-						hires_descriptor_sampled_exact_selector_resolutions++;
-						break;
-
-					case ReplacementResolutionKind::None:
-						break;
 					}
+					else if (resolution.kind == ReplacementResolutionKind::SampledExactSelector)
+						hires_descriptor_sampled_exact_selector_resolutions++;
 				}
 			}
 			auto &repl_state = replacement_tiles[tile & (Limits::MaxNumTiles - 1)];

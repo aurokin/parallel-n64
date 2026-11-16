@@ -132,12 +132,11 @@ elif sub == "stop":
         counts = plan.get("lookups", "lookups=5 hits=4 misses=1")
         draw_hits = plan.get("draw_hits", 3)
         emit(f"[INFO] Hi-res keying summary: {counts} "
-             f"compat_draw_hits={draw_hits} compat_draw_ci_hits=0 compat_draw_ci_attempts=0 compat_draw_bank0_hits=0 "
+             f"compat_draw_hits={draw_hits} compat_draw_ci_hits=0 compat_draw_ci_attempts=0 "
              "provider=on entries=12 native_sampled=0 compat=12 sampled_index=0 sampled_dupe_keys=0 "
              "sampled_dupe_entries=0 sampled_families=0 sources(phrb=12) "
-             "descriptor_paths(sampled=0 native_checksum=0 generic=0 compat=3) "
-             "sampled_detail(family_singleton=0 ordered_surface_singleton=0 exact_selector=0) "
-             "generic_detail(identity_assisted=0 plain=0 native=0 compat=0 unknown=0).")
+             "descriptor_paths(sampled=0 native_checksum=0 compat=3) "
+             "sampled_detail(family_singleton=0 ordered_surface_singleton=0 exact_selector=0).")
         if "jabo" in plan:
             emit(f"[INFO] Hi-res Jabo summary: {plan['jabo']} md5=1 memo_hits=0.")
     if plan.get("fail") == "stop":

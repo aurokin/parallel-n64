@@ -1,7 +1,7 @@
 #define private public
 #include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/texture_replacement.hpp"
 #undef private
-#include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_renderer.hpp"
+#include "mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_hires.hpp"
 
 #include <algorithm>
 #include <array>
@@ -573,12 +573,12 @@ static void test_indexed_replacements()
 			  "RGBA16 TLUT must use native bit replication and alpha");
 		const auto first = image.rgba8;
 		const auto first_hash = palette.hash();
-		Renderer::HiresKey cache_key;
-		cache_key.source = Renderer::HiresKeySource::Compat;
+		HiresReplacement::HiresKey cache_key;
+		cache_key.source = HiresReplacement::HiresKeySource::Compat;
 		cache_key.checksum64 = 0x12345678;
 		cache_key.formatsize = fs;
 		cache_key.indexed_palette_hash = first_hash;
-		std::unordered_map<Renderer::HiresKey, std::vector<uint8_t>, Renderer::HiresKeyHasher> cache;
+		std::unordered_map<HiresReplacement::HiresKey, std::vector<uint8_t>, HiresReplacement::HiresKeyHasher> cache;
 		cache.emplace(cache_key, first);
 		auto changed = palette;
 		changed.words[0] = 0x003f;

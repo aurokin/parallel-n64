@@ -22,6 +22,8 @@ files that contain local modifications.
 | `parallel-rdp/rdp_hires_capability_policy.hpp` | `444d8264` |
 | `parallel-rdp/rdp_hires_cutout_policy.hpp` | Empty-texel combiner policy (2026-10-31; replaces MIT policy `e0d44cbd`) |
 | `parallel-rdp/rdp_hires_ci_binding_policy.hpp` | `9e866127` |
+| `parallel-rdp/rdp_hires.cpp` | Hi-res component extraction (2026-11-16) |
+| `parallel-rdp/rdp_hires.hpp` | Hi-res component extraction (2026-11-16) |
 | `parallel-rdp/rdp_hires_ci_palette_policy.hpp` | `3317ec66` |
 | `parallel-rdp/rdp_hires_compat_view.hpp` | `9f134ee2` |
 | `parallel-rdp/rdp_hires_jabo_key.hpp` | `6820a4b1` |

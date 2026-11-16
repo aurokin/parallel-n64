@@ -164,7 +164,7 @@ CommandProcessor::~CommandProcessor()
 {
 	idle();
 	drain_command_ring();
-	renderer.log_hires_summary();
+	renderer.get_hires().log_summary();
 	// Members destruct in reverse declaration order: timeline_worker and
 	// renderer go before ring, but the ring worker thread would stay alive
 	// until ~CommandRing and its 500us idle ticker would call back into the
@@ -181,7 +181,7 @@ void CommandProcessor::begin_frame_context()
 	// final summary); frame=K counts presented frames since this processor was
 	// created and is never reset.
 	if (hires_summary_clock.advance())
-		renderer.log_hires_summary_periodic(hires_summary_clock.frames);
+		renderer.get_hires().log_summary_periodic(hires_summary_clock.frames);
 	renderer.begin_frame_context();
 	device.next_frame_context();
 }
@@ -806,7 +806,7 @@ void CommandProcessor::set_quirks(const Quirks &quirks_)
 
 void CommandProcessor::set_hires_filter(unsigned mode)
 {
-	renderer.set_hires_filter(mode);
+	renderer.get_hires().set_filter(mode);
 }
 
 void CommandProcessor::configure_hires_replacement(bool enable, const std::vector<std::string> &cache_paths, unsigned budget_mb)
@@ -823,9 +823,9 @@ void CommandProcessor::configure_hires_replacement(bool enable, const std::vecto
 	if (enable)
 	{
 		hires_pack_status.state = HiresPackState::NotFound;
-		renderer.configure_hires_gpu_budget(budget_mb);
+		renderer.get_hires().configure_gpu_budget(budget_mb);
 	}
-	renderer.set_hires_gliden64_compat_crc(false);
+	renderer.get_hires().set_gliden64_compat_crc(false);
 
 	const char *first_path = cache_paths.empty() ? nullptr : cache_paths.front().c_str();
 	auto outcome = detail::classify_hires_configure_outcome(enable, first_path, false);
@@ -876,7 +876,7 @@ void CommandProcessor::configure_hires_replacement(bool enable, const std::vecto
 
 	// The draw-time compat lane runs only for compat- or Jabo-bearing PHRB payloads;
 	// Jabo MD5 lookups run inside it, after its Rice key misses.
-	renderer.set_hires_gliden64_compat_crc(
+	renderer.get_hires().set_gliden64_compat_crc(
 		replacement_provider.has_phrb_compat_entries() || replacement_provider.has_jabo_entries());
 }
 

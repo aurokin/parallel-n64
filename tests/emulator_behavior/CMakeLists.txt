@@ -323,6 +323,7 @@ add_test(NAME emu.unit.rdp_frame_mapping COMMAND emu_unit_rdp_frame_mapping_test
 
 add_library(emu_obj_rdp_renderer_compile OBJECT EXCLUDE_FROM_ALL
   "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_renderer.cpp"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/rdp_hires.cpp"
 )
 target_include_directories(emu_obj_rdp_renderer_compile PRIVATE
   "${EMU_BEHAVIOR_SUPPORT_DIR}"

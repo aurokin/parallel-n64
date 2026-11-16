@@ -23,27 +23,15 @@
 #pragma once
 
 #include "rdp_data_structures.hpp"
-#include "rdp_hires_ci_binding_policy.hpp"
-#include "rdp_hires_compat_view.hpp"
-#include "rdp_hires_strong_hash.hpp"
-#include "rdp_hires_jabo_key.hpp"
+#include "rdp_hires.hpp"
 #include "device.hpp"
 #include "rdp_common.hpp"
-#include "rdp_hires_residency_policy.hpp"
 #include "worker_thread.hpp"
-#include <string>
-#include <unordered_map>
 #include <unordered_set>
-#include <vector>
 
 namespace RDP
 {
 struct CoherencyOperation;
-struct ReplacementMeta;
-struct ReplacementResolution;
-struct ReplacementImage;
-struct ReplacementPalette;
-class ReplacementProvider;
 
 struct SyncObject
 {
@@ -94,8 +82,6 @@ enum class HiresDrawClass : uint8_t
 
 class Renderer : public Vulkan::DebugChannelInterface
 {
-	struct ReplacementTileState;
-
 public:
 	explicit Renderer(CommandProcessor &processor);
 	~Renderer();
@@ -127,20 +113,12 @@ public:
 	void load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint32_t tmem_offset);
 	bool set_replacement_provider(const ReplacementProvider *provider);
 	void begin_frame_context();
-	void set_hires_gliden64_compat_crc(bool enable);
-	void set_hires_filter(unsigned mode);
 	// Running primitive count that offsets every primitive's noise seed. It is
 	// carried in savestates so a loaded state continues the saving run's noise.
 	uint32_t get_base_primitive_index() const { return base_primitive_index; }
 	void set_base_primitive_index(uint32_t index) { base_primitive_index = index; }
-	void configure_hires_gpu_budget(unsigned option_mb);
-	const HiresResidencyStatus &get_hires_residency_status() const { return hires_residency_status; }
-	// Final summary, emitted once at teardown. Its line format is parsed by
-	// tools/regression/run_scenarios.py and must stay stable.
-	void log_hires_summary() const;
-	// Cumulative snapshot of the same counters, labelled with the presented
-	// frame count so log parsers can tell it apart from the final summary.
-	void log_hires_summary_periodic(uint64_t frame) const;
+	HiresReplacement &get_hires() { return hires; }
+	const HiresReplacement &get_hires() const { return hires; }
 
 	void set_blend_color(uint32_t color);
 	void set_fog_color(uint32_t color);
@@ -174,8 +152,6 @@ public:
 	void unlock_command_processing();
 
 private:
-	void emit_hires_summary(const char *label, bool include_duplicate_diagnostics) const;
-
 	CommandProcessor &processor;
 	Vulkan::Device *device = nullptr;
 	Vulkan::Buffer *rdram = nullptr;
@@ -203,12 +179,7 @@ private:
 	bool is_host_coherent = false;
 	Vulkan::Buffer *hidden_rdram = nullptr;
 	Vulkan::Buffer *tmem = nullptr;
-	uint8_t *cpu_rdram = nullptr;
 	const ShaderBank *shader_bank = nullptr;
-	const ReplacementProvider *replacement_provider = nullptr;
-	bool hires_gliden64_compat_crc_enabled = false;
-	// 0 = nearest, 1 = bilinear, 2 = trilinear (see HIRES_FILTER_* in shaders).
-	unsigned hires_filter_mode = 2;
 
 	bool init_caps();
 	void init_blender_lut();
@@ -216,48 +187,6 @@ private:
 	bool init_internal_upscaling_factor(const RendererOptions &options);
 	void allocate_upscaled_domain(unsigned factor);
 	void update_hires_presented_pass();
-	bool init_hires_resources(unsigned requested_capacity);
-	enum class HiresNativeChecksumDetailClass : uint8_t
-	{
-		Exact = 0,
-		IdentityAssisted,
-		GenericFallback
-	};
-	struct HiresKey;
-	template <typename Decode>
-	bool load_hires_descriptor(const HiresKey &key, ReplacementMeta &meta, Decode decode);
-	void evict_hires_slot(uint32_t slot);
-	void clear_hires_images();
-	Vulkan::ImageHandle create_hires_replacement_image_with_mips(const ReplacementImage &replacement);
-	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, ReplacementMeta &meta);
-	bool resolve_hires_compat_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta, const ReplacementPalette *palette = nullptr);
-	bool resolve_hires_jabo_replacement_descriptor(uint64_t key_lo, uint64_t key_hi, uint16_t formatsize, ReplacementMeta &meta);
-	bool resolve_hires_jabo_draw_candidate(const TileMeta &tile_meta, const detail::HiresCompatView &view,
-	                                       uint64_t rice_checksum64, bool tlut_ia16, ReplacementResolution *out,
-	                                       uint64_t *source_hash);
-	uint64_t hires_jabo_binding_hash(const TileMeta &tile_meta, const detail::HiresCompatView &view, bool tlut_ia16) const;
-	bool resolve_hires_native_checksum_replacement_descriptor(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64, ReplacementMeta &meta, HiresNativeChecksumDetailClass detail_class = HiresNativeChecksumDetailClass::Exact);
-	bool resolve_hires_sampled_replacement_descriptor(uint32_t sampled_fmt,
-	                                                 uint32_t sampled_siz,
-	                                                 uint32_t sampled_tex_offset,
-	                                                 uint32_t sampled_stride,
-	                                                 uint32_t sampled_width,
-	                                                 uint32_t sampled_height,
-	                                                 uint32_t sampled_low32,
-	                                                 uint32_t palette_crc,
-	                                                 uint16_t formatsize,
-	                                                 uint64_t resolved_checksum64,
-	                                                 uint64_t selector_checksum64,
-	                                                 ReplacementMeta &meta);
-	bool resolve_hires_provider_resolution_descriptor(const ::RDP::ReplacementResolution &resolution,
-	                                                  uint16_t formatsize,
-	                                                  uint32_t orig_w,
-	                                                  uint32_t orig_h,
-	                                                  ReplacementMeta &meta,
-	                                                  uint64_t *resolved_selector_checksum64 = nullptr,
-	                                                  const ReplacementPalette *palette = nullptr);
-	void apply_hires_tile_binding(unsigned tile, const ReplacementTileState &state);
-	void clear_hires_tile_binding(unsigned tile);
 
 	struct
 	{
@@ -296,70 +225,6 @@ private:
 	void ensure_command_buffer();
 
 	TileInfo tiles[Limits::MaxNumTiles];
-	struct ReplacementTileState
-	{
-		uint64_t checksum64 = 0;
-		uint64_t upload_checksum64 = 0;
-		uint64_t selector_checksum64 = 0;
-		uint16_t formatsize = 0;
-		uint16_t orig_w = 0;
-		uint16_t orig_h = 0;
-		// Dimensions the checksum key was computed over (orig_w/orig_h get
-		// rebased to the rendering view at draw time; these do not).
-		uint16_t key_w = 0;
-		uint16_t key_h = 0;
-		uint16_t repl_w = 0;
-		uint16_t repl_h = 0;
-		uint32_t vk_image_index = 0xffffffffu;
-		// RDRAM texture-image base the key was computed against. Serving is
-		// only legitimate while the tile's TMEM region still holds a load
-		// from this address; a differing hires_rdram_load_addr means the
-		// binding describes overwritten texels (stale-binding guard).
-		uint32_t keyed_rdram_addr = 0;
-		// Nonzero for a Jabo binding: hires_jabo_source_hash of the texels and
-		// palette its MD5 was computed from. The binding is kept only while
-		// that hash still matches, since the Rice key does not cover them all.
-		uint64_t jabo_source_hash = 0;
-		uint64_t indexed_palette_hash = 0;
-		detail::HiresCI4PaletteBinding ci4_palette;
-		// The key or live admission depended on qualified LoadTile source rows.
-		bool source_layout_binding = false;
-		bool valid = false;
-		bool hit = false;
-	};
-	ReplacementTileState replacement_tiles[Limits::MaxNumTiles] = {};
-	uint32_t hires_rdram_load_addr[Limits::MaxNumTiles] = {};
-	detail::HiresLoadTileSource hires_load_tile_source[Limits::MaxNumTiles] = {};
-	uint8_t tlut_shadow[512] = {};
-	uint8_t tlut_tmem_shadow[2048] = {};
-	bool tlut_shadow_valid = false;
-	uint64_t hires_lookup_total = 0;
-	uint64_t hires_lookup_hits = 0;
-	uint64_t hires_lookup_misses = 0;
-	uint64_t hires_descriptor_sampled_resolutions = 0;
-	uint64_t hires_descriptor_sampled_family_singleton_resolutions = 0;
-	uint64_t hires_descriptor_sampled_ordered_surface_singleton_resolutions = 0;
-	uint64_t hires_descriptor_sampled_exact_selector_resolutions = 0;
-	uint64_t hires_descriptor_native_checksum_resolutions = 0;
-	uint64_t hires_descriptor_native_checksum_exact_resolutions = 0;
-	uint64_t hires_descriptor_native_checksum_identity_assisted_resolutions = 0;
-	uint64_t hires_descriptor_native_checksum_generic_fallback_resolutions = 0;
-	uint64_t hires_descriptor_compat_resolutions = 0;
-	detail::HiresStrongHashMemo hires_strong_memo[Limits::MaxNumTiles];
-	std::vector<uint8_t> hires_strong_scratch;
-	uint64_t hires_strong_draw_hits = 0;
-	uint64_t hires_compat_draw_time_hits = 0;
-	uint64_t hires_compat_draw_time_ci_attempts = 0;
-	uint64_t hires_compat_draw_time_ci_hits = 0;
-	// Jabo MD5 lane: runs after a draw-time Rice miss, only for packages with
-	// Jabo records. The memo maps draw views to MD5s and is bounded by clearing.
-	bool hires_jabo_lane_enabled = false;
-	uint64_t hires_jabo_draw_hits = 0;
-	uint64_t hires_jabo_draw_misses = 0;
-	uint64_t hires_jabo_md5_computations = 0;
-	uint64_t hires_jabo_memo_hits = 0;
-	std::unordered_map<detail::HiresJaboMemoKey, std::array<uint8_t, 16>, detail::HiresJaboMemoKeyHash> hires_jabo_memo;
-	std::vector<uint8_t> hires_jabo_scratch;
 	Vulkan::BufferHandle tmem_instances;
 	Vulkan::BufferHandle span_setups;
 	Vulkan::BufferHandle blender_divider_lut_buffer;
@@ -508,7 +373,6 @@ private:
 		bool ubershader = false;
 		bool supports_small_integer_arithmetic = false;
 		bool subgroup_tile_binning = false;
-		bool hires_replacement_shader = false;
 		unsigned upscaling = 1;
 		// Framebuffers have an upscaled-domain copy rendered by a second, presented pass.
 		bool upscaled_domain = false;
@@ -529,91 +393,7 @@ private:
 
 	std::unique_ptr<WorkerThread<Vulkan::DeferredPipelineCompile, PipelineExecutor>> pipeline_worker;
 
-	enum class HiresKeySource : uint8_t
-	{
-		Generic = 0,
-		NativeSampled = 1,
-		Compat = 2,
-		NativeChecksum = 3,
-		GenericNative = 4,
-		GenericCompat = 5,
-		Jabo = 6
-	};
-
-	struct HiresKey
-	{
-		uint64_t checksum64 = 0;
-		uint16_t formatsize = 0;
-		uint64_t selector_checksum64 = 0;
-		uint64_t indexed_palette_hash = 0;
-		HiresKeySource source = HiresKeySource::Generic;
-		uint32_t sampled_fmt = 0;
-		uint32_t sampled_siz = 0;
-		uint32_t sampled_tex_offset = 0;
-		uint32_t sampled_stride = 0;
-		uint32_t sampled_width = 0;
-		uint32_t sampled_height = 0;
-		uint32_t sampled_low32 = 0;
-		uint32_t sampled_palette_crc = 0;
-
-		bool operator==(const HiresKey &other) const
-		{
-			return checksum64 == other.checksum64 && formatsize == other.formatsize &&
-			       selector_checksum64 == other.selector_checksum64 &&
-			       indexed_palette_hash == other.indexed_palette_hash &&
-			       source == other.source &&
-			       sampled_fmt == other.sampled_fmt &&
-			       sampled_siz == other.sampled_siz &&
-			       sampled_tex_offset == other.sampled_tex_offset &&
-			       sampled_stride == other.sampled_stride &&
-			       sampled_width == other.sampled_width &&
-			       sampled_height == other.sampled_height &&
-			       sampled_low32 == other.sampled_low32 &&
-			       sampled_palette_crc == other.sampled_palette_crc;
-		}
-	};
-
-	struct HiresKeyHasher
-	{
-		size_t operator()(const HiresKey &key) const
-		{
-			return size_t(key.checksum64 ^ (uint64_t(key.formatsize) << 48) ^
-			              key.selector_checksum64 ^ key.indexed_palette_hash ^ (uint64_t(key.source) << 60) ^
-			              (uint64_t(key.sampled_fmt) << 2) ^
-			              (uint64_t(key.sampled_siz) << 6) ^
-			              (uint64_t(key.sampled_tex_offset) << 10) ^
-			              (uint64_t(key.sampled_stride) << 14) ^
-			              (uint64_t(key.sampled_width) << 18) ^
-			              (uint64_t(key.sampled_height) << 22) ^
-			              (uint64_t(key.sampled_low32) << 26) ^
-			              (uint64_t(key.sampled_palette_crc) << 30));
-		}
-	};
-
-	struct HiresResidentImage
-	{
-		Vulkan::ImageHandle image;
-		HiresKey key;
-		uint16_t repl_w = 0;
-		uint16_t repl_h = 0;
-	};
-
-	struct HiresResources
-	{
-		Vulkan::BindlessDescriptorPoolHandle bindless_pool;
-		Vulkan::ImageHandle fallback_image;
-		std::unordered_map<HiresKey, uint32_t, HiresKeyHasher> resident_images;
-		std::vector<HiresResidentImage> images;
-		std::unordered_set<HiresKey, HiresKeyHasher> failed;
-		std::unordered_set<HiresKey, HiresKeyHasher> refused_saturated, refused_no_slot;
-		detail::HiresResidencyPolicy residency;
-		unsigned capacity = 0;
-	} hires_resources;
-	// Configuration survives provider/cache resets.
-	HiresResidencyStatus hires_residency_status;
-	uint64_t hires_frame = 0;
-	unsigned hires_heap_index = 0;
-	bool hires_memory_budget_supported = false;
+	HiresReplacement hires{tiles};
 
 	void resolve_coherency_host_to_gpu(Vulkan::CommandBuffer &cmd);
 	void resolve_coherency_gpu_to_host(CoherencyOperation &op, Vulkan::CommandBuffer &cmd);

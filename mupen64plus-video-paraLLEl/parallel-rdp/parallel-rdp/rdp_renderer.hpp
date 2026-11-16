@@ -153,7 +153,6 @@ public:
 	void set_hires_debug_filter(bool allow_tile,
 	                           bool allow_block,
 	                           std::unordered_set<std::string> &&blocked_signatures);
-	void set_hires_debug_ci_palette_probe(bool enable);
 	void set_hires_debug_sampled_object_probe(bool enable);
 	void set_hires_debug_sampled_object_exact_lookup(bool enable);
 	void begin_frame_context();
@@ -248,7 +247,6 @@ private:
 	const ReplacementProvider *replacement_provider = nullptr;
 	bool hires_debug = false;
 	HiresDebugFilterState hires_debug_filter;
-	bool hires_debug_ci_palette_probe = false;
 	bool hires_debug_sampled_object_probe = false;
 	bool hires_debug_sampled_object_exact_lookup = false;
 	HiresCICompatibilityMode hires_ci_compatibility_mode = HiresCICompatibilityMode::Off;
@@ -430,8 +428,6 @@ private:
 	std::unordered_map<detail::HiresJaboMemoKey, std::array<uint8_t, 16>, detail::HiresJaboMemoKeyHash> hires_jabo_memo;
 	std::vector<uint8_t> hires_jabo_scratch;
 	std::unordered_set<uint64_t> hires_jabo_miss_logged;
-	std::unordered_set<std::string> hires_ci_palette_probe_logged_hits;
-	std::unordered_set<std::string> hires_ci_palette_probe_logged_contexts;
 	std::unordered_set<std::string> hires_sampled_object_probe_logged_contexts;
 	struct HiresSampledPoolStreamState
 	{

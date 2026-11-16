@@ -240,8 +240,6 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 
 	if (const char *env = getenv("PARALLEL_RDP_HIRES_DEBUG"))
 		renderer.set_hires_debug(strtol(env, nullptr, 0) > 0);
-	if (const char *env = getenv("PARALLEL_RDP_HIRES_CI_PALETTE_PROBE"))
-		renderer.set_hires_debug_ci_palette_probe(strtol(env, nullptr, 0) > 0);
 	if (const char *env = getenv("PARALLEL_RDP_HIRES_SAMPLED_OBJECT_PROBE"))
 		renderer.set_hires_debug_sampled_object_probe(strtol(env, nullptr, 0) > 0);
 	if (const char *env = getenv("PARALLEL_RDP_HIRES_SAMPLED_OBJECT_LOOKUP"))

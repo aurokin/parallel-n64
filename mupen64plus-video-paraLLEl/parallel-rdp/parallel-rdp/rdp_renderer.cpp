@@ -23,7 +23,6 @@
 #include "rdp_renderer.hpp"
 #include "rdp_device.hpp"
 #include "rdp_hires_pass_policy.hpp"
-#include "rdp_hires_cutout_policy.hpp"
 #include "rdp_device_capability_policy.hpp"
 #include "logging.hpp"
 #include "bitops.hpp"
@@ -1439,36 +1438,12 @@ void Renderer::draw_shaded_primitive(const TriangleSetup &setup, const Attribute
 
 	const auto hires_draw = hires.prepare_draw(setup.tile, stream.static_raster_state.flags, stream.depth_blend_state);
 
-	// native_resolution_tex_rect exists to keep copy-mode strips stable at
-	// upscale, but it also snaps rasterization to the native pixel grid,
-	// capping replacement detail for the texrects hi-res packs care about
-	// most (UI, text). When a replacement is bound to a non-flip texrect,
-	// drop the snap so the replacement rasterizes at full scale. Copy-mode
-	// rects qualify only when replaced (no uses_texel0 there): the
-	// replacement branch bypasses TMEM, so the fragile raw-transport strips
-	// the option protects are exactly the unreplaced ones, which keep the
-	// snap. The bit is only consumed GPU-side, so patching the queued setup
-	// here, after the draw-time CRC fallback has resolved, stays coherent.
-	if (draw_class == HiresDrawClass::TexRect && hires_draw.lifts_tex_rect_snap)
-	{
-		auto &queued_setup = stream.triangle_setup.last();
-		queued_setup.flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
-		// A fractional bottom edge (yl & 3) clips every subpixel of the
-		// rect's last upscaled row once the snap is lifted, leaving a
-		// one-row gap at abutting strip seams. Round it up to the next
-		// whole native line: that restores exactly the clipped sub-rows,
-		// never adds a native line, and keeps allocate_span_jobs'
-		// (yl - 1) >> 2 coherent with the already-queued span jobs.
-		if (caps.upscaling > 1 && (queued_setup.yl & 3) != 0)
-			queued_setup.yl = (queued_setup.yl + 3) & ~3;
-	}
+	if (draw_class == HiresDrawClass::TexRect)
+		hires_draw.lift_tex_rect_snap(stream.triangle_setup.last(), caps.upscaling);
 
 	InstanceIndices indices = {};
 	auto normalized_static_state = normalize_static_state(stream.static_raster_state);
-	if (detail::hires_cutout_preserves_surface(normalized_static_state, derived_setup.constants, hires.attached()))
-		normalized_static_state.flags |= RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT;
-	if (hires_draw.alpha_kill)
-		normalized_static_state.flags |= RASTERIZATION_HIRES_ALPHA_KILL_BIT;
+	normalized_static_state.flags |= hires_draw.raster_flags(normalized_static_state, derived_setup.constants);
 
 	indices.static_index = stream.static_raster_state_cache.add(normalized_static_state);
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);

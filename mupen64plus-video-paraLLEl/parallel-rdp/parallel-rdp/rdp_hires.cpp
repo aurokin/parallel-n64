@@ -3,6 +3,7 @@
 #include "rdp_hires.hpp"
 #include "rdp_renderer.hpp"
 #include "rdp_hires_ci_palette_policy.hpp"
+#include "rdp_hires_cutout_policy.hpp"
 #include "rdp_hires_key_state_policy.hpp"
 #include "rdp_hires_load_origin_policy.hpp"
 #include "rdp_hires_lookup_policy.hpp"
@@ -1304,6 +1305,7 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 	                          detail::hires_descriptor_index_valid(tiles[texel1_tile].replacement.repl_desc_index);
 
 	HiresDrawBinding binding;
+	binding.replacements_attached = replacement_provider != nullptr;
 	binding.lifts_tex_rect_snap = texel0_bound && (uses_texel0 || (raster_flags & RASTERIZATION_COPY_BIT) != 0);
 
 	// HLE-alpha-kill eligibility: a draw that samples a replaced texture and
@@ -1331,6 +1333,43 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 		}
 	}
 	return binding;
+}
+
+// native_resolution_tex_rect exists to keep copy-mode strips stable at
+// upscale, but it also snaps rasterization to the native pixel grid,
+// capping replacement detail for the texrects hi-res packs care about
+// most (UI, text). When a replacement is bound to a non-flip texrect,
+// drop the snap so the replacement rasterizes at full scale. Copy-mode
+// rects qualify only when replaced (no uses_texel0 there): the
+// replacement branch bypasses TMEM, so the fragile raw-transport strips
+// the option protects are exactly the unreplaced ones, which keep the
+// snap. The bit is only consumed GPU-side, so patching the queued setup
+// here, after the draw-time CRC fallback has resolved, stays coherent.
+void HiresDrawBinding::lift_tex_rect_snap(TriangleSetup &queued_setup, unsigned upscaling) const
+{
+	if (!lifts_tex_rect_snap)
+		return;
+
+	queued_setup.flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
+	// A fractional bottom edge (yl & 3) clips every subpixel of the
+	// rect's last upscaled row once the snap is lifted, leaving a
+	// one-row gap at abutting strip seams. Round it up to the next
+	// whole native line: that restores exactly the clipped sub-rows,
+	// never adds a native line, and keeps allocate_span_jobs'
+	// (yl - 1) >> 2 coherent with the already-queued span jobs.
+	if (upscaling > 1 && (queued_setup.yl & 3) != 0)
+		queued_setup.yl = (queued_setup.yl + 3) & ~3;
+}
+
+StaticRasterizationFlags HiresDrawBinding::raster_flags(const StaticRasterizationState &normalized,
+                                                        const ConstantCombinerInputs (&constants)[2]) const
+{
+	StaticRasterizationFlags flags = 0;
+	if (detail::hires_cutout_preserves_surface(normalized, constants, replacements_attached))
+		flags |= RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT;
+	if (alpha_kill)
+		flags |= RASTERIZATION_HIRES_ALPHA_KILL_BIT;
+	return flags;
 }
 
 void HiresReplacement::touch_bound_tiles()

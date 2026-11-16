@@ -52,6 +52,13 @@ struct HiresDrawBinding
 	// A replaced texel feeds a src-alpha-over-memory final blend: the shading
 	// stage kills ~0-alpha pixels as the HLE renderers packs target do.
 	bool alpha_kill = false;
+	bool replacements_attached = false;
+
+	// For a non-flipped texture rectangle: patches its queued setup.
+	void lift_tex_rect_snap(TriangleSetup &queued_setup, unsigned upscaling) const;
+	// Hi-res bits to add to the draw's normalized static raster state.
+	StaticRasterizationFlags raster_flags(const StaticRasterizationState &normalized,
+	                                      const ConstantCombinerInputs (&constants)[2]) const;
 };
 
 class HiresReplacement

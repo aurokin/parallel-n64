@@ -337,6 +337,40 @@ private:
 		size_t operator()(const SampledFamilyLookupKey &key) const;
 	};
 
+	// A family resolves as a singleton only while every entry shares one selector.
+	struct SampledFamilySelectors
+	{
+		uint64_t selector_checksum64 = 0;
+		bool mixed = false;
+	};
+
+	// An aggregate (no member initializers), so C++11 can brace-initialize it.
+	struct ChecksumLookupKey
+	{
+		uint64_t checksum64;
+		uint64_t selector_checksum64;
+		uint16_t formatsize;
+
+		bool operator==(const ChecksumLookupKey &other) const
+		{
+			return checksum64 == other.checksum64 && selector_checksum64 == other.selector_checksum64 &&
+			       formatsize == other.formatsize;
+		}
+	};
+
+	struct ChecksumLookupKeyHash
+	{
+		size_t operator()(const ChecksumLookupKey &key) const;
+	};
+
+	// Both maps hold the most recently added entry, which is the one a lookup returns.
+	struct ChecksumIndex
+	{
+		std::unordered_map<uint64_t, size_t> latest;
+		std::unordered_map<ChecksumLookupKey, size_t, ChecksumLookupKeyHash> exact;
+		void clear() { latest.clear(); exact.clear(); }
+	};
+
 	using JaboKey = std::array<uint64_t, 2>;
 	struct JaboKeyHash
 	{
@@ -352,7 +386,7 @@ private:
 	const Entry *find_native_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const;
 	const Entry *find_compat_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64,
 	                               bool *live_palette_fallback = nullptr) const;
-	const Entry *find_indexed_entry(const std::unordered_map<uint64_t, std::vector<size_t>> &index_map,
+	const Entry *find_indexed_entry(const ChecksumIndex &index,
 	                               uint64_t checksum64,
 	                               uint16_t formatsize,
 	                               uint64_t selector_checksum64) const;
@@ -425,11 +459,11 @@ private:
 	bool enabled_ = false;
 	std::string cache_dir_;
 	std::vector<Entry> entries_;
-	std::unordered_map<uint64_t, std::vector<size_t>> native_checksum_index_;
-	std::unordered_map<uint64_t, std::vector<size_t>> compat_checksum_index_;
+	ChecksumIndex native_checksum_index_;
+	ChecksumIndex compat_checksum_index_;
 	std::unordered_map<SampledLookupKey, size_t, SampledLookupKeyHash> sampled_index_;
 	std::unordered_map<SampledLookupKey, uint32_t, SampledLookupKeyHash> sampled_duplicate_index_;
-	std::unordered_map<SampledFamilyLookupKey, std::vector<size_t>, SampledFamilyLookupKeyHash> sampled_family_index_;
+	std::unordered_map<SampledFamilyLookupKey, SampledFamilySelectors, SampledFamilyLookupKeyHash> sampled_family_index_;
 	std::unordered_map<JaboKey, size_t, JaboKeyHash> jabo_index_;
 	std::unordered_set<SampledLookupKey, SampledLookupKeyHash> sampled_duplicate_reordered_;
 	// Decode-time rule counters. Decodes run on the renderer thread only.

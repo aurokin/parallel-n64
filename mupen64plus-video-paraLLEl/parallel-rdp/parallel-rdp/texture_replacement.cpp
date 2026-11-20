@@ -203,15 +203,6 @@ inline uint8_t expand_6_to_8(uint32_t v)
 }
 
 template <typename T>
-inline void push_unique(std::vector<T> &values, const T &value)
-{
-	for (const auto &existing : values)
-		if (existing == value)
-			return;
-	values.push_back(value);
-}
-
-template <typename T>
 inline void hash_combine(size_t &seed, const T &value)
 {
 	seed ^= std::hash<T>{}(value) + 0x9e3779b97f4a7c15ull + (seed << 6u) + (seed >> 2u);
@@ -255,6 +246,15 @@ size_t ReplacementProvider::SampledFamilyLookupKeyHash::operator()(const Sampled
 	hash_combine(seed, key.sampled_height);
 	hash_combine(seed, key.sampled_low32);
 	hash_combine(seed, key.sampled_palette_crc);
+	hash_combine(seed, key.formatsize);
+	return seed;
+}
+
+size_t ReplacementProvider::ChecksumLookupKeyHash::operator()(const ChecksumLookupKey &key) const
+{
+	size_t seed = 0;
+	hash_combine(seed, key.checksum64);
+	hash_combine(seed, key.selector_checksum64);
 	hash_combine(seed, key.formatsize);
 	return seed;
 }
@@ -371,10 +371,9 @@ void ReplacementProvider::add_entry(Entry &&entry)
 		jabo_index_[JaboKey{ stored.checksum64, stored.selector_checksum64 }] = index;
 		return;
 	}
-	if (stored.has_native_sampled_identity)
-		native_checksum_index_[stored.checksum64].push_back(index);
-	else
-		compat_checksum_index_[stored.checksum64].push_back(index);
+	auto &checksum_index = stored.has_native_sampled_identity ? native_checksum_index_ : compat_checksum_index_;
+	checksum_index.latest[stored.checksum64] = index;
+	checksum_index.exact[ChecksumLookupKey{ stored.checksum64, stored.selector_checksum64, stored.formatsize }] = index;
 	if (stored.has_native_sampled_identity)
 	{
 		auto sampled_key = make_sampled_lookup_key(
@@ -413,7 +412,11 @@ void ReplacementProvider::add_entry(Entry &&entry)
 			stored.sampled_low32,
 			stored.sampled_palette_crc,
 			stored.formatsize);
-		sampled_family_index_[sampled_family_key].push_back(index);
+		SampledFamilySelectors first;
+		first.selector_checksum64 = stored.selector_checksum64;
+		auto family = sampled_family_index_.emplace(sampled_family_key, first);
+		if (!family.second && family.first->second.selector_checksum64 != stored.selector_checksum64)
+			family.first->second.mixed = true;
 	}
 }
 
@@ -611,24 +614,18 @@ const ReplacementProvider::Entry *ReplacementProvider::find_any_entry(uint64_t c
 	return find_compat_entry(checksum64, formatsize, selector_checksum64);
 }
 
-const ReplacementProvider::Entry *ReplacementProvider::find_indexed_entry(const std::unordered_map<uint64_t, std::vector<size_t>> &index_map,
+const ReplacementProvider::Entry *ReplacementProvider::find_indexed_entry(const ChecksumIndex &index,
                                                                           uint64_t checksum64,
                                                                           uint16_t formatsize,
                                                                           uint64_t selector_checksum64) const
 {
-	auto it = index_map.find(checksum64);
-	if (it == index_map.end())
+	auto latest = index.latest.find(checksum64);
+	if (latest == index.latest.end())
 		return nullptr;
 
-	const auto &indices = it->second;
 	auto find_matching = [&](uint16_t candidate_formatsize, uint64_t candidate_selector) -> const ReplacementProvider::Entry * {
-		for (auto itr = indices.rbegin(); itr != indices.rend(); ++itr)
-		{
-			const auto &entry = entries_[*itr];
-			if (entry.formatsize == candidate_formatsize && entry.selector_checksum64 == candidate_selector)
-				return &entry;
-		}
-		return nullptr;
+		auto it = index.exact.find(ChecksumLookupKey{ checksum64, candidate_selector, candidate_formatsize });
+		return it != index.exact.end() ? &entries_[it->second] : nullptr;
 	};
 
 	if (selector_checksum64 != 0)
@@ -644,8 +641,8 @@ const ReplacementProvider::Entry *ReplacementProvider::find_indexed_entry(const 
 	if (const auto *entry = find_matching(0, 0))
 		return entry;
 
-	if (selector_checksum64 == 0 && formatsize == 0 && !indices.empty())
-		return &entries_[indices.back()];
+	if (selector_checksum64 == 0 && formatsize == 0)
+		return &entries_[latest->second];
 
 	return nullptr;
 }
@@ -761,7 +758,7 @@ const ReplacementProvider::Entry *ReplacementProvider::find_singleton_sampled_fa
                                                                                             uint64_t *resolved_selector_checksum64,
                                                                                             bool *resolved_ordered_surface_singleton) const
 {
-	auto find_family = [&](uint16_t candidate_formatsize) -> const std::vector<size_t> * {
+	auto find_family = [&](uint16_t candidate_formatsize) -> const SampledFamilySelectors * {
 		auto key = make_sampled_family_lookup_key(
 			sampled_fmt,
 			sampled_siz,
@@ -778,20 +775,16 @@ const ReplacementProvider::Entry *ReplacementProvider::find_singleton_sampled_fa
 		return &it->second;
 	};
 
-	const std::vector<size_t> *exact_family = find_family(formatsize);
-	const std::vector<size_t> *generic_family = find_family(0);
+	const SampledFamilySelectors *exact_family = find_family(formatsize);
+	const SampledFamilySelectors *generic_family = find_family(0);
 	if (!exact_family && !generic_family)
 		return nullptr;
 
-	const std::vector<size_t> &active_family = exact_family ? *exact_family : *generic_family;
-	std::vector<uint64_t> unique_selectors;
-	for (size_t index : active_family)
-		push_unique(unique_selectors, entries_[index].selector_checksum64);
-
-	if (unique_selectors.size() != 1)
+	const SampledFamilySelectors &active_family = exact_family ? *exact_family : *generic_family;
+	if (active_family.mixed)
 		return nullptr;
 
-	const uint64_t selected_selector_checksum64 = unique_selectors.front();
+	const uint64_t selected_selector_checksum64 = active_family.selector_checksum64;
 	const bool ordered_surface_singleton =
 		selected_selector_checksum64 != 0 && is_ordered_surface_selector(selected_selector_checksum64);
 	if (ordered_surface_singleton && !allow_ordered_surface_selectors)

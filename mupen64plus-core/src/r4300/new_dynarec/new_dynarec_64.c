@@ -482,8 +482,8 @@ void *get_addr(u_int vaddr)
   int r=new_recompile_block(vaddr);
   if(r==0) return get_addr(vaddr);
   // Execute in unmapped page, generate pagefault execption
-  g_cp0_regs[CP0_STATUS_REG]|=2;
   set_exception_cause((vaddr<<31)|0x8);
+  g_cp0_regs[CP0_STATUS_REG]|=2;
   g_cp0_regs[CP0_EPC_REG]=(vaddr&1)?vaddr-5:vaddr;
   g_cp0_regs[CP0_BADVADDR_REG]=(vaddr&~1);
   g_cp0_regs[CP0_CONTEXT_REG]=(g_cp0_regs[CP0_CONTEXT_REG]&0xFF80000F)|((g_cp0_regs[CP0_BADVADDR_REG]>>9)&0x007FFFF0);
@@ -593,8 +593,8 @@ void *get_addr_32(u_int vaddr,u_int flags)
   int r=new_recompile_block(vaddr);
   if(r==0) return get_addr(vaddr);
   // Execute in unmapped page, generate pagefault execption
-  g_cp0_regs[CP0_STATUS_REG]|=2;
   set_exception_cause((vaddr<<31)|0x8);
+  g_cp0_regs[CP0_STATUS_REG]|=2;
   g_cp0_regs[CP0_EPC_REG]=(vaddr&1)?vaddr-5:vaddr;
   g_cp0_regs[CP0_BADVADDR_REG]=(vaddr&~1);
   g_cp0_regs[CP0_CONTEXT_REG]=(g_cp0_regs[CP0_CONTEXT_REG]&0xFF80000F)|((g_cp0_regs[CP0_BADVADDR_REG]>>9)&0x007FFFF0);

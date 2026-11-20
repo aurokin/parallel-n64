@@ -60,7 +60,20 @@ DECLARE_INSTRUCTION(NI)
  * Valid instructions this core does not implement use NI and still halt. */
 DECLARE_INSTRUCTION(RESERVED)
 {
-   DebugMessage(M64MSG_WARNING, "reserved opcode: %" PRIX32 ":%" PRIX32, PCADDR, *fast_mem_access(PCADDR));
+   uint32_t opcode = *fast_mem_access(PCADDR);
+   DebugMessage(M64MSG_WARNING, "reserved opcode: %" PRIX32 ":%" PRIX32, PCADDR, opcode);
+   /* An encoding under COP1 that the FPU does not implement is handed to
+    * the FPU rather than rejected by the integer unit: with CU1 clear it
+    * is a coprocessor-unusable exception, otherwise a floating-point
+    * exception with the unimplemented-operation cause (FCR31 bit 17). */
+   if ((opcode >> 26) == 0x11)
+   {
+      if (check_cop1_unusable()) return;
+      FCR31 = (FCR31 & ~UINT32_C(0x0003F000)) | UINT32_C(0x00020000);
+      set_exception_cause(CP0_CAUSE_EXCCODE_FPE);
+      exception_general();
+      return;
+   }
    set_exception_cause(CP0_CAUSE_EXCCODE_RI);
    exception_general();
 }

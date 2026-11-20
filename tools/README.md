@@ -2,8 +2,9 @@
 
 [`hts2phrb.py`](hts2phrb.py) converts legacy caches, loose Rice PNG packs and
 Project64/Jabo packs into PHRB packages. See the
-[pack format and conversion guide](../assets/TEXTURE_PACKS.md) and run
-`python3 tools/hts2phrb.py --help` for options.
+[pack sources and conversion guide](../assets/TEXTURE_PACKS.md), the
+[PHRB format](PHRB_FORMAT.md), and run `python3 tools/hts2phrb.py --help`
+for options.
 
 To check a pack against your ROM and install it:
 

@@ -51,9 +51,10 @@ ROM and Rice/GLideN64 label checks stay unchanged.
 
 No new option, runtime alias matching, in-core conversion, PHRB metadata or
 version change. Converter ROM checks and installation flags are Phase 2, and
-remain unimplemented here. An optional PHRB identity block could be placed
-before the record table (v2–v8 readers use record_table_offset and blob_offset),
-but no such block is needed or added.
+remain unimplemented here. No PHRB identity block is needed or added; the
+reader now requires the record table at byte 32 (see
+[PHRB format](../../tools/PHRB_FORMAT.md)), so adding one would need a
+version change.
 
 Display-free tests use a shared JSON header fixture for future converter parity,
 synthetic directory listings for selection and every unconverted-hint location,

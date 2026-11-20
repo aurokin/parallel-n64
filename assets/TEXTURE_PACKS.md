@@ -69,7 +69,9 @@ its own rights.
   Version 8 appends a key kind (0 Rice, 1 Jabo MD5) and a 16-byte key to
   every record; Jabo records have zero format, size and view fields and one
   version-7 asset. Rice-only conversions stay byte-identical version 7.
-  Cores without Jabo support reject version 8 packages.
+  Cores without Jabo support reject version 8 packages. The byte layout,
+  load checks and limits are in [PHRB format](../tools/PHRB_FORMAT.md); the
+  core rejects a package that fails any check as a whole and logs why.
 - ROMs, pack archives, extracted caches, and generated packages are never
   committed.
 - Record the source URL and archive SHA-256 before promoting a new source.

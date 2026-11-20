@@ -9,13 +9,52 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <new>
+#include <sstream>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <utility>
 #include <vector>
 #include <zlib.h>
+
+// While tracking, record the largest single allocation and the total allocated,
+// so malformed-package tests can show that loading allocates only a little.
+static bool allocation_tracking = false;
+static size_t largest_allocation = 0;
+static size_t total_allocation = 0;
+
+void *operator new(size_t size)
+{
+	if (allocation_tracking)
+	{
+		largest_allocation = std::max(largest_allocation, size);
+		total_allocation += size;
+	}
+	if (void *ptr = std::malloc(size ? size : 1))
+		return ptr;
+	throw std::bad_alloc();
+}
+
+// GCC assumes the standard operator new and flags free() as a mismatch.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+void operator delete(void *ptr) noexcept
+{
+	std::free(ptr);
+}
+
+void operator delete(void *ptr, size_t) noexcept
+{
+	std::free(ptr);
+}
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 namespace
 {
@@ -753,44 +792,504 @@ static void test_package_overlap()
 	remove_tree(dir);
 }
 
-static void test_malformed_package_bounds()
+// A small valid package for the mutation table: record 0 is a sampled Rice
+// record with two palette CRCs (two entries) and a raw 2x2 RGBA asset; record 1
+// holds a zlib asset and is a family record (version 7) or Jabo MD5 (version 8);
+// record 2 is not runtime-ready and has an empty payload. Three entries load.
+struct MutationPack
+{
+	uint32_t version = 7;
+	size_t record_size = 0;
+	PHRBHeader header = {};
+	std::vector<uint8_t> bytes;
+
+	size_t record_field(unsigned record, size_t field) const
+	{
+		return header.record_table_offset + record * record_size + field;
+	}
+
+	size_t asset_field(unsigned asset, size_t field) const
+	{
+		return header.asset_table_offset + asset * sizeof(PHRBAssetV7) + field;
+	}
+
+	template <typename T>
+	void poke(size_t offset, T value)
+	{
+		check(offset + sizeof(T) <= bytes.size(), "mutation stays inside the package");
+		std::memcpy(bytes.data() + offset, &value, sizeof(T));
+	}
+};
+
+static const std::vector<uint8_t> mutation_pixels = {
+	255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 128};
+
+static MutationPack build_mutation_pack(uint32_t version, std::vector<uint8_t> zlib_payload = {})
+{
+	if (zlib_payload.empty())
+		zlib_payload = compress_zlib(mutation_pixels);
+	const std::string strings = std::string("policy\0object\0replacement\0", 26);
+	const uint32_t object_offset = 7;
+	const uint32_t replacement_offset = 14;
+
+	MutationPack pack;
+	pack.version = version;
+	pack.record_size = version >= 8 ? sizeof(PHRBRecordV8) : sizeof(PHRBRecordV4);
+	PHRBHeader &header = pack.header;
+	std::memcpy(header.magic, "PHRB", 4);
+	header.version = version;
+	header.record_count = 3;
+	header.asset_count = 3;
+	header.record_table_offset = sizeof(PHRBHeader);
+	header.asset_table_offset = header.record_table_offset + uint32_t(3 * pack.record_size);
+	header.string_table_offset = header.asset_table_offset + uint32_t(3 * sizeof(PHRBAssetV7));
+	header.blob_offset = header.string_table_offset + uint32_t(strings.size());
+	append_bytes(pack.bytes, header);
+
+	for (uint32_t r = 0; r < 3; r++)
+	{
+		PHRBRecordV8 record = {};
+		record.v4.policy_key_offset = 0;
+		record.v4.sampled_object_id_offset = object_offset;
+		record.v4.record_flags = r == 2 ? 0 : PHRB_RECORD_FLAG_RUNTIME_READY;
+		record.v4.formatsize = 768;
+		record.v4.sampled_low32 = 0x11110000u + r;
+		record.v4.asset_candidate_count = 1;
+		if (r != 1)
+		{
+			record.v4.siz = 3;
+			record.v4.width = 2;
+			record.v4.height = 2;
+			record.v4.stride = 8;
+			record.v4.sampled_entry_pcrc = 0xaaaa0000u;
+			record.v4.sampled_sparse_pcrc = 0xbbbb0000u;
+		}
+		if (r == 1 && version >= 8)
+		{
+			record.key_kind = 1;
+			for (unsigned i = 0; i < 16; i++)
+				record.key[i] = uint8_t(0xa0 + i);
+		}
+		if (version >= 8)
+			append_bytes(pack.bytes, record);
+		else
+			append_bytes(pack.bytes, record.v4);
+	}
+
+	const uint64_t payload_sizes[3] = { mutation_pixels.size(), zlib_payload.size(), 0 };
+	uint64_t payload_offset = 0;
+	for (uint32_t a = 0; a < 3; a++)
+	{
+		PHRBAssetV7 asset = {};
+		asset.record_index = a;
+		asset.replacement_id_offset = replacement_offset;
+		asset.width = 2;
+		asset.height = 2;
+		asset.format = a == 1 ? 0x80008058u : GL_RGBA8;
+		asset.texture_format = GL_RGBA;
+		asset.pixel_type = GL_UNSIGNED_BYTE;
+		asset.legacy_formatsize = 768;
+		asset.legacy_checksum64 = 0x2222000011110001ull;
+		asset.rgba_blob_offset = payload_offset;
+		asset.rgba_blob_size = payload_sizes[a];
+		payload_offset += payload_sizes[a];
+		append_bytes(pack.bytes, asset);
+	}
+	pack.bytes.insert(pack.bytes.end(), strings.begin(), strings.end());
+	pack.bytes.insert(pack.bytes.end(), mutation_pixels.begin(), mutation_pixels.end());
+	pack.bytes.insert(pack.bytes.end(), zlib_payload.begin(), zlib_payload.end());
+	return pack;
+}
+
+template <typename Map, typename KeyText>
+static void append_sorted_map(std::ostringstream &out, const char *name, const Map &map, KeyText key_text)
+{
+	std::vector<std::string> lines;
+	for (const auto &item : map)
+		lines.push_back(key_text(item));
+	std::sort(lines.begin(), lines.end());
+	out << name << ' ' << lines.size() << '\n';
+	for (const auto &line : lines)
+		out << line << '\n';
+}
+
+static std::string sampled_key_text(const ReplacementProvider::SampledLookupKey &key)
+{
+	std::ostringstream out;
+	out << key.sampled_fmt << ',' << key.sampled_siz << ',' << key.sampled_tex_offset << ',' << key.sampled_stride << ','
+	    << key.sampled_width << ',' << key.sampled_height << ',' << key.sampled_low32 << ',' << key.sampled_palette_crc << ','
+	    << key.formatsize << ',' << key.selector_checksum64;
+	return out.str();
+}
+
+// Everything a load can change, other than the rejection report.
+static std::string provider_state(const ReplacementProvider &provider)
+{
+	std::ostringstream out;
+	out << "tables " << provider.string_tables_.size() << " entries " << provider.entries_.size() << '\n';
+	for (const auto &entry : provider.entries_)
+		out << entry.source_path << '|' << entry.phrb_policy_key << '|' << entry.phrb_replacement_id << '|'
+		    << entry.phrb_sampled_object_id << '|' << entry.checksum64 << '|' << entry.selector_checksum64 << '|'
+		    << entry.formatsize << '|' << entry.data_offset << '|' << entry.data_size << '|' << entry.width << 'x'
+		    << entry.height << '|' << entry.format << '|' << entry.is_jabo << entry.has_native_sampled_identity << '\n';
+	auto checksum_text = [](const ReplacementProvider::ChecksumIndex &index, std::ostringstream &target, const char *name) {
+		append_sorted_map(target, name, index.latest, [](const std::pair<const uint64_t, size_t> &item) {
+			return std::to_string(item.first) + "=" + std::to_string(item.second);
+		});
+		append_sorted_map(target, name, index.exact, [](const std::pair<const ReplacementProvider::ChecksumLookupKey, size_t> &item) {
+			return std::to_string(item.first.checksum64) + "," + std::to_string(item.first.selector_checksum64) + "," +
+			       std::to_string(item.first.formatsize) + "=" + std::to_string(item.second);
+		});
+	};
+	checksum_text(provider.native_checksum_index_, out, "native");
+	checksum_text(provider.compat_checksum_index_, out, "compat");
+	append_sorted_map(out, "sampled", provider.sampled_index_, [](const std::pair<const ReplacementProvider::SampledLookupKey, size_t> &item) {
+		return sampled_key_text(item.first) + "=" + std::to_string(item.second);
+	});
+	append_sorted_map(out, "duplicates", provider.sampled_duplicate_index_, [](const std::pair<const ReplacementProvider::SampledLookupKey, uint32_t> &item) {
+		return sampled_key_text(item.first) + "=" + std::to_string(item.second);
+	});
+	append_sorted_map(out, "reordered", provider.sampled_duplicate_reordered_, [](const ReplacementProvider::SampledLookupKey &key) {
+		return sampled_key_text(key);
+	});
+	append_sorted_map(out, "family", provider.sampled_family_index_,
+	                  [](const std::pair<const ReplacementProvider::SampledFamilyLookupKey, ReplacementProvider::SampledFamilySelectors> &item) {
+		const auto &key = item.first;
+		return std::to_string(key.sampled_low32) + "," + std::to_string(key.sampled_palette_crc) + "," +
+		       std::to_string(key.formatsize) + "," + std::to_string(key.sampled_width) + "=" +
+		       std::to_string(item.second.selector_checksum64) + (item.second.mixed ? " mixed" : "");
+	});
+	append_sorted_map(out, "jabo", provider.jabo_index_, [](const std::pair<const std::array<uint64_t, 2>, size_t> &item) {
+		return std::to_string(item.first[0]) + "," + std::to_string(item.first[1]) + "=" + std::to_string(item.second);
+	});
+	for (const auto &package : provider.package_stats())
+		out << "package " << package.path << ' ' << package.records << ' ' << package.hidden_by_later << '\n';
+	return out.str();
+}
+
+enum class MutationOutcome
+{
+	Rejected,
+	Loads,
+	// Loads, but the loader cannot see the payload problem; decode refuses it.
+	DecodeFails,
+};
+
+struct MutationCase
+{
+	std::string name;
+	std::function<void(MutationPack &)> mutate;
+	MutationOutcome outcome;
+	// Rejected: a fragment of the reason, naming the check that fired.
+	std::string reason;
+	size_t entries = 3;
+	bool version8_only = false;
+	std::vector<uint8_t> zlib_payload = {};
+};
+
+static std::vector<MutationCase> mutation_cases(const MutationPack &base)
+{
+	using O = MutationOutcome;
+	std::vector<MutationCase> cases;
+	cases.push_back({"unmodified", [](MutationPack &) {}, O::Loads, ""});
+
+	const size_t size = base.bytes.size();
+	const size_t boundaries[] = {
+		0, 31, sizeof(PHRBHeader), base.header.asset_table_offset, base.header.string_table_offset,
+		base.header.blob_offset, base.header.blob_offset + mutation_pixels.size(), size - 1 };
+	for (size_t boundary : boundaries)
+		for (size_t length : { boundary, boundary + 1 })
+			if (length < size && (length == boundary || boundary + 1 < size))
+				cases.push_back({"truncated to " + std::to_string(length) + " bytes",
+				                 [length](MutationPack &pack) { pack.bytes.resize(length); }, O::Rejected, ""});
+
+	struct HeaderField { const char *name; size_t offset; const char *zero_reason; const char *max_reason; };
+	const HeaderField header_fields[] = {
+		{"record_count", offsetof(PHRBHeader, record_count), "asset table offset", "record count"},
+		{"asset_count", offsetof(PHRBHeader, asset_count), "string table offset", "asset count"},
+		{"record_table_offset", offsetof(PHRBHeader, record_table_offset), "record table offset", "record table offset"},
+		{"asset_table_offset", offsetof(PHRBHeader, asset_table_offset), "asset table offset", "asset table offset"},
+		{"string_table_offset", offsetof(PHRBHeader, string_table_offset), "string table offset", "string table offset"},
+		{"blob_offset", offsetof(PHRBHeader, blob_offset), "precedes the string table", "over the limit"},
+	};
+	for (const auto &field : header_fields)
+	{
+		const size_t offset = field.offset;
+		cases.push_back({std::string("header ") + field.name + " zero",
+		                 [offset](MutationPack &pack) { pack.poke<uint32_t>(offset, 0); }, O::Rejected, field.zero_reason});
+		cases.push_back({std::string("header ") + field.name + " max",
+		                 [offset](MutationPack &pack) { pack.poke<uint32_t>(offset, UINT32_MAX); }, O::Rejected, field.max_reason});
+	}
+
+	// Tables that overlap their neighbours, and a payload section that cuts into the strings.
+	cases.push_back({"asset table overlaps records", [](MutationPack &pack) {
+		pack.poke<uint32_t>(offsetof(PHRBHeader, asset_table_offset), pack.header.record_table_offset); },
+		O::Rejected, "asset table offset"});
+	cases.push_back({"string table overlaps assets", [](MutationPack &pack) {
+		pack.poke<uint32_t>(offsetof(PHRBHeader, string_table_offset), pack.header.asset_table_offset + 8); },
+		O::Rejected, "string table offset"});
+	cases.push_back({"payloads overlap strings", [](MutationPack &pack) {
+		pack.poke<uint32_t>(offsetof(PHRBHeader, blob_offset), pack.header.string_table_offset + 1); },
+		O::Rejected, "NUL"});
+	cases.push_back({"header claims the maximum tables in a small file", [](MutationPack &pack) {
+		const uint32_t count = 1u << 20;
+		const uint32_t asset_table = uint32_t(sizeof(PHRBHeader) + count * pack.record_size);
+		pack.poke<uint32_t>(offsetof(PHRBHeader, record_count), count);
+		pack.poke<uint32_t>(offsetof(PHRBHeader, asset_count), count);
+		pack.poke<uint32_t>(offsetof(PHRBHeader, asset_table_offset), asset_table);
+		pack.poke<uint32_t>(offsetof(PHRBHeader, string_table_offset), uint32_t(asset_table + count * sizeof(PHRBAssetV7)));
+		pack.poke<uint32_t>(offsetof(PHRBHeader, blob_offset), uint32_t(asset_table + count * sizeof(PHRBAssetV7)));
+	}, O::Rejected, "past the end"});
+
+	struct RecordField { const char *name; size_t offset; O zero; const char *zero_reason; const char *max_reason; };
+	const RecordField record_fields[] = {
+		{"policy_key_offset", offsetof(PHRBRecordV4, policy_key_offset), O::Loads, "", "string offset"},
+		{"sampled_object_id_offset", offsetof(PHRBRecordV4, sampled_object_id_offset), O::Loads, "", "string offset"},
+		{"formatsize", offsetof(PHRBRecordV4, formatsize), O::Loads, "", "formatsize"},
+		{"asset_candidate_count", offsetof(PHRBRecordV4, asset_candidate_count), O::Rejected, "names record", "claims"},
+	};
+	for (unsigned record = 0; record < 2; record++)
+		for (const auto &field : record_fields)
+		{
+			const size_t offset = base.record_field(record, field.offset);
+			const std::string name = "record " + std::to_string(record) + " " + field.name;
+			cases.push_back({name + " zero", [offset](MutationPack &pack) { pack.poke<uint32_t>(offset, 0); },
+			                 field.zero, field.zero_reason});
+			cases.push_back({name + " max", [offset](MutationPack &pack) { pack.poke<uint32_t>(offset, UINT32_MAX); },
+			                 O::Rejected, field.max_reason});
+		}
+	cases.push_back({"record 1 key kind unknown", [](MutationPack &pack) {
+		pack.poke<uint32_t>(pack.record_field(1, offsetof(PHRBRecordV8, key_kind)), UINT32_MAX); },
+		O::Loads, "", 2, true});
+
+	struct AssetField { const char *name; size_t offset; bool wide; O zero; const char *zero_reason; const char *max_reason; };
+	const AssetField asset_fields[] = {
+		{"record_index", offsetof(PHRBAssetV7, record_index), false, O::Rejected, "names record", "names record"},
+		{"replacement_id_offset", offsetof(PHRBAssetV7, replacement_id_offset), false, O::Loads, "", "string offset"},
+		{"legacy_source_path_offset", offsetof(PHRBAssetV7, legacy_source_path_offset), false, O::Loads, "", "string offset"},
+		{"rgba_rel_path_offset", offsetof(PHRBAssetV7, rgba_rel_path_offset), false, O::Loads, "", "string offset"},
+		{"variant_group_id_offset", offsetof(PHRBAssetV7, variant_group_id_offset), false, O::Loads, "", "string offset"},
+		{"width", offsetof(PHRBAssetV7, width), false, O::Rejected, "each side", "each side"},
+		{"height", offsetof(PHRBAssetV7, height), false, O::Rejected, "each side", "each side"},
+		{"texture_format", offsetof(PHRBAssetV7, texture_format), false, O::Rejected, "unsupported", "unsupported"},
+		{"pixel_type", offsetof(PHRBAssetV7, pixel_type), false, O::Rejected, "unsupported", "unsupported"},
+		{"legacy_formatsize", offsetof(PHRBAssetV7, legacy_formatsize), false, O::Loads, "", "formatsize"},
+		{"rgba_blob_offset", offsetof(PHRBAssetV7, rgba_blob_offset), true, O::DecodeFails, "", "outside"},
+		{"rgba_blob_size", offsetof(PHRBAssetV7, rgba_blob_size), true, O::Rejected, "compressed bytes", "outside"},
+	};
+	for (const auto &field : asset_fields)
+	{
+		// Asset 1 is the zlib payload; asset 0 starts at payload offset 0 already.
+		const size_t offset = base.asset_field(1, field.offset);
+		const std::string name = std::string("asset 1 ") + field.name;
+		const bool wide = field.wide;
+		cases.push_back({name + " zero", [offset, wide](MutationPack &pack) {
+			if (wide) pack.poke<uint64_t>(offset, 0); else pack.poke<uint32_t>(offset, 0); },
+			field.zero, field.zero_reason});
+		cases.push_back({name + " max", [offset, wide](MutationPack &pack) {
+			if (wide) pack.poke<uint64_t>(offset, UINT64_MAX); else pack.poke<uint32_t>(offset, UINT32_MAX); },
+			O::Rejected, field.max_reason});
+	}
+	cases.push_back({"asset 0 raw payload one byte short", [](MutationPack &pack) {
+		pack.poke<uint64_t>(pack.asset_field(0, offsetof(PHRBAssetV7, rgba_blob_size)), mutation_pixels.size() - 1); },
+		O::Rejected, "stores 15 bytes"});
+	cases.push_back({"asset 0 raw payload one byte long", [](MutationPack &pack) {
+		pack.poke<uint64_t>(pack.asset_field(0, offsetof(PHRBAssetV7, rgba_blob_size)), mutation_pixels.size() + 1); },
+		O::Rejected, "stores 17 bytes"});
+	cases.push_back({"asset 0 raw payload marked compressed", [](MutationPack &pack) {
+		pack.poke<uint32_t>(pack.asset_field(0, offsetof(PHRBAssetV7, format)), 0x80008058u); },
+		O::DecodeFails, ""});
+	cases.push_back({"asset 1 compressed payload marked raw", [](MutationPack &pack) {
+		pack.poke<uint32_t>(pack.asset_field(1, offsetof(PHRBAssetV7, format)), GL_RGBA8); },
+		O::Rejected, "bytes per pixel"});
+	cases.push_back({"asset 1 over the pixel limit", [](MutationPack &pack) {
+		pack.poke<uint32_t>(pack.asset_field(1, offsetof(PHRBAssetV7, width)), 16384);
+		pack.poke<uint32_t>(pack.asset_field(1, offsetof(PHRBAssetV7, height)), 16384); },
+		O::Rejected, "pixels"});
+	cases.push_back({"asset 1 declares a huge decoded size", [](MutationPack &pack) {
+		pack.poke<uint32_t>(pack.asset_field(1, offsetof(PHRBAssetV7, width)), 8192);
+		pack.poke<uint32_t>(pack.asset_field(1, offsetof(PHRBAssetV7, height)), 8192); },
+		O::DecodeFails, ""});
+	cases.push_back({"asset 1 shares asset 0's payload", [](MutationPack &pack) {
+		pack.poke<uint32_t>(pack.asset_field(1, offsetof(PHRBAssetV7, format)), GL_RGBA8);
+		pack.poke<uint64_t>(pack.asset_field(1, offsetof(PHRBAssetV7, rgba_blob_offset)), 0);
+		pack.poke<uint64_t>(pack.asset_field(1, offsetof(PHRBAssetV7, rgba_blob_size)), mutation_pixels.size()); },
+		O::Loads, ""});
+	// Payload ranges of assets that do not load are still checked; their other fields are not.
+	cases.push_back({"asset 2 (not runtime-ready) width max", [](MutationPack &pack) {
+		pack.poke<uint32_t>(pack.asset_field(2, offsetof(PHRBAssetV7, width)), UINT32_MAX); },
+		O::Loads, ""});
+	cases.push_back({"asset 2 (not runtime-ready) payload outside", [](MutationPack &pack) {
+		pack.poke<uint64_t>(pack.asset_field(2, offsetof(PHRBAssetV7, rgba_blob_size)), 1); },
+		O::Rejected, "outside"});
+	cases.push_back({"string table without final NUL", [](MutationPack &pack) {
+		pack.bytes[pack.header.blob_offset - 1] = 'x'; },
+		O::Rejected, "NUL"});
+
+	auto short_stream = mutation_pixels;
+	short_stream.pop_back();
+	auto long_stream = mutation_pixels;
+	long_stream.push_back(7);
+	cases.push_back({"zlib payload decodes one byte short", [](MutationPack &) {}, O::DecodeFails, "", 3, false,
+	                 compress_zlib(short_stream)});
+	cases.push_back({"zlib payload decodes one byte long", [](MutationPack &) {}, O::DecodeFails, "", 3, false,
+	                 compress_zlib(long_stream)});
+	return cases;
+}
+
+// Counts payloads, since asset 0 backs two entries.
+static size_t count_decode_failures(const ReplacementProvider &provider)
+{
+	std::vector<std::pair<uint64_t, uint32_t>> failures;
+	for (const auto &entry : provider.entries_)
+	{
+		ReplacementImage image;
+		if (!provider.decode_entry_rgba8(entry, &image))
+			failures.emplace_back(entry.data_offset, entry.data_size);
+		else
+			check(image.rgba8 == mutation_pixels, "a decoded mutation-pack entry keeps its pixels");
+	}
+	std::sort(failures.begin(), failures.end());
+	return size_t(std::unique(failures.begin(), failures.end()) - failures.begin());
+}
+
+// Every length, count, offset and size the loader reads, mutated one at a time.
+// A rejected package must not change a provider that already holds another one.
+static void test_package_mutations()
 {
 	const auto dir = make_temp_dir();
-	const auto path = dir + "/bad.phrb";
-	for (unsigned fault = 0; fault < 3; fault++)
+	const auto good_path = dir + "/a-good.phrb";
+	const auto bad_path = dir + "/b-mutated.phrb";
+	for (uint32_t version : { 7u, 8u })
 	{
-		write_single_asset_phrb(path, "bounds", "bounds", "family", 0, 0, 0, 0, 0, 0,
-		                        768, 0x12345678, 0, 0, 1, 1, {255, 0, 0, 255});
-		std::fstream file(path, std::ios::binary | std::ios::in | std::ios::out);
-		PHRBHeader header = {};
-		file.read(reinterpret_cast<char *>(&header), sizeof(header));
-		if (fault == 0)
+		const MutationPack base = build_mutation_pack(version);
+		write_file(good_path, base.bytes);
+		ReplacementProvider good_only;
+		check(good_only.load_cache_dir(good_path), "the mutation base package loads");
+		const std::string good_state = provider_state(good_only);
+
+		for (const auto &test : mutation_cases(base))
 		{
-			PHRBRecordV4 record = {};
-			file.seekg(header.record_table_offset);
-			file.read(reinterpret_cast<char *>(&record), sizeof(record));
-			record.asset_candidate_count = UINT32_MAX;
-			file.seekp(header.record_table_offset);
-			file.write(reinterpret_cast<const char *>(&record), sizeof(record));
+			if (test.version8_only && version < 8)
+				continue;
+			const std::string name = "v" + std::to_string(version) + " " + test.name;
+			MutationPack pack = test.zlib_payload.empty() ? base : build_mutation_pack(version, test.zlib_payload);
+			test.mutate(pack);
+			write_file(bad_path, pack.bytes);
+
+			ReplacementProvider provider;
+			largest_allocation = 0;
+			allocation_tracking = true;
+			const bool loaded = provider.load_cache_dir(bad_path);
+			allocation_tracking = false;
+			check(largest_allocation < (64u << 10), (name + ": loading allocates no large block").c_str());
+
+			if (test.outcome == MutationOutcome::Rejected)
+			{
+				check(!loaded && provider.load_error() == ReplacementLoadStatus::Invalid &&
+				      provider.rejected_path() == bad_path && provider.entry_count() == 0,
+				      (name + ": rejected").c_str());
+				check(provider.rejected_reason().find(test.reason) != std::string::npos,
+				      (name + ": rejected by the intended check, got: " + provider.rejected_reason()).c_str());
+
+				// Next to an accepted package, in either order, the rejected one leaves no trace.
+				for (const bool good_first : { true, false })
+				{
+					ReplacementProvider layered;
+					if (good_first)
+					{
+						check(layered.load_cache_dir(good_path), (name + ": base loads first").c_str());
+						check(!layered.load_cache_dir(bad_path, true), (name + ": appended mutation adds nothing").c_str());
+					}
+					else
+					{
+						check(!layered.load_cache_dir(bad_path), (name + ": mutation alone adds nothing").c_str());
+						check(layered.load_cache_dir(good_path, true), (name + ": base appends").c_str());
+					}
+					check(provider_state(layered) == good_state, (name + ": provider state matches the base alone").c_str());
+				}
+				ReplacementProvider directory;
+				check(directory.load_cache_dir(dir), (name + ": directory still loads the base").c_str());
+				check(directory.rejected_path() == bad_path && provider_state(directory) == good_state,
+				      (name + ": directory load matches the base alone").c_str());
+				continue;
+			}
+
+			check(loaded && provider.load_error() == ReplacementLoadStatus::NotFound && provider.rejected_reason().empty(),
+			      (name + ": loads").c_str());
+			check(provider.entry_count() == test.entries, (name + ": entry count").c_str());
+			const size_t failures = count_decode_failures(provider);
+			check(failures == (test.outcome == MutationOutcome::DecodeFails ? 1u : 0u), (name + ": decode result").c_str());
 		}
-		else
-		{
-			if (fault == 1) header.record_count = UINT32_MAX;
-			else header.blob_offset = UINT32_MAX;
-			file.seekp(0);
-			file.write(reinterpret_cast<const char *>(&header), sizeof(header));
-		}
-		file.close();
-		ReplacementProvider provider;
-		check(!provider.load_cache_dir(path) && provider.load_error() == ReplacementLoadStatus::Invalid,
-		      "malformed candidate count, record table or blob offset must fail");
 	}
+	remove_tree(dir);
+}
+
+// Many records sharing one long string must not copy it per entry.
+static void test_shared_string_table()
+{
+	const auto dir = make_temp_dir();
+	const auto path = dir + "/strings.phrb";
+	const uint32_t records = 2000;
+	const std::string long_string(64u << 10, 's');
+
+	PHRBHeader header = {};
+	std::memcpy(header.magic, "PHRB", 4);
+	header.version = 7;
+	header.record_count = records;
+	header.asset_count = records;
+	header.record_table_offset = sizeof(PHRBHeader);
+	header.asset_table_offset = header.record_table_offset + records * uint32_t(sizeof(PHRBRecordV4));
+	header.string_table_offset = header.asset_table_offset + records * uint32_t(sizeof(PHRBAssetV7));
+	header.blob_offset = header.string_table_offset + uint32_t(long_string.size() + 1);
+	std::vector<uint8_t> data;
+	append_bytes(data, header);
+	for (uint32_t r = 0; r < records; r++)
+	{
+		PHRBRecordV4 record = {};
+		record.record_flags = PHRB_RECORD_FLAG_RUNTIME_READY;
+		record.siz = 3;
+		record.width = record.height = 1;
+		record.formatsize = 768;
+		record.sampled_low32 = r;
+		record.sampled_entry_pcrc = 0xaaaa0000u;
+		record.sampled_sparse_pcrc = 0xbbbb0000u;
+		record.asset_candidate_count = 1;
+		append_bytes(data, record);
+	}
+	for (uint32_t a = 0; a < records; a++)
+	{
+		PHRBAssetV7 asset = {};
+		asset.record_index = a;
+		asset.width = asset.height = 1;
+		asset.format = GL_RGBA8;
+		asset.texture_format = GL_RGBA;
+		asset.pixel_type = GL_UNSIGNED_BYTE;
+		asset.rgba_blob_offset = 0;
+		asset.rgba_blob_size = 4;
+		append_bytes(data, asset);
+	}
+	data.insert(data.end(), long_string.begin(), long_string.end());
+	data.push_back(0);
+	data.insert(data.end(), { 1, 2, 3, 4 });
+	write_file(path, data);
+
+	ReplacementProvider provider;
+	total_allocation = 0;
+	allocation_tracking = true;
+	const bool loaded = provider.load_cache_dir(path);
+	allocation_tracking = false;
+	check(loaded && provider.entry_count() == 2 * records, "the shared-string package loads every entry");
+	// Copying three 64 KiB strings into each of 4000 entries would allocate about 750 MiB.
+	check(total_allocation < (8u << 20), "entries share one string table instead of copying strings");
+	check(std::string(provider.entries_.back().phrb_policy_key) == long_string, "entries still read their strings");
 	remove_tree(dir);
 }
 
 int main()
 {
-	test_malformed_package_bounds();
+	test_package_mutations();
+	test_shared_string_table();
 	test_package_overlap();
 	test_rgba8_decode_payloads();
 	test_indexed_replacements();

@@ -32,25 +32,36 @@
 #include "recomph.h"
 #include "tlb.h"
 
+/* Replaces ExcCode, CE and BD with `cause`, keeping the interrupt lines.
+ * While EXL is set the new exception is nested inside a handler and keeps
+ * the first exception's BD, so callers that build a fresh exception must
+ * call this before they set EXL. */
 void set_exception_cause(uint32_t cause)
 {
-   g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] & CP0_CAUSE_IP_MASK) | cause;
+   uint32_t keep = CP0_CAUSE_IP_MASK;
+
+   if (g_cp0_regs[CP0_STATUS_REG] & CP0_STATUS_EXL)
+      keep |= CP0_CAUSE_BD;
+
+   g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] & keep) | cause;
 }
 
 void TLB_refill_exception(uint32_t address, int w)
 {
-   int usual_handler = 0, i;
+   int usual_handler = 0, i, exl;
 
    if (r4300emu != CORE_DYNAREC && w != 2) cp0_update_count();
    set_exception_cause(w == 1 ? CP0_CAUSE_EXCCODE_TLBS : CP0_CAUSE_EXCCODE_TLBL);
    g_cp0_regs[CP0_BADVADDR_REG] = address;
    g_cp0_regs[CP0_CONTEXT_REG] = (g_cp0_regs[CP0_CONTEXT_REG] & UINT32_C(0xFF80000F)) | ((address >> 9) & UINT32_C(0x007FFFF0));
    g_cp0_regs[CP0_ENTRYHI_REG] = address & UINT32_C(0xFFFFE000);
-   if (g_cp0_regs[CP0_STATUS_REG] & CP0_STATUS_EXL)
+   /* A miss taken inside a handler (EXL already set) goes to the general
+    * vector and leaves EPC and BD alone, so the handler's own ERET still
+    * returns where the first exception was taken. */
+   exl = (g_cp0_regs[CP0_STATUS_REG] & CP0_STATUS_EXL) != 0;
+   if (exl)
    {
       generic_jump_to(UINT32_C(0x80000180));
-      if(g_dev.r4300.delay_slot==1 || g_dev.r4300.delay_slot==3) g_cp0_regs[CP0_CAUSE_REG] |= CP0_CAUSE_BD;
-      else g_cp0_regs[CP0_CAUSE_REG] &= ~CP0_CAUSE_BD;
    }
    else
    {
@@ -86,16 +97,19 @@ void TLB_refill_exception(uint32_t address, int w)
          generic_jump_to(UINT32_C(0x80000000));
       }
    }
-   if(g_dev.r4300.delay_slot==1 || g_dev.r4300.delay_slot==3)
+   if (!exl)
    {
-      g_cp0_regs[CP0_CAUSE_REG] |= CP0_CAUSE_BD;
-      g_cp0_regs[CP0_EPC_REG]-=4;
+      if(g_dev.r4300.delay_slot==1 || g_dev.r4300.delay_slot==3)
+      {
+         g_cp0_regs[CP0_CAUSE_REG] |= CP0_CAUSE_BD;
+         g_cp0_regs[CP0_EPC_REG]-=4;
+      }
+      else
+      {
+         g_cp0_regs[CP0_CAUSE_REG] &= ~CP0_CAUSE_BD;
+      }
+      if(w != 2) g_cp0_regs[CP0_EPC_REG]-=4;
    }
-   else
-   {
-      g_cp0_regs[CP0_CAUSE_REG] &= ~CP0_CAUSE_BD;
-   }
-   if(w != 2) g_cp0_regs[CP0_EPC_REG]-=4;
 
    last_addr = PC->addr;
 
@@ -119,19 +133,26 @@ void TLB_refill_exception(uint32_t address, int w)
 void exception_general(void)
 {
    cp0_update_count();
+
+   /* An exception taken inside a handler (EXL already set) keeps the
+    * handler's EPC and BD, so its own ERET still returns where the first
+    * exception was taken. */
+   if (!(g_cp0_regs[CP0_STATUS_REG] & CP0_STATUS_EXL))
+   {
+      g_cp0_regs[CP0_EPC_REG] = PC->addr;
+
+      if(g_dev.r4300.delay_slot==1 || g_dev.r4300.delay_slot==3)
+      {
+         g_cp0_regs[CP0_CAUSE_REG] |= CP0_CAUSE_BD;
+         g_cp0_regs[CP0_EPC_REG]-=4;
+      }
+      else
+      {
+         g_cp0_regs[CP0_CAUSE_REG] &= ~CP0_CAUSE_BD;
+      }
+   }
    g_cp0_regs[CP0_STATUS_REG] |= CP0_STATUS_EXL;
 
-   g_cp0_regs[CP0_EPC_REG] = PC->addr;
-
-   if(g_dev.r4300.delay_slot==1 || g_dev.r4300.delay_slot==3)
-   {
-      g_cp0_regs[CP0_CAUSE_REG] |= CP0_CAUSE_BD;
-      g_cp0_regs[CP0_EPC_REG]-=4;
-   }
-   else
-   {
-      g_cp0_regs[CP0_CAUSE_REG] &= ~CP0_CAUSE_BD;
-   }
    generic_jump_to(UINT32_C(0x80000180));
    last_addr = PC->addr;
    if (r4300emu == CORE_DYNAREC)

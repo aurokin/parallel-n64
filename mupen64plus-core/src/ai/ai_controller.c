@@ -271,6 +271,7 @@ void ai_end_of_dma_event(struct ai_controller* ai)
    {
       unsigned int diff = ai->fifo[0].length - ai->last_read;
       ai_push_span(ai, diff, ai->last_read);
+      ai->last_read = 0;
    } 
  
    fifo_pop(ai);

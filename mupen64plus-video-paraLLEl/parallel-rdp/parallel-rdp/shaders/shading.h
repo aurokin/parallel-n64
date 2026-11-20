@@ -258,7 +258,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	uint tile0 = uint(setup_tile) & 7u;
 	uint tile1 = (tile0 + 1) & 7u;
 #if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
-	// Bit 7 of the tile byte may carry TRIANGLE_SETUP_TILE_HIRES_TEX_RECT_BIT.
+	// Bits 6 and 7 of the tile byte may carry hi-res marks (rdp_data_structures.hpp).
 	uint max_level = (uint(setup_tile) >> 3u) & 7u;
 #else
 	uint max_level = uint(setup_tile) >> 3u;

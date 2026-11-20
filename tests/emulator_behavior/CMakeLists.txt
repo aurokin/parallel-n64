@@ -285,6 +285,16 @@ target_include_directories(emu_unit_hires_pass_policy_test PRIVATE "${CMAKE_SOUR
 target_compile_features(emu_unit_hires_pass_policy_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.hires_pass_policy COMMAND emu_unit_hires_pass_policy_test)
 
+add_executable(emu_unit_hires_tex_rect_lift_test
+  emu_unit_hires_tex_rect_lift_test.cpp
+)
+target_include_directories(emu_unit_hires_tex_rect_lift_test PRIVATE
+  "${CMAKE_SOURCE_DIR}"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp"
+)
+target_compile_features(emu_unit_hires_tex_rect_lift_test PRIVATE cxx_std_17)
+add_test(NAME emu.unit.hires_tex_rect_lift COMMAND emu_unit_hires_tex_rect_lift_test)
+
 add_executable(emu_unit_hires_ci_palette_policy_test
   emu_unit_hires_ci_palette_policy_test.cpp
 )

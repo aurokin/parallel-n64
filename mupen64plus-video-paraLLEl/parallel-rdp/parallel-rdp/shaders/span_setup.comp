@@ -157,7 +157,13 @@ void main()
     int y_sub = int(y * SUBPIXELS);
     ivec4 y_subs = y_sub + ivec4(0, 1, 2, 3);
     int ylo = max(setup.yh, scissor.ylo) * SCALING_FACTOR;
-    int yhi = min(setup.yl, scissor.yhi) * SCALING_FACTOR;
+    int yl = int(setup.yl);
+    // Hi-res replacement: a texture rectangle whose native-resolution snap was
+    // lifted covers its whole last native line when upscaled. The native pass
+    // (SCALING_FACTOR == 1) keeps the game's edge; it writes RDRAM (ADR-0020).
+    if (SCALING_FACTOR > 1 && (int(setup.tile) & TRIANGLE_SETUP_TILE_HIRES_ROUND_UP_YL_BIT) != 0)
+        yl = (yl + 3) & ~3;
+    int yhi = min(yl, scissor.yhi) * SCALING_FACTOR;
 
     bvec4 clip_lo_y = lessThan(y_subs, ivec4(ylo));
     bvec4 clip_hi_y = greaterThanEqual(y_subs, ivec4(yhi));

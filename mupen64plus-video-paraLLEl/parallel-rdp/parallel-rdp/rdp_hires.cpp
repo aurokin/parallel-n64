@@ -253,17 +253,21 @@ static uint16_t emulate_load_tlut_entry_word(const uint8_t *rdram, size_t rdram_
 	return uint16_t(b1) | (uint16_t(b0) << 8);
 }
 
-static void zero_transparent_replacement_rgb(std::vector<uint8_t> &rgba8)
+// Returns whether any zero-alpha texel carried nonzero RGB.
+static bool zero_transparent_replacement_rgb(std::vector<uint8_t> &rgba8)
 {
+	bool changed = false;
 	for (size_t i = 0; i + 3 < rgba8.size(); i += 4)
 	{
 		if (rgba8[i + 3] == 0)
 		{
+			changed = changed || (rgba8[i + 0] | rgba8[i + 1] | rgba8[i + 2]) != 0;
 			rgba8[i + 0] = 0;
 			rgba8[i + 1] = 0;
 			rgba8[i + 2] = 0;
 		}
 	}
+	return changed;
 }
 
 static unsigned hires_replacement_mip_levels(unsigned w, unsigned h)
@@ -428,6 +432,7 @@ bool HiresReplacement::attach(const ReplacementProvider *provider)
 	hires_jabo_md5_computations = 0;
 	hires_jabo_memo_hits = 0;
 	hires_jabo_memo.clear();
+	rule_counters = {};
 
 	bool ready = true;
 	if (provider)
@@ -650,6 +655,28 @@ void HiresReplacement::emit_hires_summary(const char *label, bool include_duplic
 	     static_cast<unsigned long long>(hires_descriptor_native_checksum_exact_resolutions),
 	     static_cast<unsigned long long>(hires_descriptor_native_checksum_identity_assisted_resolutions),
 	     static_cast<unsigned long long>(hires_descriptor_native_checksum_generic_fallback_resolutions));
+	// Machine-readable: every key, always, in this order. Parsed by
+	// tools/regression/run_scenarios.py into a result record's hires.rules.
+	const auto &c = rule_counters;
+	const auto u = [](uint64_t value) { return static_cast<unsigned long long>(value); };
+	LOGI("Hi-res rule counters%s: alpha_kill_draws=%llu transparent_rgb_zeroed_textures=%llu "
+	     "jabo_intensity_alpha_textures=%llu ci8_as_ci4_hits=%llu formatsize_mismatch_drops=%llu "
+	     "view_exceeds_key_draws=%llu stale_binding_drops=%llu overlap_binding_drops=%llu "
+	     "overlap_origin_drops=%llu tlut_image_base_loads=%llu texrect_snap_lifts=%llu "
+	     "texrect_bottom_round_ups=%llu texrect_bottom_round_ups_unsnapped=%llu cutout_surface_draws=%llu "
+	     "strong_crc_draw_hits=%llu load_origin_recoveries=%llu sampled_duplicate_reordered_keys=%llu "
+	     "compat_lookups_unkeyed=%llu compat_lookups_after_miss=%llu compat_lookups_rekey=%llu "
+	     "compat_rekey_confirmed=%llu compat_gate_skipped_misses=%llu compat_ci_live_palette_textures=%llu "
+	     "repoint_origin_adoptions=%llu source_layout_retires=%llu.\n",
+	     label, u(c.alpha_kill_draws), u(c.transparent_rgb_zeroed_textures),
+	     u(provider_stats.jabo_intensity_alpha_textures), u(c.ci8_as_ci4_hits), u(c.formatsize_mismatch_drops),
+	     u(c.view_exceeds_key_draws), u(c.stale_binding_drops), u(c.overlap_binding_drops),
+	     u(c.overlap_origin_drops), u(c.tlut_image_base_loads), u(c.texrect_snap_lifts),
+	     u(c.texrect_bottom_round_ups), u(c.texrect_bottom_round_ups_unsnapped), u(c.cutout_surface_draws),
+	     u(hires_strong_draw_hits), u(c.load_origin_recoveries), u(provider_stats.sampled_duplicate_reordered_keys),
+	     u(c.compat_lookups_unkeyed), u(c.compat_lookups_after_miss), u(c.compat_lookups_rekey),
+	     u(c.compat_rekey_confirmed), u(c.compat_gate_skipped_misses), u(provider_stats.compat_ci_live_palette_textures),
+	     u(c.repoint_origin_adoptions), u(c.source_layout_retires));
 	if (hires_jabo_lane_enabled)
 		LOGI("Hi-res Jabo summary%s: entries=%u hits=%llu misses=%llu md5=%llu memo_hits=%llu.\n",
 		     label,
@@ -713,6 +740,7 @@ void HiresReplacement::tile_set(unsigned tile, const TileMeta &meta)
 			{
 				hires_rdram_load_addr[tile] = hires_rdram_load_addr[other];
 				hires_load_tile_source[tile] = hires_load_tile_source[other];
+				rule_counters.repoint_origin_adoptions++;
 				break;
 			}
 		}
@@ -834,6 +862,10 @@ void HiresReplacement::tmem_load(unsigned tile, const LoadTileInfo &info, uint32
 
 				if (detail::hires_tmem_spans_overlap(load_begin, load_bytes, t_begin, t_bytes, tmem_bytes))
 				{
+					if (replacement_tiles[i].hit)
+						rule_counters.overlap_binding_drops++;
+					else if (hires_rdram_load_addr[i] != 0)
+						rule_counters.overlap_origin_drops++;
 					replacement_tiles[i] = {};
 					clear_hires_tile_binding(i);
 					// The tile's tracked load no longer describes its TMEM
@@ -888,6 +920,8 @@ void HiresReplacement::tmem_load(unsigned tile, const LoadTileInfo &info, uint32
 			for (uint32_t i = 0; i < max_copy; i++)
 				tlut_shadow[tlut_shadow_offset + i] = wrapped_read_u8(cpu_rdram, rdram_size, info.tex_addr + i);
 			tlut_shadow_valid = tlut_shadow_valid || (max_copy > 0);
+			if (replacement_provider && max_copy > 0 && src_base_addr != info.tex_addr)
+				rule_counters.tlut_image_base_loads++;
 
 		}
 		else if (detail::should_run_hires_lookup(
@@ -1016,6 +1050,8 @@ void HiresReplacement::tmem_load(unsigned tile, const LoadTileInfo &info, uint32
 					lookup_key_h,
 					repl_meta,
 					&resolved_selector_checksum64);
+				if (hit && ci4_reinterpreted)
+					rule_counters.ci8_as_ci4_hits++;
 				// Summary counters; a CI8-as-CI4 hit is not attributed to a sampled kind.
 				if (hit && !ci4_reinterpreted)
 				{
@@ -1113,6 +1149,8 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 				const auto origin = detail::find_hires_load_origin_info(views[t], views, Limits::MaxNumTiles);
 				hires_rdram_load_addr[t] = origin.address;
 				hires_load_tile_source[t] = origin.source;
+				if (origin.address != 0)
+					rule_counters.load_origin_recoveries++;
 			}
 			const auto &state = replacement_tiles[t];
 			if (sampled_slots[slot] && state.indexed_palette_hash != 0)
@@ -1138,11 +1176,15 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 	// GlideN64-compat RDRAM CRC fallback: if the upload path missed, try computing CRC
 	// at draw time using the masked rendering view. LoadTile retains its source
 	// crop/stride; LoadBlock keeps the existing TMEM-line/DXT convention.
+	bool compat_gate_skipped_miss = false;
 	for (unsigned slot = 0; slot < 2; slot++)
 	{
 		if (!sampled_slots[slot])
 			continue;
 		const unsigned resolve_tile = sampled_tiles[slot];
+		if (!hires_gliden64_compat_crc_enabled && replacement_provider &&
+		    replacement_tiles[resolve_tile].valid && !replacement_tiles[resolve_tile].hit)
+			compat_gate_skipped_miss = true;
 		const auto &resolve_meta = tiles[resolve_tile].meta;
 		const auto &resolve_size = tiles[resolve_tile].size;
 		detail::HiresCompatView compat_view;
@@ -1157,6 +1199,7 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 		{
 			binding = {};
 			clear_hires_tile_binding(resolve_tile);
+			rule_counters.source_layout_retires++;
 		}
 		if (compat_view_valid &&
 		    (!replacement_tiles[resolve_tile].hit ||
@@ -1179,12 +1222,20 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 			    prior_state.formatsize == formatsize_key(resolve_meta.fmt, resolve_meta.size) &&
 			    (prior_state.jabo_source_hash == 0 ||
 			     prior_state.jabo_source_hash == hires_jabo_binding_hash(resolve_meta, compat_view, tlut_ia16)))
+			{
+				rule_counters.compat_rekey_confirmed++;
 				continue;
+			}
 			if (prior_state.hit)
 			{
+				rule_counters.compat_lookups_rekey++;
 				prior_state = {};
 				clear_hires_tile_binding(resolve_tile);
 			}
+			else if (prior_state.valid)
+				rule_counters.compat_lookups_after_miss++;
+			else
+				rule_counters.compat_lookups_unkeyed++;
 
 			const bool is_ci_compat_texture = (compat_checksum64 >> 32) != 0;
 			if (is_ci_compat_texture)
@@ -1274,6 +1325,8 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 			}
 		}
 	}
+	if (compat_gate_skipped_miss)
+		rule_counters.compat_gate_skipped_misses++;
 
 	// Replacements are authored against GlideN64's texture-cache view: the
 	// rendering tile's SetTileSize extent clamped by the coordinate masks.
@@ -1310,6 +1363,7 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 			// own identity.
 			if (repl_state.formatsize != formatsize_key(tiles[t].meta.fmt, tiles[t].meta.size))
 			{
+				rule_counters.formatsize_mismatch_drops++;
 				replacement_tiles[t] = {};
 				clear_hires_tile_binding(t);
 				continue;
@@ -1320,10 +1374,11 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 			// Expected-unreachable defense-in-depth: the load-path clears
 			// and the set_tile re-point invalidation should keep the
 			// keyed/load addresses in lockstep, so this firing indicates an
-			// invalidation hole (its log line is the diagnostic).
+			// invalidation hole (stale_binding_drops is the diagnostic).
 			if (repl_state.keyed_rdram_addr != 0 && hires_rdram_load_addr[t] != 0 &&
 			    repl_state.keyed_rdram_addr != hires_rdram_load_addr[t])
 			{
+				rule_counters.stale_binding_drops++;
 				replacement_tiles[t] = {};
 				clear_hires_tile_binding(t);
 				continue;
@@ -1355,6 +1410,7 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 			if (!detail::hires_compat_view_fits_key(display_view, repl_state.key_w, repl_state.key_h,
 			        TextureSize(repl_state.formatsize >> 8), tiles[t].meta.stride))
 			{
+				rule_counters.view_exceeds_key_draws++;
 				clear_hires_tile_binding(t);
 			}
 			else if (detail::hires_descriptor_index_valid(tiles[t].replacement.repl_desc_index) &&
@@ -1381,6 +1437,8 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 
 	HiresDrawBinding binding;
 	binding.replacements_attached = replacement_provider != nullptr;
+	binding.samples_replacement = (texel0_bound && sampled_slots[0]) || (texel1_bound && sampled_slots[1]);
+	binding.rule_counters = &rule_counters;
 	binding.lifts_tex_rect_snap = texel0_bound && (uses_texel0 || (raster_flags & RASTERIZATION_COPY_BIT) != 0);
 
 	// HLE-alpha-kill eligibility: a draw that samples a replaced texture and
@@ -1405,6 +1463,7 @@ HiresDrawBinding HiresReplacement::prepare_draw(uint32_t tile, StaticRasterizati
 		     final_blend.blend_2b == BlendMode2B::InvPixelAlpha))
 		{
 			binding.alpha_kill = true;
+			rule_counters.alpha_kill_draws++;
 		}
 	}
 
@@ -1428,7 +1487,10 @@ void HiresDrawBinding::lift_tex_rect_snap(TriangleSetup &queued_setup, unsigned 
 	if (!lifts_tex_rect_snap)
 		return;
 
+	const bool snapped = (queued_setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) != 0;
 	queued_setup.flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
+	if (rule_counters && snapped && upscaling > 1)
+		rule_counters->texrect_snap_lifts++;
 	// A fractional bottom edge (yl & 3) clips every subpixel of the
 	// rect's last upscaled row once the snap is lifted, leaving a
 	// one-row gap at abutting strip seams. Round it up to the next
@@ -1436,7 +1498,12 @@ void HiresDrawBinding::lift_tex_rect_snap(TriangleSetup &queued_setup, unsigned 
 	// never adds a native line, and keeps allocate_span_jobs'
 	// (yl - 1) >> 2 coherent with the already-queued span jobs.
 	if (upscaling > 1 && (queued_setup.yl & 3) != 0)
+	{
 		queued_setup.yl = (queued_setup.yl + 3) & ~3;
+		// Without a snap there was no clipped row to restore; counted apart.
+		if (rule_counters)
+			(snapped ? rule_counters->texrect_bottom_round_ups : rule_counters->texrect_bottom_round_ups_unsnapped)++;
+	}
 }
 
 StaticRasterizationFlags HiresDrawBinding::raster_flags(const StaticRasterizationState &normalized,
@@ -1444,7 +1511,12 @@ StaticRasterizationFlags HiresDrawBinding::raster_flags(const StaticRasterizatio
 {
 	StaticRasterizationFlags flags = 0;
 	if (detail::hires_cutout_preserves_surface(normalized, constants, replacements_attached))
+	{
 		flags |= RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT;
+		// The bit only matters where a replaced texel can come back empty.
+		if (rule_counters && samples_replacement)
+			rule_counters->cutout_surface_draws++;
+	}
 	if (alpha_kill)
 		flags |= RASTERIZATION_HIRES_ALPHA_KILL_BIT;
 	return flags;
@@ -1559,7 +1631,8 @@ bool HiresReplacement::load_hires_descriptor(const HiresKey &key, ReplacementMet
 				hires_residency_status.decode_failures++;
 				return false;
 			}
-			zero_transparent_replacement_rgb(replacement.rgba8);
+			if (zero_transparent_replacement_rgb(replacement.rgba8))
+				rule_counters.transparent_rgb_zeroed_textures++;
 			auto image = create_hires_replacement_image_with_mips(replacement);
 			if (!image)
 			{

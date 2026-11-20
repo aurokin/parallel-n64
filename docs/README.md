@@ -29,7 +29,7 @@
 - [Conformance test ROMs](../tools/conformance/)
 - [GlideN64 txDump patch](../tools/gliden64-txdump-patch/)
 - [Savestate bridge to mupen64plus-next](../tools/savestate_bridge.py)
-- [Shader toolchain patches](../tools/parallel-rdp-toolchain-patches/)
+- [Shader toolchain](../tools/parallel-rdp-toolchain-patches/)
 - [Generated artifacts](../artifacts/)
 
 Completed plans, experiment notebooks, eval design, private topology, and

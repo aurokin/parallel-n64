@@ -319,7 +319,6 @@ target_include_directories(emu_unit_rdp_frame_mapping_test PRIVATE
   "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/vulkan-headers/include"
   "${CMAKE_SOURCE_DIR}/libretro-common/include"
 )
-target_compile_definitions(emu_unit_rdp_frame_mapping_test PRIVATE GRANITE_VULKAN_MT)
 target_compile_features(emu_unit_rdp_frame_mapping_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.rdp_frame_mapping COMMAND emu_unit_rdp_frame_mapping_test)
 
@@ -338,7 +337,6 @@ target_include_directories(emu_obj_rdp_renderer_compile PRIVATE
   "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/vulkan-headers/include"
   "${CMAKE_SOURCE_DIR}/libretro-common/include"
 )
-target_compile_definitions(emu_obj_rdp_renderer_compile PRIVATE GRANITE_VULKAN_MT)
 target_compile_features(emu_obj_rdp_renderer_compile PRIVATE cxx_std_17)
 add_custom_target(emu_compile_rdp_renderer DEPENDS emu_obj_rdp_renderer_compile)
 
@@ -449,9 +447,14 @@ add_test(NAME emu.unit.luts_hash COMMAND emu_unit_luts_hash_test)
 
 add_executable(emu_unit_worker_thread_test
   emu_unit_worker_thread_test.cpp
+  # The worker thread registers its thread index (Util::register_thread_index);
+  # thread_id.cpp logs through Util::interface_log.
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/util/thread_id.cpp"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/util/logging.cpp"
 )
 target_include_directories(emu_unit_worker_thread_test PRIVATE
   "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp"
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/util"
 )
 target_compile_features(emu_unit_worker_thread_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.worker_thread COMMAND emu_unit_worker_thread_test)

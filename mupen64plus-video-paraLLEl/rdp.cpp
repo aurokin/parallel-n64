@@ -409,11 +409,8 @@ void complete_frame()
 }
 }
 
-bool parallel_create_device(struct retro_vulkan_context *frontend_context, VkInstance instance, VkPhysicalDevice gpu,
-                            VkSurfaceKHR surface, PFN_vkGetInstanceProcAddr get_instance_proc_addr,
-                            const char **required_device_extensions, unsigned num_required_device_extensions,
-                            const char **required_device_layers, unsigned num_required_device_layers,
-                            const VkPhysicalDeviceFeatures *required_features)
+// Creates the Context every negotiation path starts from.
+static bool create_context(PFN_vkGetInstanceProcAddr get_instance_proc_addr)
 {
 	if (!Vulkan::Context::init_loader(get_instance_proc_addr))
 		return false;
@@ -429,15 +426,11 @@ bool parallel_create_device(struct retro_vulkan_context *frontend_context, VkIns
 	}
 
 	::RDP::context->set_system_handles(handles);
+	return true;
+}
 
-	if (!::RDP::context->init_device_from_instance(
-				instance, gpu, surface, required_device_extensions, num_required_device_extensions,
-				required_features, Vulkan::CONTEXT_CREATION_DISABLE_BINDLESS_BIT))
-	{
-		::RDP::context.reset();
-		return false;
-	}
-
+static void hand_device_to_frontend(struct retro_vulkan_context *frontend_context)
+{
 	frontend_context->gpu = ::RDP::context->get_gpu();
 	frontend_context->device = ::RDP::context->get_device();
 	frontend_context->queue = ::RDP::context->get_queue_info().queues[Vulkan::QUEUE_INDEX_GRAPHICS];
@@ -447,6 +440,104 @@ bool parallel_create_device(struct retro_vulkan_context *frontend_context, VkIns
 
 	// Frontend owns the device.
 	::RDP::context->release_device();
+}
+
+// Negotiation v1: the frontend created the instance itself, so the backend
+// can only assume Vulkan 1.1 core and enables no Vulkan 1.2/1.3 features.
+bool parallel_create_device(struct retro_vulkan_context *frontend_context, VkInstance instance, VkPhysicalDevice gpu,
+                            VkSurfaceKHR surface, PFN_vkGetInstanceProcAddr get_instance_proc_addr,
+                            const char **required_device_extensions, unsigned num_required_device_extensions,
+                            const char **required_device_layers, unsigned num_required_device_layers,
+                            const VkPhysicalDeviceFeatures *required_features)
+{
+	if (!create_context(get_instance_proc_addr))
+		return false;
+
+	if (!::RDP::context->init_device_from_instance(
+				instance, gpu, surface, required_device_extensions, num_required_device_extensions,
+				required_features))
+	{
+		::RDP::context.reset();
+		return false;
+	}
+
+	hand_device_to_frontend(frontend_context);
+	return true;
+}
+
+// Negotiation v2: the backend creates the instance and device through the
+// frontend's wrappers, which add what the frontend needs, so it knows the
+// instance version and enables the device's Vulkan 1.2/1.3 features.
+VkInstance parallel_create_instance(PFN_vkGetInstanceProcAddr get_instance_proc_addr,
+                                    const VkApplicationInfo *app,
+                                    retro_vulkan_create_instance_wrapper_t create_instance_wrapper,
+                                    void *opaque)
+{
+	if (!create_context(get_instance_proc_addr))
+		return VK_NULL_HANDLE;
+
+	struct Factory final : Vulkan::InstanceFactory
+	{
+		VkInstance create_instance(const VkInstanceCreateInfo *info) override
+		{
+			return wrapper(opaque, info);
+		}
+
+		retro_vulkan_create_instance_wrapper_t wrapper = nullptr;
+		void *opaque = nullptr;
+	} factory;
+
+	factory.wrapper = create_instance_wrapper;
+	factory.opaque = opaque;
+
+	::RDP::context->set_application_info(app);
+	::RDP::context->set_instance_factory(&factory);
+	bool created = ::RDP::context->init_instance(nullptr, 0);
+	::RDP::context->set_instance_factory(nullptr);
+
+	if (!created)
+	{
+		::RDP::context.reset();
+		return VK_NULL_HANDLE;
+	}
+
+	// Frontend owns the instance.
+	::RDP::context->release_instance();
+	return ::RDP::context->get_instance();
+}
+
+bool parallel_create_device2(struct retro_vulkan_context *frontend_context, VkInstance instance, VkPhysicalDevice gpu,
+                             VkSurfaceKHR surface, PFN_vkGetInstanceProcAddr get_instance_proc_addr,
+                             retro_vulkan_create_device_wrapper_t create_device_wrapper, void *opaque)
+{
+	// The frontend calls create_instance first. A failed call keeps the
+	// context: the frontend may retry with gpu == VK_NULL_HANDLE.
+	if (!::RDP::context || ::RDP::context->get_instance() != instance ||
+	    Vulkan::Context::get_instance_proc_addr() != get_instance_proc_addr)
+		return false;
+
+	struct Factory final : Vulkan::DeviceFactory
+	{
+		VkDevice create_device(VkPhysicalDevice physical_device, const VkDeviceCreateInfo *info) override
+		{
+			return wrapper(physical_device, opaque, info);
+		}
+
+		retro_vulkan_create_device_wrapper_t wrapper = nullptr;
+		void *opaque = nullptr;
+	} factory;
+
+	factory.wrapper = create_device_wrapper;
+	factory.opaque = opaque;
+
+	::RDP::context->set_device_factory(&factory);
+	bool created = ::RDP::context->init_device(gpu, surface, nullptr, 0);
+	::RDP::context->set_device_factory(nullptr);
+
+	if (!created)
+		return false;
+
+	hand_device_to_frontend(frontend_context);
 	return true;
 }
 

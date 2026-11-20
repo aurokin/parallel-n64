@@ -45,6 +45,11 @@ int InitGfx(void);
 #if defined(HAVE_PARALLEL)
 #include "../mupen64plus-video-paraLLEl/parallel.h"
 
+#ifndef RETRO_ENVIRONMENT_GET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_SUPPORT
+/* Not in the bundled libretro.h yet. */
+#define RETRO_ENVIRONMENT_GET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_SUPPORT (73 | RETRO_ENVIRONMENT_EXPERIMENTAL)
+#endif
+
 static struct retro_hw_render_callback hw_render;
 static struct retro_hw_render_context_negotiation_interface_vulkan hw_context_negotiation;
 static const struct retro_hw_render_interface_vulkan *vulkan;
@@ -885,11 +890,24 @@ static bool retro_init_vulkan(void)
       return false;
    }
 
+   /* Offer negotiation v2 when the frontend supports it: the 2024 Vulkan
+    * backend enables Vulkan 1.2/1.3 device features only on that path. */
+   {
+      struct retro_hw_render_context_negotiation_interface support;
+      support.interface_type = RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN;
+      support.interface_version = 0;
+      if (!environ_cb(RETRO_ENVIRONMENT_GET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_SUPPORT, &support))
+         support.interface_version = 1;
+      hw_context_negotiation.interface_version =
+            support.interface_version >= RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN_VERSION
+            ? RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN_VERSION : 1;
+   }
    hw_context_negotiation.interface_type = RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN;
-   hw_context_negotiation.interface_version = RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN_VERSION;
    hw_context_negotiation.get_application_info = parallel_get_application_info;
    hw_context_negotiation.create_device = parallel_create_device;
    hw_context_negotiation.destroy_device = NULL;
+   hw_context_negotiation.create_instance = parallel_create_instance;
+   hw_context_negotiation.create_device2 = parallel_create_device2;
    if (!environ_cb(RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE, &hw_context_negotiation))
    {
       if (log_cb)

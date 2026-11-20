@@ -23,6 +23,7 @@
 #define NOMINMAX
 #include "rdp_renderer.hpp"
 #include "rdp_device.hpp"
+#include "rdp_hires_pass_policy.hpp"
 #include "logging.hpp"
 #include "bitops.hpp"
 #include "luts.hpp"
@@ -245,6 +246,8 @@ bool Renderer::init_caps()
 			(features.vk11_props.subgroupSupportedOperations & required) == required &&
 			(features.vk11_props.subgroupSupportedOperations & VK_SHADER_STAGE_COMPUTE_BIT) != 0;
 
+	hires.init(device, features.vk12_features.descriptorIndexing, [this]() { flush_and_signal(); });
+
 	return true;
 }
 
@@ -265,6 +268,8 @@ int Renderer::resolve_shader_define(const char *name, const char *define) const
 		else
 			return 0;
 	}
+	else if (strcmp(define, "HIRES_REPLACEMENT") == 0)
+		return int(hires.shader_path());
 	else
 		return 0;
 }
@@ -560,9 +565,17 @@ bool Renderer::init_internal_upscaling_factor(const RendererOptions &options)
 		upscaling_multisampled_hidden_rdram.reset();
 		upscaling_reference_rdram.reset();
 		upscaling_multisampled_rdram.reset();
+		caps.upscaled_domain = false;
 		return true;
 	}
 
+	allocate_upscaled_domain(factor);
+	caps.upscaled_domain = true;
+	return true;
+}
+
+void Renderer::allocate_upscaled_domain(unsigned factor)
+{
 	Vulkan::BufferCreateInfo info;
 	info.domain = Vulkan::BufferDomain::Device;
 	info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
@@ -596,13 +609,35 @@ bool Renderer::init_internal_upscaling_factor(const RendererOptions &options)
 		             VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT);
 		device->submit(cmd);
 	}
+}
 
-	return true;
+// At 1x the native pass is presented and writes RDRAM. While a replacement provider
+// is attached, render a separate presented pass at native resolution through the
+// upscaled-domain path (factor 1) so replacements stay out of RDRAM (ADR-0020).
+// The domain resynchronizes from RDRAM through its reference copy, so enabling it
+// mid-run only needs its buffers.
+void Renderer::update_hires_presented_pass()
+{
+	if (caps.upscaling > 1 || !device || !rdram || !hidden_rdram)
+		return;
+
+	const bool presented_pass = detail::needs_presented_pass(
+			caps.upscaling, hires.attached() && hires.shader_path());
+	if (presented_pass == caps.upscaled_domain)
+		return;
+
+	if (need_flush())
+		flush_queues();
+	if (presented_pass && !upscaling_multisampled_rdram)
+		allocate_upscaled_domain(1);
+	caps.upscaled_domain = presented_pass;
+	LOGI("Hi-res 1x presented pass: %s.\n", presented_pass ? "on" : "off");
 }
 
 void Renderer::set_rdram(Vulkan::Buffer *buffer, uint8_t *host_rdram, size_t offset, size_t size, bool coherent)
 {
 	rdram = buffer;
+	hires.set_rdram(host_rdram, size);
 	rdram_offset = offset;
 	rdram_size = size;
 	is_host_coherent = coherent;
@@ -667,6 +702,24 @@ void Renderer::set_tmem(Vulkan::Buffer *buffer)
 {
 	tmem = buffer;
 	device->set_name(*tmem, "tmem");
+}
+
+bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
+{
+	if (need_flush())
+		flush_queues();
+
+	const bool ready = hires.attach(provider);
+	update_hires_presented_pass();
+	return ready;
+}
+
+void Renderer::begin_frame_context()
+{
+	// The ring was flushed and drained before Granite advanced; no draw
+	// remains buffered across the hi-res frame counter's boundary.
+	assert(!hires.attached() || (!stream.cmd && pending_primitives == 0 && pending_primitives_upscaled == 0));
+	hires.begin_frame();
 }
 
 void Renderer::flush_and_signal()
@@ -1461,7 +1514,7 @@ void Renderer::validate_draw_state() const
 	}
 }
 
-void Renderer::draw_shaded_primitive(TriangleSetup &setup, const AttributeSetup &attr)
+void Renderer::draw_shaded_primitive(TriangleSetup &setup, const AttributeSetup &attr, HiresDrawClass draw_class)
 {
 	if (validation_iface)
 		validate_draw_state();
@@ -1497,14 +1550,30 @@ void Renderer::draw_shaded_primitive(TriangleSetup &setup, const AttributeSetup 
 		stream.attribute_setup.add(attr);
 	}
 
-	stream.derived_setup.add(build_derived_attributes(attr));
+	const auto derived_setup = build_derived_attributes(attr);
+	stream.derived_setup.add(derived_setup);
 	stream.scissor_setup.add(stream.scissor_state);
 
 	deduce_static_texture_state(setup.tile & 7, setup.tile >> 3);
 	deduce_noise_state();
 
+	const auto hires_draw = hires.prepare_draw(setup.tile, stream.static_raster_state.flags, stream.depth_blend_state);
+
+	// Only the hi-res rasterizer variant reads the marks; the ubershader has none.
+	if (!caps.ubershader)
+	{
+		if (draw_class != HiresDrawClass::Primitive)
+			hires_draw.mark_tex_rect(stream.triangle_setup.last());
+		hires_draw.mark_alpha_kill(stream.triangle_setup.last());
+	}
+	if (draw_class == HiresDrawClass::TexRect)
+		hires_draw.lift_tex_rect_snap(stream.triangle_setup.last(), caps.upscaling);
+
 	InstanceIndices indices = {};
-	indices.static_index = stream.static_raster_state_cache.add(normalize_static_state(stream.static_raster_state));
+	auto normalized_static_state = normalize_static_state(stream.static_raster_state);
+	normalized_static_state.flags |= hires_draw.raster_flags(normalized_static_state, derived_setup.constants);
+
+	indices.static_index = stream.static_raster_state_cache.add(normalized_static_state);
 	indices.depth_blend_index = stream.depth_blend_state_cache.add(stream.depth_blend_state);
 	indices.tile_instance_index = uint8_t(stream.tmem_upload_infos.size());
 	for (unsigned i = 0; i < 8; i++)
@@ -1768,15 +1837,21 @@ void Renderer::submit_rasterization(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &
 	}
 
 	global_fb_info->base_primitive_index = base_primitive_index;
+	global_fb_info->hires_filter = hires.filter_mode();
+	global_fb_info->hires_replacement = detail::pass_samples_replacements(
+			upscaling, caps.upscaled_domain) ? 1u : 0u;
 
 #ifdef PARALLEL_RDP_SHADER_DIR
 	cmd.set_program("rdp://rasterizer.comp", {
 		{ "DEBUG_ENABLE", debug_channel ? 1 : 0 },
 		{ "SMALL_TYPES", caps.supports_small_integer_arithmetic ? 1 : 0 },
+		{ "HIRES_REPLACEMENT", hires.shader_path() ? 1 : 0 },
 	});
 #else
 	cmd.set_program(shader_bank->rasterizer);
 #endif
+
+	hires.bind(cmd);
 
 	cmd.set_specialization_constant(0, ImplementationConstants::TileWidth);
 	cmd.set_specialization_constant(1, ImplementationConstants::TileHeight);
@@ -2174,6 +2249,9 @@ void Renderer::submit_depth_blend(Vulkan::CommandBuffer &cmd, Vulkan::Buffer &tm
 	}
 
 	global_fb_info->base_primitive_index = base_primitive_index;
+	global_fb_info->hires_filter = hires.filter_mode();
+	global_fb_info->hires_replacement = detail::pass_samples_replacements(
+			upscaled, caps.upscaled_domain) ? 1u : 0u;
 
 	push.depth_addr_index = fb.depth_addr >> 1;
 	unsigned num_primitives_32 = (stream.triangle_setup.size() + 31) / 32;
@@ -2241,7 +2319,7 @@ void Renderer::submit_render_pass(Vulkan::CommandBuffer &cmd)
 	{
 		submit_span_setup_jobs(cmd, false);
 		submit_tile_binning_combined(cmd, false);
-		if (caps.upscaling > 1)
+		if (caps.upscaled_domain)
 			submit_update_upscaled_domain(cmd, ResolveStage::Pre);
 	}
 
@@ -2696,6 +2774,11 @@ unsigned Renderer::get_scaling_factor() const
 	return caps.upscaling;
 }
 
+bool Renderer::has_upscaled_domain() const
+{
+	return caps.upscaled_domain;
+}
+
 const Vulkan::Buffer *Renderer::get_upscaled_rdram_buffer() const
 {
 	return upscaling_multisampled_rdram.get();
@@ -2996,7 +3079,7 @@ bool Renderer::render_pass_is_upscaled() const
 
 bool Renderer::should_render_upscaled() const
 {
-	if (caps.upscaling > 1)
+	if (caps.upscaled_domain)
 	{
 		// A heuristic. There is no point to render upscaled for purely off-screen passes.
 		// We should ideally only upscale the final pass which hits screen.
@@ -3032,6 +3115,7 @@ void Renderer::ensure_command_buffer()
 
 void Renderer::set_tile(uint32_t tile, const TileMeta &meta)
 {
+	hires.tile_set(tile, meta);
 	tiles[tile].meta = meta;
 }
 
@@ -3275,6 +3359,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 	}
 
 	UploadInfo upload = {};
+	hires.tmem_load_begin(tile);
 	upload.tmem_stride_words = meta.stride >> 1;
 
 	uint32_t upload_x = 0;
@@ -3479,6 +3564,7 @@ void Renderer::load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint
 	upload.mode = int32_t(upload_mode);
 
 	upload.inv_tmem_stride_words = 1.0f / float(upload.tmem_stride_words);
+	hires.tmem_load(tile, info, tmem_offset, upload.tmem_offset, upload.vram_width);
 
 	stream.tmem_upload_infos.push_back(upload);
 	if (stream.tmem_upload_infos.size() + 1 >= Limits::MaxTMEMInstances)

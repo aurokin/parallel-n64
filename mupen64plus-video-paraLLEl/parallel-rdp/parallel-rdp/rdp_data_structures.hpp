@@ -43,6 +43,19 @@ enum TriangleSetupFlagBits
 };
 using TriangleSetupFlags = uint8_t;
 
+// TriangleSetup::tile holds the tile index (bits 0-2) and the max LOD level
+// (bits 3-5). TriangleSetupFlags and StaticRasterizationFlags have no spare
+// bit for these, so hi-res replacement uses bits 6-7 of tile. Only queued
+// setups of draws with an attached replacement provider carry them, and only
+// while the rasterizer (not the ubershader) runs, since only the hi-res
+// rasterizer variant reads them.
+static constexpr uint8_t TRIANGLE_SETUP_TILE_HIRES_TEX_RECT_BIT = 1u << 7;
+// Hi-res replacement HLE-alpha-kill (see shading.h): the draw samples a
+// replaced texture and its final blend cycle is a src-alpha-over-memory
+// mode, so pixels whose combined alpha is ~0 must not be written at all,
+// matching the HLE renderers packs are authored against.
+static constexpr uint8_t TRIANGLE_SETUP_TILE_HIRES_ALPHA_KILL_BIT = 1u << 6;
+
 enum StaticRasterizationFlagBits
 {
 	RASTERIZATION_INTERLACE_FIELD_BIT = 1 << 0,
@@ -75,7 +88,9 @@ enum StaticRasterizationFlagBits
 	// Bit 26 and 27 holds upscaling factor in LOG2.
 	RASTERIZATION_NEED_NOISE_BIT = 1 << 28,
 	RASTERIZATION_USE_STATIC_TEXTURE_SIZE_FORMAT_BIT = 1 << 29,
-	RASTERIZATION_USE_SPECIALIZATION_CONSTANT_BIT = 1 << 30
+	RASTERIZATION_USE_SPECIALIZATION_CONSTANT_BIT = 1 << 30,
+	// Empty replacement samples leave a texture-free surface (ADR-0018).
+	RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT = 1u << 31
 };
 using StaticRasterizationFlags = uint32_t;
 
@@ -251,6 +266,8 @@ struct GlobalFBInfo
 	uint32_t dx_mask;
 	uint32_t fb_size;
 	uint32_t base_primitive_index;
+	uint32_t hires_filter;
+	uint32_t hires_replacement;
 };
 
 template <typename T, unsigned N>
@@ -344,6 +361,12 @@ public:
 	const T *data() const
 	{
 		return elements;
+	}
+
+	T &last()
+	{
+		assert(count > 0);
+		return elements[count - 1];
 	}
 
 	void reset()

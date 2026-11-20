@@ -126,7 +126,9 @@ The runner appends one JSON line per scenario run to `<out>/results.jsonl`:
 - `checkpoints[{after_frames, ram{}, ram_errors{}, capture_path,
   capture_sha256, uniform_black}]`, `end_state_sha256`, `end_savefile_sha256`;
 - `hires {summary_lines, summary_count, provider, entries, hits, draw_hits,
-  misses, fallback_reasons, cache_load_failed}`;
+  misses, fallback_reasons, cache_load_failed, rules}`; `rules` holds the last
+  `Hi-res rule counters` line as `{name: count}`, or `null` for cores that do
+  not emit it;
 - `gates[{name, status: pass|fail|review|skip, detail}]`, `log_flags[]`,
   `orphans[]`, `error`, `expectation_source`, `expectation_core_sha256`.
 

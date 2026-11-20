@@ -62,6 +62,9 @@ SUMMARY_RE = re.compile(r"Hi-res keying summary[^:]*:\s*(.*)$")
 # Jabo (MD5-keyed) packages report their draw-time hits on a separate line.
 JABO_SUMMARY_RE = re.compile(r"Hi-res Jabo summary:\s*entries=(\d+) hits=(\d+) misses=(\d+)")
 RESIDENCY_RE = re.compile(r"Hi-res residency summary[^:]*:\s*(.*)$", re.MULTILINE)
+# Special-case rule counters: fixed keys, all integers. Cores predating the
+# line leave hires.rules as None rather than zeros.
+RULES_RE = re.compile(r"Hi-res rule counters[^:]*:\s*(.*)$", re.MULTILINE)
 FILTERED_RE = re.compile(r"Hi-res keying filtered: reason=(\S+)")
 CACHE_FAILED = "Hi-res replacement cache load failed"
 STATE_LOAD_FAILED = "[State] Failed to load state"
@@ -413,7 +416,7 @@ def parse_hires(log_text: str) -> dict[str, Any]:
         "summary_lines": lines[-3:], "summary_count": len(lines),
         "cache_load_failed": CACHE_FAILED in log_text,
         "provider": None, "entries": None, "hits": None, "misses": None, "draw_hits": None,
-        "jabo": None, "residency": None, "fallback_reasons": {},
+        "jabo": None, "residency": None, "rules": None, "fallback_reasons": {},
     }
     residency = RESIDENCY_RE.findall(log_text)
     if residency:
@@ -422,6 +425,9 @@ def parse_hires(log_text: str) -> dict[str, Any]:
             key: value if key == "mode" else float(value) if key.startswith("load_ms_") else int(value)
             for key, value in fields.items()
         }
+    rules = RULES_RE.findall(log_text)
+    if rules:
+        hires["rules"] = {key: int(value) for key, value in re.findall(r"(\w+)=(\d+)", rules[-1])}
     jabo = JABO_SUMMARY_RE.findall(log_text)
     if jabo:
         entries, hits, misses = map(int, jabo[-1])

@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 SHADER_DIR="$REPO_DIR/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/shaders"
 SHADER_HEADER="$SHADER_DIR/slangmosh.hpp"
-# The vendored renderer is paraLLEl-RDP 65f4f4da (mupen64plus-video-paraLLEl/parallel-rdp/COMMIT).
+# The vendored renderer is paraLLEl-RDP 1cecd042 (mupen64plus-video-paraLLEl/parallel-rdp/COMMIT).
 # slangmosh must be built from the matching Granite toolchain; other revisions emit an
 # incompatible header or different SPIR-V. See tools/parallel-rdp-toolchain-patches/README.md.
 
@@ -109,12 +109,12 @@ if [[ -z "$GRANITE_ASSETS" || ! -d "$GRANITE_ASSETS/shaders/inc" ]]; then
   exit 1
 fi
 
-# --vk11 (subgroup ops need SPIR-V 1.3) and --namespace RDP match upstream's own
-# regeneration recipe (parallel-rdp README / generate_standalone_codebase.sh).
+# The flags match upstream's own regeneration recipe (generate_standalone_codebase.sh
+# at 1cecd042). This slangmosh always targets Vulkan 1.1 (SPIR-V 1.3) and has no --vk11.
 (
   cd "$SHADER_DIR"
   trap 'rm -f slangmosh.regen.json' EXIT
   sed "s|\"../../Granite/assets/shaders/inc\"|\"$GRANITE_ASSETS/shaders/inc\"|" \
     slangmosh.json > slangmosh.regen.json
-  "$SLANGMOSH_BIN" slangmosh.regen.json --vk11 -O --strip --namespace RDP --output slangmosh.hpp
+  "$SLANGMOSH_BIN" --strip -O --namespace RDP slangmosh.regen.json --output slangmosh.hpp
 )

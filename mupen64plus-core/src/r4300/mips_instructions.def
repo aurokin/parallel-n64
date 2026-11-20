@@ -823,7 +823,9 @@ DECLARE_INSTRUCTION(MTC0)
     case CP0_PREVID_REG:
       break;
     case CP0_CONFIG_REG:
-      g_cp0_regs[CP0_CONFIG_REG] = rrt32;
+      /* K0, CU, BE and EP are writable; the rest is fixed. */
+      g_cp0_regs[CP0_CONFIG_REG] = (g_cp0_regs[CP0_CONFIG_REG] & ~UINT32_C(0x0F00800F))
+         | (rrt32 & UINT32_C(0x0F00800F));
       break;
     case CP0_LLADDR_REG:
       g_cp0_regs[CP0_LLADDR_REG] = rrt32;

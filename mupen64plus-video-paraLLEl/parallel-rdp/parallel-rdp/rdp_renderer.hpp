@@ -127,6 +127,10 @@ public:
 	void set_tile_size(uint32_t tile, uint32_t slo, uint32_t shi, uint32_t tlo, uint32_t thi);
 	void load_tile(uint32_t tile, const LoadTileInfo &info);
 	void load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint32_t tmem_offset);
+	// Running primitive count that offsets every primitive's noise seed. It is
+	// carried in savestates so a loaded state continues the saving run's noise.
+	uint32_t get_base_primitive_index() const { return base_primitive_index; }
+	void set_base_primitive_index(uint32_t index) { base_primitive_index = index; }
 
 	void set_blend_color(uint32_t color);
 	void set_fog_color(uint32_t color);

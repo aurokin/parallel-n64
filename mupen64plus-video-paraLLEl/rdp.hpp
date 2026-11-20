@@ -6,6 +6,7 @@
 #include <libretro.h>
 #include <libretro_vulkan.h>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "rdp_device.hpp"
@@ -28,6 +29,12 @@ extern unsigned downscaling_steps;
 extern unsigned overscan;
 extern bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
 extern bool native_texture_lod, native_tex_rect;
+extern bool hires_textures;
+extern unsigned hires_filter;
+extern unsigned hires_memory_mb;
+void reset_hires_messages();
+extern std::string hires_cache_path;
+extern std::string hires_ident, hires_gliden_name;
 
 void complete_frame();
 void deinit();

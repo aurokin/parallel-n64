@@ -1,4 +1,7 @@
 #include "rdp.hpp"
+#include "rdp_command_ingest.hpp"
+#include "rdp_frame_mapping.hpp"
+#include "rdp_init_policy.hpp"
 #include "timeline_trace_file.hpp"
 #include "Gfx #1.3.h"
 #include "parallel.h"
@@ -37,88 +40,66 @@ bool native_tex_rect = true;
 bool synchronous = true, divot_filter = true, gamma_dither = true;
 bool vi_aa = true, vi_scale = true, dither_filter = true;
 bool interlacing = true;
+bool hires_textures = false;
+unsigned hires_filter = 2;
+unsigned hires_memory_mb = 0;
+string hires_cache_path;
+string hires_ident, hires_gliden_name;
 
-static const unsigned cmd_len_lut[64] = {
-	1, 1, 1, 1, 1, 1, 1, 1, 4, 6, 12, 14, 12, 14, 20, 22,
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1,  1,  1,
-	1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1,  1,  1,  1,  1,  1,
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1,  1,  1,
-};
+static unsigned hires_messages_sent = 0;
+
+void reset_hires_messages()
+{
+	hires_messages_sent = 0;
+}
 
 void process_commands()
 {
-	const uint32_t DP_CURRENT = *GET_GFX_INFO(DPC_CURRENT_REG) & 0x00FFFFF8;
-	const uint32_t DP_END = *GET_GFX_INFO(DPC_END_REG) & 0x00FFFFF8;
+	detail::CommandIngestState state = {};
+	state.cmd_cur = cmd_cur;
+	state.cmd_ptr = cmd_ptr;
+	state.cmd_data = cmd_data;
 
-	int length = DP_END - DP_CURRENT;
-	if (length <= 0)
-		return;
+	detail::CommandIngestHooks hooks = {};
+	hooks.frontend_available = bool(frontend);
+	hooks.synchronous = synchronous;
 
-	length = unsigned(length) >> 3;
-	if ((cmd_ptr + length) & ~(0x0003FFFF >> 3))
-		return;
-
-	uint32_t offset = DP_CURRENT;
-	if (*GET_GFX_INFO(DPC_STATUS_REG) & DP_STATUS_XBUS_DMA)
+	struct CallbackState
 	{
-		do
-		{
-			offset &= 0xFF8;
-			cmd_data[2 * cmd_ptr + 0] = *reinterpret_cast<const uint32_t *>(SP_DMEM + offset);
-			cmd_data[2 * cmd_ptr + 1] = *reinterpret_cast<const uint32_t *>(SP_DMEM + offset + 4);
-			offset += sizeof(uint64_t);
-			cmd_ptr++;
-		} while (--length > 0);
-	}
-	else
-	{
-		if (DP_END > 0x7ffffff || DP_CURRENT > 0x7ffffff)
-		{
-			return;
-		}
-		else
-		{
-			do
-			{
-				offset &= 0xFFFFF8;
-				cmd_data[2 * cmd_ptr + 0] = *reinterpret_cast<const uint32_t *>(DRAM + offset);
-				cmd_data[2 * cmd_ptr + 1] = *reinterpret_cast<const uint32_t *>(DRAM + offset + 4);
-				offset += sizeof(uint64_t);
-				cmd_ptr++;
-			} while (--length > 0);
-		}
-	}
+		CommandProcessor *frontend = nullptr;
+	} cb_state;
+	cb_state.frontend = frontend.get();
+	hooks.userdata = &cb_state;
 
-	while (cmd_cur - cmd_ptr < 0)
-	{
-		uint32_t w1 = cmd_data[2 * cmd_cur];
-		uint32_t command = (w1 >> 24) & 63;
-		int cmd_length = cmd_len_lut[command];
+	hooks.enqueue_command = [](void *userdata, unsigned num_words, const uint32_t *words) {
+		auto *cb = static_cast<CallbackState *>(userdata);
+		cb->frontend->enqueue_command(num_words, words);
+	};
+	hooks.signal_timeline = [](void *userdata) -> uint64_t {
+		auto *cb = static_cast<CallbackState *>(userdata);
+		return cb->frontend->signal_timeline();
+	};
+	hooks.wait_for_timeline = [](void *userdata, uint64_t timeline) {
+		auto *cb = static_cast<CallbackState *>(userdata);
+		cb->frontend->wait_for_timeline(timeline);
+	};
+	hooks.raise_dp_interrupt = [](void *) {
+		*gfx_info.MI_INTR_REG |= DP_INTERRUPT;
+		gfx_info.CheckInterrupts();
+	};
 
-		if (cmd_ptr - cmd_cur - cmd_length < 0)
-		{
-			*GET_GFX_INFO(DPC_START_REG) = *GET_GFX_INFO(DPC_CURRENT_REG) = *GET_GFX_INFO(DPC_END_REG);
-			return;
-		}
+	detail::process_command_ingest(
+			state,
+			DRAM,
+			SP_DMEM,
+			*GET_GFX_INFO(DPC_START_REG),
+			*GET_GFX_INFO(DPC_END_REG),
+			*GET_GFX_INFO(DPC_CURRENT_REG),
+			*GET_GFX_INFO(DPC_STATUS_REG),
+			hooks);
 
-		if (command >= 8 && frontend)
-			frontend->enqueue_command(cmd_length * 2, &cmd_data[2 * cmd_cur]);
-
-		if (RDP::Op(command) == RDP::Op::SyncFull)
-		{
-			// For synchronous RDP:
-			if (synchronous && frontend)
-				frontend->wait_for_timeline(frontend->signal_timeline());
-			*gfx_info.MI_INTR_REG |= DP_INTERRUPT;
-			gfx_info.CheckInterrupts();
-		}
-
-		cmd_cur += cmd_length;
-	}
-
-	cmd_ptr = 0;
-	cmd_cur = 0;
-	*GET_GFX_INFO(DPC_START_REG) = *GET_GFX_INFO(DPC_CURRENT_REG) = *GET_GFX_INFO(DPC_END_REG);
+	cmd_cur = state.cmd_cur;
+	cmd_ptr = state.cmd_ptr;
 }
 
 static QueryPoolHandle refresh_begin_ts;
@@ -141,10 +122,7 @@ void profile_refresh_end()
 void begin_frame()
 {
 	unsigned mask = vulkan->get_sync_index_mask(vulkan->handle);
-	unsigned num_frames = 0;
-	for (unsigned i = 0; i < 32; i++)
-		if (mask & (1u << i))
-			num_frames = i + 1;
+	unsigned num_frames = detail::sync_mask_to_num_frames(mask);
 
 	if (num_frames != retro_images.size())
 	{
@@ -162,20 +140,13 @@ void begin_frame()
 
 bool init()
 {
-	if (!context || !vulkan)
+	if (!detail::init_prerequisites_met(context.get(), vulkan))
 		return false;
 
 	unsigned mask = vulkan->get_sync_index_mask(vulkan->handle);
-	unsigned num_frames = 0;
-	unsigned num_sync_frames = 0;
-	for (unsigned i = 0; i < 32; i++)
-	{
-		if (mask & (1u << i))
-		{
-			num_frames = i + 1;
-			num_sync_frames++;
-		}
-	}
+	const detail::SyncFrameCounts sync_counts = detail::compute_sync_frame_counts(mask);
+	const unsigned num_frames = sync_counts.num_frames;
+	const unsigned num_sync_frames = sync_counts.num_sync_frames;
 
 	retro_images.resize(num_frames);
 	retro_image_handles.resize(num_frames);
@@ -188,16 +159,16 @@ bool init()
 			[]() { vulkan->lock_queue(vulkan->handle); },
 			[]() { vulkan->unlock_queue(vulkan->handle); });
 
-	uintptr_t aligned_rdram = reinterpret_cast<uintptr_t>(gfx_info.RDRAM);
-	uintptr_t offset = 0;
+	const auto &features = device->get_device_features();
+	detail::HostMemoryImportPlan host_mem_plan = detail::plan_host_memory_import(
+			reinterpret_cast<uintptr_t>(gfx_info.RDRAM),
+			features.supports_external_memory_host,
+			features.host_memory_properties.minImportedHostPointerAlignment);
 
-	if (device->get_device_features().supports_external_memory_host)
-	{
-		size_t align = device->get_device_features().host_memory_properties.minImportedHostPointerAlignment;
-		offset = aligned_rdram & (align - 1);
-		aligned_rdram -= offset;
-	}
-	else
+	uintptr_t aligned_rdram = host_mem_plan.aligned_rdram;
+	uintptr_t offset = host_mem_plan.offset;
+
+	if (!features.supports_external_memory_host)
 		log_cb(RETRO_LOG_WARN, "VK_EXT_external_memory_host is not supported by this device. Application might run slower because of this.\n");
 
 	CommandProcessorFlags flags = 0;
@@ -225,10 +196,9 @@ bool init()
 	frontend.reset(new CommandProcessor(*device, reinterpret_cast<void *>(aligned_rdram),
 				offset, 8 * 1024 * 1024, 4 * 1024 * 1024, flags));
 
-	if (!frontend->device_is_supported())
+	if (!detail::ensure_frontend_device_supported(frontend))
 	{
 		log_cb(RETRO_LOG_ERROR, "This device probably does not support 8/16-bit storage. Make sure you're using up-to-date drivers!\n");
-		frontend.reset();
 		return false;
 	}
 
@@ -246,13 +216,7 @@ bool init()
 
 void deinit()
 {
-	begin_ts.reset();
-	end_ts.reset();
-	retro_image_handles.clear();
-	retro_images.clear();
-	frontend.reset();
-	device.reset();
-	context.reset();
+	detail::clear_deinit_state(begin_ts, end_ts, retro_image_handles, retro_images, frontend, device, context);
 	timeline_trace_file.reset();
 }
 
@@ -320,32 +284,14 @@ void complete_frame()
 
 	timeline_value = frontend->signal_timeline();
 
-	frontend->set_vi_register(VIRegister::Control, *GET_GFX_INFO(VI_STATUS_REG));
-	frontend->set_vi_register(VIRegister::Origin, *GET_GFX_INFO(VI_ORIGIN_REG));
-	frontend->set_vi_register(VIRegister::Width, *GET_GFX_INFO(VI_WIDTH_REG));
-	frontend->set_vi_register(VIRegister::Intr, *GET_GFX_INFO(VI_INTR_REG));
-	frontend->set_vi_register(VIRegister::VCurrentLine, *GET_GFX_INFO(VI_V_CURRENT_LINE_REG));
-	frontend->set_vi_register(VIRegister::Timing, *GET_GFX_INFO(VI_V_BURST_REG));
-	frontend->set_vi_register(VIRegister::VSync, *GET_GFX_INFO(VI_V_SYNC_REG));
-	frontend->set_vi_register(VIRegister::HSync, *GET_GFX_INFO(VI_H_SYNC_REG));
-	frontend->set_vi_register(VIRegister::Leap, *GET_GFX_INFO(VI_LEAP_REG));
-	frontend->set_vi_register(VIRegister::HStart, *GET_GFX_INFO(VI_H_START_REG));
-	frontend->set_vi_register(VIRegister::VStart, *GET_GFX_INFO(VI_V_START_REG));
-	frontend->set_vi_register(VIRegister::VBurst, *GET_GFX_INFO(VI_V_BURST_REG));
-	frontend->set_vi_register(VIRegister::XScale, *GET_GFX_INFO(VI_X_SCALE_REG));
-	frontend->set_vi_register(VIRegister::YScale, *GET_GFX_INFO(VI_Y_SCALE_REG));
+	detail::forward_vi_registers(
+			[&](VIRegister reg, uint32_t value) {
+				frontend->set_vi_register(reg, value);
+			},
+			gfx_info);
 
-	ScanoutOptions opts;
-	opts.persist_frame_on_invalid_input = true;
-	opts.vi.aa = vi_aa;
-	opts.vi.scale = vi_scale;
-	opts.vi.dither_filter = dither_filter;
-	opts.vi.divot_filter = divot_filter;
-	opts.vi.gamma_dither = gamma_dither;
-	opts.blend_previous_frame = interlacing;
-	opts.upscale_deinterlacing = !interlacing;
-	opts.downscale_steps = downscaling_steps;
-	opts.crop_overscan_pixels = overscan;
+	ScanoutOptions opts = detail::make_scanout_options(
+			vi_aa, vi_scale, dither_filter, divot_filter, gamma_dither, interlacing, downscaling_steps, overscan);
 	auto image = frontend->scanout(opts);
 	unsigned index = vulkan->get_sync_index(vulkan->handle);
 
@@ -556,3 +502,13 @@ const VkApplicationInfo *parallel_get_application_info(void)
 	return &parallel_app_info;
 }
 
+extern "C" uint32_t parallel_get_noise_state(void)
+{
+	return RDP::frontend ? RDP::frontend->get_noise_state() : 0;
+}
+
+extern "C" void parallel_set_noise_state(uint32_t base_primitive_index)
+{
+	if (RDP::frontend)
+		RDP::frontend->set_noise_state(base_primitive_index);
+}

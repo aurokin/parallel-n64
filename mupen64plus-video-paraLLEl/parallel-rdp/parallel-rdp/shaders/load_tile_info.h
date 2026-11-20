@@ -42,12 +42,7 @@ TileInfo load_tile_info(uint index)
 			u8(tile_infos.elems[index].shift_s),
 			u8(tile_infos.elems[index].mask_t),
 			u8(tile_infos.elems[index].shift_t),
-			u8(tile_infos.elems[index].flags),
-			u16(tile_infos.elems[index].repl_orig_w),
-			u16(tile_infos.elems[index].repl_orig_h),
-			u16(tile_infos.elems[index].repl_w),
-			u16(tile_infos.elems[index].repl_h),
-			tile_infos.elems[index].repl_desc_index);
+			u8(tile_infos.elems[index].flags));
 #endif
 }
 

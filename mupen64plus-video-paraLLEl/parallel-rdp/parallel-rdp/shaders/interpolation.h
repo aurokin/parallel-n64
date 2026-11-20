@@ -92,25 +92,6 @@ ivec2 interpolate_st_single(ivec4 stzw, ivec4 dstzw_dx, int dx, bool perspective
 	return st;
 }
 
-#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
-#include "hires_addressing.h"
-
-ivec2 interpolate_hires_point_center(ivec4 stzw, ivec4 dstzw_dx, ivec4 dstzw_dy, int dx, bool perspective, int center_scaling_log2)
-{
-	ivec3 stw = stzw.xyw + ((dstzw_dx.xyw & ~0x1f) >> SCALING_LOG2) * dx;
-	stw += ivec3(
-			hires_point_center_offset(dstzw_dx.x, dstzw_dy.x, center_scaling_log2),
-			hires_point_center_offset(dstzw_dx.y, dstzw_dy.y, center_scaling_log2),
-			hires_point_center_offset(dstzw_dx.w, dstzw_dy.w, center_scaling_log2));
-	if (perspective)
-	{
-		bool overflow = false;
-		return perspective_divide(stw >> 16, overflow);
-	}
-	return no_perspective_divide(stw >> 16);
-}
-#endif
-
 void interpolate_stz(ivec4 stzw, ivec4 dstzw_dx, ivec4 dstzw_dy, int dx, int coverage, bool perspective, bool uses_lod,
                      int flip_direction, out ivec2 st, out ivec2 st_dx, out ivec2 st_dy, out int z, inout bool st_overflow)
 {

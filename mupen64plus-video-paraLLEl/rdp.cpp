@@ -1,21 +1,9 @@
 #include "rdp.hpp"
-#include "rdp_command_ingest.hpp"
-#include "rdp_frame_fallback_policy.hpp"
-#include "rdp_frame_mapping.hpp"
-#include "rdp_init_policy.hpp"
-#include "rdp_retro_image_mapping.hpp"
-#include "rdp_scanout_fallback.hpp"
-#include "rdp_vulkan_glue.hpp"
+#include "timeline_trace_file.hpp"
 #include "Gfx #1.3.h"
 #include "parallel.h"
 #include "z64.h"
-#include "parallel-rdp/parallel-rdp/rdp_hires_runtime_policy.hpp"
-#include "parallel-rdp/parallel-rdp/rdp_hires_capability_policy.hpp"
 #include <assert.h>
-#include <stdlib.h>
-#include <cstdio>
-#include <dirent.h>
-#include <sys/stat.h>
 
 using namespace Vulkan;
 using namespace std;
@@ -32,6 +20,7 @@ static int cmd_ptr;
 static uint32_t cmd_data[0x00040000 >> 2];
 static uint64_t pending_timeline_value, timeline_value;
 
+static unique_ptr<Util::TimelineTraceFile> timeline_trace_file;
 static unique_ptr<CommandProcessor> frontend;
 static unique_ptr<Device> device;
 static unique_ptr<Context> context;
@@ -45,230 +34,91 @@ unsigned upscaling = 1;
 unsigned downscaling_steps = 0;
 bool native_texture_lod = false;
 bool native_tex_rect = true;
-bool synchronous, divot_filter, gamma_dither, vi_aa, vi_scale, dither_filter, interlacing;
-bool hires_textures = false;
-unsigned hires_filter = 2;
-unsigned hires_memory_mb = 0;
-string hires_cache_path;
-string hires_ident, hires_gliden_name;
-static detail::HiresPackageSelection hires_selection;
+bool synchronous = true, divot_filter = true, gamma_dither = true;
+bool vi_aa = true, vi_scale = true, dither_filter = true;
+bool interlacing = true;
 
-static unsigned hires_messages_sent = 0;
-
-enum HiresMessage { PackLoaded, NoPack, PackRejected, GPUUnsupported, BudgetFull, ReadErrors, PackOverlap };
-
-void reset_hires_messages()
-{
-	hires_messages_sent = 0;
-}
-
-static void hires_message_once(HiresMessage event, const char *text)
-{
-	if (hires_messages_sent & (1u << event))
-		return;
-	hires_messages_sent |= 1u << event;
-	retro_message_ext extended = { text, 6000, 1, RETRO_LOG_INFO,
-	                               RETRO_MESSAGE_TARGET_OSD, RETRO_MESSAGE_TYPE_NOTIFICATION, -1 };
-	if (environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &extended))
-		return;
-	retro_message message = { text, 360 };
-	environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &message);
-}
-
-// Only inspect immediate files of game-named directories. The root is listed
-// once, and all matching and ordering decisions remain in the MIT policy.
-static void read_hires_listing(const string &root, vector<detail::HiresListingEntry> &listing)
-{
-	DIR *dir = opendir(root.c_str());
-	if (!dir)
-		return;
-	while (auto *entry = readdir(dir))
-	{
-		if (entry->d_name[0] == '.')
-			continue;
-		const string path = root + "/" + entry->d_name;
-		struct stat info;
-		if (stat(path.c_str(), &info) != 0 || (!S_ISDIR(info.st_mode) && !S_ISREG(info.st_mode)))
-			continue;
-		detail::HiresListingEntry item;
-		item.path = path;
-		item.directory = S_ISDIR(info.st_mode);
-		const auto name = detail::hires_ascii_fold(entry->d_name);
-		if (item.directory &&
-		    (name == detail::hires_ascii_fold(hires_ident) || name == detail::hires_ascii_fold(hires_gliden_name)))
-		{
-			if (DIR *children = opendir(path.c_str()))
-			{
-				while (auto *child = readdir(children))
-				{
-					if (child->d_name[0] == '.')
-						continue;
-					const auto child_path = path + "/" + child->d_name;
-					if (stat(child_path.c_str(), &info) == 0 && S_ISREG(info.st_mode))
-						item.files.emplace_back(child->d_name);
-				}
-				closedir(children);
-			}
-		}
-		listing.push_back(std::move(item));
-	}
-	closedir(dir);
-}
-
-static vector<string> find_hires_packages()
-{
-	const char *override_path = getenv("PARALLEL_RDP_HIRES_CACHE_PATH");
-	hires_selection = detail::resolve_hires_cache_path(hires_textures, hires_cache_path, hires_ident,
-	                                                   hires_gliden_name, override_path, {});
-	if (!hires_selection.paths.empty() || !hires_textures || hires_cache_path.empty() || hires_ident.empty())
-		return hires_selection.paths;
-	vector<detail::HiresListingEntry> listing;
-	read_hires_listing(hires_cache_path + "/parallel-n64/hires", listing);
-	hires_selection = detail::resolve_hires_cache_path(hires_textures, hires_cache_path, hires_ident,
-	                                                   hires_gliden_name, override_path, listing);
-	for (const auto &source : detail::hires_legacy_sources(hires_cache_path, hires_gliden_name))
-	{
-		struct stat info;
-		if (stat(source.path.c_str(), &info) == 0 &&
-		    (source.directory ? S_ISDIR(info.st_mode) : S_ISREG(info.st_mode)))
-			hires_selection.unconverted.push_back(source.path);
-	}
-	for (const auto &path : hires_selection.different_game)
-		log_cb(RETRO_LOG_WARN, "Hi-res pack for a different game (not loaded): %s; expected ident=%s.\n", path.c_str(), hires_ident.c_str());
-	for (const auto &path : hires_selection.near_misses)
-		log_cb(RETRO_LOG_WARN, "Hi-res near miss (not loaded): %s; expected ident=%s.\n", path.c_str(), hires_ident.c_str());
-	for (const auto &path : hires_selection.unconverted)
-		log_cb(RETRO_LOG_INFO, "Hi-res unconverted pack: %s.\n", path.c_str());
-	return hires_selection.paths;
-}
-
-static void show_hires_status()
-{
-	if (!hires_textures || !frontend)
-		return;
-	const auto &pack = frontend->get_hires_pack_status();
-	const auto &residency = frontend->get_hires_residency_status();
-	char message[1024];
-	if (!pack.rejected_path.empty())
-	{
-		std::snprintf(message, sizeof(message), "Hi-res textures: %s not loaded (%s)",
-		              detail::hires_path_filename(pack.rejected_path).c_str(),
-		              pack.load_error == ReplacementLoadStatus::UnsupportedVersion ?
-		                  "unsupported PHRB version; reconvert the pack or use a newer core" : "unreadable or damaged");
-		hires_message_once(PackRejected, message);
-	}
-	if (pack.state == HiresPackState::Loaded)
-	{
-		const string budget = residency.budget ?
-		    std::to_string(residency.budget / (1024 * 1024)) + " MB memory budget" : "unlimited memory budget";
-		const auto count = pack.packages.size();
-		const auto name = hires_ident.empty() ? detail::hires_path_filename(pack.loaded_path) : hires_ident;
-		std::snprintf(message, sizeof(message), "Hi-res textures: %zu pack%s for %s - %zu texture%s, %s",
-		              count, count == 1 ? "" : "s", name.c_str(), pack.entries,
-		              pack.entries == 1 ? "" : "s", budget.c_str());
-		hires_message_once(PackLoaded, message);
-		for (const auto &package : pack.packages)
-			if (package.mostly_hidden())
-			{
-				const auto hider = package.multiple_hiders ? string("later packs") :
-				                   "\"" + detail::hires_path_filename(package.hidden_by) + "\"";
-				std::snprintf(message, sizeof(message), "Hi-res textures: \"%s\" is mostly hidden by %s. Later names win. Remove one, or rename to change the order.",
-				              detail::hires_path_filename(package.path).c_str(), hider.c_str());
-				hires_message_once(PackOverlap, message);
-				break;
-			}
-	}
-	else if (pack.state == HiresPackState::NotFound)
-	{
-		const char *override_path = getenv("PARALLEL_RDP_HIRES_CACHE_PATH");
-		if (override_path && *override_path)
-			std::snprintf(message, sizeof(message), "Hi-res textures: no pack in %s", override_path);
-		else if (!hires_selection.different_game.empty())
-			std::snprintf(message, sizeof(message), "Hi-res textures: \"%s\" contains a pack for a different game. This game's ident is \"%s\".",
-			              detail::hires_path_filename(hires_selection.different_game.front()).c_str(), hires_ident.c_str());
-		else if (!hires_selection.near_misses.empty())
-			std::snprintf(message, sizeof(message), "Hi-res textures: \"%s\" was not loaded. This game's folder must be named \"%s\".",
-			              detail::hires_path_filename(hires_selection.near_misses.front()).c_str(), hires_ident.c_str());
-		else if (!hires_selection.unconverted.empty())
-			std::snprintf(message, sizeof(message), "Hi-res textures: found an unconverted pack (%s). Run python3 tools/hts2phrb.py --cache <pack> --rom <ROM> --install <system dir>.",
-			              detail::hires_path_filename(hires_selection.unconverted.front()).c_str());
-		else if (hires_ident.empty())
-			std::snprintf(message, sizeof(message), "Hi-res textures: this ROM has no name or game code in its header.");
-		else
-			std::snprintf(message, sizeof(message), "Hi-res textures: no pack for \"%s\" in system/parallel-n64/hires/",
-			              hires_ident.c_str());
-		hires_message_once(NoPack, message);
-	}
-	else if (pack.state == HiresPackState::Unsupported)
-		hires_message_once(GPUUnsupported, "Hi-res textures unavailable: GPU descriptor or frame resources unsupported");
-	if (residency.refused_saturated)
-	{
-		std::snprintf(message, sizeof(message), "Hi-res textures exceed the %llu MB memory budget; some show at original resolution. Raise \"Hi-res texture memory\".",
-		              (unsigned long long)(residency.budget / (1024 * 1024)));
-		hires_message_once(BudgetFull, message);
-	}
-	if (residency.decode_failures)
-	{
-		std::snprintf(message, sizeof(message), "Hi-res textures: %llu texture%s could not be read; the pack may be damaged",
-		              (unsigned long long)residency.decode_failures, residency.decode_failures == 1 ? "" : "s");
-		hires_message_once(ReadErrors, message);
-	}
-}
-
-static bool hires_shader_disabled_by_env()
-{
-	if (const char *env = getenv("PARALLEL_RDP_DISABLE_HIRES_SHADER"))
-		return strtol(env, nullptr, 0) != 0;
-	return false;
-}
+static const unsigned cmd_len_lut[64] = {
+	1, 1, 1, 1, 1, 1, 1, 1, 4, 6, 12, 14, 12, 14, 20, 22,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1,  1,  1,
+	1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1,  1,  1,  1,  1,  1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1,  1,  1,
+};
 
 void process_commands()
 {
-	detail::CommandIngestState state = {};
-	state.cmd_cur = cmd_cur;
-	state.cmd_ptr = cmd_ptr;
-	state.cmd_data = cmd_data;
+	const uint32_t DP_CURRENT = *GET_GFX_INFO(DPC_CURRENT_REG) & 0x00FFFFF8;
+	const uint32_t DP_END = *GET_GFX_INFO(DPC_END_REG) & 0x00FFFFF8;
 
-	detail::CommandIngestHooks hooks = {};
-	hooks.frontend_available = bool(frontend);
-	hooks.synchronous = synchronous;
+	int length = DP_END - DP_CURRENT;
+	if (length <= 0)
+		return;
 
-	struct CallbackState
+	length = unsigned(length) >> 3;
+	if ((cmd_ptr + length) & ~(0x0003FFFF >> 3))
+		return;
+
+	uint32_t offset = DP_CURRENT;
+	if (*GET_GFX_INFO(DPC_STATUS_REG) & DP_STATUS_XBUS_DMA)
 	{
-		CommandProcessor *frontend = nullptr;
-	} cb_state;
-	cb_state.frontend = frontend.get();
-	hooks.userdata = &cb_state;
+		do
+		{
+			offset &= 0xFF8;
+			cmd_data[2 * cmd_ptr + 0] = *reinterpret_cast<const uint32_t *>(SP_DMEM + offset);
+			cmd_data[2 * cmd_ptr + 1] = *reinterpret_cast<const uint32_t *>(SP_DMEM + offset + 4);
+			offset += sizeof(uint64_t);
+			cmd_ptr++;
+		} while (--length > 0);
+	}
+	else
+	{
+		if (DP_END > 0x7ffffff || DP_CURRENT > 0x7ffffff)
+		{
+			return;
+		}
+		else
+		{
+			do
+			{
+				offset &= 0xFFFFF8;
+				cmd_data[2 * cmd_ptr + 0] = *reinterpret_cast<const uint32_t *>(DRAM + offset);
+				cmd_data[2 * cmd_ptr + 1] = *reinterpret_cast<const uint32_t *>(DRAM + offset + 4);
+				offset += sizeof(uint64_t);
+				cmd_ptr++;
+			} while (--length > 0);
+		}
+	}
 
-	hooks.enqueue_command = [](void *userdata, unsigned num_words, const uint32_t *words) {
-		auto *cb = static_cast<CallbackState *>(userdata);
-		cb->frontend->enqueue_command(num_words, words);
-	};
-	hooks.signal_timeline = [](void *userdata) -> uint64_t {
-		auto *cb = static_cast<CallbackState *>(userdata);
-		return cb->frontend->signal_timeline();
-	};
-	hooks.wait_for_timeline = [](void *userdata, uint64_t timeline) {
-		auto *cb = static_cast<CallbackState *>(userdata);
-		cb->frontend->wait_for_timeline(timeline);
-	};
-	hooks.raise_dp_interrupt = [](void *) {
-		*gfx_info.MI_INTR_REG |= DP_INTERRUPT;
-		gfx_info.CheckInterrupts();
-	};
+	while (cmd_cur - cmd_ptr < 0)
+	{
+		uint32_t w1 = cmd_data[2 * cmd_cur];
+		uint32_t command = (w1 >> 24) & 63;
+		int cmd_length = cmd_len_lut[command];
 
-	detail::process_command_ingest(
-			state,
-			DRAM,
-			SP_DMEM,
-			*GET_GFX_INFO(DPC_START_REG),
-			*GET_GFX_INFO(DPC_END_REG),
-			*GET_GFX_INFO(DPC_CURRENT_REG),
-			*GET_GFX_INFO(DPC_STATUS_REG),
-			hooks);
+		if (cmd_ptr - cmd_cur - cmd_length < 0)
+		{
+			*GET_GFX_INFO(DPC_START_REG) = *GET_GFX_INFO(DPC_CURRENT_REG) = *GET_GFX_INFO(DPC_END_REG);
+			return;
+		}
 
-	cmd_cur = state.cmd_cur;
-	cmd_ptr = state.cmd_ptr;
+		if (command >= 8 && frontend)
+			frontend->enqueue_command(cmd_length * 2, &cmd_data[2 * cmd_cur]);
+
+		if (RDP::Op(command) == RDP::Op::SyncFull)
+		{
+			// For synchronous RDP:
+			if (synchronous && frontend)
+				frontend->wait_for_timeline(frontend->signal_timeline());
+			*gfx_info.MI_INTR_REG |= DP_INTERRUPT;
+			gfx_info.CheckInterrupts();
+		}
+
+		cmd_cur += cmd_length;
+	}
+
+	cmd_ptr = 0;
+	cmd_cur = 0;
+	*GET_GFX_INFO(DPC_START_REG) = *GET_GFX_INFO(DPC_CURRENT_REG) = *GET_GFX_INFO(DPC_END_REG);
 }
 
 static QueryPoolHandle refresh_begin_ts;
@@ -291,7 +141,10 @@ void profile_refresh_end()
 void begin_frame()
 {
 	unsigned mask = vulkan->get_sync_index_mask(vulkan->handle);
-	unsigned num_frames = detail::sync_mask_to_num_frames(mask);
+	unsigned num_frames = 0;
+	for (unsigned i = 0; i < 32; i++)
+		if (mask & (1u << i))
+			num_frames = i + 1;
 
 	if (num_frames != retro_images.size())
 	{
@@ -309,13 +162,20 @@ void begin_frame()
 
 bool init()
 {
-	if (!detail::init_prerequisites_met(context.get(), vulkan))
+	if (!context || !vulkan)
 		return false;
 
 	unsigned mask = vulkan->get_sync_index_mask(vulkan->handle);
-	const detail::SyncFrameCounts sync_counts = detail::compute_sync_frame_counts(mask);
-	const unsigned num_frames = sync_counts.num_frames;
-	const unsigned num_sync_frames = sync_counts.num_sync_frames;
+	unsigned num_frames = 0;
+	unsigned num_sync_frames = 0;
+	for (unsigned i = 0; i < 32; i++)
+	{
+		if (mask & (1u << i))
+		{
+			num_frames = i + 1;
+			num_sync_frames++;
+		}
+	}
 
 	retro_images.resize(num_frames);
 	retro_image_handles.resize(num_frames);
@@ -328,44 +188,17 @@ bool init()
 			[]() { vulkan->lock_queue(vulkan->handle); },
 			[]() { vulkan->unlock_queue(vulkan->handle); });
 
-	const auto &features = device->get_device_features();
-	detail::HostMemoryImportPlan host_mem_plan = detail::plan_host_memory_import(
-			reinterpret_cast<uintptr_t>(gfx_info.RDRAM),
-			features.supports_external_memory_host,
-			features.host_memory_properties.minImportedHostPointerAlignment);
+	uintptr_t aligned_rdram = reinterpret_cast<uintptr_t>(gfx_info.RDRAM);
+	uintptr_t offset = 0;
 
-	detail::HiresDescriptorFeatureSupport hires_support = {};
-	hires_support.descriptor_indexing = features.supports_descriptor_indexing;
-	hires_support.runtime_descriptor_array = features.descriptor_indexing_features.runtimeDescriptorArray;
-	hires_support.sampled_image_array_non_uniform_indexing =
-			features.descriptor_indexing_features.shaderSampledImageArrayNonUniformIndexing;
-	hires_support.descriptor_binding_variable_descriptor_count =
-			features.descriptor_indexing_features.descriptorBindingVariableDescriptorCount;
-	hires_support.descriptor_binding_partially_bound =
-			features.descriptor_indexing_features.descriptorBindingPartiallyBound;
-	hires_support.descriptor_binding_update_after_bind =
-			features.descriptor_indexing_features.descriptorBindingSampledImageUpdateAfterBind;
-	const uint32_t max_hires_update_after_bind_sampled_images =
-			features.descriptor_indexing_properties.maxDescriptorSetUpdateAfterBindSampledImages;
-	const detail::HiresDescriptorRequirement hires_requirement =
-			detail::validate_hires_descriptor_support(
-					hires_support,
-					max_hires_update_after_bind_sampled_images);
-	const bool hires_capabilities_ok = detail::should_enable_hires_after_capability_check(
-			hires_textures,
-			hires_requirement);
-
-	uintptr_t aligned_rdram = host_mem_plan.aligned_rdram;
-	uintptr_t offset = host_mem_plan.offset;
-
-	if (!features.supports_external_memory_host)
+	if (device->get_device_features().supports_external_memory_host)
 	{
-		log_cb(RETRO_LOG_WARN, "VK_EXT_external_memory_host is not supported by this device. Application might run slower because of this.\n");
+		size_t align = device->get_device_features().host_memory_properties.minImportedHostPointerAlignment;
+		offset = aligned_rdram & (align - 1);
+		aligned_rdram -= offset;
 	}
 	else
-	{
-		// Keep current behavior: no extra logging on aligned-path success.
-	}
+		log_cb(RETRO_LOG_WARN, "VK_EXT_external_memory_host is not supported by this device. Application might run slower because of this.\n");
 
 	CommandProcessorFlags flags = 0;
 	switch (upscaling)
@@ -392,9 +225,10 @@ bool init()
 	frontend.reset(new CommandProcessor(*device, reinterpret_cast<void *>(aligned_rdram),
 				offset, 8 * 1024 * 1024, 4 * 1024 * 1024, flags));
 
-	if (!detail::ensure_frontend_device_supported(frontend))
+	if (!frontend->device_is_supported())
 	{
 		log_cb(RETRO_LOG_ERROR, "This device probably does not support 8/16-bit storage. Make sure you're using up-to-date drivers!\n");
+		frontend.reset();
 		return false;
 	}
 
@@ -402,41 +236,6 @@ bool init()
 	quirks.set_native_texture_lod(native_texture_lod);
 	quirks.set_native_resolution_tex_rect(native_tex_rect);
 	frontend->set_quirks(quirks);
-
-	const auto cache_paths = find_hires_packages();
-	if (hires_textures)
-	{
-		log_cb(RETRO_LOG_INFO,
-		       "Hi-res capability check: descriptor_indexing=%u runtime_descriptor_array=%u sampled_image_array_non_uniform_indexing=%u descriptor_binding_variable_descriptor_count=%u descriptor_binding_partially_bound=%u descriptor_binding_update_after_bind=%u maxDescriptorSetUpdateAfterBindSampledImages=%u cache_path=%s.\n",
-		       hires_support.descriptor_indexing ? 1u : 0u,
-		       hires_support.runtime_descriptor_array ? 1u : 0u,
-		       hires_support.sampled_image_array_non_uniform_indexing ? 1u : 0u,
-		       hires_support.descriptor_binding_variable_descriptor_count ? 1u : 0u,
-		       hires_support.descriptor_binding_partially_bound ? 1u : 0u,
-		       hires_support.descriptor_binding_update_after_bind ? 1u : 0u,
-		       max_hires_update_after_bind_sampled_images,
-		       cache_paths.empty() ? "<empty>" : cache_paths.front().c_str());
-	}
-
-	if (hires_textures && !hires_capabilities_ok)
-	{
-		hires_message_once(GPUUnsupported, "Hi-res textures unavailable: this GPU lacks descriptor indexing");
-		log_cb(RETRO_LOG_WARN,
-		       "Hi-res textures requested, but disabled: %s (maxDescriptorSetUpdateAfterBindSampledImages=%u, required>=%u).\n",
-		       detail::describe_hires_descriptor_requirement(hires_requirement),
-		       max_hires_update_after_bind_sampled_images,
-		       detail::hires_min_update_after_bind_sampled_images());
-	}
-
-	frontend->configure_hires_replacement(hires_capabilities_ok, cache_paths, hires_memory_mb);
-	if (frontend->get_hires_pack_status().state == HiresPackState::Loaded)
-	{
-		log_cb(RETRO_LOG_INFO,
-		       "Hi-res textures enabled (path=%s, filter=%u).\n",
-		       cache_paths.empty() ? "<empty>" : cache_paths.front().c_str(), hires_filter);
-	}
-	show_hires_status();
-	frontend->set_hires_filter(hires_filter);
 
 	timeline_value = 0;
 	pending_timeline_value = 0;
@@ -447,7 +246,14 @@ bool init()
 
 void deinit()
 {
-	detail::clear_deinit_state(begin_ts, end_ts, retro_image_handles, retro_images, frontend, device, context);
+	begin_ts.reset();
+	end_ts.reset();
+	retro_image_handles.clear();
+	retro_images.clear();
+	frontend.reset();
+	device.reset();
+	context.reset();
+	timeline_trace_file.reset();
 }
 
 static void complete_frame_error()
@@ -478,7 +284,22 @@ static void complete_frame_error()
 	unsigned index = vulkan->get_sync_index(vulkan->handle);
 	assert(index < retro_images.size());
 
-	detail::populate_retro_image_slot(retro_images[index], image->get_image(), image->get_view().get_view());
+	retro_images[index].image_view = image->get_view().get_view();
+	retro_images[index].image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	retro_images[index].create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	retro_images[index].create_info.image = image->get_image();
+	retro_images[index].create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	retro_images[index].create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+	retro_images[index].create_info.subresourceRange.baseMipLevel = 0;
+	retro_images[index].create_info.subresourceRange.baseArrayLayer = 0;
+	retro_images[index].create_info.subresourceRange.levelCount = 1;
+	retro_images[index].create_info.subresourceRange.layerCount = 1;
+	retro_images[index].create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	retro_images[index].create_info.components.r = VK_COMPONENT_SWIZZLE_R;
+	retro_images[index].create_info.components.g = VK_COMPONENT_SWIZZLE_G;
+	retro_images[index].create_info.components.b = VK_COMPONENT_SWIZZLE_B;
+	retro_images[index].create_info.components.a = VK_COMPONENT_SWIZZLE_A;
 
 	vulkan->set_image(vulkan->handle, &retro_images[index], 0, nullptr, VK_QUEUE_FAMILY_IGNORED);
 	width = image->get_width();
@@ -490,60 +311,84 @@ static void complete_frame_error()
 
 void complete_frame()
 {
-	if (detail::handle_complete_frame_fallback(
-			    bool(frontend),
-			    bool(device),
-			    [&]() {
-				    complete_frame_error();
-			    },
-			    [&]() {
-				    device->next_frame_context();
-			    }))
+	if (!frontend)
+	{
+		complete_frame_error();
+		device->next_frame_context();
 		return;
+	}
 
 	timeline_value = frontend->signal_timeline();
 
-	detail::forward_vi_registers(
-			[&](VIRegister reg, uint32_t value) {
-				frontend->set_vi_register(reg, value);
-			},
-			gfx_info);
+	frontend->set_vi_register(VIRegister::Control, *GET_GFX_INFO(VI_STATUS_REG));
+	frontend->set_vi_register(VIRegister::Origin, *GET_GFX_INFO(VI_ORIGIN_REG));
+	frontend->set_vi_register(VIRegister::Width, *GET_GFX_INFO(VI_WIDTH_REG));
+	frontend->set_vi_register(VIRegister::Intr, *GET_GFX_INFO(VI_INTR_REG));
+	frontend->set_vi_register(VIRegister::VCurrentLine, *GET_GFX_INFO(VI_V_CURRENT_LINE_REG));
+	frontend->set_vi_register(VIRegister::Timing, *GET_GFX_INFO(VI_V_BURST_REG));
+	frontend->set_vi_register(VIRegister::VSync, *GET_GFX_INFO(VI_V_SYNC_REG));
+	frontend->set_vi_register(VIRegister::HSync, *GET_GFX_INFO(VI_H_SYNC_REG));
+	frontend->set_vi_register(VIRegister::Leap, *GET_GFX_INFO(VI_LEAP_REG));
+	frontend->set_vi_register(VIRegister::HStart, *GET_GFX_INFO(VI_H_START_REG));
+	frontend->set_vi_register(VIRegister::VStart, *GET_GFX_INFO(VI_V_START_REG));
+	frontend->set_vi_register(VIRegister::VBurst, *GET_GFX_INFO(VI_V_BURST_REG));
+	frontend->set_vi_register(VIRegister::XScale, *GET_GFX_INFO(VI_X_SCALE_REG));
+	frontend->set_vi_register(VIRegister::YScale, *GET_GFX_INFO(VI_Y_SCALE_REG));
 
-	ScanoutOptions opts = detail::make_scanout_options(
-			vi_aa, vi_scale, dither_filter, divot_filter, gamma_dither, downscaling_steps, overscan);
+	ScanoutOptions opts;
+	opts.persist_frame_on_invalid_input = true;
+	opts.vi.aa = vi_aa;
+	opts.vi.scale = vi_scale;
+	opts.vi.dither_filter = dither_filter;
+	opts.vi.divot_filter = divot_filter;
+	opts.vi.gamma_dither = gamma_dither;
+	opts.blend_previous_frame = interlacing;
+	opts.upscale_deinterlacing = !interlacing;
+	opts.downscale_steps = downscaling_steps;
+	opts.crop_overscan_pixels = overscan;
 	auto image = frontend->scanout(opts);
 	unsigned index = vulkan->get_sync_index(vulkan->handle);
 
-	image = detail::ensure_scanout_image(
-			image,
-			[&]() {
-				return device->create_image(detail::make_null_scanout_image_info());
-			},
-			[&]() {
-				return device->request_command_buffer();
-			},
-			[&](Vulkan::CommandBufferHandle &cmd, Vulkan::ImageHandle &target_image) {
-				cmd->image_barrier(*target_image,
-						VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-						VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0,
-						VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
-			},
-			[&](Vulkan::CommandBufferHandle &cmd, Vulkan::ImageHandle &target_image) {
-				cmd->clear_image(*target_image, {});
-			},
-			[&](Vulkan::CommandBufferHandle &cmd, Vulkan::ImageHandle &target_image) {
-				cmd->image_barrier(*target_image,
-						VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-						VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-						VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
-			},
-			[&](Vulkan::CommandBufferHandle &cmd) {
-				device->submit(cmd);
-			});
+	if (!image)
+	{
+		auto info = Vulkan::ImageCreateInfo::immutable_2d_image(1, 1, VK_FORMAT_R8G8B8A8_UNORM);
+		info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+			VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		info.misc = IMAGE_MISC_MUTABLE_SRGB_BIT;
+		info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+		image = device->create_image(info);
+
+		auto cmd = device->request_command_buffer();
+		cmd->image_barrier(*image,
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0,
+				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
+		cmd->clear_image(*image, {});
+		cmd->image_barrier(*image,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+		device->submit(cmd);
+	}
 
 	assert(index < retro_images.size());
 
-	detail::populate_retro_image_slot(retro_images[index], image->get_image(), image->get_view().get_view());
+	retro_images[index].image_view = image->get_view().get_view();
+	retro_images[index].image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	retro_images[index].create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	retro_images[index].create_info.image = image->get_image();
+	retro_images[index].create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	retro_images[index].create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+	retro_images[index].create_info.subresourceRange.baseMipLevel = 0;
+	retro_images[index].create_info.subresourceRange.baseArrayLayer = 0;
+	retro_images[index].create_info.subresourceRange.levelCount = 1;
+	retro_images[index].create_info.subresourceRange.layerCount = 1;
+	retro_images[index].create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	retro_images[index].create_info.components.r = VK_COMPONENT_SWIZZLE_R;
+	retro_images[index].create_info.components.g = VK_COMPONENT_SWIZZLE_G;
+	retro_images[index].create_info.components.b = VK_COMPONENT_SWIZZLE_B;
+	retro_images[index].create_info.components.a = VK_COMPONENT_SWIZZLE_A;
 
 	vulkan->set_image(vulkan->handle, &retro_images[index], 0, nullptr, VK_QUEUE_FAMILY_IGNORED);
 	width = image->get_width();
@@ -561,7 +406,6 @@ void complete_frame()
 	frontend->set_quirks(quirks);
 
 	frontend->begin_frame_context();
-	show_hires_status();
 }
 }
 
@@ -571,67 +415,53 @@ bool parallel_create_device(struct retro_vulkan_context *frontend_context, VkIns
                             const char **required_device_layers, unsigned num_required_device_layers,
                             const VkPhysicalDeviceFeatures *required_features)
 {
-	::RDP::detail::CreateDeviceHooks hooks = {};
-	const bool request_bindless = ::RDP::hires_textures && !::RDP::hires_shader_disabled_by_env();
-	hooks.userdata = &::RDP::context;
-	hooks.context_creation_flags = request_bindless ? 0 : Vulkan::CONTEXT_CREATION_DISABLE_BINDLESS_BIT;
-	if (::RDP::hires_textures && log_cb)
-	{
-		log_cb(RETRO_LOG_INFO, "parallel-rdp: %s bindless Vulkan device features for hi-res textures.\n",
-		       request_bindless ? "requesting" : "not requesting");
-	}
-	hooks.init_loader = [](PFN_vkGetInstanceProcAddr proc_addr, void *) -> bool {
-		return Vulkan::Context::init_loader(proc_addr);
-	};
-	hooks.create_context = [](void *userdata) -> void * {
-		auto *ctx_holder = static_cast<std::unique_ptr<Vulkan::Context> *>(userdata);
-		ctx_holder->reset(new Vulkan::Context);
-		return ctx_holder->get();
-	};
-	hooks.init_device_from_instance = [](void *context_ptr,
-			VkInstance init_instance, VkPhysicalDevice init_gpu, VkSurfaceKHR init_surface,
-			const char **req_device_extensions, unsigned req_num_device_extensions,
-			const char **req_device_layers, unsigned req_num_device_layers,
-			const VkPhysicalDeviceFeatures *req_features,
-			uint32_t creation_flags, void *) -> bool {
-		auto *ctx = static_cast<Vulkan::Context *>(context_ptr);
-		return ctx->init_device_from_instance(
-				init_instance, init_gpu, init_surface,
-				req_device_extensions, req_num_device_extensions,
-				req_device_layers, req_num_device_layers,
-				req_features, creation_flags);
-	};
-	hooks.destroy_context = [](void *, void *userdata) {
-		auto *ctx_holder = static_cast<std::unique_ptr<Vulkan::Context> *>(userdata);
-		ctx_holder->reset();
-	};
-	hooks.populate_frontend_context = [](retro_vulkan_context *frontend, void *context_ptr, void *) {
-		auto *ctx = static_cast<Vulkan::Context *>(context_ptr);
-		::RDP::detail::populate_frontend_context_from_context(frontend, *ctx);
-	};
-	hooks.release_device = [](void *context_ptr, void *) {
-		// Frontend owns the device.
-		static_cast<Vulkan::Context *>(context_ptr)->release_device();
-	};
+	if (!Vulkan::Context::init_loader(get_instance_proc_addr))
+		return false;
 
-	return ::RDP::detail::create_device_with_hooks(
-			hooks, frontend_context, instance, gpu, surface, get_instance_proc_addr,
-			required_device_extensions, num_required_device_extensions,
-			required_device_layers, num_required_device_layers, required_features);
+	::RDP::context.reset(new Vulkan::Context);
+
+	::Vulkan::Context::SystemHandles handles;
+
+	if (const char *env = getenv("PARALLEL_RDP_TIMELINE_TRACE"))
+	{
+		::RDP::timeline_trace_file.reset(new Util::TimelineTraceFile(env));
+		handles.timeline_trace_file = ::RDP::timeline_trace_file.get();
+	}
+
+	::RDP::context->set_system_handles(handles);
+
+	if (!::RDP::context->init_device_from_instance(
+				instance, gpu, surface, required_device_extensions, num_required_device_extensions,
+				required_features, Vulkan::CONTEXT_CREATION_DISABLE_BINDLESS_BIT))
+	{
+		::RDP::context.reset();
+		return false;
+	}
+
+	frontend_context->gpu = ::RDP::context->get_gpu();
+	frontend_context->device = ::RDP::context->get_device();
+	frontend_context->queue = ::RDP::context->get_queue_info().queues[Vulkan::QUEUE_INDEX_GRAPHICS];
+	frontend_context->queue_family_index = ::RDP::context->get_queue_info().family_indices[Vulkan::QUEUE_INDEX_GRAPHICS];
+	frontend_context->presentation_queue = ::RDP::context->get_queue_info().queues[Vulkan::QUEUE_INDEX_GRAPHICS];
+	frontend_context->presentation_queue_family_index = ::RDP::context->get_queue_info().family_indices[Vulkan::QUEUE_INDEX_GRAPHICS];
+
+	// Frontend owns the device.
+	::RDP::context->release_device();
+	return true;
 }
+
+static const VkApplicationInfo parallel_app_info = {
+	VK_STRUCTURE_TYPE_APPLICATION_INFO,
+	nullptr,
+	"paraLLEl-RDP",
+	0,
+	"Granite",
+	0,
+	VK_API_VERSION_1_1,
+};
 
 const VkApplicationInfo *parallel_get_application_info(void)
 {
-	return ::RDP::detail::parallel_application_info();
+	return &parallel_app_info;
 }
 
-extern "C" uint32_t parallel_get_noise_state(void)
-{
-	return RDP::frontend ? RDP::frontend->get_noise_state() : 0;
-}
-
-extern "C" void parallel_set_noise_state(uint32_t base_primitive_index)
-{
-	if (RDP::frontend)
-		RDP::frontend->set_noise_state(base_primitive_index);
-}

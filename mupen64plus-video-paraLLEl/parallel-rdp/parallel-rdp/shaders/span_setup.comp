@@ -169,6 +169,13 @@ void main()
     ivec4 xl = setup.xl * SCALING_FACTOR + (y_subs - ym_interpolation_base) * setup.dxldy;
     xl = mix(xl, xm, lessThan(y_subs, ivec4(SCALING_FACTOR * setup.ym)));
 
+    // If we have overflows, we can become sensitive to this in invalid_line check, where
+    // checks that should pass fail, and vice versa.
+    // Note that we shaved off one bit in triangle setup for upscaling purposes,
+    // so this should be 28 bits normally.
+    xl = bitfieldExtract(xl, 0, 27 + SCALING_LOG2);
+    xh = bitfieldExtract(xh, 0, 27 + SCALING_LOG2);
+
     ivec4 xh_shifted = quantize_x(xh);
     ivec4 xl_shifted = quantize_x(xl);
 
@@ -204,19 +211,6 @@ void main()
 
     int start_x = min4(xleft) >> 3;
     int end_x = max4(xright) >> 3;
-
-    // COPY-mode coverage includes the whole native pixel containing the right
-    // edge (xl). At upscale the inclusive end_x lands on that pixel's first
-    // sub-column only, leaving its remaining sub-columns uncovered -- a
-    // sub-native vertical gap where abutting copy rects meet. Complete the
-    // native pixel for unsnapped copy rects, capped at the scissor's stock
-    // bound; snapped rects (DISABLE_UPSCALING) keep stock behavior.
-    if (SCALING_FACTOR > 1 &&
-        (setup.flags & TRIANGLE_SETUP_SKIP_XFRAC_BIT) != 0 &&
-        (setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) == 0)
-    {
-        end_x = min(end_x | (SCALING_FACTOR - 1), int(hi_scissor.x) >> 3);
-    }
 
     span_setup.xleft = xleft;
     span_setup.xright = xright;

@@ -39,7 +39,7 @@ enum TriangleSetupFlagBits
 	TRIANGLE_SETUP_INTERLACE_KEEP_ODD_BIT = 1 << 4,
 	TRIANGLE_SETUP_DISABLE_UPSCALING_BIT = 1 << 5,
 	TRIANGLE_SETUP_NATIVE_LOD_BIT = 1 << 6,
-	TRIANGLE_SETUP_TEX_RECT_BIT = 1 << 7
+	TRIANGLE_SETUP_FILL_COPY_RASTER_BIT = 1 << 7
 };
 using TriangleSetupFlags = uint8_t;
 
@@ -70,17 +70,10 @@ enum StaticRasterizationFlagBits
 	RASTERIZATION_CONVERT_ONE_BIT = 1 << 22,
 	RASTERIZATION_BILERP_0_BIT = 1 << 23,
 	RASTERIZATION_BILERP_1_BIT = 1 << 24,
-	// Hi-res replacement HLE-alpha-kill (see shading.h): the draw samples a
-	// replaced texture and its final blend cycle is a src-alpha-over-memory
-	// mode, so pixels whose combined alpha is ~0 must not be written at all,
-	// matching the HLE renderers packs are authored against.
-	RASTERIZATION_HIRES_ALPHA_KILL_BIT = 1 << 25,
 	RASTERIZATION_UPSCALING_LOG2_BIT_OFFSET = 26,
 	RASTERIZATION_NEED_NOISE_BIT = 1 << 28,
 	RASTERIZATION_USE_STATIC_TEXTURE_SIZE_FORMAT_BIT = 1 << 29,
-	RASTERIZATION_USE_SPECIALIZATION_CONSTANT_BIT = 1 << 30,
-	// Empty replacement samples leave a texture-free surface (ADR-0018).
-	RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT = 1u << 31
+	RASTERIZATION_USE_SPECIALIZATION_CONSTANT_BIT = 1 << 30
 };
 using StaticRasterizationFlags = uint32_t;
 
@@ -256,8 +249,6 @@ struct GlobalFBInfo
 	uint32_t dx_mask;
 	uint32_t fb_size;
 	uint32_t base_primitive_index;
-	uint32_t hires_filter;
-	uint32_t hires_replacement;
 };
 
 template <typename T, unsigned N>
@@ -351,12 +342,6 @@ public:
 	const T *data() const
 	{
 		return elements;
-	}
-
-	T &last()
-	{
-		assert(count > 0);
-		return elements[count - 1];
 	}
 
 	void reset()

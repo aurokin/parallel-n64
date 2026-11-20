@@ -34,9 +34,7 @@ const int TRIANGLE_SETUP_INTERLACE_FIELD_BIT = 1 << 3;
 const int TRIANGLE_SETUP_INTERLACE_KEEP_ODD_BIT = 1 << 4;
 const int TRIANGLE_SETUP_DISABLE_UPSCALING_BIT = 1 << 5;
 const int TRIANGLE_SETUP_NATIVE_LOD_BIT = 1 << 6;
-#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
-const int TRIANGLE_SETUP_TEX_RECT_BIT = 1 << 7;
-#endif
+const int TRIANGLE_SETUP_FILL_COPY_RASTER_BIT = 1 << 7;
 
 const int RASTERIZATION_INTERLACE_FIELD_BIT = 1 << 0;
 const int RASTERIZATION_INTERLACE_KEEP_ODD_BIT = 1 << 1;
@@ -63,14 +61,10 @@ const int RASTERIZATION_USES_PIPELINED_TEXEL1_BIT = 1 << 21;
 const int RASTERIZATION_CONVERT_ONE_BIT = 1 << 22;
 const int RASTERIZATION_BILERP_0_BIT = 1 << 23;
 const int RASTERIZATION_BILERP_1_BIT = 1 << 24;
-const int RASTERIZATION_HIRES_ALPHA_KILL_BIT = 1 << 25;
 const int RASTERIZATION_UPSCALING_LOG2_BIT_OFFSET = 26;
 const int RASTERIZATION_NEED_NOISE_BIT = 1 << 28;
 const int RASTERIZATION_USE_STATIC_TEXTURE_SIZE_FORMAT_BIT = 1 << 29;
 const int RASTERIZATION_USE_SPECIALIZATION_CONSTANT_BIT = 1 << 30;
-#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
-const int RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT = int(1u << 31);
-#endif
 
 const int DEPTH_BLEND_DEPTH_TEST_BIT = 1 << 0;
 const int DEPTH_BLEND_DEPTH_UPDATE_BIT = 1 << 1;
@@ -235,11 +229,6 @@ struct TileInfoMem
 	mem_u8 mask_t;
 	mem_u8 shift_t;
 	mem_u8 flags;
-	mem_u16 repl_orig_w;
-	mem_u16 repl_orig_h;
-	mem_u16 repl_w;
-	mem_u16 repl_h;
-	uint repl_desc_index;
 };
 
 #if SMALL_TYPES
@@ -261,11 +250,6 @@ struct TileInfo
 	u8 mask_t;
 	u8 shift_t;
 	u8 flags;
-	u16 repl_orig_w;
-	u16 repl_orig_h;
-	u16 repl_w;
-	u16 repl_h;
-	uint repl_desc_index;
 };
 #endif
 
@@ -357,14 +341,6 @@ struct GlobalFBInfo
 	int dx_mask;
 	int fb_size;
 	uint base_primitive_index;
-	uint hires_filter;
-	// 0 when this pass must not sample replacements: the native pass, which writes
-	// RDRAM, whenever a separate presented pass exists (ADR-0020).
-	uint hires_replacement;
 };
-
-const uint HIRES_FILTER_NEAREST = 0u;
-const uint HIRES_FILTER_BILINEAR = 1u;
-const uint HIRES_FILTER_TRILINEAR = 2u;
 
 #endif

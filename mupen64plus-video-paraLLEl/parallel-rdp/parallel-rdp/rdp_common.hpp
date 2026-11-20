@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include <stdint.h>
-
 namespace Vulkan
 {
 class Program;
@@ -285,20 +283,10 @@ struct TileMeta
 	TileInfoFlags flags = 0;
 };
 
-struct TileReplacementMeta
-{
-	uint16_t repl_orig_w = 0;
-	uint16_t repl_orig_h = 0;
-	uint16_t repl_w = 0;
-	uint16_t repl_h = 0;
-	uint32_t repl_desc_index = 0xffffffffu;
-};
-
 struct TileInfo
 {
 	TileSize size;
 	TileMeta meta;
-	TileReplacementMeta replacement;
 };
 
 struct CombinerInputsRGB
@@ -331,7 +319,7 @@ struct BlendModes
 	BlendMode2B blend_2b;
 };
 
-static_assert(sizeof(TileInfo) == 44, "TileInfo must be 44 bytes.");
+static_assert(sizeof(TileInfo) == 32, "TileInfo must be 32 bytes.");
 
 enum class VIRegister
 {
@@ -393,6 +381,14 @@ constexpr uint32_t VI_V_OFFSET_PAL = 44;
 constexpr uint32_t VI_V_RES_NTSC = 480;
 constexpr uint32_t VI_V_RES_PAL = 576;
 constexpr int VI_SCANOUT_WIDTH = 640;
+
+constexpr uint32_t VI_V_RES_MAX = VI_V_RES_PAL > VI_V_RES_NTSC ? VI_V_RES_PAL : VI_V_RES_NTSC;
+// Handle odd v_start as well. Needed for rounding to work in our favor.
+constexpr uint32_t VI_V_END_PAL = (VI_V_OFFSET_PAL + VI_V_RES_PAL) | 1;
+constexpr uint32_t VI_V_END_NTSC = (VI_V_OFFSET_NTSC + VI_V_RES_NTSC) | 1;
+constexpr uint32_t VI_V_END_MAX = VI_V_END_PAL > VI_V_END_NTSC ? VI_V_END_PAL : VI_V_END_NTSC;
+
+constexpr uint32_t VI_MAX_OUTPUT_SCANLINES = (VI_V_RES_MAX >> 1);
 
 static inline uint32_t make_default_v_start()
 {

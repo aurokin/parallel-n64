@@ -3,9 +3,7 @@
 ## Build
 
 Make sure to build parallel-n64 with `make HAVE_PARALLEL=1 HAVE_PARALLEL_RSP=1 HAVE_RDP_DUMP=1`.
-Build a standalone [paraLLEl-RDP checkout](https://github.com/Themaister/parallel-rdp)
-as instructed upstream. You should have an `rdp-validate-dump` binary; the
-trimmed vendored snapshot in this repository does not build that tool.
+Build `git://github.com/Themaister/parallel-rdp` as instructed in the repo. You should have a `rdp-validate-dump` binary.
 
 ## Workflow
 

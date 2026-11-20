@@ -33,10 +33,6 @@
 #include "worker_thread.hpp"
 #include "rdp_dump_write.hpp"
 
-#ifndef GRANITE_VULKAN_MT
-#error "Granite Vulkan backend must be built with multithreading support."
-#endif
-
 namespace RDP
 {
 struct RGBA
@@ -133,9 +129,6 @@ public:
 	uint64_t signal_timeline();
 	void wait_for_timeline(uint64_t index);
 	void idle();
-	// Both drain the command ring first so the renderer thread is quiescent.
-	uint32_t get_noise_state();
-	void set_noise_state(uint32_t base_primitive_index);
 	void begin_frame_context();
 
 	// Queues up state and drawing commands.
@@ -143,10 +136,6 @@ public:
 	void enqueue_command_direct(unsigned num_words, const uint32_t *words);
 
 	void set_quirks(const Quirks &quirks);
-	void configure_hires_replacement(bool enable, const std::vector<std::string> &cache_paths, unsigned budget_mb = 0);
-	const HiresPackStatus &get_hires_pack_status() const { return hires_pack_status; }
-	const HiresResidencyStatus &get_hires_residency_status() const { return renderer.get_hires().residency_status(); }
-	void set_hires_filter(unsigned mode);
 
 	// Interact with memory.
 	void *begin_read_rdram();
@@ -219,9 +208,6 @@ private:
 	std::unique_ptr<ShaderBank> shader_bank;
 #endif
 
-	// The renderer keeps a pointer to the provider, so it must outlive it.
-	ReplacementProvider replacement_provider;
-
 	// Tear-down order is important here.
 	Renderer renderer;
 	VideoInterface vi;
@@ -283,8 +269,6 @@ private:
 	bool is_supported = false;
 	bool is_host_coherent = true;
 	bool timestamp = false;
-	detail::HiresSummaryIntervalClock hires_summary_clock = {};
-	HiresPackStatus hires_pack_status;
 
 	friend class Renderer;
 

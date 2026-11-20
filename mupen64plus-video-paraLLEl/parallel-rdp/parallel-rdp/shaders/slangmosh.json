@@ -50,8 +50,7 @@
 			"path": "rasterizer.comp",
 			"compute": true,
 			"variants": [
-				{ "define": "SMALL_TYPES", "count": 2, "resolve": true },
-				{ "define": "HIRES_REPLACEMENT", "count": 2, "resolve": true }
+				{ "define": "SMALL_TYPES", "count": 2, "resolve": true }
 			]
 		},
 		{

@@ -11,9 +11,6 @@ extern "C" {
 
 bool parallel_init(const struct retro_hw_render_interface_vulkan *vulkan);
 void parallel_deinit(void);
-/* ParaLLEl-RDP noise-seed counter carried in savestates (see savestates.h). */
-uint32_t parallel_get_noise_state(void);
-void parallel_set_noise_state(uint32_t base_primitive_index);
 bool parallel_frame_is_valid(void);
 unsigned parallel_frame_width(void);
 unsigned parallel_frame_height(void);
@@ -31,12 +28,6 @@ void parallel_set_upscaling(unsigned factor);
 void parallel_set_downscaling_steps(unsigned steps);
 void parallel_set_native_texture_lod(bool enable);
 void parallel_set_native_tex_rect(bool enable);
-void parallel_set_hires_textures(bool enable);
-void parallel_set_hires_filter(unsigned filter);
-void parallel_set_hires_memory(unsigned mb);
-void parallel_set_hires_cache_path(const char *path);
-/* Reads a canonical 64-byte ROM header before frontend name normalization. */
-void parallel_set_hires_rom_header(const uint8_t *header64);
 
 unsigned parallel_get_upscaling();
 

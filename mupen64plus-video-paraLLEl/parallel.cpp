@@ -1,14 +1,10 @@
 #include "rdp.hpp"
-#include "parallel-rdp/parallel-rdp/rdp_hires_runtime_policy.hpp"
 #include "Gfx #1.3.h"
 #include "m64p_config.h"
 #include "m64p_types.h"
 #include <stdlib.h>
 #include <string.h>
 #include <boolean.h>
-
-/* Keep failed Vulkan initialization away from the frame-driving entry points. */
-static bool renderer_ready = false;
 
 extern "C" {
 extern int retro_return(bool just_flipping);
@@ -53,8 +49,7 @@ void parallelProcessDList(void)
 
 void parallelProcessRDPList(void)
 {
-	if (renderer_ready)
-		RDP::process_commands();
+	RDP::process_commands();
 }
 
 void parallelRomClosed(void)
@@ -68,8 +63,7 @@ int parallelRomOpen(void)
 
 void parallelUpdateScreen(void)
 {
-	if (renderer_ready)
-		RDP::complete_frame();
+	RDP::complete_frame();
 	retro_return(true);
 }
 
@@ -123,13 +117,11 @@ m64p_error parallelPluginGetVersion(m64p_plugin_type *PluginType, int *PluginVer
 bool parallel_init(const struct retro_hw_render_interface_vulkan *vulkan)
 {
 	RDP::vulkan = vulkan;
-	renderer_ready = RDP::init();
-	return renderer_ready;
+	return RDP::init();
 }
 
 void parallel_deinit()
 {
-	renderer_ready = false;
 	RDP::deinit();
 	RDP::vulkan = nullptr;
 }
@@ -146,13 +138,12 @@ unsigned parallel_frame_height()
 
 bool parallel_frame_is_valid()
 {
-	return renderer_ready;
+	return true;
 }
 
 void parallel_begin_frame()
 {
-	if (renderer_ready)
-		RDP::begin_frame();
+	RDP::begin_frame();
 }
 
 void parallel_set_synchronous_rdp(bool enable)
@@ -192,14 +183,12 @@ void parallel_set_interlacing(bool enable)
 
 void parallel_profile_video_refresh_begin(void)
 {
-	if (renderer_ready)
-		RDP::profile_refresh_begin();
+	RDP::profile_refresh_begin();
 }
 
 void parallel_profile_video_refresh_end(void)
 {
-	if (renderer_ready)
-		RDP::profile_refresh_end();
+	RDP::profile_refresh_end();
 }
 
 void parallel_set_upscaling(unsigned factor)
@@ -225,33 +214,6 @@ void parallel_set_native_texture_lod(bool enable)
 void parallel_set_native_tex_rect(bool enable)
 {
 	RDP::native_tex_rect = enable;
-}
-
-void parallel_set_hires_textures(bool enable)
-{
-	RDP::hires_textures = enable;
-}
-
-void parallel_set_hires_filter(unsigned filter)
-{
-	RDP::hires_filter = filter;
-}
-
-void parallel_set_hires_memory(unsigned mb)
-{
-	RDP::hires_memory_mb = mb;
-}
-
-void parallel_set_hires_cache_path(const char *path)
-{
-	RDP::hires_cache_path = path ? path : "";
-}
-
-void parallel_set_hires_rom_header(const uint8_t *header64)
-{
-	RDP::hires_ident = RDP::detail::hires_game_ident(header64);
-	RDP::hires_gliden_name = RDP::detail::hires_gliden_ident(header64);
-	RDP::reset_hires_messages();
 }
 
 void parallel_set_overscan_crop(unsigned pixels)

@@ -154,7 +154,7 @@ assert output.stat().st_size < 4 << 20
 
 
 def mixed_manifest(jabo=False):
-    """Include untouched storage controls, raw fallbacks and malformed RGBA extents."""
+    """Include untouched storage controls and raw fallbacks."""
     rgba = bytes((10, 20, 30, 128)) * 1024
     # Fixed encoded input keeps the prior-emitter digests independent of zlib's encoder version.
     precompressed = bytes.fromhex('789cedc3b10d00000803a0bdb3b3b7f674ff309090d9465555557dfd001080f01f')
@@ -166,11 +166,11 @@ def mixed_manifest(jabo=False):
         ('packed', bytes((0x12, 0x34)) * 1024, 32, 32, 0x8056, GL_RGBA, 0x8033),
         ('indexed', bytes(range(256)) * 4, 32, 32, 0x80E5, 0x1900, GL_UNSIGNED_BYTE),
         ('rgb', bytes((10, 20, 30)) * 1024, 32, 32, 0x8051, 0x1907, GL_UNSIGNED_BYTE),
-        ('zero', b'', 0, 32, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE),
-        ('short', rgba[:-1], 32, 32, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE),
-        ('overlong', rgba + b'x', 32, 32, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE),
-        ('overflow', rgba, 0xFFFFFFFF, 0xFFFFFFFF, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE),
     ]
+    return manifest_for(cases, jabo)
+
+
+def manifest_for(cases, jabo=False):
     candidates, blobs = [], {}
     for index, (name, blob, width, height, fmt, texture_format, pixel_type) in enumerate(cases):
         candidates.append({
@@ -269,7 +269,7 @@ class OptionalRawCompression(unittest.TestCase):
                     result = emit_binary_package_from_manifest(manifest, output, asset_blob_loader=load,
                                                               asset_storage_mode='legacy', compress_raw_rgba=level)
                     self.assertEqual(manifest, original)
-                    self.assertEqual(calls, [0] * 11 + [2])
+                    self.assertEqual(calls, [0] * 7 + [2])
                     before, after = inspect_binary_package(baseline), inspect_binary_package(output)
                     self.assertEqual(after['version'], 8 if jabo else 7)
                     self.assertEqual(before['record_count'], after['record_count'])
@@ -302,7 +302,7 @@ class OptionalRawCompression(unittest.TestCase):
 
     def test_default_off_matches_previous_emitter_bytes(self):
         # Fixed manifests emitted by the pre-pilot 89b1936e emitter, for both layouts.
-        expected = {False: '763d7760dc355fc02146a8d44864a156b234d0ff3d4a043110319d29ac853005', True: '63550a516d2c5ce2ba77f777b1d1ab9b2508f77c10a6a0f6d3571271b4e36d8a'}
+        expected = {False: 'eb1bd1d581e797c39266f9c0df784f809c50a9e4af0f6628f74bded0aa224625', True: '7cee3aad4ffef732e5cfb5bcb11ea70a14d0ce51c705be3f6d55c614beb6c5fb'}
         for jabo in (False, True):
             with self.subTest(jabo=jabo), tempfile.TemporaryDirectory() as tmp:
                 manifest, blobs = mixed_manifest(jabo)
@@ -313,6 +313,25 @@ class OptionalRawCompression(unittest.TestCase):
                 emit_binary_package_from_manifest(manifest, output, blobs, asset_storage_mode='legacy',
                                                   compress_raw_rgba='off')
                 self.assertEqual(output.read_bytes(), original)
+
+    def test_writer_refuses_assets_the_reader_would_reject(self):
+        rgba = bytes((10, 20, 30, 128)) * 1024
+        cases = [
+            ('zero', b'', 0, 32, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, 'each side'),
+            ('short', rgba[:-1], 32, 32, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, 'stores 4095 bytes'),
+            ('overlong', rgba + b'x', 32, 32, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, 'stores 4097 bytes'),
+            ('overflow', rgba, 0xFFFFFFFF, 0xFFFFFFFF, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, 'each side'),
+            ('too-many-pixels', rgba, 16384, 8192, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, 'pixels'),
+            ('dxt1', rgba, 32, 32, 0x83F1, 0x83F1, GL_UNSIGNED_BYTE, 'unsupported pixel encoding'),
+            ('empty-stream', b'', 32, 32, GL_RGBA8 | GL_TEXFMT_GZ, GL_RGBA, GL_UNSIGNED_BYTE, 'compressed bytes'),
+        ]
+        for name, blob, width, height, fmt, texture_format, pixel_type, reason in cases:
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                manifest, blobs = manifest_for([(name, blob, width, height, fmt, texture_format, pixel_type)])
+                output = Path(tmp) / 'out.phrb'
+                with self.assertRaisesRegex(ValueError, reason):
+                    emit_binary_package_from_manifest(manifest, output, blobs, asset_storage_mode='legacy')
+                self.assertEqual(list(Path(tmp).iterdir()), [])
 
     def test_abort_preserves_previous_output_and_cleans_temporary_file(self):
         for setting in ('off', '1', '6'):

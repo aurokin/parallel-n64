@@ -10,7 +10,15 @@ import uuid
 import zlib
 from pathlib import Path
 
-from hires_pack_common import GL_TEXFMT_GZ, expected_decoded_size
+from hires_pack_common import (
+    GL_COLOR_INDEX,
+    GL_LUMINANCE,
+    GL_RGB,
+    GL_TEXFMT_GZ,
+    GL_UNSIGNED_SHORT_4_4_4_4,
+    GL_UNSIGNED_SHORT_5_5_5_1,
+    GL_UNSIGNED_SHORT_5_6_5,
+)
 
 MAGIC = b'PHRB'
 VERSION = 7
@@ -26,6 +34,50 @@ GL_RGBA = 0x1908
 GL_UNSIGNED_BYTE = 0x1401
 GL_RGBA8 = 0x8058
 ASSET_STRUCT = struct.Struct('<IIIIIIIIIIIQQQQ')
+
+# The reader rejects a whole package that breaks any of these (PHRB_FORMAT.md),
+# so the writer refuses to produce one.
+MAX_RECORDS = 1 << 20
+MAX_ASSETS = 1 << 20
+MAX_TABLE_BYTES = 256 << 20
+MAX_DIMENSION = 16384
+MAX_PIXELS = 1 << 26
+BYTES_PER_PIXEL = {
+    (GL_COLOR_INDEX, GL_UNSIGNED_BYTE): 1,
+    (GL_LUMINANCE, GL_UNSIGNED_BYTE): 1,
+    (GL_RGB, GL_UNSIGNED_BYTE): 3,
+    (GL_RGB, GL_UNSIGNED_SHORT_5_6_5): 2,
+    (GL_RGBA, GL_UNSIGNED_BYTE): 4,
+    (GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4): 2,
+    (GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1): 2,
+}
+
+
+def zlib_compress_bound(size):
+    """zlib's compressBound(): the most a stream of `size` input bytes can occupy."""
+    return size + (size >> 12) + (size >> 14) + (size >> 25) + 13
+
+
+def check_runtime_asset(name, width, height, stored_format, texture_format, pixel_type, blob_size):
+    if not (1 <= width <= MAX_DIMENSION and 1 <= height <= MAX_DIMENSION):
+        raise ValueError(f'Asset {name} is {width}x{height}; each side must be 1 to {MAX_DIMENSION}')
+    if width * height > MAX_PIXELS:
+        raise ValueError(f'Asset {name} has {width * height} pixels, over the limit of {MAX_PIXELS}')
+    bytes_per_pixel = BYTES_PER_PIXEL.get((texture_format, pixel_type))
+    if bytes_per_pixel is None:
+        raise ValueError(f'Asset {name} uses unsupported pixel encoding {texture_format:#x}/{pixel_type:#x}')
+    decoded_size = width * height * bytes_per_pixel
+    if stored_format & GL_TEXFMT_GZ:
+        if not 0 < blob_size <= zlib_compress_bound(decoded_size):
+            raise ValueError(f'Asset {name} stores {blob_size} compressed bytes for {decoded_size} decoded bytes')
+    elif blob_size != decoded_size:
+        raise ValueError(f'Asset {name} stores {blob_size} bytes, but {width}x{height} at '
+                         f'{bytes_per_pixel} bytes per pixel is {decoded_size}')
+
+
+def check_formatsize(name, value):
+    if not 0 <= value <= 0xFFFF:
+        raise ValueError(f'{name} formatsize {value} does not fit 16 bits')
 
 
 def load_package_manifest(path: Path):
@@ -80,6 +132,9 @@ def _build_package_tables(package_manifest: dict,
                 'candidate': candidate,
             })
 
+    if len(records) > MAX_RECORDS or len(asset_records) > MAX_ASSETS:
+        raise ValueError(f'{len(records)} records and {len(asset_records)} assets exceed the limit of '
+                         f'{MAX_RECORDS} each')
     string_blob, string_offsets = encode_string_table(strings)
     version = JABO_VERSION if any(record.get('jabo_md5') for record in records) else VERSION
 
@@ -92,6 +147,7 @@ def _build_package_tables(package_manifest: dict,
         sampled_object_id_off = string_offsets[record['sampled_object_id']]
         identity = record['canonical_identity']
         width_str, height_str = identity['wh'].split('x', 1)
+        check_formatsize(f"Record {record['policy_key']}", int(identity['formatsize']))
         record_flags = int(record.get('record_flags', 0) or 0)
         if record.get('runtime_ready', True):
             record_flags |= RECORD_FLAG_RUNTIME_READY
@@ -141,6 +197,9 @@ def _build_package_tables(package_manifest: dict,
                 stored_format = GL_COLOR_INDEX8_EXT if indexed else GL_RGBA8
                 stored_texture_format = GL_COLOR_INDEX if indexed else GL_RGBA
                 stored_pixel_type = GL_UNSIGNED_BYTE
+            check_runtime_asset(candidate['replacement_id'], int(candidate['width']), int(candidate['height']),
+                                stored_format, stored_texture_format, stored_pixel_type, blob_size)
+            check_formatsize(f"Asset {candidate['replacement_id']}", int(candidate['legacy_formatsize']))
         else:
             blob_size = 0
             stored_format = int(candidate.get('format') or GL_RGBA8)
@@ -179,6 +238,8 @@ def _build_package_tables(package_manifest: dict,
     asset_table_offset = record_table_offset + len(record_table)
     string_table_offset = asset_table_offset + len(asset_table)
     blob_offset = string_table_offset + len(string_blob)
+    if blob_offset > MAX_TABLE_BYTES:
+        raise ValueError(f'Package tables span {blob_offset} bytes, over the limit of {MAX_TABLE_BYTES}')
 
     return {
         'version': version,
@@ -263,17 +324,10 @@ def emit_binary_package_from_manifest(package_manifest: dict,
                             f"Unexpected asset blob size for {candidate['replacement_id']}: "
                             f"expected {expected_size}, got {len(blob_bytes_value)}"
                         )
-                    width, height = int(candidate['width']), int(candidate['height'])
-                    # Runtime decompression requires a uint32 decoded byte count.
+                    # check_runtime_asset() already matched the size to the image.
                     if (compress_raw_rgba != 'off' and not stored_format & GL_TEXFMT_GZ
                             and asset_record['stored_texture_format'] == GL_RGBA
-                            and asset_record['stored_pixel_type'] == GL_UNSIGNED_BYTE
-                            and width > 0 and height > 0 and width <= sys.maxsize // 4 // height
-                            and len(blob_bytes_value) <= 0xFFFFFFFF
-                            and len(blob_bytes_value) == expected_decoded_size({
-                                'width': width, 'height': height,
-                                'texture_format': GL_RGBA, 'pixel_type': GL_UNSIGNED_BYTE,
-                            })):
+                            and asset_record['stored_pixel_type'] == GL_UNSIGNED_BYTE):
                         eligible_assets += 1
                         compressed = zlib.compress(blob_bytes_value, int(compress_raw_rgba))
                         if len(compressed) < len(blob_bytes_value):

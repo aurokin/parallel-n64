@@ -12,6 +12,7 @@ import zipfile
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "tools/sweep"))
+import report  # noqa: E402
 import run  # noqa: E402
 
 FIXTURES = REPO / "tests/emulator_behavior/fixtures/sweep"
@@ -139,6 +140,10 @@ class SweepRun(unittest.TestCase):
         commands = (bundle / "commands.log").read_text().splitlines()
         self.assertEqual(commands[:3], ["STEP_FRAME 5", "SET_INPUT_PORT 0 0x20 0 32767 0 0", "STEP_FRAME 2"])
         self.assertEqual(beta["input"]["source"], "default")
+        # report.py reads the records run.py writes.
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(report.main([str(self.out), "--out", str(self.root / "report")]), 0)
+        self.assertIn("| out | paralleish |", (self.root / "report/summary.md").read_text())
 
     def test_rerun_skips_complete_runs_and_restarts_incomplete_ones(self):
         self.assertEqual(self.sweep()[0], 0)

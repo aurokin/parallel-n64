@@ -228,17 +228,21 @@ def observe(record: dict[str, Any], run_dir: Path) -> dict[str, Any]:
     """The verdict inputs from a run_scenarios record and its bundle."""
     from PIL import Image
 
+    exit_class, error = record["exit_class"], record["error"]
     captures = []
     for checkpoint in record["checkpoints"]:
         if not checkpoint.get("capture_path"):
             continue
-        with Image.open(run_dir / checkpoint["capture_path"]) as image:
-            blank = verdicts.capture_is_blank(image)
+        try:
+            with Image.open(run_dir / checkpoint["capture_path"]) as image:
+                blank = verdicts.capture_is_blank(image)
+        except OSError as err:  # an unreadable capture is a harness failure, not a picture
+            exit_class, error, blank = "capture-failed", f"capture at {checkpoint['after_frames']}: {err}", None
         captures.append({"frame": checkpoint["after_frames"], "sha256": checkpoint["capture_sha256"],
                          "blank": blank, "path": checkpoint["capture_path"]})
     log = run_dir / record["bundle"] / "logs" / "retroarch.log"
     log_text = log.read_text(errors="replace") if log.is_file() else ""
-    return {"exit_class": record["exit_class"], "error": record["error"], "log_flags": record["log_flags"],
+    return {"exit_class": exit_class, "error": error, "log_flags": record["log_flags"],
             "frames_run": record["frames_run"], "captures": captures,
             "load_failure_logged": verdicts.load_failure_logged(log_text)}
 
@@ -289,7 +293,7 @@ def run_one(rom: Path, identity: dict[str, Any], run_dir: Path, pattern: dict[st
         **result,
         "frames_planned": pattern["frames"], "frames_reached": record["frames_run"],
         "captures": observation["captures"],
-        "exit_class": record["exit_class"], "error": record["error"], "log_flags": record["log_flags"],
+        "exit_class": observation["exit_class"], "error": observation["error"], "log_flags": record["log_flags"],
         "orphans": record["orphans"],
         "rom": {"name": rom.name, "path": str(rom), "member": identity["member"], "size": identity["size"]},
         "core": {"profile": sweep["profile"], "path": str(ctx.args.core), **sweep["library"]},
@@ -437,7 +441,13 @@ def main(argv: list[str] | None = None) -> int:
         if doctor.returncode != 0:
             print(f"[sweep] host is not idle; stopping:\n{doctor.stdout}{doctor.stderr}", file=sys.stderr)
             return 1
-        record = run_one(rom, rom_id, run_dir, pattern, source, {**sweep, "run_config": run_config}, ctx)
+        try:
+            record = run_one(rom, rom_id, run_dir, pattern, source, {**sweep, "run_config": run_config}, ctx)
+        except (SetupError, OSError, zipfile.BadZipFile) as err:
+            # No record is written, so the next sweep moves this directory aside and retries.
+            print(f"[sweep] {rom.name}: not run: {err}", file=sys.stderr)
+            counts["failed"] += 1
+            continue
         counts["run"] += 1
         sub = f" ({record['sub_class']})" if record["sub_class"] else ""
         print(f"[sweep] {rom.name}: {record['verdict']}{sub} frames {record['frames_reached']}/"

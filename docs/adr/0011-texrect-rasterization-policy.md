@@ -1,7 +1,8 @@
 # ADR-0011: Texrect policy: native snap by default, evidence-narrowed exemptions
 
 - Status: Accepted
-- Date: pre-reboot (default); exemptions 2026-06-10 and 2026-06-11
+- Date: pre-reboot (default); exemptions 2026-06-10 and 2026-06-11; round-up
+  amended 2026-11-20
 
 ## Context
 
@@ -25,9 +26,14 @@ falsification-backed exemptions for replaced content:
    the sub-native S phase (dx remainder) recovered for the replacement coordinate;
    a **plain ratio map** (`st * scale`) instead of the centered remap, because copy
    walks a texel footprint from its sample point and the centered remap straddles
-   texel boundaries at strip seams; and, in the lift arm only, queued `yl` rounded
-   up to the next whole native line (`(yl+3) & ~3`) because Paper Mario ends strips
-   at fractional `yl` and the span clip dropped the last upscaled sub-rows.
+   texel boundaries at strip seams; and, in the lift arm only, a fractional `yl`
+   rounded up to the next whole native line (`(yl+3) & ~3`) because Paper Mario
+   ends strips at fractional `yl` and the span clip dropped the last upscaled
+   sub-rows. (Amended November 20, 2026.) The round-up is a tile-byte bit that
+   only upscaled span setup honors; the queued `yl` stays the game's, because the
+   native pass reads the same setup and writes RDRAM (ADR-0020). It applies to
+   rects that were snapped or are copy mode; an unsnapped 1- or 2-cycle rect keeps
+   its partial last line. See `rdp_hires_tex_rect_policy.hpp`.
 3. **Flip texrects and unreplaced copy strips keep the snap.**
 
 ## Consequences

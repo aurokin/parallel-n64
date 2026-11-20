@@ -8,15 +8,9 @@ from pathlib import Path
 
 MAGIC = b'PHRB'
 HEADER_STRUCT = struct.Struct('<4sIIIIIII')
-RECORD_STRUCT_V1 = struct.Struct('<IIIIIIIIII')
-RECORD_STRUCT_V2 = struct.Struct('<IIIIIIIIIIIII')
-RECORD_STRUCT_V4 = struct.Struct('<IIIIIIIIIIIIII')
+RECORD_STRUCT = struct.Struct('<IIIIIIIIIIIIII')
 RECORD_KEY_STRUCT_V8 = struct.Struct('<I16s')
-ASSET_STRUCT_V2 = struct.Struct('<IIIIIIIIIIII')
-ASSET_STRUCT_V3 = struct.Struct('<IIIIIIIIIIQII')
-ASSET_STRUCT_V5 = struct.Struct('<IIIIIIIIIIQQII')
-ASSET_STRUCT_V6 = struct.Struct('<IIIIIIIIIIQQQQ')
-ASSET_STRUCT_V7 = struct.Struct('<IIIIIIIIIIIQQQQ')
+ASSET_STRUCT = struct.Struct('<IIIIIIIIIIIQQQQ')
 RECORD_FLAG_RUNTIME_READY = 1 << 0
 
 
@@ -28,32 +22,30 @@ def read_c_string(blob, offset):
 
 
 def inspect_binary_package(path: Path):
-    data = path.read_bytes()
-    if len(data) < HEADER_STRUCT.size:
-        raise ValueError('Package too small for header.')
-    magic, version, record_count, asset_count, record_off, asset_off, string_off, blob_off = HEADER_STRUCT.unpack_from(data, 0)
-    if magic != MAGIC:
-        raise ValueError(f'Unexpected magic: {magic!r}')
-    if version not in (1, 2, 3, 4, 5, 6, 7, 8):
-        raise ValueError(f'Unsupported version: {version}')
+    """Describe a version 7 or 8 package (tools/PHRB_FORMAT.md), reading its tables but not its payloads."""
+    with path.open('rb') as fp:
+        header = fp.read(HEADER_STRUCT.size)
+        if len(header) < HEADER_STRUCT.size:
+            raise ValueError('Package too small for header.')
+        magic, version, record_count, asset_count, record_off, asset_off, string_off, blob_off = HEADER_STRUCT.unpack(header)
+        if magic != MAGIC:
+            raise ValueError(f'Unexpected magic: {magic!r}')
+        if version not in (7, 8):
+            raise ValueError(f'Unsupported version: {version}')
+        fp.seek(0)
+        data = fp.read(blob_off)
+        if len(data) < blob_off:
+            raise ValueError('Package ends inside its tables.')
+        fp.seek(0, 2)
+        file_size = fp.tell()
 
     string_blob = data[string_off:blob_off]
     records = []
-    record_struct = RECORD_STRUCT_V4 if version >= 4 else RECORD_STRUCT_V2 if version >= 2 else RECORD_STRUCT_V1
-    record_size = record_struct.size + (RECORD_KEY_STRUCT_V8.size if version >= 8 else 0)
+    record_size = RECORD_STRUCT.size + (RECORD_KEY_STRUCT_V8.size if version >= 8 else 0)
     for i in range(record_count):
         off = record_off + i * record_size
-        if version >= 4:
-            (policy_key_off, sampled_object_id_off, record_flags, fmt, siz, tex_off, stride, width, height, formatsize, sampled_low32, sampled_entry_pcrc, sampled_sparse_pcrc, asset_candidate_count) = record_struct.unpack_from(data, off)
-        elif version >= 2:
-            (policy_key_off, sampled_object_id_off, fmt, siz, tex_off, stride, width, height, formatsize, sampled_low32, sampled_entry_pcrc, sampled_sparse_pcrc, asset_candidate_count) = record_struct.unpack_from(data, off)
-            record_flags = RECORD_FLAG_RUNTIME_READY
-        else:
-            (policy_key_off, sampled_object_id_off, fmt, siz, tex_off, stride, width, height, formatsize, asset_candidate_count) = record_struct.unpack_from(data, off)
-            sampled_low32 = 0
-            sampled_entry_pcrc = 0
-            sampled_sparse_pcrc = 0
-            record_flags = RECORD_FLAG_RUNTIME_READY
+        (policy_key_off, sampled_object_id_off, record_flags, fmt, siz, tex_off, stride, width, height, formatsize,
+         sampled_low32, sampled_entry_pcrc, sampled_sparse_pcrc, asset_candidate_count) = RECORD_STRUCT.unpack_from(data, off)
         records.append({
             'record_index': i,
             'policy_key': read_c_string(string_blob, policy_key_off),
@@ -75,39 +67,15 @@ def inspect_binary_package(path: Path):
             'asset_candidates': [],
         })
         if version >= 8:
-            key_kind, key = RECORD_KEY_STRUCT_V8.unpack_from(data, off + record_struct.size)
+            key_kind, key = RECORD_KEY_STRUCT_V8.unpack_from(data, off + RECORD_STRUCT.size)
             records[-1]['key_kind'] = {0: 'rice', 1: 'jabo-md5'}.get(key_kind, key_kind)
             if key_kind == 1:
                 records[-1]['jabo_md5'] = key.hex()
 
-    asset_struct = ASSET_STRUCT_V7 if version >= 7 else ASSET_STRUCT_V6 if version >= 6 else ASSET_STRUCT_V5 if version >= 5 else ASSET_STRUCT_V3 if version >= 3 else ASSET_STRUCT_V2
     for i in range(asset_count):
-        off = asset_off + i * asset_struct.size
-        if version >= 7:
-            (record_index, replacement_id_off, legacy_source_path_off, rgba_rel_path_off, variant_group_id_off,
-             width, height, format_value, texture_format, pixel_type, legacy_formatsize, selector_checksum64, legacy_checksum64,
-             rgba_blob_off, rgba_blob_size) = asset_struct.unpack_from(data, off)
-        elif version >= 6:
-            (record_index, replacement_id_off, legacy_source_path_off, rgba_rel_path_off, variant_group_id_off,
-             width, height, texture_format, pixel_type, legacy_formatsize, selector_checksum64, legacy_checksum64,
-             rgba_blob_off, rgba_blob_size) = asset_struct.unpack_from(data, off)
-            format_value = 0x8058
-        elif version >= 5:
-            (record_index, replacement_id_off, legacy_source_path_off, rgba_rel_path_off, variant_group_id_off,
-             width, height, texture_format, pixel_type, legacy_formatsize, selector_checksum64, legacy_checksum64,
-             rgba_blob_off, rgba_blob_size) = asset_struct.unpack_from(data, off)
-            format_value = 0x8058
-        elif version >= 3:
-            (record_index, replacement_id_off, legacy_source_path_off, rgba_rel_path_off, variant_group_id_off,
-             width, height, texture_format, pixel_type, legacy_formatsize, selector_checksum64, rgba_blob_off, rgba_blob_size) = asset_struct.unpack_from(data, off)
-            legacy_checksum64 = 0
-            format_value = 0x8058
-        else:
-            (record_index, replacement_id_off, legacy_source_path_off, rgba_rel_path_off, variant_group_id_off,
-             width, height, texture_format, pixel_type, legacy_formatsize, rgba_blob_off, rgba_blob_size) = asset_struct.unpack_from(data, off)
-            selector_checksum64 = 0
-            legacy_checksum64 = 0
-            format_value = 0x8058
+        (record_index, replacement_id_off, legacy_source_path_off, rgba_rel_path_off, variant_group_id_off,
+         width, height, format_value, texture_format, pixel_type, legacy_formatsize, selector_checksum64, legacy_checksum64,
+         rgba_blob_off, rgba_blob_size) = ASSET_STRUCT.unpack_from(data, asset_off + i * ASSET_STRUCT.size)
         records[record_index]['asset_candidates'].append({
             'replacement_id': read_c_string(string_blob, replacement_id_off),
             'legacy_source_path': read_c_string(string_blob, legacy_source_path_off),
@@ -131,7 +99,7 @@ def inspect_binary_package(path: Path):
         'record_count': record_count,
         'asset_count': asset_count,
         'string_table_bytes': len(string_blob),
-        'blob_bytes': len(data) - blob_off,
+        'blob_bytes': file_size - blob_off,
         'records': records,
     }
 

@@ -442,10 +442,6 @@ static void test_rgba8_decode_payloads()
 	const std::vector<uint8_t> rgba = {
 		1, 2, 3, 0, 17, 33, 65, 127, 255, 128, 64, 255,
 		4, 5, 6, 1, 7, 8, 9, 128, 10, 11, 12, 254};
-	auto short_rgba = rgba;
-	short_rgba.pop_back();
-	auto overlong_rgba = rgba;
-	overlong_rgba.insert(overlong_rgba.end(), {99, 98, 97, 96, 95});
 	const std::vector<uint8_t> compressible = {
 		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 	// Equal stored/decoded lengths must still take the decompression path.
@@ -463,17 +459,17 @@ static void test_rgba8_decode_payloads()
 	};
 	const DecodeCase cases[] = {
 		{"exact raw RGBA", GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, rgba, rgba},
-		{"short raw RGBA", GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, short_rgba, {}},
-		{"overlong raw RGBA prefix", GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, overlong_rgba, rgba},
 		{"compressed RGBA", 0x80008058u, GL_RGBA, GL_UNSIGNED_BYTE, compressed, compressible},
+		// The loader cannot see decoded sizes; decode must refuse a short stream.
+		{"compressed RGBA decoding short", 0x80008058u, GL_RGBA, GL_UNSIGNED_BYTE,
+		 compress_zlib(std::vector<uint8_t>(compressible.begin(), compressible.end() - 1)), {}},
 		{"packed RGB565", GL_RGB8, GL_RGB, GL_UNSIGNED_SHORT_5_6_5,
 		 {0x00, 0xf8, 0xe0, 0x07, 0x1f, 0x00, 0, 0, 0xff, 0xff, 0x10, 0x84},
 		 {255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255,
 		  0, 0, 0, 255, 255, 255, 255, 255, 132, 130, 132, 255}},
-		// Packed RGBA with trailing bytes must not be mistaken for exact raw RGBA.
-		{"packed RGBA4444 prefix", GL_RGBA8, GL_RGBA, 0x8033,
-		 {0x0f, 0xf0, 0xf0, 0x0f, 0xff, 0x00, 0, 0, 0xff, 0xff, 0x21, 0x84,
-		  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+		// Packed RGBA is two bytes per pixel even though GL_RGBA8 names the internal format.
+		{"packed RGBA4444", GL_RGBA8, GL_RGBA, 0x8033,
+		 {0x0f, 0xf0, 0xf0, 0x0f, 0xff, 0x00, 0, 0, 0xff, 0xff, 0x21, 0x84},
 		 {255, 0, 0, 255, 0, 255, 255, 0, 0, 0, 255, 255,
 		  0, 0, 0, 0, 255, 255, 255, 255, 136, 68, 34, 17}},
 	};
@@ -504,7 +500,7 @@ static void test_rgba8_decode_payloads()
 		}
 		else
 			check(image.rgba8 == std::vector<uint8_t>({42}) && image.meta.repl_w == 97 && image.meta.indexed,
-			      "short input must leave the caller's image intact");
+			      "failed decode must leave the caller's image intact");
 	}
 	ReplacementProvider provider;
 	ReplacementProvider::Entry invalid;
@@ -1027,8 +1023,8 @@ int main()
 	const uint64_t sparse_checksum64 = structured_sparse_entry->checksum64;
 	ReplacementProvider::Entry compat_alias = entry;
 	compat_alias.source_path = dir + "/compat.phrb";
-	compat_alias.phrb_policy_key.clear();
-	compat_alias.phrb_sampled_object_id.clear();
+	compat_alias.phrb_policy_key = "";
+	compat_alias.phrb_sampled_object_id = "";
 	compat_alias.sampled_palette_crc = 0;
 	compat_alias.sampled_entry_pcrc = 0;
 	compat_alias.sampled_sparse_pcrc = 0;
@@ -1235,7 +1231,7 @@ int main()
 	check(deferred_provider.entry_count() == 1, "runtime-deferred PHRB records should be ignored by the runtime loader");
 	const auto *deferred_entry = deferred_provider.find_any_entry(deferred_checksum64, 258, 0);
 	check(deferred_entry != nullptr, "runtime-ready PHRB record should still load");
-	check(deferred_entry->phrb_policy_key == "runtime-ready", "runtime-ready record should preserve its policy key");
+	check(std::string(deferred_entry->phrb_policy_key) == "runtime-ready", "runtime-ready record should preserve its policy key");
 	check(deferred_provider.find_any_entry(uint64_t(deferred_low32), 258, 0) == nullptr,
 	      "runtime-deferred record should not synthesize a runtime lookup entry");
 	ReplacementProviderStats deferred_stats = deferred_provider.get_stats();
@@ -1282,8 +1278,8 @@ int main()
 	      "family runtime-ready PHRB record should not pretend to be a native sampled entry");
 	const auto *family_entry = family_provider.find_compat_entry(family_checksum64, 258, 0);
 	check(family_entry != nullptr, "family runtime-ready PHRB record should load into the compat checksum path");
-	check(family_entry->phrb_policy_key == "family-runtime-ready", "family runtime-ready record should preserve its policy key");
-	check(family_entry->phrb_sampled_object_id == "legacy-family-01020304-fs258",
+	check(std::string(family_entry->phrb_policy_key) == "family-runtime-ready", "family runtime-ready record should preserve its policy key");
+	check(std::string(family_entry->phrb_sampled_object_id) == "legacy-family-01020304-fs258",
 	      "family runtime-ready record should preserve its sampled object id");
 	ReplacementImage family_image = {};
 	check(family_provider.decode_rgba8(family_checksum64, 258, &family_image),

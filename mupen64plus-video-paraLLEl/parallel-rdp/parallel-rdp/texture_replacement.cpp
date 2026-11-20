@@ -5,11 +5,13 @@
 #include <algorithm>
 #include <functional>
 #include <cerrno>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
 #include <fstream>
 #include <map>
+#include <new>
 #include <tuple>
 #include <sys/stat.h>
 #include <zlib.h>
@@ -30,8 +32,6 @@ constexpr uint16_t GL_UNSIGNED_SHORT_4_4_4_4 = 0x8033;
 constexpr uint16_t GL_UNSIGNED_SHORT_5_5_5_1 = 0x8034;
 constexpr uint16_t GL_UNSIGNED_SHORT_5_6_5 = 0x8363;
 
-constexpr uint32_t GL_RGB8 = 0x8051;
-constexpr uint32_t GL_RGBA8 = 0x8058;
 constexpr uint64_t ORDERED_SURFACE_SELECTOR_TAG = 0x5352464300000000ull;
 constexpr uint64_t ORDERED_SURFACE_SELECTOR_MASK = 0xffffffff00000000ull;
 
@@ -45,7 +45,42 @@ inline uint64_t compose_hires_checksum64(uint32_t texture_crc, uint32_t palette_
 	return (uint64_t(palette_crc) << 32) | uint64_t(texture_crc);
 }
 
+// Package limits (tools/PHRB_FORMAT.md). The largest converted pack has 51,211
+// assets, 16 MB of tables and a 10240-pixel side; these leave ample headroom
+// while bounding what a crafted file can make the loader allocate.
+constexpr uint32_t PHRB_MAX_RECORDS = 1u << 20;
+constexpr uint32_t PHRB_MAX_ASSETS = 1u << 20;
+constexpr uint64_t PHRB_MAX_TABLE_BYTES = 256ull << 20;
+constexpr uint32_t PHRB_MAX_DIMENSION = 16384;
+// 256 MiB once decoded to RGBA8.
+constexpr uint64_t PHRB_MAX_PIXELS = 1ull << 26;
 
+// Stored bytes per pixel of the pixel encodings the decoder supports; 0 if unsupported.
+inline uint32_t encoded_bytes_per_pixel(uint32_t texture_format, uint32_t pixel_type)
+{
+	switch (texture_format)
+	{
+	case GL_COLOR_INDEX:
+	case GL_LUMINANCE:
+		return pixel_type == GL_UNSIGNED_BYTE ? 1 : 0;
+	case GL_RGB:
+		return pixel_type == GL_UNSIGNED_BYTE ? 3 : pixel_type == GL_UNSIGNED_SHORT_5_6_5 ? 2 : 0;
+	case GL_RGBA:
+		if (pixel_type == GL_UNSIGNED_BYTE)
+			return 4;
+		return pixel_type == GL_UNSIGNED_SHORT_4_4_4_4 || pixel_type == GL_UNSIGNED_SHORT_5_5_5_1 ? 2 : 0;
+	default:
+		return 0;
+	}
+}
+
+template <typename... Args>
+std::string format_reason(const char *format, Args... args)
+{
+	char buffer[256];
+	std::snprintf(buffer, sizeof(buffer), format, args...);
+	return buffer;
+}
 
 #pragma pack(push, 1)
 
@@ -128,20 +163,6 @@ inline bool read_pod_from_blob(const std::vector<uint8_t> &blob, size_t offset, 
 	if (offset + sizeof(T) > blob.size())
 		return false;
 	std::memcpy(&value, blob.data() + offset, sizeof(T));
-	return true;
-}
-
-inline bool read_c_string_from_blob(const uint8_t *data, size_t size, uint32_t offset, std::string &value)
-{
-	if (!data || offset >= size)
-		return false;
-	const char *str = reinterpret_cast<const char *>(data + offset);
-	size_t len = 0;
-	while (offset + len < size && str[len] != '\0')
-		len++;
-	if (offset + len >= size)
-		return false;
-	value.assign(str, len);
 	return true;
 }
 
@@ -309,16 +330,14 @@ ReplacementProvider::SampledFamilyLookupKey ReplacementProvider::make_sampled_fa
 
 bool ReplacementProvider::prefer_sampled_duplicate_candidate(const Entry &active, const Entry &candidate)
 {
-	auto compare_string_pref = [](const std::string &a, const std::string &b) -> int {
-		const bool a_empty = a.empty();
-		const bool b_empty = b.empty();
+	// Byte order, as std::string comparison gave; entries never hold embedded NULs.
+	auto compare_string_pref = [](const char *a, const char *b) -> int {
+		const bool a_empty = *a == '\0';
+		const bool b_empty = *b == '\0';
 		if (a_empty != b_empty)
 			return a_empty ? 1 : -1;
-		if (a < b)
-			return -1;
-		if (a > b)
-			return 1;
-		return 0;
+		const int cmp = std::strcmp(a, b);
+		return cmp < 0 ? -1 : cmp > 0 ? 1 : 0;
 	};
 
 	auto compare_uint32 = [](uint32_t a, uint32_t b) -> int {
@@ -333,7 +352,7 @@ bool ReplacementProvider::prefer_sampled_duplicate_candidate(const Entry &active
 	if (cmp != 0)
 		return cmp < 0;
 
-	cmp = compare_string_pref(candidate.source_path, active.source_path);
+	cmp = compare_string_pref(candidate.source_path.c_str(), active.source_path.c_str());
 	if (cmp != 0)
 		return cmp < 0;
 
@@ -424,9 +443,10 @@ void ReplacementProvider::clear()
 {
 	load_error_ = ReplacementLoadStatus::NotFound;
 	rejected_path_.clear();
+	rejected_reason_.clear();
 	loaded_path_.clear();
-	cache_dir_.clear();
 	entries_.clear();
+	string_tables_.clear();
 	native_checksum_index_.clear();
 	compat_checksum_index_.clear();
 	sampled_index_.clear();
@@ -448,7 +468,6 @@ bool ReplacementProvider::load_cache_dir(const std::string &path, bool append)
 	if (!append)
 		clear();
 	const auto previous_entries = entries_.size();
-	cache_dir_ = path;
 
 	std::vector<std::string> files;
 	DIR *dir = opendir(path.c_str());
@@ -484,7 +503,8 @@ bool ReplacementProvider::load_cache_dir(const std::string &path, bool append)
 
 	for (const auto &file : files)
 	{
-		const auto status = load_phrb(file);
+		std::string reason;
+		const auto status = load_phrb(file, reason);
 		if (status == ReplacementLoadStatus::Loaded)
 		{
 			if (loaded_path_.empty())
@@ -494,6 +514,7 @@ bool ReplacementProvider::load_cache_dir(const std::string &path, bool append)
 		{
 			load_error_ = status;
 			rejected_path_ = file;
+			rejected_reason_ = std::move(reason);
 		}
 	}
 
@@ -1136,30 +1157,11 @@ bool ReplacementProvider::decode_sampled_rgba8_with_selector(uint32_t sampled_fm
 
 uint32_t ReplacementProvider::expected_decoded_size(const Entry &entry)
 {
-	uint64_t bpp = 0;
-	if (entry.texture_format == GL_COLOR_INDEX && entry.pixel_type == GL_UNSIGNED_BYTE)
-		bpp = 1;
-	else if (entry.texture_format == GL_RGBA && entry.pixel_type == GL_UNSIGNED_BYTE)
-		bpp = 4;
-	else if (entry.texture_format == GL_RGB && entry.pixel_type == GL_UNSIGNED_BYTE)
-		bpp = 3;
-	else if (entry.texture_format == GL_RGB && entry.pixel_type == GL_UNSIGNED_SHORT_5_6_5)
-		bpp = 2;
-	else if (entry.texture_format == GL_RGBA &&
-	         (entry.pixel_type == GL_UNSIGNED_SHORT_4_4_4_4 || entry.pixel_type == GL_UNSIGNED_SHORT_5_5_5_1))
-		bpp = 2;
-	else if (entry.texture_format == GL_LUMINANCE && entry.pixel_type == GL_UNSIGNED_BYTE)
-		bpp = 1;
-	else if (entry.format == GL_RGBA8)
-		bpp = 4;
-	else if (entry.format == GL_RGB8)
-		bpp = 3;
-
+	const uint64_t bpp = encoded_bytes_per_pixel(entry.texture_format, entry.pixel_type);
 	const uint64_t pixels = uint64_t(entry.width) * uint64_t(entry.height);
-	const uint64_t bytes = pixels * bpp;
-	if (bpp == 0 || bytes > UINT32_MAX)
+	if (bpp == 0 || pixels > PHRB_MAX_PIXELS)
 		return 0;
-	return static_cast<uint32_t>(bytes);
+	return static_cast<uint32_t>(pixels * bpp);
 }
 
 bool ReplacementProvider::decompress_if_needed(const Entry &entry, const std::vector<uint8_t> &blob, std::vector<uint8_t> &pixel_data)
@@ -1176,35 +1178,30 @@ bool ReplacementProvider::decompress_if_needed(const Entry &entry, const std::ve
 
 	pixel_data.resize(expected_size);
 	uLongf dst_len = expected_size;
+	// A stream that would exceed expected_size fails with Z_BUF_ERROR.
 	const int ret = uncompress(pixel_data.data(), &dst_len, blob.data(), static_cast<uLong>(blob.size()));
-	if (ret != Z_OK)
-		return false;
-
-	if (dst_len != expected_size)
-		pixel_data.resize(static_cast<size_t>(dst_len));
-	return true;
+	return ret == Z_OK && dst_len == expected_size;
 }
 
 bool ReplacementProvider::decode_pixels_rgba8(const Entry &entry, const std::vector<uint8_t> &pixel_data, std::vector<uint8_t> &rgba8)
 {
+	// Check the payload covers the image before allocating the image.
 	const uint64_t pixel_count = uint64_t(entry.width) * uint64_t(entry.height);
-	if (pixel_count == 0 || pixel_count > (SIZE_MAX / 4))
+	const uint32_t bytes_per_pixel = encoded_bytes_per_pixel(entry.texture_format, entry.pixel_type);
+	if (pixel_count == 0 || pixel_count > PHRB_MAX_PIXELS || bytes_per_pixel == 0 ||
+	    pixel_data.size() < pixel_count * bytes_per_pixel)
 		return false;
 
 	rgba8.resize(static_cast<size_t>(pixel_count) * 4);
 
 	if (entry.texture_format == GL_RGBA && entry.pixel_type == GL_UNSIGNED_BYTE)
 	{
-		if (pixel_data.size() < rgba8.size())
-			return false;
 		std::copy(pixel_data.begin(), pixel_data.begin() + ptrdiff_t(rgba8.size()), rgba8.begin());
 		return true;
 	}
 
 	if (entry.texture_format == GL_RGB && entry.pixel_type == GL_UNSIGNED_BYTE)
 	{
-		if (pixel_data.size() < size_t(pixel_count) * 3)
-			return false;
 		for (size_t i = 0; i < size_t(pixel_count); i++)
 		{
 			rgba8[4 * i + 0] = pixel_data[3 * i + 0];
@@ -1217,8 +1214,6 @@ bool ReplacementProvider::decode_pixels_rgba8(const Entry &entry, const std::vec
 
 	if (entry.texture_format == GL_RGB && entry.pixel_type == GL_UNSIGNED_SHORT_5_6_5)
 	{
-		if (pixel_data.size() < size_t(pixel_count) * 2)
-			return false;
 		for (size_t i = 0; i < size_t(pixel_count); i++)
 		{
 			const uint16_t v = uint16_t(pixel_data[2 * i + 0]) | (uint16_t(pixel_data[2 * i + 1]) << 8);
@@ -1232,8 +1227,6 @@ bool ReplacementProvider::decode_pixels_rgba8(const Entry &entry, const std::vec
 
 	if (entry.texture_format == GL_RGBA && entry.pixel_type == GL_UNSIGNED_SHORT_5_5_5_1)
 	{
-		if (pixel_data.size() < size_t(pixel_count) * 2)
-			return false;
 		for (size_t i = 0; i < size_t(pixel_count); i++)
 		{
 			const uint16_t v = uint16_t(pixel_data[2 * i + 0]) | (uint16_t(pixel_data[2 * i + 1]) << 8);
@@ -1247,8 +1240,6 @@ bool ReplacementProvider::decode_pixels_rgba8(const Entry &entry, const std::vec
 
 	if (entry.texture_format == GL_RGBA && entry.pixel_type == GL_UNSIGNED_SHORT_4_4_4_4)
 	{
-		if (pixel_data.size() < size_t(pixel_count) * 2)
-			return false;
 		for (size_t i = 0; i < size_t(pixel_count); i++)
 		{
 			const uint16_t v = uint16_t(pixel_data[2 * i + 0]) | (uint16_t(pixel_data[2 * i + 1]) << 8);
@@ -1262,8 +1253,6 @@ bool ReplacementProvider::decode_pixels_rgba8(const Entry &entry, const std::vec
 
 	if (entry.texture_format == GL_LUMINANCE && entry.pixel_type == GL_UNSIGNED_BYTE)
 	{
-		if (pixel_data.size() < size_t(pixel_count))
-			return false;
 		for (size_t i = 0; i < size_t(pixel_count); i++)
 		{
 			const uint8_t l = pixel_data[i];
@@ -1272,12 +1261,6 @@ bool ReplacementProvider::decode_pixels_rgba8(const Entry &entry, const std::vec
 			rgba8[4 * i + 2] = l;
 			rgba8[4 * i + 3] = 255;
 		}
-		return true;
-	}
-
-	if (pixel_data.size() == rgba8.size())
-	{
-		std::copy(pixel_data.begin(), pixel_data.end(), rgba8.begin());
 		return true;
 	}
 
@@ -1493,223 +1476,164 @@ std::vector<SampledDuplicateDiagnostics> ReplacementProvider::get_sampled_duplic
 	return diagnostics;
 }
 
-
-
-ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
+// Publishes a package only after parse_phrb() accepted all of it, so a rejected
+// package leaves the provider exactly as it was.
+ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path, std::string &reason)
 {
+	ParsedPackage package;
+	ReplacementLoadStatus status = ReplacementLoadStatus::Invalid;
+	try
+	{
+		status = parse_phrb(path, package);
+	}
+	catch (const std::bad_alloc &)
+	{
+		package.reason = "there is not enough memory to read its tables";
+	}
+	reason = std::move(package.reason);
+	if (status != ReplacementLoadStatus::Loaded)
+	{
+		if (status == ReplacementLoadStatus::Invalid)
+			LOGW("Hi-res PHRB %s rejected: %s.\n", path.c_str(), reason.c_str());
+		return status;
+	}
+
+	try
+	{
+		entries_.reserve(entries_.size() + package.entries.size());
+		string_tables_.push_back(std::move(package.strings));
+		for (auto &entry : package.entries)
+			add_entry(std::move(entry));
+	}
+	catch (const std::bad_alloc &)
+	{
+		// Indices may be half-updated; drop every package rather than keep a partial one.
+		clear();
+		reason = "there is not enough memory to index its entries, so all packages were unloaded";
+		LOGW("Hi-res PHRB %s rejected: %s.\n", path.c_str(), reason.c_str());
+		return ReplacementLoadStatus::Invalid;
+	}
+	return ReplacementLoadStatus::Loaded;
+}
+
+// Reads the header and tables in one pass and checks every count, offset and
+// size against the file and the PHRB_MAX_* limits before using it. Payloads stay
+// on disk. Layout and rules are documented in tools/PHRB_FORMAT.md.
+ReplacementLoadStatus ReplacementProvider::parse_phrb(const std::string &path, ParsedPackage &out)
+{
+	auto reject = [&](std::string reason) -> ReplacementLoadStatus {
+		out.reason = std::move(reason);
+		return ReplacementLoadStatus::Invalid;
+	};
+
 	std::ifstream file(path, std::ios::binary);
 	if (!file)
-		return errno == ENOENT ? ReplacementLoadStatus::NotFound : ReplacementLoadStatus::Invalid;
+		return errno == ENOENT ? ReplacementLoadStatus::NotFound : reject("the file cannot be opened");
 
 	file.seekg(0, std::ios::end);
-	const std::streamoff size = file.tellg();
-	if (size < std::streamoff(sizeof(PHRBHeader)))
-		return ReplacementLoadStatus::Invalid;
-	file.seekg(0, std::ios::beg);
+	const std::streamoff end = file.tellg();
+	if (end < std::streamoff(sizeof(PHRBHeader)))
+		return reject("it is shorter than the 32-byte header");
+	const uint64_t file_size = uint64_t(end);
 
-	// Read only the metadata portion (header + records + assets + string table).
-	// Blob data is left on disk and loaded on demand via read_blob() with inline_blob=false.
 	PHRBHeader header = {};
-	{
-		std::vector<uint8_t> header_buf(sizeof(PHRBHeader));
-		if (!read_exact(file, header_buf))
-			return ReplacementLoadStatus::Invalid;
-		memcpy(&header, header_buf.data(), sizeof(PHRBHeader));
-	}
+	file.seekg(0, std::ios::beg);
+	if (!read_exact(file, header))
+		return reject("its header cannot be read");
 	if (!phrb_magic_ok(header.magic))
-		return ReplacementLoadStatus::Invalid;
+		return reject("it does not start with the PHRB magic");
 	// hts2phrb writes version 7, or 8 when a record carries a Jabo MD5.
 	if (header.version < 7 || header.version > 8)
 	{
 		LOGW("Hi-res PHRB %s is version %u; this core reads versions 7 and 8.%s\n", path.c_str(), header.version,
 		     header.version < 7 ? " Reconvert the source pack with tools/hts2phrb.py." : "");
+		out.reason = format_reason("version %u is not supported", header.version);
 		return ReplacementLoadStatus::UnsupportedVersion;
 	}
-	if (header.string_table_offset > header.blob_offset || header.blob_offset > static_cast<size_t>(size))
-		return ReplacementLoadStatus::Invalid;
 
-	const bool version8 = header.version >= 8;
-	const size_t record_size = version8 ? sizeof(PHRBRecordV8) : sizeof(PHRBRecordV4);
-	const size_t asset_size = sizeof(PHRBAssetV7);
-	const size_t metadata_size = static_cast<size_t>(header.blob_offset);
-	if (header.record_table_offset < sizeof(PHRBHeader) ||
-	    header.record_table_offset > header.asset_table_offset ||
-	    header.asset_table_offset > header.string_table_offset ||
-	    header.record_count > (header.asset_table_offset - header.record_table_offset) / record_size ||
-	    header.asset_count > (header.string_table_offset - header.asset_table_offset) / asset_size)
-		return ReplacementLoadStatus::Invalid;
-	// Read the metadata region: from after the header through end of string table (up to blob_offset).
-	std::vector<uint8_t> blob(metadata_size);
+	const bool version8 = header.version == 8;
+	const uint64_t record_size = version8 ? sizeof(PHRBRecordV8) : sizeof(PHRBRecordV4);
+	if (header.record_count > PHRB_MAX_RECORDS)
+		return reject(format_reason("its record count %u exceeds the limit of %u", header.record_count, PHRB_MAX_RECORDS));
+	if (header.asset_count > PHRB_MAX_ASSETS)
+		return reject(format_reason("its asset count %u exceeds the limit of %u", header.asset_count, PHRB_MAX_ASSETS));
+
+	// The tables follow the header back to back, so no section can overlap another.
+	const uint64_t asset_table_offset = sizeof(PHRBHeader) + uint64_t(header.record_count) * record_size;
+	const uint64_t string_table_offset = asset_table_offset + uint64_t(header.asset_count) * sizeof(PHRBAssetV7);
+	if (header.record_table_offset != sizeof(PHRBHeader))
+		return reject(format_reason("its record table offset %u is not 32, the end of the header",
+		                            header.record_table_offset));
+	if (header.asset_table_offset != asset_table_offset)
+		return reject(format_reason("its asset table offset %u is not %llu, the end of the record table",
+		                            header.asset_table_offset, (unsigned long long)asset_table_offset));
+	if (header.string_table_offset != string_table_offset)
+		return reject(format_reason("its string table offset %u is not %llu, the end of the asset table",
+		                            header.string_table_offset, (unsigned long long)string_table_offset));
+	if (header.blob_offset < header.string_table_offset)
+		return reject(format_reason("its payload offset %u precedes the string table at %u",
+		                            header.blob_offset, header.string_table_offset));
+	if (header.blob_offset > PHRB_MAX_TABLE_BYTES)
+		return reject(format_reason("its tables span %u bytes, over the limit of %llu",
+		                            header.blob_offset, (unsigned long long)PHRB_MAX_TABLE_BYTES));
+	if (header.blob_offset > file_size)
+		return reject(format_reason("its tables end at byte %u, past the end of the %llu-byte file",
+		                            header.blob_offset, (unsigned long long)file_size));
+
+	std::vector<uint8_t> tables(header.blob_offset);
 	file.seekg(0, std::ios::beg);
-	if (!read_exact(file, blob))
-		return ReplacementLoadStatus::Invalid;
+	if (!read_exact(file, tables))
+		return reject("its tables cannot be read");
 
-	// Validate every candidate slice before publishing entries from any record.
-	uint32_t asset_total = 0;
-	for (uint32_t i = 0; i < header.record_count; i++)
-	{
-		uint32_t count = 0;
-		const size_t count_offset = offsetof(PHRBRecordV4, asset_candidate_count);
-		if (!read_pod_from_blob(blob, size_t(header.record_table_offset) + size_t(i) * record_size + count_offset, count) ||
-		    count > header.asset_count - asset_total)
-			return ReplacementLoadStatus::Invalid;
-		asset_total += count;
-	}
-	if (asset_total != header.asset_count)
-		return ReplacementLoadStatus::Invalid;
+	out.strings.reset(new std::string(tables.begin() + header.string_table_offset, tables.end()));
+	const std::string &strings = *out.strings;
+	if (!strings.empty() && strings.back() != '\0')
+		return reject("its string table does not end with a NUL byte");
+	// The final NUL terminates every string that starts inside the table.
+	auto string_at = [&](uint32_t offset, const char *&value) -> bool {
+		if (offset >= strings.size())
+			return false;
+		value = strings.data() + offset;
+		return true;
+	};
 
-	const uint8_t *string_blob = blob.data() + header.string_table_offset;
-	const size_t string_blob_size = size_t(header.blob_offset - header.string_table_offset);
-	const size_t rgba_blob_size = size_t(static_cast<size_t>(size) - header.blob_offset);
-	uint32_t loaded_count = 0;
-
-	uint32_t asset_base = 0;
+	const uint64_t payload_bytes = file_size - header.blob_offset;
+	out.entries.reserve(header.asset_count);
+	uint64_t asset_index = 0;
 	for (uint32_t record_index = 0; record_index < header.record_count; record_index++)
 	{
+		const size_t record_offset = size_t(sizeof(PHRBHeader) + record_index * record_size);
 		PHRBRecordV4 record = {};
 		uint32_t key_kind = PHRB_KEY_KIND_RICE;
 		uint8_t record_key[16] = {};
 		if (version8)
 		{
 			PHRBRecordV8 record_v8 = {};
-			const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV8);
-			if (!read_pod_from_blob(blob, record_offset, record_v8))
-				return ReplacementLoadStatus::Invalid;
+			if (!read_pod_from_blob(tables, record_offset, record_v8))
+				return reject(format_reason("record %u lies outside its table", record_index));
 			record = record_v8.v4;
 			key_kind = record_v8.key_kind;
 			memcpy(record_key, record_v8.key, sizeof(record_key));
 		}
-		else
-		{
-			const size_t record_offset = size_t(header.record_table_offset) + size_t(record_index) * sizeof(PHRBRecordV4);
-			if (!read_pod_from_blob(blob, record_offset, record))
-				return ReplacementLoadStatus::Invalid;
-		}
-		const uint32_t record_flags = record.record_flags;
+		else if (!read_pod_from_blob(tables, record_offset, record))
+			return reject(format_reason("record %u lies outside its table", record_index));
 
-		std::string policy_key;
-		if (!read_c_string_from_blob(string_blob, string_blob_size, record.policy_key_offset, policy_key))
-			policy_key = "phrb-record";
-		std::string sampled_object_id;
-		if (!read_c_string_from_blob(string_blob, string_blob_size, record.sampled_object_id_offset, sampled_object_id))
-			sampled_object_id.clear();
+		const char *policy_key = nullptr;
+		const char *sampled_object_id = nullptr;
+		if (!string_at(record.policy_key_offset, policy_key) ||
+		    !string_at(record.sampled_object_id_offset, sampled_object_id))
+			return reject(format_reason("record %u has a string offset outside the %llu-byte string table",
+			                            record_index, (unsigned long long)strings.size()));
+		if (record.formatsize > UINT16_MAX)
+			return reject(format_reason("record %u formatsize %u does not fit 16 bits", record_index, record.formatsize));
+		if (record.asset_candidate_count > header.asset_count - asset_index)
+			return reject(format_reason("record %u claims %u assets, but only %llu of the header's %u remain",
+			                            record_index, record.asset_candidate_count,
+			                            (unsigned long long)(header.asset_count - asset_index), header.asset_count));
 
 		// Unknown key kinds come from a newer converter; their keys cannot match.
-		if ((record_flags & PHRB_RECORD_FLAG_RUNTIME_READY) == 0 ||
-		    (key_kind != PHRB_KEY_KIND_RICE && key_kind != PHRB_KEY_KIND_JABO_MD5))
-		{
-			asset_base += record.asset_candidate_count;
-			continue;
-		}
-
-		auto add_sampled_entry = [&](uint32_t palette_crc,
-		                            uint64_t selector_checksum64,
-		                            const std::string &replacement_id,
-		                            uint32_t width,
-		                            uint32_t height,
-		                            uint32_t format,
-		                            uint32_t texture_format,
-		                            uint32_t pixel_type,
-		                            uint64_t rgba_offset,
-		                            uint32_t rgba_size) {
-			Entry entry = {};
-			entry.source_path = path;
-			entry.phrb_policy_key = policy_key;
-			entry.phrb_replacement_id = replacement_id;
-			entry.phrb_sampled_object_id = sampled_object_id;
-			entry.checksum64 = (uint64_t(palette_crc) << 32u) | uint64_t(record.sampled_low32);
-			entry.data_offset = uint64_t(header.blob_offset) + rgba_offset;
-			entry.data_size = rgba_size;
-			entry.width = width;
-			entry.height = height;
-			entry.format = format;
-			entry.texture_format = texture_format;
-			entry.pixel_type = pixel_type;
-			entry.formatsize = uint16_t(record.formatsize);
-			entry.selector_checksum64 = selector_checksum64;
-			entry.sampled_fmt = record.fmt;
-			entry.sampled_siz = record.siz;
-			entry.sampled_tex_offset = record.tex_offset;
-			entry.sampled_stride = record.stride;
-			entry.sampled_width = record.width;
-			entry.sampled_height = record.height;
-			entry.sampled_low32 = record.sampled_low32;
-			entry.sampled_palette_crc = palette_crc;
-			entry.sampled_entry_pcrc = record.sampled_entry_pcrc;
-			entry.sampled_sparse_pcrc = record.sampled_sparse_pcrc;
-			entry.has_native_sampled_identity = true;
-			entry.is_hires = true;
-			entry.inline_blob = false;
-			add_entry(std::move(entry));
-			loaded_count++;
-		};
-		auto add_family_entry = [&](uint64_t legacy_checksum64,
-		                           uint16_t legacy_formatsize,
-		                           uint64_t selector_checksum64,
-		                           const std::string &replacement_id,
-		                           uint32_t width,
-		                           uint32_t height,
-		                           uint32_t format,
-		                           uint32_t texture_format,
-		                           uint32_t pixel_type,
-		                           uint64_t rgba_offset,
-		                           uint32_t rgba_size) {
-			if (legacy_checksum64 == 0)
-				return;
-			Entry entry = {};
-			entry.source_path = path;
-			entry.phrb_policy_key = policy_key;
-			entry.phrb_replacement_id = replacement_id;
-			entry.phrb_sampled_object_id = sampled_object_id;
-			entry.checksum64 = legacy_checksum64;
-			entry.data_offset = uint64_t(header.blob_offset) + rgba_offset;
-			entry.data_size = rgba_size;
-			entry.width = width;
-			entry.height = height;
-			entry.format = format;
-			entry.texture_format = texture_format;
-			entry.pixel_type = pixel_type;
-			entry.formatsize = legacy_formatsize != 0 ? legacy_formatsize : uint16_t(record.formatsize);
-			entry.selector_checksum64 = selector_checksum64;
-			entry.sampled_low32 = record.sampled_low32;
-			entry.sampled_palette_crc = uint32_t(legacy_checksum64 >> 32u);
-			entry.sampled_entry_pcrc = record.sampled_entry_pcrc;
-			entry.sampled_sparse_pcrc = record.sampled_sparse_pcrc;
-			entry.has_native_sampled_identity = false;
-			entry.is_runtime_family_compat = true;
-			entry.is_hires = true;
-			entry.inline_blob = false;
-			add_entry(std::move(entry));
-			loaded_count++;
-		};
-		auto add_jabo_entry = [&](const std::string &replacement_id,
-		                          uint32_t width,
-		                          uint32_t height,
-		                          uint32_t format,
-		                          uint32_t texture_format,
-		                          uint32_t pixel_type,
-		                          uint64_t rgba_offset,
-		                          uint32_t rgba_size) {
-			Entry entry = {};
-			entry.source_path = path;
-			entry.phrb_policy_key = policy_key;
-			entry.phrb_replacement_id = replacement_id;
-			entry.phrb_sampled_object_id = sampled_object_id;
-			for (unsigned i = 0; i < 16; i++)
-				(i < 8 ? entry.checksum64 : entry.selector_checksum64) |= uint64_t(record_key[i]) << (8 * (i & 7));
-			entry.data_offset = uint64_t(header.blob_offset) + rgba_offset;
-			entry.data_size = rgba_size;
-			entry.width = width;
-			entry.height = height;
-			entry.format = format;
-			entry.texture_format = texture_format;
-			entry.pixel_type = pixel_type;
-			entry.is_jabo = true;
-			entry.is_hires = true;
-			entry.inline_blob = false;
-			add_entry(std::move(entry));
-			loaded_count++;
-		};
+		const bool loadable = (record.record_flags & PHRB_RECORD_FLAG_RUNTIME_READY) != 0 &&
+		                      (key_kind == PHRB_KEY_KIND_RICE || key_kind == PHRB_KEY_KIND_JABO_MD5);
 		const bool family_runtime_record =
 			record.fmt == 0 &&
 			record.siz == 0 &&
@@ -1718,104 +1642,137 @@ ReplacementLoadStatus ReplacementProvider::load_phrb(const std::string &path)
 			record.width == 0 &&
 			record.height == 0;
 
-		for (uint32_t ai = 0; ai < record.asset_candidate_count; ai++)
+		for (uint32_t ai = 0; ai < record.asset_candidate_count; ai++, asset_index++)
 		{
-			const uint32_t asset_index = asset_base + ai;
 			PHRBAssetV7 asset = {};
-			const size_t asset_offset = size_t(header.asset_table_offset) + size_t(asset_index) * sizeof(PHRBAssetV7);
-			if (!read_pod_from_blob(blob, asset_offset, asset))
-				return ReplacementLoadStatus::Invalid;
-			const uint32_t width = asset.width;
-			const uint32_t height = asset.height;
-			const uint32_t format = asset.format;
-			const uint32_t texture_format = asset.texture_format;
-			const uint32_t pixel_type = asset.pixel_type;
-			const uint64_t rgba_offset = asset.rgba_blob_offset;
-			const uint64_t rgba_size = asset.rgba_blob_size;
-			const uint16_t legacy_formatsize = uint16_t(asset.legacy_formatsize);
-			const uint64_t selector_checksum64 = asset.selector_checksum64;
-			const uint64_t legacy_checksum64 = asset.legacy_checksum64;
-			std::string replacement_id;
-			read_c_string_from_blob(string_blob, string_blob_size, asset.replacement_id_offset, replacement_id);
+			if (!read_pod_from_blob(tables, size_t(header.asset_table_offset + asset_index * sizeof(PHRBAssetV7)), asset))
+				return reject(format_reason("asset %llu lies outside its table", (unsigned long long)asset_index));
+			if (asset.record_index != record_index)
+				return reject(format_reason("asset %llu names record %u but belongs to record %u",
+				                            (unsigned long long)asset_index, asset.record_index, record_index));
+			const char *replacement_id = nullptr;
+			const char *unused = nullptr;
+			if (!string_at(asset.replacement_id_offset, replacement_id) ||
+			    !string_at(asset.legacy_source_path_offset, unused) ||
+			    !string_at(asset.rgba_rel_path_offset, unused) ||
+			    !string_at(asset.variant_group_id_offset, unused))
+				return reject(format_reason("asset %llu has a string offset outside the %llu-byte string table",
+				                            (unsigned long long)asset_index, (unsigned long long)strings.size()));
+			if (asset.rgba_blob_offset > payload_bytes || asset.rgba_blob_size > payload_bytes - asset.rgba_blob_offset)
+				return reject(format_reason("asset %llu payload of %llu bytes at %llu lies outside the %llu-byte payload section",
+				                            (unsigned long long)asset_index, (unsigned long long)asset.rgba_blob_size,
+				                            (unsigned long long)asset.rgba_blob_offset, (unsigned long long)payload_bytes));
+			if (!loadable)
+				continue;
 
-			if (rgba_offset > rgba_blob_size || rgba_size > (rgba_blob_size - rgba_offset))
-				continue;
-			if (width == 0 || height == 0 || rgba_size == 0 || rgba_size > uint64_t(UINT32_MAX))
-				continue;
-			const uint32_t rgba_size_u32 = uint32_t(rgba_size);
+			if (asset.legacy_formatsize > UINT16_MAX)
+				return reject(format_reason("asset %llu formatsize %u does not fit 16 bits",
+				                            (unsigned long long)asset_index, asset.legacy_formatsize));
+			if (asset.width == 0 || asset.height == 0 || asset.width > PHRB_MAX_DIMENSION || asset.height > PHRB_MAX_DIMENSION)
+				return reject(format_reason("asset %llu is %ux%u; each side must be 1 to %u",
+				                            (unsigned long long)asset_index, asset.width, asset.height, PHRB_MAX_DIMENSION));
+			const uint64_t pixels = uint64_t(asset.width) * asset.height;
+			if (pixels > PHRB_MAX_PIXELS)
+				return reject(format_reason("asset %llu has %llu pixels, over the limit of %llu",
+				                            (unsigned long long)asset_index, (unsigned long long)pixels,
+				                            (unsigned long long)PHRB_MAX_PIXELS));
+			const uint32_t bytes_per_pixel = encoded_bytes_per_pixel(asset.texture_format, asset.pixel_type);
+			if (bytes_per_pixel == 0)
+				return reject(format_reason("asset %llu uses unsupported pixel encoding 0x%x/0x%x",
+				                            (unsigned long long)asset_index, asset.texture_format, asset.pixel_type));
+			const uint64_t decoded_bytes = pixels * bytes_per_pixel;
+			if (asset.format & GL_TEXFMT_GZ)
+			{
+				if (asset.rgba_blob_size == 0 || asset.rgba_blob_size > compressBound(uLong(decoded_bytes)))
+					return reject(format_reason("asset %llu stores %llu compressed bytes for %llu decoded bytes",
+					                            (unsigned long long)asset_index, (unsigned long long)asset.rgba_blob_size,
+					                            (unsigned long long)decoded_bytes));
+			}
+			else if (asset.rgba_blob_size != decoded_bytes)
+				return reject(format_reason("asset %llu stores %llu bytes, but %ux%u at %u bytes per pixel is %llu",
+				                            (unsigned long long)asset_index, (unsigned long long)asset.rgba_blob_size,
+				                            asset.width, asset.height, bytes_per_pixel, (unsigned long long)decoded_bytes));
+
+			auto make_entry = [&]() -> Entry {
+				Entry entry = {};
+				entry.source_path = path;
+				entry.phrb_policy_key = policy_key;
+				entry.phrb_replacement_id = replacement_id;
+				entry.phrb_sampled_object_id = sampled_object_id;
+				entry.data_offset = uint64_t(header.blob_offset) + asset.rgba_blob_offset;
+				entry.data_size = uint32_t(asset.rgba_blob_size);
+				entry.width = asset.width;
+				entry.height = asset.height;
+				entry.format = asset.format;
+				entry.texture_format = uint16_t(asset.texture_format);
+				entry.pixel_type = uint16_t(asset.pixel_type);
+				entry.is_hires = true;
+				entry.inline_blob = false;
+				return entry;
+			};
 
 			if (key_kind == PHRB_KEY_KIND_JABO_MD5)
 			{
-				add_jabo_entry(replacement_id, width, height, format, texture_format, pixel_type, rgba_offset,
-				               rgba_size_u32);
+				Entry entry = make_entry();
+				for (unsigned i = 0; i < 16; i++)
+					(i < 8 ? entry.checksum64 : entry.selector_checksum64) |= uint64_t(record_key[i]) << (8 * (i & 7));
+				entry.is_jabo = true;
+				out.entries.push_back(std::move(entry));
 				continue;
 			}
 
 			if (family_runtime_record)
 			{
-				add_family_entry(
-					legacy_checksum64,
-					legacy_formatsize,
-					selector_checksum64,
-					replacement_id,
-					width,
-					height,
-					format,
-					texture_format,
-					pixel_type,
-					rgba_offset,
-					rgba_size_u32);
+				if (asset.legacy_checksum64 == 0)
+					continue;
+				Entry entry = make_entry();
+				const uint16_t legacy_formatsize = uint16_t(asset.legacy_formatsize);
+				entry.checksum64 = asset.legacy_checksum64;
+				entry.formatsize = legacy_formatsize != 0 ? legacy_formatsize : uint16_t(record.formatsize);
+				entry.selector_checksum64 = asset.selector_checksum64;
+				entry.sampled_low32 = record.sampled_low32;
+				entry.sampled_palette_crc = uint32_t(asset.legacy_checksum64 >> 32u);
+				entry.sampled_entry_pcrc = record.sampled_entry_pcrc;
+				entry.sampled_sparse_pcrc = record.sampled_sparse_pcrc;
+				entry.is_runtime_family_compat = true;
+				out.entries.push_back(std::move(entry));
 				continue;
 			}
 
-			bool added = false;
+			// One entry per distinct nonzero palette CRC, or one with palette 0.
+			auto add_sampled_entry = [&](uint32_t palette_crc) {
+				Entry entry = make_entry();
+				entry.checksum64 = compose_hires_checksum64(record.sampled_low32, palette_crc);
+				entry.formatsize = uint16_t(record.formatsize);
+				entry.selector_checksum64 = asset.selector_checksum64;
+				entry.sampled_fmt = record.fmt;
+				entry.sampled_siz = record.siz;
+				entry.sampled_tex_offset = record.tex_offset;
+				entry.sampled_stride = record.stride;
+				entry.sampled_width = record.width;
+				entry.sampled_height = record.height;
+				entry.sampled_low32 = record.sampled_low32;
+				entry.sampled_palette_crc = palette_crc;
+				entry.sampled_entry_pcrc = record.sampled_entry_pcrc;
+				entry.sampled_sparse_pcrc = record.sampled_sparse_pcrc;
+				entry.has_native_sampled_identity = true;
+				out.entries.push_back(std::move(entry));
+			};
 			if (record.sampled_sparse_pcrc != 0)
-			{
-				add_sampled_entry(
-					record.sampled_sparse_pcrc,
-					selector_checksum64,
-					replacement_id,
-					width,
-					height,
-					format,
-					texture_format,
-					pixel_type,
-					rgba_offset,
-					rgba_size_u32);
-				added = true;
-			}
+				add_sampled_entry(record.sampled_sparse_pcrc);
 			if (record.sampled_entry_pcrc != 0 && record.sampled_entry_pcrc != record.sampled_sparse_pcrc)
-			{
-				add_sampled_entry(
-					record.sampled_entry_pcrc,
-					selector_checksum64,
-					replacement_id,
-					width,
-					height,
-					format,
-					texture_format,
-					pixel_type,
-					rgba_offset,
-					rgba_size_u32);
-				added = true;
-			}
-			if (!added)
-				add_sampled_entry(
-					0,
-					selector_checksum64,
-					replacement_id,
-					width,
-					height,
-					format,
-					texture_format,
-					pixel_type,
-					rgba_offset,
-					rgba_size_u32);
+				add_sampled_entry(record.sampled_entry_pcrc);
+			if (record.sampled_sparse_pcrc == 0 && record.sampled_entry_pcrc == 0)
+				add_sampled_entry(0);
 		}
-		asset_base += record.asset_candidate_count;
 	}
 
-	return loaded_count ? ReplacementLoadStatus::Loaded : ReplacementLoadStatus::Invalid;
+	if (asset_index != header.asset_count)
+		return reject(format_reason("its records claim %llu assets, but the header declares %u",
+		                            (unsigned long long)asset_index, header.asset_count));
+	if (out.entries.empty())
+		return reject("it holds no runtime-ready assets");
+	return ReplacementLoadStatus::Loaded;
 }
 
 }

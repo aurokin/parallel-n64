@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -154,6 +155,8 @@ public:
 	bool load_cache_dir(const std::string &path, bool append = false);
 	ReplacementLoadStatus load_error() const { return load_error_; }
 	const std::string &rejected_path() const { return rejected_path_; }
+	// Why the first rejected package failed, e.g. "asset 3 payload ... lies outside ...".
+	const std::string &rejected_reason() const { return rejected_reason_; }
 	const std::string &loaded_path() const { return loaded_path_; }
 	std::vector<ReplacementPackageStats> package_stats() const;
 	bool has_phrb_compat_entries() const;
@@ -240,9 +243,11 @@ private:
 	struct Entry
 	{
 		std::string source_path;
-		std::string phrb_policy_key;
-		std::string phrb_replacement_id;
-		std::string phrb_sampled_object_id;
+		// Point into the package's string table in string_tables_, which lives
+		// as long as the entry, so a pack's entries share one copy of each string.
+		const char *phrb_policy_key = "";
+		const char *phrb_replacement_id = "";
+		const char *phrb_sampled_object_id = "";
 		uint64_t checksum64 = 0;
 		uint64_t data_offset = 0;
 		uint32_t data_size = 0;
@@ -371,6 +376,14 @@ private:
 		void clear() { latest.clear(); exact.clear(); }
 	};
 
+	// A validated package that has not touched the provider yet.
+	struct ParsedPackage
+	{
+		std::unique_ptr<std::string> strings;
+		std::vector<Entry> entries;
+		std::string reason;
+	};
+
 	using JaboKey = std::array<uint64_t, 2>;
 	struct JaboKeyHash
 	{
@@ -422,7 +435,8 @@ private:
 	                                                 bool allow_ordered_surface_selectors,
 	                                                 uint64_t *resolved_selector_checksum64 = nullptr,
 	                                                 bool *resolved_ordered_surface_singleton = nullptr) const;
-	ReplacementLoadStatus load_phrb(const std::string &path);
+	ReplacementLoadStatus load_phrb(const std::string &path, std::string &reason);
+	static ReplacementLoadStatus parse_phrb(const std::string &path, ParsedPackage &out);
 	bool read_blob(const Entry &entry, std::vector<uint8_t> &blob) const;
 	bool decode_entry_rgba8(const Entry &entry, ReplacementImage *out, const ReplacementPalette *palette = nullptr) const;
 	void populate_meta_from_entry(const Entry &entry, ReplacementMeta *out) const;
@@ -457,7 +471,7 @@ private:
 	void add_entry(Entry &&entry);
 
 	bool enabled_ = false;
-	std::string cache_dir_;
+	std::vector<std::unique_ptr<std::string>> string_tables_;
 	std::vector<Entry> entries_;
 	ChecksumIndex native_checksum_index_;
 	ChecksumIndex compat_checksum_index_;
@@ -470,6 +484,6 @@ private:
 	mutable uint64_t jabo_intensity_alpha_decodes_ = 0;
 	mutable uint64_t compat_ci_live_palette_decodes_ = 0;
 	ReplacementLoadStatus load_error_ = ReplacementLoadStatus::NotFound;
-	std::string rejected_path_, loaded_path_;
+	std::string rejected_path_, rejected_reason_, loaded_path_;
 };
 }

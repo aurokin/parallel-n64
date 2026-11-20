@@ -143,6 +143,10 @@ public:
 	void enqueue_command_direct(unsigned num_words, const uint32_t *words);
 
 	void set_quirks(const Quirks &quirks);
+	void configure_hires_replacement(bool enable, const std::vector<std::string> &cache_paths, unsigned budget_mb = 0);
+	const HiresPackStatus &get_hires_pack_status() const { return hires_pack_status; }
+	const HiresResidencyStatus &get_hires_residency_status() const { return renderer.get_hires().residency_status(); }
+	void set_hires_filter(unsigned mode);
 
 	// Interact with memory.
 	void *begin_read_rdram();
@@ -215,6 +219,9 @@ private:
 	std::unique_ptr<ShaderBank> shader_bank;
 #endif
 
+	// The renderer keeps a pointer to the provider, so it must outlive it.
+	ReplacementProvider replacement_provider;
+
 	// Tear-down order is important here.
 	Renderer renderer;
 	VideoInterface vi;
@@ -276,6 +283,8 @@ private:
 	bool is_supported = false;
 	bool is_host_coherent = true;
 	bool timestamp = false;
+	detail::HiresSummaryIntervalClock hires_summary_clock = {};
+	HiresPackStatus hires_pack_status;
 
 	friend class Renderer;
 

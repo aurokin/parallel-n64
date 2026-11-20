@@ -23,6 +23,8 @@
 #include "rdp_device.hpp"
 #include "rdp_common.hpp"
 #include <chrono>
+#include <cstdlib>
+#include <string>
 
 #ifdef __SSE2__
 #include <emmintrin.h>
@@ -51,6 +53,9 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 	  timeline_worker(FenceExecutor{&device, &thread_timeline_value})
 #endif
 {
+	if (rdram_ptr)
+		host_rdram = static_cast<uint8_t *>(rdram_ptr) + rdram_offset_;
+
 	BufferCreateInfo info = {};
 	info.size = rdram_size;
 	info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
@@ -159,17 +164,29 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 
 	if (const char *env = getenv("PARALLEL_RDP_BENCH"))
 		timestamp = strtol(env, nullptr, 0) > 0;
+
+	hires_summary_clock.interval =
+		detail::parse_hires_summary_interval_frames(getenv("PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES"));
 }
 
 CommandProcessor::~CommandProcessor()
 {
 	idle();
+	drain_command_ring();
+	renderer.get_hires().log_summary();
 }
 
 void CommandProcessor::begin_frame_context()
 {
 	flush();
 	drain_command_ring();
+	// The ring is drained here, so renderer counters are quiescent. Counters are
+	// cumulative since the replacement provider was last attached (as in the
+	// final summary); frame=K counts presented frames since this processor was
+	// created and is never reset.
+	if (hires_summary_clock.advance())
+		renderer.get_hires().log_summary_periodic(hires_summary_clock.frames);
+	renderer.begin_frame_context();
 	device.next_frame_context();
 }
 
@@ -185,6 +202,7 @@ void CommandProcessor::init_renderer()
 	renderer.set_rdram(rdram.get(), host_rdram, rdram_offset, rdram_size, is_host_coherent);
 	renderer.set_hidden_rdram(hidden_rdram.get());
 	renderer.set_tmem(tmem.get());
+	renderer.set_replacement_provider(nullptr);
 
 	unsigned factor = 1;
 	if (flags & COMMAND_PROCESSOR_FLAG_UPSCALING_8X_BIT)
@@ -773,7 +791,7 @@ void CommandProcessor::op_texture_rectangle(const uint32_t *words)
 	if ((static_state.flags & RASTERIZATION_COPY_BIT) != 0)
 		setup.flags |= TRIANGLE_SETUP_SKIP_XFRAC_BIT;
 
-	renderer.draw_shaded_primitive(setup, attr);
+	renderer.draw_shaded_primitive(setup, attr, HiresDrawClass::TexRect);
 }
 
 void CommandProcessor::op_texture_rectangle_flip(const uint32_t *words)
@@ -817,7 +835,7 @@ void CommandProcessor::op_texture_rectangle_flip(const uint32_t *words)
 	if ((static_state.flags & RASTERIZATION_COPY_BIT) != 0)
 		setup.flags |= TRIANGLE_SETUP_SKIP_XFRAC_BIT;
 
-	renderer.draw_shaded_primitive(setup, attr);
+	renderer.draw_shaded_primitive(setup, attr, HiresDrawClass::TexRectFlip);
 }
 
 void CommandProcessor::op_set_prim_depth(const uint32_t *words)
@@ -965,6 +983,21 @@ void CommandProcessor::set_quirks(const Quirks &quirks_)
 		quirks_.u.words[0],
 	};
 	enqueue_command_inner(2, words);
+}
+
+void CommandProcessor::set_hires_filter(unsigned mode)
+{
+	renderer.get_hires().set_filter(mode);
+}
+
+void CommandProcessor::configure_hires_replacement(bool enable, const std::vector<std::string> &cache_paths, unsigned budget_mb)
+{
+	if (enable || hires_pack_status.state == HiresPackState::Loaded)
+	{
+		flush();
+		drain_command_ring();
+	}
+	hires_pack_status = configure_hires_packages(renderer, replacement_provider, enable, cache_paths, budget_mb);
 }
 
 void CommandProcessor::set_vi_register(VIRegister reg, uint32_t value)

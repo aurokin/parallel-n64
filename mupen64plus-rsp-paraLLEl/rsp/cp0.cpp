@@ -38,24 +38,21 @@ extern "C"
 				return MODE_CHECK_FLAGS;
 			}
 		}
-#endif
-
-#if 0 // FIXME: this is broken with upstream mupen64plus-core
-		if (rd == CP0_REGISTER_SP_SEMAPHORE)
+		else if (rd == CP0_REGISTER_SP_SEMAPHORE)
 		{
-			if (*rsp->cp0.cr[CP0_REGISTER_SP_SEMAPHORE])
-			{
-#ifdef PARALLEL_INTEGRATION
-				RSP::MFC0_count[rt] += 8; // Almost certainly waiting on the CPU. Timeout faster.
-				if (RSP::MFC0_count[rt] >= RSP::SP_STATUS_TIMEOUT)
-				{
-					*RSP::rsp.SP_STATUS_REG |= SP_STATUS_HALT;
-					return MODE_CHECK_FLAGS;
-				}
-#endif
-			}
-			else
-				*rsp->cp0.cr[CP0_REGISTER_SP_SEMAPHORE] = 1;
+			/* Test-and-set on read, as the hardware does. The core's
+			 * read_rsp_regs() applies the set-on-read side effect only to
+			 * CPU-bus reads of SP_SEMAPHORE; the RSP's own MFC0 shares the
+			 * register word (cr[0x7] aliases SP_SEMAPHORE_REG) but bypasses
+			 * the core, so without this the RSP and the CPU can both
+			 * "acquire" the lock.
+			 *
+			 * Then halt so the RSP yields to the CPU at the acquire point;
+			 * the run loop's "semaphore != 0" branch in parallel.cpp keeps
+			 * the SP_STATUS timeout slow while the lock is held. */
+			*rsp->cp0.cr[CP0_REGISTER_SP_SEMAPHORE] = 1;
+			*RSP::rsp.SP_STATUS_REG |= SP_STATUS_HALT;
+			return MODE_CHECK_FLAGS;
 		}
 #endif
 

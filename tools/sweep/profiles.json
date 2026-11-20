@@ -1,0 +1,49 @@
+{
+  "schema": "n64-sweep-profiles/1",
+  "frontend": {
+    "description": "Settings shared by every core: GPU screenshots of a fixed 320x240 viewport, so captures from different cores have one size; no vsync, since frames are stepped.",
+    "append_config": {
+      "video_gpu_screenshot": "true",
+      "video_vsync": "false",
+      "aspect_ratio_index": "22",
+      "video_aspect_ratio_auto": "false",
+      "custom_viewport_width": "320",
+      "custom_viewport_height": "240",
+      "custom_viewport_x": "0",
+      "custom_viewport_y": "0"
+    },
+    "env": {
+      "RETROARCH_VIDEO_WINDOW_WIDTH_OVERRIDE": "320",
+      "RETROARCH_VIDEO_WINDOW_HEIGHT_OVERRIDE": "240",
+      "RETROARCH_VIDEO_FULLSCREEN_OVERRIDE": "false",
+      "RETROARCH_VIDEO_WINDOWED_FULLSCREEN_OVERRIDE": "false",
+      "RETROARCH_VIDEO_WINDOW_SIZE_CONFIG_OVERRIDE": "true"
+    }
+  },
+  "cores": {
+    "paralleish": {
+      "description": "This repository's core (ParaLLEish).",
+      "port1_accessory": {"option": "parallel-n64-pak1", "value": "memory"},
+      "options": {
+        "parallel-n64-gfxplugin": "parallel",
+        "parallel-n64-parallel-rdp-upscaling": "1x"
+      }
+    },
+    "parallel-n64": {
+      "description": "Upstream libretro parallel-n64.",
+      "port1_accessory": {"option": "parallel-n64-pak1", "value": "memory"},
+      "options": {
+        "parallel-n64-gfxplugin": "parallel",
+        "parallel-n64-upscaling": "1x"
+      }
+    },
+    "mupen64plus-next": {
+      "description": "libretro mupen64plus-next built with ParaLLEl-RDP.",
+      "port1_accessory": {"option": "mupen64plus-pak1", "value": "memory"},
+      "options": {
+        "mupen64plus-rdp-plugin": "parallel",
+        "mupen64plus-parallel-rdp-upscaling": "1x"
+      }
+    }
+  }
+}

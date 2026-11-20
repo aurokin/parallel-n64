@@ -345,6 +345,8 @@ bool init()
 			features.descriptor_indexing_features.descriptorBindingPartiallyBound;
 	hires_support.descriptor_binding_update_after_bind =
 			features.descriptor_indexing_features.descriptorBindingSampledImageUpdateAfterBind;
+	hires_support.descriptor_binding_update_unused_while_pending =
+			features.descriptor_indexing_features.descriptorBindingUpdateUnusedWhilePending;
 	const uint32_t max_hires_update_after_bind_sampled_images =
 			features.descriptor_indexing_properties.maxDescriptorSetUpdateAfterBindSampledImages;
 	const detail::HiresDescriptorRequirement hires_requirement =
@@ -401,13 +403,14 @@ bool init()
 	if (hires_textures)
 	{
 		log_cb(RETRO_LOG_INFO,
-		       "Hi-res capability check: descriptor_indexing=%u runtime_descriptor_array=%u sampled_image_array_non_uniform_indexing=%u descriptor_binding_variable_descriptor_count=%u descriptor_binding_partially_bound=%u descriptor_binding_update_after_bind=%u maxDescriptorSetUpdateAfterBindSampledImages=%u cache_path=%s.\n",
+		       "Hi-res capability check: descriptor_indexing=%u runtime_descriptor_array=%u sampled_image_array_non_uniform_indexing=%u descriptor_binding_variable_descriptor_count=%u descriptor_binding_partially_bound=%u descriptor_binding_update_after_bind=%u descriptor_binding_update_unused_while_pending=%u maxDescriptorSetUpdateAfterBindSampledImages=%u cache_path=%s.\n",
 		       hires_support.descriptor_indexing ? 1u : 0u,
 		       hires_support.runtime_descriptor_array ? 1u : 0u,
 		       hires_support.sampled_image_array_non_uniform_indexing ? 1u : 0u,
 		       hires_support.descriptor_binding_variable_descriptor_count ? 1u : 0u,
 		       hires_support.descriptor_binding_partially_bound ? 1u : 0u,
 		       hires_support.descriptor_binding_update_after_bind ? 1u : 0u,
+		       hires_support.descriptor_binding_update_unused_while_pending ? 1u : 0u,
 		       max_hires_update_after_bind_sampled_images,
 		       cache_paths.empty() ? "<empty>" : cache_paths.front().c_str());
 	}

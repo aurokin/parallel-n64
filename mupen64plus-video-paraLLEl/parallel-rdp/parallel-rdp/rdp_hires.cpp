@@ -381,6 +381,14 @@ void HiresReplacement::init(Vulkan::Device *device_, bool descriptor_indexing, s
 		}
 	}
 
+	// Loads and evictions rewrite pool slots that no pending command buffer
+	// reads while earlier frames still execute with the same set.
+	if (shader_enabled && !device->get_device_features().descriptor_indexing_features.descriptorBindingUpdateUnusedWhilePending)
+	{
+		LOGW("Disabling hi-res replacement shader path: descriptorBindingUpdateUnusedWhilePending is unsupported.\n");
+		shader_enabled = false;
+	}
+
 	if (shader_enabled && !init_hires_resources(1))
 	{
 		LOGW("Failed to initialize hi-res bindless resources. Hi-res shader path will stay disabled.\n");

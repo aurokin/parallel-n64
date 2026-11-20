@@ -113,11 +113,29 @@ M64P_FPU_INLINE void cvt_s_d(const double *source,float *dest)
 
 M64P_FPU_INLINE void round_l_s(const float *source,int64_t *dest)
 {
-  *dest = (int64_t) roundf(*source);
+  float remainder = *source - floorf(*source);
+  if (remainder == 0.5)
+  {
+    if (*source < 0)
+      *dest = (int64_t)truncf(*source) % 2 != 0 ? (int64_t)floorf(*source) : (int64_t)ceilf(*source);
+    else
+      *dest = (int64_t)truncf(*source) % 2 != 0 ? (int64_t)ceilf(*source) : (int64_t)floorf(*source);
+  }
+  else
+    *dest = (int64_t) roundf(*source);
 }
 M64P_FPU_INLINE void round_w_s(const float *source,int32_t *dest)
 {
-  *dest = (int32_t) roundf(*source);
+  float remainder = *source - floorf(*source);
+  if (remainder == 0.5)
+  {
+    if (*source < 0)
+      *dest = (int32_t)truncf(*source) % 2 != 0 ? (int32_t)floorf(*source) : (int32_t)ceilf(*source);
+    else
+      *dest = (int32_t)truncf(*source) % 2 != 0 ? (int32_t)ceilf(*source) : (int32_t)floorf(*source);
+  }
+  else
+    *dest = (int32_t) roundf(*source);
 }
 M64P_FPU_INLINE void trunc_l_s(const float *source,int64_t *dest)
 {
@@ -146,11 +164,29 @@ M64P_FPU_INLINE void floor_w_s(const float *source,int32_t *dest)
 
 M64P_FPU_INLINE void round_l_d(const double *source,int64_t *dest)
 {
-  *dest = (int64_t) round(*source);
+  double remainder = *source - floor(*source);
+  if (remainder == 0.5)
+  {
+    if (*source < 0)
+      *dest = (int64_t)trunc(*source) % 2 != 0 ? (int64_t)floor(*source) : (int64_t)ceil(*source);
+    else
+      *dest = (int64_t)trunc(*source) % 2 != 0 ? (int64_t)ceil(*source) : (int64_t)floor(*source);
+  }
+  else
+    *dest = (int64_t) round(*source);
 }
 M64P_FPU_INLINE void round_w_d(const double *source,int32_t *dest)
 {
-  *dest = (int32_t) round(*source);
+  double remainder = *source - floor(*source);
+  if (remainder == 0.5)
+  {
+    if (*source < 0)
+      *dest = (int32_t)trunc(*source) % 2 != 0 ? (int32_t)floor(*source) : (int32_t)ceil(*source);
+    else
+      *dest = (int32_t)trunc(*source) % 2 != 0 ? (int32_t)ceil(*source) : (int32_t)floor(*source);
+  }
+  else
+    *dest = (int32_t) round(*source);
 }
 M64P_FPU_INLINE void trunc_l_d(const double *source,int64_t *dest)
 {

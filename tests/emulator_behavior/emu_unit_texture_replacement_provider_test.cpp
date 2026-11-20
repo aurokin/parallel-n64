@@ -1032,7 +1032,7 @@ static std::vector<MutationCase> mutation_cases(const MutationPack &base)
 		pack.poke<uint32_t>(offsetof(PHRBHeader, blob_offset), pack.header.string_table_offset + 1); },
 		O::Rejected, "NUL"});
 	cases.push_back({"header claims the maximum tables in a small file", [](MutationPack &pack) {
-		const uint32_t count = 1u << 20;
+		const uint32_t count = 1u << 18;
 		const uint32_t asset_table = uint32_t(sizeof(PHRBHeader) + count * pack.record_size);
 		pack.poke<uint32_t>(offsetof(PHRBHeader, record_count), count);
 		pack.poke<uint32_t>(offsetof(PHRBHeader, asset_count), count);

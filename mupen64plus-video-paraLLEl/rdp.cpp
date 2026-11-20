@@ -33,6 +33,9 @@ static unique_ptr<Util::TimelineTraceFile> timeline_trace_file;
 static unique_ptr<CommandProcessor> frontend;
 static unique_ptr<Device> device;
 static unique_ptr<Context> context;
+// The device came from libretro negotiation v1, on which the backend enables
+// no Vulkan 1.2 features (descriptor indexing included).
+static bool legacy_negotiation;
 static QueryPoolHandle begin_ts, end_ts;
 
 static vector<retro_vulkan_image> retro_images;
@@ -407,7 +410,9 @@ bool init()
 
 	if (hires_textures && !hires_capabilities_ok)
 	{
-		hires_message_once(GPUUnsupported, "Hi-res textures unavailable: this GPU lacks descriptor indexing");
+		hires_message_once(GPUUnsupported, legacy_negotiation ?
+		                   "Hi-res textures unavailable: the frontend lacks Vulkan context negotiation v2" :
+		                   "Hi-res textures unavailable: this GPU lacks descriptor indexing");
 		log_cb(RETRO_LOG_WARN,
 		       "Hi-res textures requested, but disabled: %s (maxDescriptorSetUpdateAfterBindSampledImages=%u, required>=%u).\n",
 		       detail::describe_hires_descriptor_requirement(hires_requirement),
@@ -626,6 +631,7 @@ bool parallel_create_device(struct retro_vulkan_context *frontend_context, VkIns
 		return false;
 	}
 
+	::RDP::legacy_negotiation = true;
 	hand_device_to_frontend(frontend_context);
 	return true;
 }
@@ -702,6 +708,7 @@ bool parallel_create_device2(struct retro_vulkan_context *frontend_context, VkIn
 	if (!created)
 		return false;
 
+	::RDP::legacy_negotiation = false;
 	hand_device_to_frontend(frontend_context);
 	return true;
 }

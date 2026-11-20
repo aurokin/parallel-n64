@@ -440,9 +440,7 @@ def parse_hires(log_text: str) -> dict[str, Any]:
         entries=fields.get("entries"),
         hits=fields.get("hits"),
         misses=fields.get("misses"),
-        # Draw-time replacement hits; older summaries without the field fall
-        # back to lookup hits.
-        draw_hits=fields.get("compat_draw_hits", fields.get("hits")),
+        draw_hits=fields.get("compat_draw_hits"),
     )
     return hires
 
@@ -910,10 +908,13 @@ def evaluate(scenario: Scenario, record: dict[str, Any], expected: dict[str, Any
                                                  else f"no provider=on summary (provider {hires['provider']})")))
             entries = hires["entries"]
             gates.append(gate("hires.entries", "pass" if (entries or 0) >= 1 else "fail", f"entries={entries}"))
-            # Uploads do not prove a replacement was sampled by a draw.
+            # A replacement is served when any lookup path binds a resident
+            # image to a tile: texture-load lookups (hits), the draw-time
+            # re-key (compat_draw_hits) or the Jabo MD5 lane. Residency
+            # uploads are excluded; they count admissions, not bindings.
             jabo = hires.get("jabo") or {}
-            served = (hires["draw_hits"] or 0) + jabo.get("hits", 0)
-            looked_up = served + (hires["hits"] or 0) + (hires["misses"] or 0)
+            served = (hires["hits"] or 0) + (hires["draw_hits"] or 0) + jabo.get("hits", 0)
+            looked_up = served + (hires["misses"] or 0) + jabo.get("misses", 0)
             detail = f"hits={hires['hits']} draw_hits={hires['draw_hits']} misses={hires['misses']}"
             if jabo:
                 detail += f" jabo_hits={jabo['hits']} jabo_misses={jabo['misses']}"

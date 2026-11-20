@@ -53,7 +53,7 @@ It does not launch an emulator or prove runtime rendering.
 ## Runtime Qualification
 
 Use the [scenario runner pre-merge lanes](../tools/regression/README.md).
-Hi-res qualification requires loaded entries and draw-time replacement hits.
+Hi-res qualification requires loaded entries and served replacement hits.
 The optional `emu-runtime-conformance` profile retains only the lavapipe smoke.
 Runtime tests require explicit local inputs and exclusive host runtime access.
 

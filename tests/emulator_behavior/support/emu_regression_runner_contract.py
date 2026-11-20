@@ -516,18 +516,18 @@ class RegressionRunnerContract(unittest.TestCase):
             time.sleep(0.1)
         self.assertNotIn(marker, listing)
 
-    def test_served_gate_skips_sessions_without_lookups(self):
-        _, records = self.run_runner("idle", "--select", "boot-power-on", mode="on",
-                                     plan={"lookups": "lookups=0 hits=0 misses=0", "draw_hits": 0})
-        self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], "skip")
-        _, records = self.run_runner("unserved", "--select", "boot-power-on", mode="on",
-                                     plan={"lookups": "lookups=3 hits=0 misses=3", "draw_hits": 0})
-        self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], "fail")
-
-    def test_upload_only_hits_do_not_prove_served_replacements(self):
-        result, records = self.run_runner("upload-only", mode="on", plan={"draw_hits": 0})
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(self.gates(records["field-state"])["hires.served"], "fail")
+    def test_served_gate_accepts_any_hit_path(self):
+        cases = {
+            "load-only": ("lookups=5 hits=4 misses=1", 0, "pass"),
+            "draw-only": ("lookups=3 hits=0 misses=3", 2, "pass"),
+            "unserved": ("lookups=3 hits=0 misses=3", 0, "fail"),
+            "idle": ("lookups=0 hits=0 misses=0", 0, "skip"),
+        }
+        for name, (lookups, draw_hits, want) in cases.items():
+            with self.subTest(name):
+                _, records = self.run_runner(name, "--select", "boot-power-on", mode="on",
+                                             plan={"lookups": lookups, "draw_hits": draw_hits})
+                self.assertEqual(self.gates(records["boot-power-on"])["hires.served"], want)
 
     def test_served_gate_counts_jabo_hits(self):
         _, records = self.run_runner("jabo", "--select", "boot-power-on", mode="on",

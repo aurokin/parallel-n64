@@ -1,0 +1,317 @@
+{
+ "clean-pass": {
+  "source": "foundation-20261116 runs/upstream-cxx/library-start-05db6e5da408",
+  "previous_verdict": "pass",
+  "exit_class": "clean",
+  "error": null,
+  "frames_run": 4800,
+  "log_flags": [],
+  "checkpoints": [
+   {
+    "after_frames": 600,
+    "capture_sha256": "4bc23cc031567ce0902eb6155ecad188327cc957a0ee5a185f2e236e19f5bff2",
+    "blank": false
+   },
+   {
+    "after_frames": 1200,
+    "capture_sha256": "262777e28f9acdd88466ece4776225b4eef086e5516e30ac477ed11549c24ad5",
+    "blank": false
+   },
+   {
+    "after_frames": 1800,
+    "capture_sha256": "21c619438c308ee12e026cdee32c039a52ddda2b1738b7a8b3ed89c8d3d815d3",
+    "blank": false
+   },
+   {
+    "after_frames": 2400,
+    "capture_sha256": "934521911629405ae833a467eaf30c66be98505a08fa3b0a82026f75e69f1200",
+    "blank": false
+   },
+   {
+    "after_frames": 3000,
+    "capture_sha256": "25f5c05798016cc5d7009494ab4181ff70e509e7ccb169e6e2fddef9680e5ed8",
+    "blank": false
+   },
+   {
+    "after_frames": 3600,
+    "capture_sha256": "34ac5b0bf4c518be74796beceaaa39a0f111da94f7b170b99d3dc1af447f08d0",
+    "blank": false
+   },
+   {
+    "after_frames": 4200,
+    "capture_sha256": "6ac7546a995f6bbbcd59df2f1a2bae92b467c767a5cf0b1022835dc2154bf756",
+    "blank": false
+   },
+   {
+    "after_frames": 4800,
+    "capture_sha256": "33dab29d2999b051e52a8c5e8fb9e9de82302432205c03650a5e154c23001cc4",
+    "blank": false
+   }
+  ],
+  "blank_source": "previous assessment first_nonblank (captures were pruned)"
+ },
+ "clean-blank": {
+  "source": "foundation-20261116 runs/upstream-cxx/library-start-bec59ebd23fa",
+  "previous_verdict": "blank",
+  "exit_class": "clean",
+  "error": null,
+  "frames_run": 4800,
+  "log_flags": [
+   "uniform-black-capture"
+  ],
+  "checkpoints": [
+   {
+    "after_frames": 600,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": true
+   },
+   {
+    "after_frames": 1200,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": true
+   },
+   {
+    "after_frames": 1800,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": true
+   },
+   {
+    "after_frames": 2400,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": true
+   },
+   {
+    "after_frames": 3000,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": true
+   },
+   {
+    "after_frames": 3600,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": true
+   },
+   {
+    "after_frames": 4200,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": true
+   },
+   {
+    "after_frames": 4800,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": true
+   }
+  ],
+  "blank_source": "previous assessment first_nonblank (captures were pruned)"
+ },
+ "static-from-start": {
+  "source": "foundation-20261116 runs/ours/library-start-165173ac5028",
+  "previous_verdict": "frozen",
+  "exit_class": "clean",
+  "error": null,
+  "frames_run": 4800,
+  "log_flags": [],
+  "checkpoints": [
+   {
+    "after_frames": 600,
+    "capture_sha256": "0fdcc517eed815afdb970f1a711b322757d57929d47b993f9f3eb3f6e76ab084",
+    "blank": false
+   },
+   {
+    "after_frames": 1200,
+    "capture_sha256": "0fdcc517eed815afdb970f1a711b322757d57929d47b993f9f3eb3f6e76ab084",
+    "blank": false
+   },
+   {
+    "after_frames": 1800,
+    "capture_sha256": "0fdcc517eed815afdb970f1a711b322757d57929d47b993f9f3eb3f6e76ab084",
+    "blank": false
+   },
+   {
+    "after_frames": 2400,
+    "capture_sha256": "0fdcc517eed815afdb970f1a711b322757d57929d47b993f9f3eb3f6e76ab084",
+    "blank": false
+   },
+   {
+    "after_frames": 3000,
+    "capture_sha256": "0fdcc517eed815afdb970f1a711b322757d57929d47b993f9f3eb3f6e76ab084",
+    "blank": false
+   },
+   {
+    "after_frames": 3600,
+    "capture_sha256": "0fdcc517eed815afdb970f1a711b322757d57929d47b993f9f3eb3f6e76ab084",
+    "blank": false
+   },
+   {
+    "after_frames": 4200,
+    "capture_sha256": "0fdcc517eed815afdb970f1a711b322757d57929d47b993f9f3eb3f6e76ab084",
+    "blank": false
+   },
+   {
+    "after_frames": 4800,
+    "capture_sha256": "0fdcc517eed815afdb970f1a711b322757d57929d47b993f9f3eb3f6e76ab084",
+    "blank": false
+   }
+  ],
+  "blank_source": "capture_is_blank on the retained captures"
+ },
+ "advanced-then-static": {
+  "source": "foundation-20261116 runs/upstream-cxx/library-start-0422b2364cf1",
+  "previous_verdict": "frozen",
+  "exit_class": "clean",
+  "error": null,
+  "frames_run": 4800,
+  "log_flags": [
+   "uniform-black-capture"
+  ],
+  "checkpoints": [
+   {
+    "after_frames": 600,
+    "capture_sha256": "7098c33597e4ccd2be029fb857413b4755d2b27ef3bbcdae4b9c9460604375b2",
+    "blank": false
+   },
+   {
+    "after_frames": 1200,
+    "capture_sha256": "5717af0a7ff52a8d4cf24065c54a4e0dafe2818909f3ce85357aac1f1aadd78f",
+    "blank": false
+   },
+   {
+    "after_frames": 1800,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": false
+   },
+   {
+    "after_frames": 2400,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": false
+   },
+   {
+    "after_frames": 3000,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": false
+   },
+   {
+    "after_frames": 3600,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": false
+   },
+   {
+    "after_frames": 4200,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": false
+   },
+   {
+    "after_frames": 4800,
+    "capture_sha256": "33806e3d5c67f100a92295c93044bbb67d6cea90060327b69d682ebd283c87d2",
+    "blank": false
+   }
+  ],
+  "blank_source": "previous assessment first_nonblank (captures were pruned)"
+ },
+ "quit-timeout": {
+  "source": "foundation-20261116 runs/upstream-tip/library-start-5abd27f2be28",
+  "previous_verdict": "hang",
+  "exit_class": "forced",
+  "error": null,
+  "frames_run": 4800,
+  "log_flags": [
+   "quit-timeout"
+  ],
+  "checkpoints": [
+   {
+    "after_frames": 600,
+    "capture_sha256": "d057aed42e4ce766e20ed1d7f4f5c582e8831c222e508dc4e48017bddf50fc67",
+    "blank": false
+   },
+   {
+    "after_frames": 1200,
+    "capture_sha256": "002a573316de8bdc40b8768f73a97e4c480a22dae5977f3ea3d5be3a084f26f8",
+    "blank": false
+   },
+   {
+    "after_frames": 1800,
+    "capture_sha256": "decdab348a2d1787ef8592866ee2a3f6cb289822a884badbc4a15e16f47205af",
+    "blank": false
+   },
+   {
+    "after_frames": 2400,
+    "capture_sha256": "8221c59cfc36564d334861fbe249744062679695ebc42a5ce8866a4ed86fce53",
+    "blank": false
+   },
+   {
+    "after_frames": 3000,
+    "capture_sha256": "5ca20db71a731c5564263701423befb23681257f6644491c61a37a157beac364",
+    "blank": false
+   },
+   {
+    "after_frames": 3600,
+    "capture_sha256": "c567b1a4a924c76207a695717e3543a4bef749491c4df6af2bac171aac038c36",
+    "blank": false
+   },
+   {
+    "after_frames": 4200,
+    "capture_sha256": "f017594b14245091c001c2442b955851c2001f89eba1988fdbc4c2421e67469a",
+    "blank": false
+   },
+   {
+    "after_frames": 4800,
+    "capture_sha256": "88c953d10ac6a1ab502b041f6e6a277a6ebc6b768732827ba007aa1507194119",
+    "blank": false
+   }
+  ],
+  "blank_source": "capture_is_blank on the retained captures"
+ },
+ "step-timeout": {
+  "source": "foundation-20261116 runs/upstream-cxx/library-start-cab2467684a5",
+  "previous_verdict": "hang",
+  "exit_class": "step-timeout",
+  "error": "STEP_FRAME 120: rc=1 No ack for: STEP_FRAME 120 (expected log pattern: STEP_FRAME )",
+  "frames_run": 1080,
+  "log_flags": [],
+  "checkpoints": [
+   {
+    "after_frames": 600,
+    "capture_sha256": "94d98f5d90257b4cc53b538735604de00adc06a03f3b1bc6fe21b4094b9e7be0",
+    "blank": false
+   }
+  ],
+  "blank_source": "capture_is_blank on the retained captures"
+ },
+ "step-timeout-then-quit-timeout": {
+  "source": "foundation-20261116 runs/upstream-cxx/library-start-49acd3885f13",
+  "previous_verdict": "hang",
+  "exit_class": "step-timeout",
+  "error": "STEP_FRAME 120: rc=1 STEP_FRAME 120 did not complete (still draining, or the session is not paused).",
+  "frames_run": 3003,
+  "log_flags": [
+   "quit-timeout"
+  ],
+  "checkpoints": [
+   {
+    "after_frames": 600,
+    "capture_sha256": "b97085d1055b8f7d183a255f0c16190ca887fda9f6e88576c86552a306649833",
+    "blank": false
+   },
+   {
+    "after_frames": 1200,
+    "capture_sha256": "e187484118bcc51628f5bfba232232ffbd227869994ff32327263ff35de1c482",
+    "blank": false
+   },
+   {
+    "after_frames": 1800,
+    "capture_sha256": "a0ce517159de79e9c4ca357cc194a0be6b5f24c3bdfecdc8908029a00ad0ec64",
+    "blank": false
+   },
+   {
+    "after_frames": 2400,
+    "capture_sha256": "0c19beeccc43d137f5c8f776c2c3239846feab2d5733be2d19d89ebd2ddc4f7c",
+    "blank": false
+   },
+   {
+    "after_frames": 3000,
+    "capture_sha256": "6d70df8f337455c0fdca247da30e8cb8f8f45cd6863d7bac990fbbe286be9ff5",
+    "blank": false
+   }
+  ],
+  "blank_source": "capture_is_blank on the retained captures"
+ }
+}

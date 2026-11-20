@@ -362,7 +362,7 @@ static void test_phrb_v8_jabo_records()
 	check(stats.jabo_entry_count == 1 && stats.compat_entry_count == 1,
 	      "Jabo entries are counted apart from Rice compat entries");
 	check(provider.has_jabo_entries(), "a Jabo record enables Jabo lookups");
-	check(provider.compat_checksum_index_.size() == 1,
+	check(provider.compat_checksum_index_.latest.size() == 1,
 	      "Jabo entries stay out of the Rice checksum indices");
 
 	ReplacementResolution resolution = {};

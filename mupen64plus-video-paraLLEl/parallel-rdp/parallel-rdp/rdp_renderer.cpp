@@ -1558,11 +1558,14 @@ void Renderer::draw_shaded_primitive(TriangleSetup &setup, const AttributeSetup 
 
 	const auto hires_draw = hires.prepare_draw(setup.tile, stream.static_raster_state.flags, stream.depth_blend_state);
 
-	// Only the hi-res rasterizer variant reads the mark; the ubershader has none.
+	// Only the hi-res rasterizer variant samples replacements and masks the
+	// hi-res tile bits out of the LOD level; the ubershader has neither.
 	if (draw_class != HiresDrawClass::Primitive && !caps.ubershader)
+	{
 		hires_draw.mark_tex_rect(stream.triangle_setup.last());
-	if (draw_class == HiresDrawClass::TexRect)
-		hires_draw.lift_tex_rect_snap(stream.triangle_setup.last(), caps.upscaling);
+		if (draw_class == HiresDrawClass::TexRect)
+			hires_draw.lift_tex_rect_snap(stream.triangle_setup.last(), caps.upscaling);
+	}
 
 	InstanceIndices indices = {};
 	auto normalized_static_state = normalize_static_state(stream.static_raster_state);

@@ -39,6 +39,8 @@ const int TRIANGLE_SETUP_FILL_COPY_RASTER_BIT = 1 << 7;
 // Bit 7 of TriangleSetup::tile; see rdp_data_structures.hpp.
 const uint TRIANGLE_SETUP_TILE_HIRES_TEX_RECT_BIT = 1u << 7u;
 #endif
+// Bit 6 of TriangleSetup::tile, read by span setup; see rdp_data_structures.hpp.
+const int TRIANGLE_SETUP_TILE_HIRES_ROUND_UP_YL_BIT = 1 << 6;
 
 const int RASTERIZATION_INTERLACE_FIELD_BIT = 1 << 0;
 const int RASTERIZATION_INTERLACE_KEEP_ODD_BIT = 1 << 1;

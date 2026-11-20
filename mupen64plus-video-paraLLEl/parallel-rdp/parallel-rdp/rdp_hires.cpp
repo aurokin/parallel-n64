@@ -6,6 +6,7 @@
 #include "rdp_hires_cutout_policy.hpp"
 #include "rdp_hires_load_origin_policy.hpp"
 #include "rdp_hires_runtime_policy.hpp"
+#include "rdp_hires_tex_rect_policy.hpp"
 #include "rdp_hires_texture_layout.hpp"
 #include "texture_keying.hpp"
 #include "texture_replacement.hpp"
@@ -1485,38 +1486,23 @@ void HiresDrawBinding::mark_tex_rect(TriangleSetup &queued_setup) const
 		queued_setup.tile |= TRIANGLE_SETUP_TILE_HIRES_TEX_RECT_BIT;
 }
 
-// native_resolution_tex_rect exists to keep copy-mode strips stable at
-// upscale, but it also snaps rasterization to the native pixel grid,
-// capping replacement detail for the texrects hi-res packs care about
-// most (UI, text). When a replacement is bound to a non-flip texrect,
-// drop the snap so the replacement rasterizes at full scale. Copy-mode
-// rects qualify only when replaced (no uses_texel0 there): the
-// replacement branch bypasses TMEM, so the fragile raw-transport strips
-// the option protects are exactly the unreplaced ones, which keep the
-// snap. The bit is only consumed GPU-side, so patching the queued setup
-// here, after the draw-time CRC fallback has resolved, stays coherent.
+// See detail::lift_hires_tex_rect_snap for the rule and why it leaves the
+// native pass alone. The bits are only consumed GPU-side, so patching the
+// queued setup here, after the draw-time CRC fallback has resolved, stays
+// coherent.
 void HiresDrawBinding::lift_tex_rect_snap(TriangleSetup &queued_setup, unsigned upscaling) const
 {
 	if (!lifts_tex_rect_snap)
 		return;
 
-	const bool snapped = (queued_setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) != 0;
-	queued_setup.flags &= ~TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
-	if (rule_counters && snapped && upscaling > 1)
+	const auto lift = detail::lift_hires_tex_rect_snap(queued_setup, upscaling);
+	if (!rule_counters)
+		return;
+	if (lift.was_snapped && upscaling > 1)
 		rule_counters->texrect_snap_lifts++;
-	// A fractional bottom edge (yl & 3) clips every subpixel of the
-	// rect's last upscaled row once the snap is lifted, leaving a
-	// one-row gap at abutting strip seams. Round it up to the next
-	// whole native line: that restores exactly the clipped sub-rows,
-	// never adds a native line, and keeps allocate_span_jobs'
-	// (yl - 1) >> 2 coherent with the already-queued span jobs.
-	if (upscaling > 1 && (queued_setup.yl & 3) != 0)
-	{
-		queued_setup.yl = (queued_setup.yl + 3) & ~3;
-		// Without a snap there was no clipped row to restore; counted apart.
-		if (rule_counters)
-			(snapped ? rule_counters->texrect_bottom_round_ups : rule_counters->texrect_bottom_round_ups_unsnapped)++;
-	}
+	// Without a snap there was no clipped row to restore; counted apart.
+	if (lift.rounds_up_bottom)
+		(lift.was_snapped ? rule_counters->texrect_bottom_round_ups : rule_counters->texrect_bottom_round_ups_unsnapped)++;
 }
 
 StaticRasterizationFlags HiresDrawBinding::raster_flags(const StaticRasterizationState &normalized,

@@ -44,10 +44,16 @@ enum TriangleSetupFlagBits
 using TriangleSetupFlags = uint8_t;
 
 // TriangleSetup::tile holds the tile index (bits 0-2) and the max LOD level
-// (bits 3-5). TriangleSetupFlags has no spare bit, so hi-res replacement marks
-// texture rectangles in bit 7 of tile; only queued setups of draws with an
-// attached replacement provider carry it.
+// (bits 3-5). TriangleSetupFlags has no spare bit, so hi-res replacement uses
+// bits 6 and 7 of tile; only queued setups of draws with an attached
+// replacement provider, rasterized by the hi-res rasterizer variant (which
+// masks them out of the LOD level), carry them.
+// Bit 7 marks a texture rectangle for replacement sampling.
 static constexpr uint8_t TRIANGLE_SETUP_TILE_HIRES_TEX_RECT_BIT = 1u << 7;
+// Bit 6 asks span setup to round a fractional bottom edge (yl) up to the next
+// whole native line. Only upscaled passes honor it; the native pass, which
+// writes RDRAM, rasterizes the game's own edge (ADR-0020).
+static constexpr uint8_t TRIANGLE_SETUP_TILE_HIRES_ROUND_UP_YL_BIT = 1u << 6;
 
 enum StaticRasterizationFlagBits
 {

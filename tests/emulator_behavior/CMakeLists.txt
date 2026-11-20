@@ -112,15 +112,6 @@ target_include_directories(emu_unit_rom_settings_test PRIVATE
 target_compile_features(emu_unit_rom_settings_test PRIVATE c_std_99)
 add_test(NAME emu.unit.rom_settings COMMAND emu_unit_rom_settings_test)
 
-add_executable(emu_unit_vi_refresh_rate_test
-  emu_unit_vi_refresh_rate_test.c
-)
-target_include_directories(emu_unit_vi_refresh_rate_test PRIVATE
-  "${CMAKE_SOURCE_DIR}/mupen64plus-core/src"
-)
-target_compile_features(emu_unit_vi_refresh_rate_test PRIVATE c_std_99)
-add_test(NAME emu.unit.vi_refresh_rate COMMAND emu_unit_vi_refresh_rate_test)
-
 add_executable(emu_unit_vi_timing_test
   emu_unit_vi_timing_test.c
   "${CMAKE_SOURCE_DIR}/mupen64plus-core/src/vi/vi_controller.c"

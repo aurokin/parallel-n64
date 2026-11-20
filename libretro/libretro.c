@@ -17,6 +17,7 @@
 #include "main/cheat.h"
 #include "main/version.h"
 #include "main/savestates.h"
+#include "main/rom.h"
 #include "dd/dd_disk.h"
 #include "pi/pi_controller.h"
 #include "si/pif.h"
@@ -831,23 +832,13 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.max_width    = screen_width;
    info->geometry.max_height   = screen_height;
    info->geometry.aspect_ratio = 4.0 / 3.0;
-   /* Use the emulated VI period once V_SYNC is programmed. Until then,
-    * estimate it from the standard region V_SYNC, as upstream does. */
-   {
-      double fps = vi_actual_refresh_rate(&g_dev.vi);
-
-      if (fps <= 0.0)
-      {
-         const unsigned int clock = vi_clock_from_tv_standard(region);
-         const unsigned int rr    = vi_expected_refresh_rate_from_tv_standard(region);
-         const unsigned int vsync = (region == SYSTEM_PAL) ? 625u : 525u;
-         const unsigned int delay = vsync * ((clock / rr) / vsync);
-
-         fps = (delay != 0) ? (double)clock / (double)delay : (double)rr;
-      }
-
-      info->timing.fps = fps;
-   }
+   /* The AI paces audio as expected_refresh_rate VI periods per second of
+    * samples (get_dma_duration in ai_controller.c), so frames and audio are
+    * produced together at exactly that rate, whatever V_SYNC and the count
+    * per scanline make the VI period in CPU counts. Read it from the ROM's
+    * system type, which the VI is initialised from, because the VI itself
+    * is not initialised yet when the frontend asks after loading. */
+   info->timing.fps = vi_expected_refresh_rate_from_tv_standard(ROM_PARAMS.systemtype);
    info->timing.sample_rate = 44100.0;
 }
 

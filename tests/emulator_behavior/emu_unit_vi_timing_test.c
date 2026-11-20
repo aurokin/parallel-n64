@@ -111,5 +111,9 @@ int main(void)
     check_timing(48681812, 60, 525, 0, 1500, 1500, 789000);
     check_timing(48681812, 60, 524, 0, 1500, 1500, 787500);
     fallback_reads();
+    /* The frontend frame rate: 525-line systems run at 60 Hz, PAL at 50. */
+    expect("NTSC refresh rate", vi_expected_refresh_rate_from_tv_standard(SYSTEM_NTSC), 60);
+    expect("MPAL refresh rate", vi_expected_refresh_rate_from_tv_standard(SYSTEM_MPAL), 60);
+    expect("PAL refresh rate", vi_expected_refresh_rate_from_tv_standard(SYSTEM_PAL), 50);
     return EXIT_SUCCESS;
 }

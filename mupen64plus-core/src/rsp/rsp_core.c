@@ -34,46 +34,68 @@
 #include <stdio.h>
 #include <string.h>
 
-static void dma_sp_write(struct rsp_core* sp, unsigned length, unsigned count, unsigned skip)
+/* An SP DMA stays inside the 4 KiB bank (DMEM or IMEM) that bit 12 of the
+ * memory address picks, wrapping there; the skip falls between rows, not
+ * after the last one. Afterwards the memory address keeps its bank, the
+ * DRAM address is 8-byte aligned and both length registers read back the
+ * skip with a zero count and a 0xff8 length. */
+static void dma_sp_finish(struct rsp_core* sp, uint32_t l, unsigned int bank,
+      unsigned int memaddr, unsigned int dramaddr)
+{
+    sp->regs[SP_MEM_ADDR_REG]  = bank | (memaddr & 0xff8);
+    sp->regs[SP_DRAM_ADDR_REG] = dramaddr & 0xfffff8;
+    sp->regs[SP_RD_LEN_REG]    = (l & 0xff800000) | 0xff8;
+    sp->regs[SP_WR_LEN_REG]    = (l & 0xff800000) | 0xff8;
+}
+
+static void dma_sp_write(struct rsp_core* sp, uint32_t l, unsigned length, unsigned count, unsigned skip)
 {
     unsigned int i,j;
-    unsigned int memaddr  = sp->regs[SP_MEM_ADDR_REG] & 0xfff;
-    unsigned int dramaddr = sp->regs[SP_DRAM_ADDR_REG] & 0xffffff;
+    unsigned int bank     = sp->regs[SP_MEM_ADDR_REG] & 0x1000;
+    unsigned int memaddr  = sp->regs[SP_MEM_ADDR_REG] & 0xff8;
+    unsigned int dramaddr = sp->regs[SP_DRAM_ADDR_REG] & 0xfffff8;
 
-    unsigned char *spmem  = (unsigned char*)sp->mem + (sp->regs[SP_MEM_ADDR_REG] & 0x1000);
+    unsigned char *spmem  = (unsigned char*)sp->mem + bank;
     unsigned char *dram   = (unsigned char*)sp->ri->rdram.dram;
 
     for(j = 0; j < count; j++)
     {
+        if (j != 0)
+            dramaddr += skip;
         for(i = 0; i < length; i++)
         {
             spmem[(memaddr^S8) & 0xfffu] = rdram_safe_read_byte(dram, dramaddr^S8);
             memaddr++;
             dramaddr++;
         }
-        dramaddr+=skip;
     }
+
+    dma_sp_finish(sp, l, bank, memaddr, dramaddr);
 }
 
-static void dma_sp_read(struct rsp_core* sp, unsigned length, unsigned count, unsigned skip)
+static void dma_sp_read(struct rsp_core* sp, uint32_t l, unsigned length, unsigned count, unsigned skip)
 {
     unsigned int i,j;
-    unsigned int memaddr  = sp->regs[SP_MEM_ADDR_REG] & 0xfff;
-    unsigned int dramaddr = sp->regs[SP_DRAM_ADDR_REG] & 0xffffff;
+    unsigned int bank     = sp->regs[SP_MEM_ADDR_REG] & 0x1000;
+    unsigned int memaddr  = sp->regs[SP_MEM_ADDR_REG] & 0xff8;
+    unsigned int dramaddr = sp->regs[SP_DRAM_ADDR_REG] & 0xfffff8;
 
-    unsigned char *spmem  = (unsigned char*)sp->mem + (sp->regs[SP_MEM_ADDR_REG] & 0x1000);
+    unsigned char *spmem  = (unsigned char*)sp->mem + bank;
     unsigned char *dram   = (unsigned char*)sp->ri->rdram.dram;
 
     for(j = 0; j < count; j++)
     {
+        if (j != 0)
+            dramaddr += skip;
         for(i = 0; i < length; i++)
         {
             rdram_safe_write_byte(dram, dramaddr^S8, spmem[(memaddr^S8) & 0xfffu]);
             memaddr++;
             dramaddr++;
         }
-        dramaddr+=skip;
     }
+
+    dma_sp_finish(sp, l, bank, memaddr, dramaddr);
 }
 
 static void update_sp_status(struct rsp_core* sp, uint32_t w)
@@ -223,20 +245,29 @@ int write_rsp_regs(void* opaque, uint32_t address, uint32_t value, uint32_t mask
 
     switch(reg)
     {
+       /* The address registers hold 8-byte aligned values. */
+       case SP_MEM_ADDR_REG:
+          sp->regs[SP_MEM_ADDR_REG] &= 0x1ff8;
+          break;
+       case SP_DRAM_ADDR_REG:
+          sp->regs[SP_DRAM_ADDR_REG] &= 0xfffff8;
+          break;
+       /* Transfers move whole 8-byte units: the length's low three bits
+        * read as ones, and the skip is a multiple of 8. */
        case SP_RD_LEN_REG:
           l        = sp->regs[SP_RD_LEN_REG];
           length   = ((l & 0xfff) | 7) + 1;
           count    = ((l >> 12) & 0xff) + 1;
-          skip     = ((l >> 20) & 0xfff);
+          skip     = ((l >> 20) & 0xff8);
 
-          dma_sp_write(sp, length, count, skip);
+          dma_sp_write(sp, l, length, count, skip);
           break;
        case SP_WR_LEN_REG:
           l        = sp->regs[SP_WR_LEN_REG];
-          length   = ((l & 0xfff)) + 1;
+          length   = ((l & 0xfff) | 7) + 1;
           count    = ((l >> 12) & 0xff) + 1;
-          skip     = ((l >> 20) & 0xfff);
-          dma_sp_read(sp, length, count, skip);
+          skip     = ((l >> 20) & 0xff8);
+          dma_sp_read(sp, l, length, count, skip);
           break;
        case SP_SEMAPHORE_REG:
           sp->regs[SP_SEMAPHORE_REG] = 0;

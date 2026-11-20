@@ -205,7 +205,12 @@ public:
 	void tmem_load_begin(unsigned tile);
 	// The same iteration once decomposed: tmem_address is where it writes TMEM
 	// and rdram_pitch the RDRAM row pitch in texels the RDP walks.
-	// tmem_offset is the line offset of a load split into 4 KiB iterations.
+	// The renderer splits a LoadTile whose TMEM span exceeds one wrap into
+	// row-aligned iterations: 4 KiB, or 2 KiB for YUV, which writes both TMEM
+	// halves at once. tmem_offset is an iteration's byte offset (first row
+	// times the tile stride) within the load, 0 for the first or only one.
+	// Each iteration is keyed over its own rows and replaces the tile's
+	// binding, so a split load ends up keyed over its last iteration.
 	void tmem_load(unsigned tile, const LoadTileInfo &info, uint32_t tmem_offset,
 	               int32_t tmem_address, int32_t rdram_pitch);
 

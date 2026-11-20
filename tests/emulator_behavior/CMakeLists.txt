@@ -213,6 +213,8 @@ add_test(NAME emu.unit.hires_game_ident
 add_executable(emu_unit_texture_replacement_provider_test
   emu_unit_texture_replacement_provider_test.cpp
   "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/texture_replacement.cpp"
+  # LOGI/LOGW/LOGE route through Util::interface_log.
+  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/util/logging.cpp"
 )
 target_include_directories(emu_unit_texture_replacement_provider_test PRIVATE
   "${CMAKE_SOURCE_DIR}"

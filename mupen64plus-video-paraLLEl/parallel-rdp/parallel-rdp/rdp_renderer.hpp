@@ -23,6 +23,7 @@
 #pragma once
 
 #include "rdp_data_structures.hpp"
+#include "rdp_hires.hpp"
 #include "device.hpp"
 #include "rdp_common.hpp"
 #include "worker_thread.hpp"
@@ -94,6 +95,16 @@ public:
 	virtual void report_rdp_crash(ValidationError err, const char *msg) = 0;
 };
 
+// Texture rectangles are marked for replacement point sampling. Non-flipped
+// ones may also drop their native-resolution snap when a hi-res replacement
+// is bound (see HiresDrawBinding::lifts_tex_rect_snap).
+enum class HiresDrawClass : uint8_t
+{
+	Primitive = 0,
+	TexRect,
+	TexRectFlip
+};
+
 class Renderer : public Vulkan::DebugChannelInterface
 {
 public:
@@ -114,7 +125,8 @@ public:
 
 	// setup may be mutated to apply various fixups to triangle setup.
 	void draw_flat_primitive(TriangleSetup &setup);
-	void draw_shaded_primitive(TriangleSetup &setup, const AttributeSetup &attr);
+	void draw_shaded_primitive(TriangleSetup &setup, const AttributeSetup &attr,
+	                           HiresDrawClass draw_class = HiresDrawClass::Primitive);
 
 	void set_color_framebuffer(uint32_t addr, uint32_t width, FBFormat fmt);
 	void set_depth_framebuffer(uint32_t addr);
@@ -127,10 +139,14 @@ public:
 	void set_tile_size(uint32_t tile, uint32_t slo, uint32_t shi, uint32_t tlo, uint32_t thi);
 	void load_tile(uint32_t tile, const LoadTileInfo &info);
 	void load_tile_iteration(uint32_t tile, const LoadTileInfo &info, uint32_t tmem_offset);
+	bool set_replacement_provider(const ReplacementProvider *provider);
+	void begin_frame_context();
 	// Running primitive count that offsets every primitive's noise seed. It is
 	// carried in savestates so a loaded state continues the saving run's noise.
 	uint32_t get_base_primitive_index() const { return base_primitive_index; }
 	void set_base_primitive_index(uint32_t index) { base_primitive_index = index; }
+	HiresReplacement &get_hires() { return hires; }
+	const HiresReplacement &get_hires() const { return hires; }
 
 	void set_blend_color(uint32_t color);
 	void set_fog_color(uint32_t color);
@@ -153,6 +169,9 @@ public:
 	void submit_update_upscaled_domain_external(Vulkan::CommandBuffer &cmd,
 	                                            unsigned addr, unsigned pixels, unsigned pixel_size_log2);
 	unsigned get_scaling_factor() const;
+	// True when framebuffers keep a presented copy that VI scans out: always when
+	// upscaling, and at 1x while hi-res replacement needs a separate presented pass.
+	bool has_upscaled_domain() const;
 
 	const Vulkan::Buffer *get_upscaled_rdram_buffer() const;
 	const Vulkan::Buffer *get_upscaled_hidden_rdram_buffer() const;
@@ -197,6 +216,8 @@ private:
 	void init_blender_lut();
 	void init_buffers(const RendererOptions &options);
 	bool init_internal_upscaling_factor(const RendererOptions &options);
+	void allocate_upscaled_domain(unsigned factor);
+	void update_hires_presented_pass();
 
 	struct
 	{
@@ -391,6 +412,8 @@ private:
 		bool super_sample_readback = false;
 		bool super_sample_readback_dither = false;
 		unsigned upscaling = 1;
+		// Framebuffers have an upscaled-domain copy rendered by a second, presented pass.
+		bool upscaled_domain = false;
 		unsigned max_num_tile_instances = Limits::MaxTileInstances;
 		unsigned max_tiles_x = ImplementationConstants::MaxTilesX;
 		unsigned max_tiles_y = ImplementationConstants::MaxTilesY;
@@ -407,6 +430,8 @@ private:
 	};
 
 	std::unique_ptr<WorkerThread<Vulkan::DeferredPipelineCompile, PipelineExecutor>> pipeline_worker;
+
+	HiresReplacement hires{tiles};
 
 	void resolve_coherency_host_to_gpu(Vulkan::CommandBuffer &cmd);
 	void resolve_coherency_gpu_to_host(CoherencyOperation &op, Vulkan::CommandBuffer &cmd);

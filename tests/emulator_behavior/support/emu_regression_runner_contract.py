@@ -139,6 +139,8 @@ elif sub == "stop":
              "sampled_detail(family_singleton=0 ordered_surface_singleton=0 exact_selector=0).")
         if "jabo" in plan:
             emit(f"[INFO] Hi-res Jabo summary: {plan['jabo']} md5=1 memo_hits=0.")
+        for line in plan.get("rules", []):
+            emit(f"[INFO] Hi-res rule counters{line}.")
     if plan.get("fail") == "stop":
         print("[interactive] stop failed.", file=sys.stderr)
         state_file.write_text(json.dumps(st))
@@ -536,6 +538,15 @@ class RegressionRunnerContract(unittest.TestCase):
         record = records["boot-power-on"]
         self.assertEqual(self.gates(record)["hires.served"], "pass")
         self.assertEqual(record["hires"]["jabo"], {"entries": 9, "hits": 2, "misses": 1})
+
+    def test_rule_counters_parse_last_line_and_stay_absent_for_older_cores(self):
+        _, records = self.run_runner("rules", "--select", "boot-power-on", mode="on", plan={"rules": [
+            " (periodic, frame=60): alpha_kill_draws=1 stale_binding_drops=0",
+            ": alpha_kill_draws=7 stale_binding_drops=0 compat_lookups_rekey=2"]})
+        self.assertEqual(records["boot-power-on"]["hires"]["rules"],
+                         {"alpha_kill_draws": 7, "stale_binding_drops": 0, "compat_lookups_rekey": 2})
+        _, records = self.run_runner("no-rules", "--select", "boot-power-on", mode="on")
+        self.assertIsNone(records["boot-power-on"]["hires"]["rules"])
 
     def test_failed_stop_fails_the_exit_gate(self):
         result, records = self.run_runner("stop", "--select", "boot-power-on", plan={"fail": "stop"})

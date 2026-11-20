@@ -27,6 +27,7 @@
 - [Regression scenario runner](../tools/regression/)
 - [Throughput benchmark](../tools/benchmark/)
 - [Conformance test ROMs](../tools/conformance/)
+- [Library boot sweep](../tools/sweep/)
 - [GlideN64 txDump patch](../tools/gliden64-txdump-patch/)
 - [Savestate bridge to mupen64plus-next](../tools/savestate_bridge.py)
 - [Shader toolchain](../tools/parallel-rdp-toolchain-patches/)

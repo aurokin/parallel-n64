@@ -398,6 +398,8 @@ static void test_phrb_v8_jabo_records()
 		}
 		check(image.rgba8 == expected, "only native I derives alpha for 254/255, preserving RGB and integer average");
 	}
+	check(provider.get_stats().jabo_intensity_alpha_textures == 1,
+	      "only the native-I decode that rewrote alpha counts as an intensity-alpha texture");
 	auto authored = opaque;
 	authored[7] = 253;
 	std::copy(authored.begin(), authored.end(), data.begin() + header.blob_offset + 16);
@@ -406,6 +408,8 @@ static void test_phrb_v8_jabo_records()
 	provider.set_enabled(true);
 	check(provider.decode_rgba8_jabo(resolution.resolved_checksum64, resolution.resolved_selector_checksum64, 4, &image) &&
 	      image.rgba8 == authored, "one alpha below 254 preserves the entire I image");
+	check(provider.get_stats().jabo_intensity_alpha_textures == 0,
+	      "a preserved I image is not counted, and reloading resets the counter");
 
 	check(provider.decode_rgba8_compat_with_selector(0x1234abcdull, 0x0104, 0, &image) &&
 	      image.rgba8 == opaque, "a non-Jabo native I record keeps opaque authored alpha");
@@ -568,6 +572,11 @@ static void test_indexed_replacements()
 		auto palette = ReplacementPalette::from_tmem(tmem.data(), tmem.size(), siz == 0, 0, false);
 		check(provider.decode_rgba8_compat_with_selector(0x12345678, fs, 0, &image, &palette),
 			  "CI4/CI8 RGBA16 expansion should decode");
+		check(provider.get_stats().compat_ci_live_palette_textures == 0,
+			  "an exact texture-only key is not a live-palette fallback");
+		check(provider.decode_rgba8_compat_with_selector(0xaabbccdd12345678ull, fs, 0, &image, &palette) &&
+			  provider.get_stats().compat_ci_live_palette_textures == 1,
+			  "a palette-qualified key decoded through the texture-only CI entry counts once");
 		check(std::vector<uint8_t>(image.rgba8.begin(), image.rgba8.begin() + 8) ==
 				  std::vector<uint8_t>({255, 0, 0, 255, 0, 255, 0, 0}),
 			  "RGBA16 TLUT must use native bit replication and alpha");
@@ -1712,6 +1721,26 @@ int main()
 	          &duplicate_image),
 	      "duplicate sampled decode should still resolve the active entry");
 	check(duplicate_image.rgba8 == duplicate_a_rgba, "duplicate sampled decode should resolve the stable replacement-id winner");
+	check(duplicate_stats.sampled_duplicate_reordered_keys == 0,
+	      "a first-loaded winner is not a duplicate reordering");
+
+	// Swap the replacement ids so the later package carries the preferred one.
+	auto write_duplicate = [&](const char *file, const char *id, const std::vector<uint8_t> &rgba) {
+		write_single_asset_phrb(duplicate_dir + file, id, id,
+		                        "sampled-fmt0-siz3-off0-stride400-wh200x2-fs768-low327701ac09",
+		                        0, 3, 0, 400, 200, 2, 768, duplicate_sampled_low32, duplicate_palette_crc,
+		                        duplicate_selector, 2, 2, rgba);
+	};
+	write_duplicate("/a-duplicate.phrb", "duplicate-z", duplicate_a_rgba);
+	write_duplicate("/b-duplicate.phrb", "duplicate-a", duplicate_b_rgba);
+	check(duplicate_provider.load_cache_dir(duplicate_dir), "provider should reload the swapped duplicate cache");
+	check(duplicate_provider.get_stats().sampled_duplicate_reordered_keys == 1,
+	      "a later package winning the tie-break counts its sampled key once");
+	check(duplicate_provider.decode_sampled_rgba8_with_selector(0, 3, 0, 400, 200, 2, duplicate_sampled_low32,
+	                                                             duplicate_palette_crc, 768, duplicate_selector,
+	                                                             &duplicate_image) &&
+	      duplicate_image.rgba8 == duplicate_b_rgba,
+	      "the reordered key serves the later package's entry");
 	remove_tree(duplicate_dir);
 
 	const std::string rejected_dir = make_temp_dir();

@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace RDP
@@ -51,6 +52,14 @@ struct ReplacementProviderStats
 	uint32_t sampled_family_count = 0;
 	uint32_t source_phrb_entry_count = 0;
 	uint32_t jabo_entry_count = 0;
+	// Special-case rule counters (see RDP::HiresRuleCounters). Decode counts
+	// are per decoded texture, so a re-upload after eviction counts again.
+	// Sampled keys whose duplicate tie-break kept a later entry over the first.
+	uint32_t sampled_duplicate_reordered_keys = 0;
+	// Jabo decodes drawn as I whose >= 254 alpha was replaced by intensity.
+	uint64_t jabo_intensity_alpha_textures = 0;
+	// Compat decodes found only through the palette-less CI (_ci.bmp) key.
+	uint64_t compat_ci_live_palette_textures = 0;
 };
 
 struct SampledDuplicateDiagnostics
@@ -341,7 +350,8 @@ private:
 
 	const Entry *find_any_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const;
 	const Entry *find_native_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const;
-	const Entry *find_compat_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const;
+	const Entry *find_compat_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64,
+	                               bool *live_palette_fallback = nullptr) const;
 	const Entry *find_indexed_entry(const std::unordered_map<uint64_t, std::vector<size_t>> &index_map,
 	                               uint64_t checksum64,
 	                               uint16_t formatsize,
@@ -421,6 +431,10 @@ private:
 	std::unordered_map<SampledLookupKey, uint32_t, SampledLookupKeyHash> sampled_duplicate_index_;
 	std::unordered_map<SampledFamilyLookupKey, std::vector<size_t>, SampledFamilyLookupKeyHash> sampled_family_index_;
 	std::unordered_map<JaboKey, size_t, JaboKeyHash> jabo_index_;
+	std::unordered_set<SampledLookupKey, SampledLookupKeyHash> sampled_duplicate_reordered_;
+	// Decode-time rule counters. Decodes run on the renderer thread only.
+	mutable uint64_t jabo_intensity_alpha_decodes_ = 0;
+	mutable uint64_t compat_ci_live_palette_decodes_ = 0;
 	ReplacementLoadStatus load_error_ = ReplacementLoadStatus::NotFound;
 	std::string rejected_path_, loaded_path_;
 };

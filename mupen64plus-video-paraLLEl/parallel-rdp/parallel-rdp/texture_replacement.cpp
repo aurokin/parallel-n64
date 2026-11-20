@@ -395,7 +395,10 @@ void ReplacementProvider::add_entry(Entry &&entry)
 			if (!inserted.second)
 				inserted.first->second++;
 			if (prefer_sampled_duplicate_candidate(entries_[duplicate_it->second], stored))
+			{
 				duplicate_it->second = index;
+				sampled_duplicate_reordered_.insert(sampled_key);
+			}
 		}
 		else
 			sampled_index_[sampled_key] = index;
@@ -427,6 +430,9 @@ void ReplacementProvider::clear()
 	sampled_duplicate_index_.clear();
 	sampled_family_index_.clear();
 	jabo_index_.clear();
+	sampled_duplicate_reordered_.clear();
+	jabo_intensity_alpha_decodes_ = 0;
+	compat_ci_live_palette_decodes_ = 0;
 }
 
 size_t ReplacementProvider::entry_count() const
@@ -584,8 +590,16 @@ bool ReplacementProvider::decode_rgba8_jabo(uint64_t key_lo, uint64_t key_hi, ui
 		for (size_t i = 3; i < out->rgba8.size(); i += 4)
 			opaque = opaque && out->rgba8[i] >= 254;
 		if (opaque)
+		{
+			bool changed = false;
 			for (size_t i = 0; i < out->rgba8.size(); i += 4)
-				out->rgba8[i + 3] = uint8_t((unsigned(out->rgba8[i]) + out->rgba8[i + 1] + out->rgba8[i + 2]) / 3);
+			{
+				const uint8_t alpha = uint8_t((unsigned(out->rgba8[i]) + out->rgba8[i + 1] + out->rgba8[i + 2]) / 3);
+				changed = changed || alpha != out->rgba8[i + 3];
+				out->rgba8[i + 3] = alpha;
+			}
+			jabo_intensity_alpha_decodes_ += changed;
+		}
 	}
 	return true;
 }
@@ -641,8 +655,11 @@ const ReplacementProvider::Entry *ReplacementProvider::find_native_entry(uint64_
 	return find_indexed_entry(native_checksum_index_, checksum64, formatsize, selector_checksum64);
 }
 
-const ReplacementProvider::Entry *ReplacementProvider::find_compat_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64) const
+const ReplacementProvider::Entry *ReplacementProvider::find_compat_entry(uint64_t checksum64, uint16_t formatsize, uint64_t selector_checksum64,
+                                                                        bool *live_palette_fallback) const
 {
+	if (live_palette_fallback)
+		*live_palette_fallback = false;
 	if (const auto *entry = find_indexed_entry(compat_checksum_index_, checksum64, formatsize, selector_checksum64))
 		return entry;
 	// Rice _ci.bmp names without PALCRC intentionally use the draw's live palette.
@@ -651,7 +668,11 @@ const ReplacementProvider::Entry *ReplacementProvider::find_compat_entry(uint64_
 	{
 		const auto *entry = find_indexed_entry(compat_checksum_index_, uint32_t(checksum64), formatsize, selector_checksum64);
 		if (entry && entry->texture_format == GL_COLOR_INDEX)
+		{
+			if (live_palette_fallback)
+				*live_palette_fallback = true;
 			return entry;
+		}
 	}
 	return nullptr;
 }
@@ -1324,11 +1345,12 @@ bool ReplacementProvider::decode_rgba8_compat_with_selector(uint64_t checksum64,
 	if (!enabled_ || !out)
 		return false;
 
-	const Entry *entry = find_compat_entry(checksum64, formatsize, selector_checksum64);
-	if (!entry)
+	bool live_palette_fallback = false;
+	const Entry *entry = find_compat_entry(checksum64, formatsize, selector_checksum64, &live_palette_fallback);
+	if (!entry || !decode_entry_rgba8(*entry, out, palette))
 		return false;
-
-	return decode_entry_rgba8(*entry, out, palette);
+	compat_ci_live_palette_decodes_ += live_palette_fallback;
+	return true;
 }
 
 bool ReplacementProvider::decode_entry_rgba8(const Entry &entry, ReplacementImage *out, const ReplacementPalette *palette) const
@@ -1404,6 +1426,9 @@ ReplacementProviderStats ReplacementProvider::get_stats() const
 	stats.sampled_index_count = uint32_t(sampled_index_.size());
 	stats.sampled_duplicate_key_count = uint32_t(sampled_duplicate_index_.size());
 	stats.sampled_family_count = uint32_t(sampled_family_index_.size());
+	stats.sampled_duplicate_reordered_keys = uint32_t(sampled_duplicate_reordered_.size());
+	stats.jabo_intensity_alpha_textures = jabo_intensity_alpha_decodes_;
+	stats.compat_ci_live_palette_textures = compat_ci_live_palette_decodes_;
 	for (const auto &it : sampled_duplicate_index_)
 		stats.sampled_duplicate_entry_count += it.second;
 

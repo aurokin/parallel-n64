@@ -6735,6 +6735,7 @@ void genc_eq_d(void)
    fld_preg64_qword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    jne_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -6746,6 +6747,7 @@ void genc_eq_d(void)
    fld_preg32_qword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    jne_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -6767,7 +6769,7 @@ void genc_ueq_d(void)
    fld_preg64_qword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    jne_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -6779,7 +6781,7 @@ void genc_ueq_d(void)
    fld_preg32_qword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    jne_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -6801,6 +6803,7 @@ void genc_olt_d(void)
    fld_preg64_qword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    jae_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -6812,6 +6815,7 @@ void genc_olt_d(void)
    fld_preg32_qword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    jae_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -6833,7 +6837,7 @@ void genc_ult_d(void)
    fld_preg64_qword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    jae_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -6845,7 +6849,7 @@ void genc_ult_d(void)
    fld_preg32_qword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    jae_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -6867,6 +6871,7 @@ void genc_ole_d(void)
    fld_preg64_qword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    ja_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -6878,6 +6883,7 @@ void genc_ole_d(void)
    fld_preg32_qword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    ja_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -6899,7 +6905,7 @@ void genc_ule_d(void)
    fld_preg64_qword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    ja_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -6911,7 +6917,7 @@ void genc_ule_d(void)
    fld_preg32_qword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    ja_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -6991,6 +6997,7 @@ void genc_seq_d(void)
    fld_preg64_qword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    jne_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7002,6 +7009,7 @@ void genc_seq_d(void)
    fld_preg32_qword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    jne_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7023,7 +7031,7 @@ void genc_ngl_d(void)
    fld_preg64_qword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    jne_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7035,7 +7043,7 @@ void genc_ngl_d(void)
    fld_preg32_qword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    jne_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7057,6 +7065,7 @@ void genc_lt_d(void)
    fld_preg64_qword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    jae_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7068,6 +7077,7 @@ void genc_lt_d(void)
    fld_preg32_qword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    jae_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7089,7 +7099,7 @@ void genc_nge_d(void)
    fld_preg64_qword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    jae_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7101,7 +7111,7 @@ void genc_nge_d(void)
    fld_preg32_qword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    jae_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7123,6 +7133,7 @@ void genc_le_d(void)
    fld_preg64_qword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    ja_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7134,6 +7145,7 @@ void genc_le_d(void)
    fld_preg32_qword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    ja_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7155,7 +7167,7 @@ void genc_ngt_d(void)
    fld_preg64_qword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    ja_rj(13); // 2
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7167,7 +7179,7 @@ void genc_ngt_d(void)
    fld_preg32_qword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    ja_rj(12); // 2
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7716,6 +7728,7 @@ void genc_eq_s(void)
    fld_preg64_dword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    jne_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7727,6 +7740,7 @@ void genc_eq_s(void)
    fld_preg32_dword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    jne_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7748,7 +7762,7 @@ void genc_ueq_s(void)
    fld_preg64_dword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    jne_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7760,7 +7774,7 @@ void genc_ueq_s(void)
    fld_preg32_dword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    jne_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7782,6 +7796,7 @@ void genc_olt_s(void)
    fld_preg64_dword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    jae_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7793,6 +7808,7 @@ void genc_olt_s(void)
    fld_preg32_dword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    jae_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7814,7 +7830,7 @@ void genc_ult_s(void)
    fld_preg64_dword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    jae_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7826,7 +7842,7 @@ void genc_ult_s(void)
    fld_preg32_dword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    jae_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7848,6 +7864,7 @@ void genc_ole_s(void)
    fld_preg64_dword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    ja_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7859,6 +7876,7 @@ void genc_ole_s(void)
    fld_preg32_dword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    ja_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7880,7 +7898,7 @@ void genc_ule_s(void)
    fld_preg64_dword(RAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    ja_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7892,7 +7910,7 @@ void genc_ule_s(void)
    fld_preg32_dword(EAX);
    fucomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    ja_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -7972,6 +7990,7 @@ void genc_seq_s(void)
    fld_preg64_dword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    jne_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -7983,6 +8002,7 @@ void genc_seq_s(void)
    fld_preg32_dword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    jne_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -8004,7 +8024,7 @@ void genc_ngl_s(void)
    fld_preg64_dword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    jne_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -8016,7 +8036,7 @@ void genc_ngl_s(void)
    fld_preg32_dword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    jne_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -8038,6 +8058,7 @@ void genc_lt_s(void)
    fld_preg64_dword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    jae_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -8049,6 +8070,7 @@ void genc_lt_s(void)
    fld_preg32_dword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    jae_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -8070,7 +8092,7 @@ void genc_nge_s(void)
    fld_preg64_dword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    jae_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -8082,7 +8104,7 @@ void genc_nge_s(void)
    fld_preg32_dword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    jae_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -8104,6 +8126,7 @@ void genc_le_s(void)
    fld_preg64_dword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(15); /* unordered: clear */
    ja_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -8115,6 +8138,7 @@ void genc_le_s(void)
    fld_preg32_dword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
+   jp_rj(14); /* unordered: clear */
    ja_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2
@@ -8136,7 +8160,7 @@ void genc_ngt_s(void)
    fld_preg64_dword(RAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(15);
+   jp_rj(2); /* unordered: set */
    ja_rj(13);
    or_m32rel_imm32((unsigned int*)&FCR31, 0x800000); // 11
    jmp_imm_short(11); // 2
@@ -8148,7 +8172,7 @@ void genc_ngt_s(void)
    fld_preg32_dword(EAX);
    fcomip_fpreg(1);
    ffree_fpreg(0);
-   jp_rj(14);
+   jp_rj(2); /* unordered: set */
    ja_rj(12);
    or_m32_imm32((unsigned int*)&FCR31, 0x800000); // 10
    jmp_imm_short(10); // 2

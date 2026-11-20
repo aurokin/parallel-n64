@@ -115,7 +115,7 @@ static void test_dram_path_alignment_and_enqueue()
 
 	process_command_ingest(state, dram, dmem, dpc_start, dpc_end, dpc_current, dpc_status, hooks);
 
-	check((dpc_status & DP_STATUS_FREEZE) == 0, "DP_STATUS_FREEZE should be cleared");
+	check((dpc_status & DP_STATUS_FREEZE) != 0, "DP_STATUS_FREEZE belongs to the core and must stay set");
 	check(h.enqueue_calls == 1, "expected one enqueue call for opcode 8");
 	check(h.last_num_words == 8, "unexpected enqueue word count");
 	check(h.last_words.size() == 8, "unexpected payload length");
@@ -225,7 +225,7 @@ static void test_command_buffer_overflow_guard()
 	check(state.cmd_ptr == int(0x0003FFFF >> 3), "overflow guard should keep cmd_ptr unchanged");
 	check(state.cmd_cur == 0, "overflow guard should keep cmd_cur unchanged");
 	check(dpc_start == 0x10u && dpc_current == 0x00u, "overflow guard should not reset DPC regs");
-	check((dpc_status & DP_STATUS_FREEZE) == 0, "DP_STATUS_FREEZE should still be cleared");
+	check((dpc_status & DP_STATUS_FREEZE) != 0, "overflow guard must not touch DP_STATUS_FREEZE");
 }
 
 static void test_incomplete_command_tail_behavior()
@@ -598,7 +598,7 @@ static void test_deterministic_fuzz_stream_bounds()
 		CommandIngestHooks hooks = make_hooks(h, false, false);
 		process_command_ingest(state, dram, dmem, dpc_start, dpc_end, dpc_current, dpc_status, hooks);
 
-		check((dpc_status & DP_STATUS_FREEZE) == 0, "fuzz: freeze bit should always clear");
+		check((dpc_status & DP_STATUS_FREEZE) != 0, "fuzz: freeze bit must never be cleared");
 		check(state.cmd_cur >= 0 && state.cmd_ptr >= 0, "fuzz: parser indices must remain non-negative");
 		check(state.cmd_cur <= state.cmd_ptr, "fuzz: cmd_cur must not exceed cmd_ptr");
 		check(state.cmd_ptr <= int(max_qwords), "fuzz: cmd_ptr should remain within copied qword range");

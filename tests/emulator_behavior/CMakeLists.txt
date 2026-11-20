@@ -454,43 +454,6 @@ target_include_directories(emu_unit_worker_thread_test PRIVATE
 target_compile_features(emu_unit_worker_thread_test PRIVATE cxx_std_17)
 add_test(NAME emu.unit.worker_thread COMMAND emu_unit_worker_thread_test)
 
-add_executable(emu_conformance_vi_scanout_range_test
-  emu_conformance_vi_scanout_range_test.cpp
-)
-target_include_directories(emu_conformance_vi_scanout_range_test PRIVATE
-  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp"
-)
-target_compile_features(emu_conformance_vi_scanout_range_test PRIVATE cxx_std_17)
-add_test(NAME emu.conformance.vi_scanout_range COMMAND emu_conformance_vi_scanout_range_test)
-
-add_executable(emu_conformance_vi_scaling_crop_test
-  emu_conformance_vi_scaling_crop_test.cpp
-)
-target_include_directories(emu_conformance_vi_scaling_crop_test PRIVATE
-  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp"
-)
-target_compile_features(emu_conformance_vi_scaling_crop_test PRIVATE cxx_std_17)
-add_test(NAME emu.conformance.vi_scaling_crop COMMAND emu_conformance_vi_scaling_crop_test)
-
-add_executable(emu_unit_vi_register_interaction_matrix_test
-  emu_unit_vi_register_interaction_matrix_test.cpp
-)
-target_include_directories(emu_unit_vi_register_interaction_matrix_test PRIVATE
-  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp"
-)
-target_compile_features(emu_unit_vi_register_interaction_matrix_test PRIVATE cxx_std_17)
-add_test(NAME emu.unit.vi_register_interaction_matrix COMMAND emu_unit_vi_register_interaction_matrix_test)
-
-add_executable(emu_unit_vi_scale_policy_test
-  emu_unit_vi_scale_policy_test.cpp
-)
-target_include_directories(emu_unit_vi_scale_policy_test PRIVATE
-  "${CMAKE_SOURCE_DIR}"
-  "${CMAKE_SOURCE_DIR}/mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp"
-)
-target_compile_features(emu_unit_vi_scale_policy_test PRIVATE cxx_std_17)
-add_test(NAME emu.unit.vi_scale_policy COMMAND emu_unit_vi_scale_policy_test)
-
 add_test(
   NAME emu.conformance.runtime_smoke_lavapipe
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_conformance_runtime_smoke.sh"

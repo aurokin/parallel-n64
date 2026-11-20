@@ -76,7 +76,7 @@ static void test_vi_register_forwarding_table()
 static void test_scanout_options_mapping()
 {
 	const ScanoutOptions opts = detail::make_scanout_options(
-			true, false, true, false, true, 3u, 24u);
+			true, false, true, false, true, true, 3u, 24u);
 
 	check(opts.persist_frame_on_invalid_input, "persist_frame_on_invalid_input should be true");
 	check(opts.vi.aa == true, "vi.aa mismatch");
@@ -84,8 +84,15 @@ static void test_scanout_options_mapping()
 	check(opts.vi.dither_filter == true, "vi.dither_filter mismatch");
 	check(opts.vi.divot_filter == false, "vi.divot_filter mismatch");
 	check(opts.vi.gamma_dither == true, "vi.gamma_dither mismatch");
+	check(opts.blend_previous_frame, "interlacing should blend the previous frame");
+	check(!opts.upscale_deinterlacing, "interlacing should not upscale-deinterlace");
 	check(opts.downscale_steps == 3u, "downscale_steps mismatch");
 	check(opts.crop_overscan_pixels == 24u, "crop_overscan_pixels mismatch");
+
+	const ScanoutOptions progressive = detail::make_scanout_options(
+			true, false, true, false, true, false, 3u, 24u);
+	check(!progressive.blend_previous_frame, "progressive scanout should not blend the previous frame");
+	check(progressive.upscale_deinterlacing, "progressive scanout should upscale-deinterlace");
 }
 }
 

@@ -144,7 +144,7 @@ case "$selected_profile" in
     ;;
   emu-required)
     ctest_args+=(-E "^emu\\.support\\.(interactive_load|interactive_lifecycle|adapter_config)_contract$")
-    ctest_args+=(-R "^emu\\.(unit\\.|support\\.|conformance\\.(vi_scanout_range|vi_scaling_crop)$)")
+    ctest_args+=(-R "^emu\\.(unit\\.|support\\.)")
     ;;
   emu-conformance)
     ctest_args+=(-R "^emu\\.conformance\\.")

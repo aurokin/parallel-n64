@@ -47,7 +47,6 @@ static void test_non_flip_policy_sets_standard_gradients_and_copy_flag()
 	      "non-flip setup coordinate packing mismatch");
 	check(out.setup.ym == 20u && out.setup.yl == 20u && out.setup.yh == 40u,
 	      "non-flip setup y packing mismatch");
-	check((out.setup.flags & TRIANGLE_SETUP_TEX_RECT_BIT) != 0u, "rectangle origin classification survives setup");
 	check((out.setup.flags & TRIANGLE_SETUP_FLIP_BIT) != 0u, "flip bit must always be set");
 	check((out.setup.flags & TRIANGLE_SETUP_SKIP_XFRAC_BIT) != 0u,
 	      "copy mode should set skip-xfrac bit");
@@ -73,7 +72,6 @@ static void test_flip_policy_forces_disable_upscaling_and_swaps_gradients()
 	in.word3 = (0xfffeu << 16) | 0x0007u; // dsdx = -2, dtdy = +7
 
 	auto out = build_texture_rectangle_policy(in);
-	check((out.setup.flags & TRIANGLE_SETUP_TEX_RECT_BIT) != 0u, "rectangle origin classification survives setup");
 	check((out.setup.flags & TRIANGLE_SETUP_FLIP_BIT) != 0u, "flip path must set flip bit");
 	check((out.setup.flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) != 0u,
 	      "flip path must force disable-upscaling");

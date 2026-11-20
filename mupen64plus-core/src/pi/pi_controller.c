@@ -431,15 +431,21 @@ int write_pi_regs(void* opaque, uint32_t address,
             clear_rcp_interrupt(pi->r4300, MI_INTR_PI);
          return 0;
 
+      /* The domain timing registers keep their implemented bits: 8 for
+       * latency and pulse width, 4 for page size, 2 for release. */
       case PI_BSD_DOM1_LAT_REG:
       case PI_BSD_DOM1_PWD_REG:
-      case PI_BSD_DOM1_PGS_REG:
-      case PI_BSD_DOM1_RLS_REG:
       case PI_BSD_DOM2_LAT_REG:
       case PI_BSD_DOM2_PWD_REG:
-      case PI_BSD_DOM2_PGS_REG:
-      case PI_BSD_DOM2_RLS_REG:
          pi->regs[reg] = MASKED_WRITE(&pi->regs[reg], value & 0xff, mask);
+         return 0;
+      case PI_BSD_DOM1_PGS_REG:
+      case PI_BSD_DOM2_PGS_REG:
+         pi->regs[reg] = MASKED_WRITE(&pi->regs[reg], value & 0x0f, mask);
+         return 0;
+      case PI_BSD_DOM1_RLS_REG:
+      case PI_BSD_DOM2_RLS_REG:
+         pi->regs[reg] = MASKED_WRITE(&pi->regs[reg], value & 0x03, mask);
          return 0;
    }
 

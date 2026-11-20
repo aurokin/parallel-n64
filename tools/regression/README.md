@@ -143,7 +143,7 @@ separate qualification checks. They are not yet pre-deploy golden coverage.
 | `end_state` — end-state body sha | fail | fail ([ADR-0020](../../docs/adr/0020-replacement-stays-out-of-rdram.md)) |
 | `pack` — the run's pack is the one the on-mode expectation was recorded with | — | review |
 | `hires.provider` — summary has `provider=on`, no cache load failure | — | fail |
-| `hires.entries`, `hires.served` (upload or draw-time hits) — at least one; `served` skips a session with no texture lookups | — | fail |
+| `hires.entries`, `hires.served` (load-time, draw-time or Jabo hits) — at least one; `served` skips a session with no texture lookups | — | fail |
 | `hires.inert` — no `provider=on` summary | fail | — |
 | `hires.residency` — computed resident bytes within budget | — | fail |
 
@@ -164,9 +164,10 @@ separate qualification checks. They are not yet pre-deploy golden coverage.
   [ADR-0016](../../docs/adr/0016-test-surface-trim.md)).
 - No image-similarity metric or GlideN64 output enters any gate
   ([ADR-0005](../../docs/adr/0005-gliden64-oracle-policy.md)).
-- `draw_hits` uses the summary's `compat_draw_hits` (draw-time replacement,
-  per [Emulator Testing](../../docs/EMU_TESTING.md)); summaries without that
-  field fall back to lookup hits.
+- `hires.served` sums the keying summary's `hits` (texture-load lookups),
+  `compat_draw_hits` (recorded as `draw_hits`; draw-time re-key) and the Jabo
+  summary's `hits`. Each counts a resident replacement bound to a tile.
+  Residency `uploads` count admissions and are not served evidence.
 - The hi-res summary is read from the bundle's RetroArch log; the last
   `Hi-res keying summary` line wins. The runner sets
   `PARALLEL_RDP_HIRES_SUMMARY_INTERVAL_FRAMES` in on mode so a core that

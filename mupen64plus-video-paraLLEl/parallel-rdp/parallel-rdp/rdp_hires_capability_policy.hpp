@@ -16,6 +16,7 @@ struct HiresDescriptorFeatureSupport
 	bool descriptor_binding_variable_descriptor_count = false;
 	bool descriptor_binding_partially_bound = false;
 	bool descriptor_binding_update_after_bind = false;
+	bool descriptor_binding_update_unused_while_pending = false;
 };
 
 enum class HiresDescriptorRequirement
@@ -27,6 +28,7 @@ enum class HiresDescriptorRequirement
 	MissingDescriptorBindingVariableDescriptorCount,
 	MissingDescriptorBindingPartiallyBound,
 	MissingDescriptorBindingUpdateAfterBind,
+	MissingDescriptorBindingUpdateUnusedWhilePending,
 	MissingUpdateAfterBindSampledImageLimit,
 };
 
@@ -49,6 +51,8 @@ inline HiresDescriptorRequirement validate_hires_descriptor_support(const HiresD
 		return HiresDescriptorRequirement::MissingDescriptorBindingPartiallyBound;
 	if (!support.descriptor_binding_update_after_bind)
 		return HiresDescriptorRequirement::MissingDescriptorBindingUpdateAfterBind;
+	if (!support.descriptor_binding_update_unused_while_pending)
+		return HiresDescriptorRequirement::MissingDescriptorBindingUpdateUnusedWhilePending;
 	return HiresDescriptorRequirement::Supported;
 }
 
@@ -84,6 +88,8 @@ inline const char *describe_hires_descriptor_requirement(HiresDescriptorRequirem
 		return "descriptor binding partially-bound is unavailable";
 	case HiresDescriptorRequirement::MissingDescriptorBindingUpdateAfterBind:
 		return "descriptor binding update-after-bind is unavailable";
+	case HiresDescriptorRequirement::MissingDescriptorBindingUpdateUnusedWhilePending:
+		return "descriptor binding update-unused-while-pending is unavailable";
 	case HiresDescriptorRequirement::MissingUpdateAfterBindSampledImageLimit:
 		return "maxDescriptorSetUpdateAfterBindSampledImages is below required minimum";
 	}

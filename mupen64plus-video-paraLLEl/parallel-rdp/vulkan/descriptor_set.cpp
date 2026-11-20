@@ -67,6 +67,11 @@ DescriptorSetAllocator::DescriptorSetAllocator(Hash hash, Device *device_, const
 		binding_flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
 		                VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT |
 		                VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+		// UPDATE_AFTER_BIND covers updates until submission only; rewriting
+		// descriptors that pending command buffers do not use (the next
+		// frame's slots while this one executes) needs this flag.
+		if (device->get_device_features().descriptor_indexing_features.descriptorBindingUpdateUnusedWhilePending)
+			binding_flags |= VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT;
 	}
 
 	for (unsigned i = 0; i < VULKAN_NUM_BINDINGS; i++)

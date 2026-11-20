@@ -139,6 +139,21 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		int s_offset;
 		interpolate_st_copy(span_setup, attr.dstzw_dx, x, perspective, flip, st, s_offset);
 
+		// interpolate_st_copy collapses dx to the native pixel grid, so an
+		// unsnapped (replacement-exempted) copy rect still steps S one whole
+		// native texel per native pixel. Recover the sub-native remainder of
+		// the same dx counter so the replacement path can resolve S detail
+		// past the native grid. Snapped rects keep sub_px = 0 to stay
+		// bit-identical with stock behavior.
+		int sub_px = 0;
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+		if (SCALING_FACTOR > 1 && (setup_flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) == 0u)
+		{
+			int dxu = flip ? (x - span_setup.start_x) : (span_setup.end_x - x);
+			sub_px = dxu & (SCALING_FACTOR - 1);
+		}
+#endif
+
 		uint tile0 = uint(setup_tile) & 7u;
 		uint tile_info_index0 = uint(state_indices.elems[primitive_index].tile_infos[tile0]);
 		TileInfo tile_info0 = load_tile_info(tile_info_index0);
@@ -149,7 +164,7 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 			tile_info0.size = u8(TEX_SIZE);
 		}
 #endif
-		int texel0 = sample_texture_copy(tile_info0, tmem_instance_index, st, s_offset, tlut, tlut_type);
+		int texel0 = sample_texture_copy(tile_info0, tmem_instance_index, st, s_offset, sub_px, tlut, tlut_type);
 		shaded.z_dith = texel0;
 		shaded.coverage_count = U8_C(COVERAGE_COPY_BIT);
 
@@ -195,13 +210,59 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		if ((setup_flags & TRIANGLE_SETUP_NATIVE_LOD_BIT) != 0)
 			tex_interpolation_direction *= SCALING_FACTOR;
 
-	interpolate_stz(span_setup.stzw, attr.dstzw_dx, attr.dstzw_dy, dx, coverage, perspective, uses_lod,
+	bool st_derivatives = uses_lod;
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	// Hi-res trilinear needs ST derivatives even when the draw itself does
+	// not use N64 LOD; only pay for them when a sampled tile is replaced.
+	if (!uses_lod && global_constants.fb_info.hires_filter == HIRES_FILTER_TRILINEAR)
+	{
+		if (uses_texel0)
+			st_derivatives = tile_uses_hires_replacement(
+					load_tile_info(uint(state_indices.elems[primitive_index].tile_infos[uint(setup_tile) & 7u])));
+		if (!st_derivatives && uses_texel1)
+			st_derivatives = tile_uses_hires_replacement(
+					load_tile_info(uint(state_indices.elems[primitive_index].tile_infos[(uint(setup_tile) + 1u) & 7u])));
+	}
+#endif
+
+	interpolate_stz(span_setup.stzw, attr.dstzw_dx, attr.dstzw_dy, dx, coverage, perspective, st_derivatives,
 	                tex_interpolation_direction, st, st_dx, st_dy, z, perspective_overflow);
+
+	ivec2 st_ddx = ivec2(0), st_ddy = ivec2(0);
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	if (st_derivatives)
+	{
+		st_ddx = st_dx - st;
+		st_ddy = st_dy - st;
+		// NATIVE_LOD derivatives span one native pixel; normalize them to
+		// one output pixel for replacement footprint purposes.
+		if (SCALING_FACTOR > 1 && uses_lod && (setup_flags & TRIANGLE_SETUP_NATIVE_LOD_BIT) != 0)
+		{
+			st_ddx /= SCALING_FACTOR;
+			st_ddy /= SCALING_FACTOR;
+		}
+	}
+#endif
+
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	ivec4 hires_point_stzw = span_setup.stzw;
+	int hires_point_dx = dx;
+	bool hires_point_rectangle = !perspective && (setup_tile & TRIANGLE_SETUP_TILE_HIRES_TEX_RECT_BIT) != 0u;
+	// Swapped-axis rectangles currently snap to native output pixels. Center
+	// that native footprint, rather than a subpixel which is never traversed.
+	int hires_center_scaling_log2 = hires_point_rectangle &&
+		(setup_flags & TRIANGLE_SETUP_DISABLE_UPSCALING_BIT) != 0u ? 0 : SCALING_LOG2;
+#endif
 
 	// Sample textures.
 	uint tile0 = uint(setup_tile) & 7u;
 	uint tile1 = (tile0 + 1) & 7u;
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	// Bits 6-7 of the tile byte may carry the hi-res marks.
+	uint max_level = (uint(setup_tile) >> 3u) & 7u;
+#else
 	uint max_level = uint(setup_tile) >> 3u;
+#endif
 	int min_lod = derived.min_lod;
 
 	i16 lod_frac;
@@ -212,6 +273,9 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 	}
 
 	i16x4 texel0, texel1;
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	hires_replacement_cutout = false;
+#endif
 
 	if (uses_texel0)
 	{
@@ -224,8 +288,30 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 			tile_info0.size = u8(TEX_SIZE);
 		}
 #endif
-		texel0 = sample_texture(tile_info0, tmem_instance_index, st, tlut, tlut_type,
-		                        sample_quad, mid_texel, false, bilerp0, derived.factors, i16x4(0));
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+		ivec2 native_st0 = st;
+		ivec2 hires_point_bias0 = ivec2(0);
+		if (!sample_quad && tile_uses_hires_replacement(tile_info0))
+		{
+			st = interpolate_hires_point_center(hires_point_stzw, attr.dstzw_dx, attr.dstzw_dy,
+			                                    hires_point_dx, perspective, hires_center_scaling_log2);
+			if (hires_point_rectangle)
+				hires_point_bias0 = hires_point_rectangle_bias(tile_info0, attr.stzw.xy >> 16,
+				                                                attr.dstzw_dx.xy, attr.dstzw_dy.xy);
+		}
+#endif
+		texel0 = sample_texture(tile_info0, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel, false, bilerp0, derived.factors, i16x4(0)
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+		                        , hires_point_bias0
+#endif
+		                        );
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+		st = native_st0;
+		// sample_texture leaves replacement texels unconverted; keep their
+		// point-sampled filter-bypass conversion here.
+		if (!sample_quad && !bilerp0 && tile_uses_hires_replacement(tile_info0))
+			texel0 = texture_convert_factors(texel0, derived.factors);
+#endif
 	}
 
 	// A very awkward mechanism where we peek into the next pixel, or in some cases, the next scanline's first pixel.
@@ -238,6 +324,10 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 		if (end_span && long_span && valid_line)
 		{
 			ivec3 stw = span_setups.elems[SCALING_FACTOR * span_offsets.offset + (y - SCALING_FACTOR * span_offsets.ylo + 1)].stzw.xyw >> 16;
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			hires_point_stzw = span_setups.elems[SCALING_FACTOR * span_offsets.offset + (y - SCALING_FACTOR * span_offsets.ylo + 1)].stzw;
+			hires_point_dx = 0;
+#endif
 			if (perspective)
 			{
 				bool st_overflow;
@@ -247,7 +337,12 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 				st = no_perspective_divide(stw);
 		}
 		else
+		{
 			st = interpolate_st_single(span_setup.stzw, attr.dstzw_dx, dx + interpolation_direction * SCALING_FACTOR, perspective);
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			hires_point_dx = dx + interpolation_direction * SCALING_FACTOR;
+#endif
+		}
 
 		tile1 = tile0;
 		uses_texel1 = true;
@@ -270,10 +365,37 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 				tile_info1.size = u8(TEX_SIZE);
 			}
 #endif
-			texel1 = sample_texture(tile_info1, tmem_instance_index, st, tlut, tlut_type, sample_quad, mid_texel,
-			                        convert_one, bilerp1, derived.factors, texel0);
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			ivec2 native_st1 = st;
+			ivec2 hires_point_bias1 = ivec2(0);
+			if (!sample_quad && tile_uses_hires_replacement(tile_info1))
+			{
+				st = interpolate_hires_point_center(hires_point_stzw, attr.dstzw_dx, attr.dstzw_dy,
+				                                    hires_point_dx, perspective, hires_center_scaling_log2);
+				if (hires_point_rectangle)
+					hires_point_bias1 = hires_point_rectangle_bias(tile_info1, attr.stzw.xy >> 16,
+					                                                attr.dstzw_dx.xy, attr.dstzw_dy.xy);
+			}
+#endif
+			texel1 = sample_texture(tile_info1, tmem_instance_index, st, st_ddx, st_ddy, tlut, tlut_type, sample_quad, mid_texel,
+			                        convert_one, bilerp1, derived.factors, texel0
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			                        , hires_point_bias1
+#endif
+			                        );
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+			st = native_st1;
+			if (!sample_quad && !tlut && !bilerp1 && tile_uses_hires_replacement(tile_info1))
+				texel1 = texture_convert_factors(texel1, derived.factors);
+#endif
 		}
 	}
+
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	// The CPU evaluates the empty-texel combiner once per draw (ADR-0018).
+	if (hires_replacement_cutout && (static_state_flags & RASTERIZATION_HIRES_CUTOUT_SURFACE_BIT) == 0)
+		return false;
+#endif
 
 	int rgb_dith, alpha_dith;
 	dither_coefficients(x, y >> int(interlace_en), static_state_dither >> 2, static_state_dither & 3, rgb_dith, alpha_dith);
@@ -332,6 +454,20 @@ bool shade_pixel(int x, int y, uint primitive_index, out ShadedData shaded)
 
 		alpha_reference = combined.a;
 	}
+
+#if defined(HIRES_REPLACEMENT) && HIRES_REPLACEMENT
+	// HLE-alpha-kill (TRIANGLE_SETUP_TILE_HIRES_ALPHA_KILL_BIT): this draw samples
+	// a replacement and its final blend cycle is a src-alpha-over-memory
+	// mode. HLE renderers, which packs are authored against, blend such
+	// pixels away when combined alpha is ~0; the faithful blender would
+	// write them unblended (force_blend off ignores alpha on interior
+	// pixels), materializing effect quads choreographed to be invisible
+	// through shade alpha. The < 8 threshold absorbs alpha dither; an HLE
+	// renderer leaves under 3% contribution for such pixels anyway.
+	if ((setup_tile & TRIANGLE_SETUP_TILE_HIRES_ALPHA_KILL_BIT) != 0u &&
+	    global_constants.fb_info.hires_replacement != 0u && combined.a < U8_C(8))
+		return false;
+#endif
 
 	// After combiner, color can be modified to 0 through alpha-to-cvg, so check for potential write_enable here.
 	// If we're not using AA, the first coverage bit is used instead, coverage count is ignored.

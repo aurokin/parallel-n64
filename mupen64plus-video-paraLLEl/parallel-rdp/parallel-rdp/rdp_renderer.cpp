@@ -714,7 +714,17 @@ bool Renderer::set_replacement_provider(const ReplacementProvider *provider)
 	if (need_flush())
 		flush_queues();
 
-	const bool ready = hires.attach(provider);
+	// Super-sampled readback skips the native pass and resolves the upscaled
+	// pass into RDRAM, so no pass may sample replacements (ADR-0020). The flag
+	// is fixed by init_renderer, and attach cannot succeed before it.
+	const bool refused = provider && caps.super_sample_readback;
+	if (refused)
+	{
+		LOGW("Hi-res replacement refused: super-sampled readback writes the upscaled pass to RDRAM.\n");
+		provider = nullptr;
+	}
+
+	const bool ready = hires.attach(provider) && !refused;
 	update_hires_presented_pass();
 	return ready;
 }

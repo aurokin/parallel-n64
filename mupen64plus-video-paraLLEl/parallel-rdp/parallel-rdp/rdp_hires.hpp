@@ -81,6 +81,60 @@ struct HiresSummaryIntervalClock
 };
 }
 
+// How often each special-case replacement rule changed an outcome since the
+// provider was last attached. Each counter is bumped only where its rule alters
+// a binding, key, texel or raster decision, never where it is merely evaluated,
+// so a rule whose counter stays at zero across the regression suite never fired.
+// Renderer-thread only; the summary reads them after the command ring drains.
+// Emitted, with the provider's load- and decode-time counters, as the
+// "Hi-res rule counters" summary line (see emit_hires_summary for key order).
+struct HiresRuleCounters
+{
+	// Draws flagged for the shading stage's HLE-style ~0-alpha kill.
+	uint64_t alpha_kill_draws = 0;
+	// Uploaded replacement images with nonzero RGB under a zero-alpha texel.
+	uint64_t transparent_rgb_zeroed_textures = 0;
+	// Upload-time hits found only by re-keying a CI8 load as CI4.
+	uint64_t ci8_as_ci4_hits = 0;
+	// Draw slots whose hit was dropped for a tile format/size mismatch.
+	uint64_t formatsize_mismatch_drops = 0;
+	// Draw slots served native because the view reads past the keyed window.
+	uint64_t view_exceeds_key_draws = 0;
+	// Draw slots whose hit was dropped by the stale-binding (load address) guard.
+	uint64_t stale_binding_drops = 0;
+	// Tiles at another TMEM offset invalidated by an overlapping load: hits
+	// dropped, and (separately) tracked load origins dropped without a hit.
+	uint64_t overlap_binding_drops = 0;
+	uint64_t overlap_origin_drops = 0;
+	// TLUT loads whose keying palette was read from the texture image base
+	// rather than the load tile's offset address (the two differ).
+	uint64_t tlut_image_base_loads = 0;
+	// Texrects whose native-resolution snap was lifted at upscale > 1, and
+	// the bottom-edge round-up, split by whether a snap was present.
+	uint64_t texrect_snap_lifts = 0;
+	uint64_t texrect_bottom_round_ups = 0;
+	uint64_t texrect_bottom_round_ups_unsnapped = 0;
+	// Draws sampling a replacement whose empty texels keep the surface.
+	uint64_t cutout_surface_draws = 0;
+	// Draw slots whose missing load origin was recovered from a peer tile.
+	uint64_t load_origin_recoveries = 0;
+	// Tiles re-pointed by SetTile that adopted another tile's tracked load.
+	uint64_t repoint_origin_adoptions = 0;
+	// Draw slots whose source-layout-qualified hit retired with its layout.
+	uint64_t source_layout_retires = 0;
+	// Draw-time compat lookups by why they ran: the tile had no keyed state,
+	// had a miss, or had a hit whose source view re-keyed to a different key.
+	// compat_rekey_confirmed counts re-keys that matched the existing hit, so
+	// no lookup ran.
+	uint64_t compat_lookups_unkeyed = 0;
+	uint64_t compat_lookups_after_miss = 0;
+	uint64_t compat_lookups_rekey = 0;
+	uint64_t compat_rekey_confirmed = 0;
+	// Draws with an upload miss on a sampled tile that skipped the compat lane
+	// only because no loaded pack has compat or Jabo entries.
+	uint64_t compat_gate_skipped_misses = 0;
+};
+
 // What a draw's replacement bindings ask of the renderer.
 struct HiresDrawBinding
 {
@@ -91,6 +145,10 @@ struct HiresDrawBinding
 	// stage kills ~0-alpha pixels as the HLE renderers packs target do.
 	bool alpha_kill = false;
 	bool replacements_attached = false;
+	// A sampled tile of this draw has a GPU-visible replacement.
+	bool samples_replacement = false;
+	// The component's counters, for rules decided after prepare_draw returns.
+	HiresRuleCounters *rule_counters = nullptr;
 
 	// For any texture rectangle: marks its queued setup so the shading stage
 	// reconstructs replacement point samples as rectangle samples.
@@ -279,6 +337,7 @@ private:
 	uint64_t hires_jabo_draw_misses = 0;
 	uint64_t hires_jabo_md5_computations = 0;
 	uint64_t hires_jabo_memo_hits = 0;
+	HiresRuleCounters rule_counters;
 	std::unordered_map<detail::HiresJaboMemoKey, std::array<uint8_t, 16>, detail::HiresJaboMemoKeyHash> hires_jabo_memo;
 	std::vector<uint8_t> hires_jabo_scratch;
 	enum class HiresKeySource : uint8_t

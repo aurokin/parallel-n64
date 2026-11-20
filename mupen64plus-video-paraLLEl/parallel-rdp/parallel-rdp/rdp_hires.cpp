@@ -418,6 +418,10 @@ bool HiresReplacement::attach(const ReplacementProvider *provider)
 	replacement_provider = provider;
 	detail::reset_hires_tracking_state(
 			replacement_tiles, tlut_shadow_valid, hires_lookup_total, hires_lookup_hits, hires_lookup_misses);
+	// The GPU-visible half of each binding goes with it: a slot index from the
+	// previous pool may lie past the next one, or name a different image.
+	for (unsigned i = 0; i < Limits::MaxNumTiles; i++)
+		clear_hires_tile_binding(i);
 	memset(tlut_shadow, 0, sizeof(tlut_shadow));
 	memset(tlut_tmem_shadow, 0, sizeof(tlut_tmem_shadow));
 	hires_descriptor_sampled_resolutions = 0;

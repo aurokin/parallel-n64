@@ -1,14 +1,18 @@
 # Release Checklist
 
 ParaLLEish binaries are built with `RELEASE=1` (for example
-`make platform=win64 RELEASE=1`). The build refuses `RELEASE=1` together with
-`HAVE_PARALLEL_RSP=1`: paraLLEl-RSP bundles GNU Lightning (GPLv3/LGPLv3), which
-cannot be combined with the GPLv2-only Mupen64Plus core in a distributed
-binary. Development builds may still enable it.
+`make platform=win64 RELEASE=1`).
+
+`HAVE_PARALLEL_RSP=1` adds paraLLEl-RSP, which bundles GNU Lightning (LGPLv3 or
+later). The Mupen64Plus sources in this tree are licensed "GPLv2 or any later
+version", so such a binary is a GPLv3 combination: publish it under GPLv3, and
+add Lightning's `COPYING` and `COPYING.LESSER` and the paraLLEl-RSP license to
+its `licenses/` directory. A binary built without it stays GPLv2.
 
 Every published core archive contains, next to the core binary:
 
-- `LICENSE` (GPLv2, the combined core) and `LICENSES.md`;
+- `LICENSE` (GPLv2, the combined core; GPLv3 text as well when paraLLEl-RSP is
+  included) and `LICENSES.md`;
 - a `licenses/` directory with the license text of every component compiled
   into that binary: paraLLEl-RDP (MIT), SPIRV-Cross and the Vulkan headers
   (Apache-2.0, with their notices), volk (MIT), xxHash (BSD-2-Clause), CXD4 RSP

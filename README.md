@@ -116,7 +116,8 @@ beside their source.
 ## License
 
 The combined ParaLLEish libretro core is distributed under **GPLv2** because
-it includes the Mupen64Plus core. See [LICENSE](LICENSE).
+it includes the Mupen64Plus core. See [LICENSE](LICENSE). Builds that include
+paraLLEl-RSP are distributed under GPLv3; see [LICENSES.md](LICENSES.md).
 
 The hi-res renderer (paraLLEl-RDP and our replacement additions) and the pack
 converter, including the PHRB format, are **MIT** and can be used separately

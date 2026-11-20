@@ -2,6 +2,9 @@
 
 The combined ParaLLEish libretro core is distributed under GPLv2 because it
 contains the Mupen64Plus core. The full GPLv2 text is in [LICENSE](LICENSE).
+A build that includes paraLLEl-RSP (`HAVE_PARALLEL_RSP=1`) links GNU Lightning
+(LGPLv3 or later) and is distributed under GPLv3, which the Mupen64Plus
+sources' "version 2 or any later version" terms allow.
 
 The hi-res renderer (paraLLEl-RDP plus our replacement additions) and the pack
 converter, including the PHRB format, are MIT and may be used separately from

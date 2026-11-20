@@ -256,11 +256,9 @@ ifeq (,$(findstring win,$(platform)))
 endif
 endif
 
-# paraLLEl-RSP bundles GNU Lightning (GPLv3/LGPLv3), which cannot be combined
-# with the GPLv2-only Mupen64Plus core in a distributed binary.
-ifeq ($(RELEASE)$(HAVE_PARALLEL_RSP), 11)
-$(error RELEASE=1 cannot include paraLLEl-RSP (GNU Lightning is GPLv3/LGPLv3); build with HAVE_PARALLEL_RSP=0)
-endif
+# paraLLEl-RSP bundles GNU Lightning (LGPLv3 or later). The Mupen64Plus sources
+# are GPLv2 or later, so a binary that includes it is distributed under GPLv3;
+# see docs/RELEASE.md.
 
 ifeq ($(HAVE_PARALLEL_RSP), 1)
 	PARALLEL_RSP_ARCH := x86_64

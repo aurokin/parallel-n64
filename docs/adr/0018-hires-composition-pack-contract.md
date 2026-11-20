@@ -107,14 +107,16 @@ ADR-0002), no per-scene or per-descriptor overrides (ADR-0005):
    enabled only with a replacement provider attached, and the shader check is
    compiled only into hi-res variants. Native passes remain unchanged.
 
-2. **HLE alpha kill** (RASTERIZATION_HIRES_ALPHA_KILL_BIT): draws that
+2. **HLE alpha kill** (TRIANGLE_SETUP_TILE_HIRES_ALPHA_KILL_BIT): draws that
    sample a replaced texture and whose final blend cycle is a
    src-alpha-over-memory closure (`1b == A_in`, `2a == MEM`,
    `2b == A_mem | 1-A_in`) kill pixels whose combined alpha is < 8
    (threshold absorbs alpha dither; an HLE renderer leaves such pixels
    under ~3% contribution). The eligibility bit is computed CPU-side at
    draw enqueue — where replacement hit state and depth-blend state meet —
-   and set on the normalized static raster state (triangle lane only).
+   and set in bit 6 of the queued triangle setup's tile byte (triangle lane
+   only; rasterizer, not ubershader). paraLLEl-RDP `1cecd042` uses every
+   static raster flag bit, so it no longer lives there.
    No firing case exists in the PM64 attract family (its draws route
    alpha through coverage), so this rule is a contract-completion guard
    for alpha-choreographed replaced content; it survives the full gate

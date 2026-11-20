@@ -122,7 +122,8 @@ for every rule (digest checks, ADR-0002).
 
 Supporting toolchain decision: shader regeneration uses the slangmosh that matches
 the vendored parallel-rdp snapshot (other vintages emit an incompatible interface;
-since the move to `65f4f4da` this is Granite `194abc80`, see
+for `1cecd042` this is Granite `b8cc8335` built without the SPIR-V optimizer, for
+`65f4f4da` it was Granite `194abc80`; see
 `tools/parallel-rdp-toolchain-patches/`); `tools/regen-parallel-rdp-shaders.sh` rewrites the
 Granite include path at run time. This is what makes shader-level fixes and probes
 possible without modernizing the Vulkan backend.

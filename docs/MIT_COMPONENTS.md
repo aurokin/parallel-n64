@@ -10,8 +10,8 @@ outside `mupen64plus-video-paraLLEl/parallel-rdp/` is outside this MIT scope.
 Paths below are relative to `mupen64plus-video-paraLLEl/parallel-rdp/`.
 Each file was introduced by the listed local commit and is absent both from
 the upstream tree and from all fetched upstream path history at paraLLEl-RDP
-commit `65f4f4da2ec11cf3485318dbb4ccd41d35d72a36` (the vendored `COMMIT`;
-standalone export `c6f79549`).
+commit `1cecd042b2619bc505c12bfdc713808386f2b54d` (the vendored `COMMIT`;
+standalone export `388d70f`).
 This is the ownership basis for adding `SPDX-License-Identifier: MIT` to
 these files. Existing upstream files keep their original headers, including
 files that contain local modifications.

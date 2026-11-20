@@ -24,6 +24,7 @@
 #include "rdp_renderer.hpp"
 #include "rdp_device.hpp"
 #include "rdp_hires_pass_policy.hpp"
+#include "rdp_device_capability_policy.hpp"
 #include "logging.hpp"
 #include "bitops.hpp"
 #include "luts.hpp"
@@ -132,47 +133,53 @@ bool Renderer::init_caps()
 {
 	auto &features = device->get_device_features();
 
-	if (const char *timestamp = getenv("PARALLEL_RDP_BENCH"))
+	const auto env = detail::derive_renderer_env_overrides(
+			getenv("PARALLEL_RDP_BENCH"),
+			getenv("PARALLEL_RDP_UBERSHADER"),
+			getenv("PARALLEL_RDP_FORCE_SYNC_SHADER"),
+			getenv("PARALLEL_RDP_SUBGROUP"),
+			getenv("PARALLEL_RDP_SMALL_TYPES"));
+
+	if (env.has_timestamp_override)
 	{
-		caps.timestamp = strtol(timestamp, nullptr, 0);
+		caps.timestamp = env.timestamp_enabled;
 		LOGI("Enabling timestamps = %d\n", caps.timestamp);
 	}
 
-	if (const char *ubershader = getenv("PARALLEL_RDP_UBERSHADER"))
+	if (env.has_ubershader_override)
 	{
-		caps.ubershader = strtol(ubershader, nullptr, 0) > 0;
+		caps.ubershader = env.ubershader_enabled;
 		LOGI("Overriding ubershader = %d\n", int(caps.ubershader));
 	}
 
-	if (const char *force_sync = getenv("PARALLEL_RDP_FORCE_SYNC_SHADER"))
+	if (env.has_force_sync_override)
 	{
-		caps.force_sync = strtol(force_sync, nullptr, 0) > 0;
+		caps.force_sync = env.force_sync_enabled;
 		LOGI("Overriding force sync shader = %d\n", int(caps.force_sync));
 	}
 
-	bool allow_subgroup = true;
-	if (const char *subgroup = getenv("PARALLEL_RDP_SUBGROUP"))
+	bool allow_subgroup = env.allow_subgroup;
+	if (env.has_subgroup_override)
 	{
-		allow_subgroup = strtol(subgroup, nullptr, 0) > 0;
 		LOGI("Allow subgroups = %d\n", int(allow_subgroup));
 	}
 
-	bool allow_small_types = true;
-	bool forces_small_types = false;
-	if (const char *small_type = getenv("PARALLEL_RDP_SMALL_TYPES"))
+	bool allow_small_types = env.allow_small_types;
+	bool forces_small_types = env.forces_small_types;
+	if (env.has_small_types_override)
 	{
-		allow_small_types = strtol(small_type, nullptr, 0) > 0;
-		forces_small_types = true;
 		LOGI("Allow small types = %d.\n", int(allow_small_types));
 	}
 
-	if (!features.vk11_features.storageBuffer16BitAccess)
+	const auto support = detail::validate_device_support_requirements(
+			features.vk11_features.storageBuffer16BitAccess,
+			features.vk12_features.storageBuffer8BitAccess);
+	if (support == detail::DeviceSupportRequirement::MissingStorage16Bit)
 	{
 		LOGE("16-bit storage for SSBOs is not supported! This is a minimum requirement for paraLLEl-RDP.\n");
 		return false;
 	}
-
-	if (!features.vk12_features.storageBuffer8BitAccess)
+	else if (support == detail::DeviceSupportRequirement::MissingStorage8Bit)
 	{
 		LOGE("8-bit storage for SSBOs is not supported! This is a minimum requirement for paraLLEl-RDP.\n");
 		return false;
@@ -181,49 +188,46 @@ bool Renderer::init_caps()
 	// Driver workarounds here for 8/16-bit integer support.
 	if (features.supports_driver_properties && !forces_small_types)
 	{
-		if (features.driver_id == VK_DRIVER_ID_AMD_PROPRIETARY_KHR)
+		switch (detail::small_types_driver_policy(features.driver_id))
 		{
+		case detail::SmallTypesDriverPolicy::DisableAmdProprietary:
 			LOGW("Current proprietary AMD driver is known to be buggy with 8/16-bit integer arithmetic, disabling support for time being.\n");
 			allow_small_types = false;
-		}
-		else if (features.driver_id == VK_DRIVER_ID_AMD_OPEN_SOURCE_KHR ||
-		         features.driver_id == VK_DRIVER_ID_MESA_RADV_KHR)
-		{
+			break;
+		case detail::SmallTypesDriverPolicy::DisableAmdOpenSource:
 			LOGW("Current open-source AMD drivers are known to be slightly faster without 8/16-bit integer arithmetic.\n");
 			allow_small_types = false;
-		}
-		else if (features.driver_id == VK_DRIVER_ID_NVIDIA_PROPRIETARY_KHR)
-		{
+			break;
+		case detail::SmallTypesDriverPolicy::DisableNvidiaProprietary:
 			LOGW("Current NVIDIA driver is known to be slightly faster without 8/16-bit integer arithmetic.\n");
 			allow_small_types = false;
-		}
-		else if (features.driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS_KHR)
-		{
+			break;
+		case detail::SmallTypesDriverPolicy::DisableIntelProprietaryWindows:
 			LOGW("Current proprietary Intel Windows driver is tested to perform much better without 8/16-bit integer support.\n");
 			allow_small_types = false;
-		}
-		else if (features.driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY_KHR)
-		{
+			break;
+		case detail::SmallTypesDriverPolicy::DisableQualcommProprietary:
 			LOGW("Current proprietary Qcom driver is known to be buggy with 8/16-bit integer arithmetic, disabling support for time being.\n");
 			allow_small_types = false;
+			break;
+		case detail::SmallTypesDriverPolicy::Allow:
+			break;
 		}
 
 		// Intel ANV *must* use small integer arithmetic, or it doesn't pass test suite.
 	}
 
-	if (!allow_small_types)
-	{
-		caps.supports_small_integer_arithmetic = false;
-	}
-	else if (features.enabled_features.shaderInt16 && features.vk12_features.shaderInt8)
+	caps.supports_small_integer_arithmetic = detail::enable_small_integer_arithmetic(
+			allow_small_types,
+			features.enabled_features.shaderInt16,
+			features.vk12_features.shaderInt8);
+	if (caps.supports_small_integer_arithmetic)
 	{
 		LOGI("Enabling 8 and 16-bit integer arithmetic support for more efficient shaders!\n");
-		caps.supports_small_integer_arithmetic = true;
 	}
-	else
+	else if (allow_small_types)
 	{
 		LOGW("Device does not support 8 and 16-bit integer arithmetic support. Falling back to 32-bit arithmetic everywhere.\n");
-		caps.supports_small_integer_arithmetic = false;
 	}
 
 	uint32_t subgroup_size = features.vk11_props.subgroupSize;
@@ -234,11 +238,12 @@ bool Renderer::init_caps()
 			VK_SUBGROUP_FEATURE_VOTE_BIT |
 			VK_SUBGROUP_FEATURE_ARITHMETIC_BIT;
 
-	caps.subgroup_tile_binning =
-			allow_subgroup &&
-			(features.vk11_props.subgroupSupportedOperations & required) == required &&
-			(features.vk11_props.subgroupSupportedStages & VK_SHADER_STAGE_COMPUTE_BIT) != 0 &&
-			can_support_minimum_subgroup_size(32) && subgroup_size <= 64;
+	caps.subgroup_tile_binning = detail::enable_subgroup_tile_binning(
+			allow_subgroup,
+			features.vk11_props.subgroupSupportedOperations,
+			features.vk11_props.subgroupSupportedStages,
+			can_support_minimum_subgroup_size(32),
+			subgroup_size);
 
 	caps.subgroup_depth_blend =
 			caps.super_sample_readback &&

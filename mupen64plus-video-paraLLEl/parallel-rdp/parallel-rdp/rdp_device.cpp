@@ -22,6 +22,12 @@
 
 #include "rdp_device.hpp"
 #include "rdp_common.hpp"
+#include "rdp_memory_path_policy.hpp"
+#include "rdp_other_modes_policy.hpp"
+#include "rdp_rect_setup_policy.hpp"
+#include "rdp_scissor_policy.hpp"
+#include "rdp_tex_rect_policy.hpp"
+#include "rdp_triangle_setup_policy.hpp"
 #include <chrono>
 #include <cstdlib>
 #include <string>
@@ -79,16 +85,17 @@ CommandProcessor::CommandProcessor(Vulkan::Device &device_, void *rdram_ptr,
 
 	if (rdram_ptr)
 	{
-		bool allow_memory_host = true;
-		if (const char *env = getenv("PARALLEL_RDP_ALLOW_EXTERNAL_HOST"))
-			allow_memory_host = strtol(env, nullptr, 0) > 0;
+		const auto decision = detail::decide_rdram_memory_path(
+				true,
+				device.get_device_features().supports_external_memory_host,
+				rdram_size,
+				rdram_offset,
+				device.get_device_features().host_memory_properties.minImportedHostPointerAlignment,
+				getenv("PARALLEL_RDP_ALLOW_EXTERNAL_HOST"));
 
-		if (allow_memory_host && device.get_device_features().supports_external_memory_host)
+		if (decision.use_external_host_import)
 		{
-			size_t import_size = rdram_size + rdram_offset;
-			size_t align = device.get_device_features().host_memory_properties.minImportedHostPointerAlignment;
-			import_size = (import_size + align - 1) & ~(align - 1);
-			info.size = import_size;
+			info.size = decision.imported_size;
 			rdram = device.create_imported_host_buffer(info, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, rdram_ptr);
 			if (!rdram)
 				LOGE("Failed to allocate RDRAM with VK_EXT_external_memory_host.\n");
@@ -285,30 +292,12 @@ void CommandProcessor::op_sync_full(const uint32_t *)
 
 void CommandProcessor::decode_triangle_setup(TriangleSetup &setup, const uint32_t *words) const
 {
-	bool copy_cycle = (static_state.flags & RASTERIZATION_COPY_BIT) != 0;
-	bool flip = (words[0] & 0x800000u) != 0;
-	bool sign_dxhdy = (words[5] & 0x80000000u) != 0;
-	bool do_offset = flip == sign_dxhdy;
-
-	setup.flags |= flip ? TRIANGLE_SETUP_FLIP_BIT : 0;
-	setup.flags |= do_offset ? TRIANGLE_SETUP_DO_OFFSET_BIT : 0;
-	setup.flags |= copy_cycle ? TRIANGLE_SETUP_SKIP_XFRAC_BIT : 0;
-	setup.flags |= quirks.u.options.native_texture_lod ? TRIANGLE_SETUP_NATIVE_LOD_BIT : 0;
-
-	setup.tile = (words[0] >> 16) & 63;
-
-	setup.yl = sext<14>(words[0]);
-	setup.ym = sext<14>(words[1] >> 16);
-	setup.yh = sext<14>(words[1]);
-
-	// The lower bit is ignored, so shift here to obtain an extra bit of subpixel precision.
-	// This is very useful for upscaling, since we can obtain 8x before we overflow instead of 4x.
-	setup.xl = sext<28>(words[2]) >> 1;
-	setup.xh = sext<28>(words[4]) >> 1;
-	setup.xm = sext<28>(words[6]) >> 1;
-	setup.dxldy = sext<28>(words[3] >> 2) >> 1;
-	setup.dxhdy = sext<28>(words[5] >> 2) >> 1;
-	setup.dxmdy = sext<28>(words[7] >> 2) >> 1;
+	const bool copy_cycle = (static_state.flags & RASTERIZATION_COPY_BIT) != 0;
+	detail::decode_triangle_setup_words(
+			setup,
+			words,
+			copy_cycle,
+			quirks.u.options.native_texture_lod);
 }
 
 static void decode_tex_setup(AttributeSetup &attr, const uint32_t *words)
@@ -478,83 +467,22 @@ void CommandProcessor::op_set_mask_image(const uint32_t *words)
 
 void CommandProcessor::op_set_scissor(const uint32_t *words)
 {
-	scissor_state.xlo = (words[0] >> 12) & 0xfff;
-	scissor_state.xhi = (words[1] >> 12) & 0xfff;
-	scissor_state.ylo = (words[0] >> 0) & 0xfff;
-	scissor_state.yhi = (words[1] >> 0) & 0xfff;
-
-	STATE_MASK(static_state.flags, bool(words[1] & (1 << 25)), RASTERIZATION_INTERLACE_FIELD_BIT);
-	STATE_MASK(static_state.flags, bool(words[1] & (1 << 24)), RASTERIZATION_INTERLACE_KEEP_ODD_BIT);
+	detail::apply_set_scissor_words(scissor_state, static_state, words[0], words[1]);
 	renderer.set_scissor_state(scissor_state);
 	renderer.set_static_rasterization_state(static_state);
 }
 
 void CommandProcessor::op_set_other_modes(const uint32_t *words)
 {
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 19)), RASTERIZATION_PERSPECTIVE_CORRECT_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 18)), RASTERIZATION_DETAIL_LOD_ENABLE_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 17)), RASTERIZATION_SHARPEN_LOD_ENABLE_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 16)), RASTERIZATION_TEX_LOD_ENABLE_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 15)), RASTERIZATION_TLUT_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 14)), RASTERIZATION_TLUT_TYPE_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 13)), RASTERIZATION_SAMPLE_MODE_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 12)), RASTERIZATION_SAMPLE_MID_TEXEL_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 11)), RASTERIZATION_BILERP_0_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 10)), RASTERIZATION_BILERP_1_BIT);
-	STATE_MASK(static_state.flags, bool(words[0] & (1 << 9)), RASTERIZATION_CONVERT_ONE_BIT);
-	STATE_MASK(depth_blend.flags, bool(words[1] & (1 << 14)), DEPTH_BLEND_FORCE_BLEND_BIT);
-	STATE_MASK(static_state.flags, bool(words[1] & (1 << 13)), RASTERIZATION_ALPHA_CVG_SELECT_BIT);
-	STATE_MASK(static_state.flags, bool(words[1] & (1 << 12)), RASTERIZATION_CVG_TIMES_ALPHA_BIT);
-	STATE_MASK(depth_blend.flags, bool(words[1] & (1 << 7)), DEPTH_BLEND_COLOR_ON_COVERAGE_BIT);
-	STATE_MASK(depth_blend.flags, bool(words[1] & (1 << 6)), DEPTH_BLEND_IMAGE_READ_ENABLE_BIT);
-	STATE_MASK(depth_blend.flags, bool(words[1] & (1 << 5)), DEPTH_BLEND_DEPTH_UPDATE_BIT);
-	STATE_MASK(depth_blend.flags, bool(words[1] & (1 << 4)), DEPTH_BLEND_DEPTH_TEST_BIT);
-	STATE_MASK(static_state.flags, bool(words[1] & (1 << 3)), RASTERIZATION_AA_BIT);
-	STATE_MASK(depth_blend.flags, bool(words[1] & (1 << 3)), DEPTH_BLEND_AA_BIT);
-
-	STATE_MASK(static_state.flags, bool(words[1] & (1 << 1)), RASTERIZATION_ALPHA_TEST_DITHER_BIT);
-	STATE_MASK(static_state.flags, bool(words[1] & (1 << 0)), RASTERIZATION_ALPHA_TEST_BIT);
-	static_state.dither = (words[0] >> 4) & 0x0f;
-	STATE_MASK(depth_blend.flags, RGBDitherMode(static_state.dither >> 2) != RGBDitherMode::Off, DEPTH_BLEND_DITHER_ENABLE_BIT);
-	depth_blend.coverage_mode = static_cast<CoverageMode>((words[1] >> 8) & 3);
-	depth_blend.z_mode = static_cast<ZMode>((words[1] >> 10) & 3);
-
-	static_state.flags &= ~(RASTERIZATION_MULTI_CYCLE_BIT |
-	                        RASTERIZATION_FILL_BIT |
-	                        RASTERIZATION_COPY_BIT);
-	depth_blend.flags &= ~DEPTH_BLEND_MULTI_CYCLE_BIT;
-
-	switch (CycleType((words[0] >> 20) & 3))
-	{
-	case CycleType::Cycle2:
-		static_state.flags |= RASTERIZATION_MULTI_CYCLE_BIT;
-		depth_blend.flags |= DEPTH_BLEND_MULTI_CYCLE_BIT;
-		break;
-
-	case CycleType::Fill:
-		static_state.flags |= RASTERIZATION_FILL_BIT;
-		break;
-
-	case CycleType::Copy:
-		static_state.flags |= RASTERIZATION_COPY_BIT;
-		break;
-
-	default:
-		break;
-	}
-
-	depth_blend.blend_cycles[0].blend_1a = static_cast<BlendMode1A>((words[1] >> 30) & 3);
-	depth_blend.blend_cycles[1].blend_1a = static_cast<BlendMode1A>((words[1] >> 28) & 3);
-	depth_blend.blend_cycles[0].blend_1b = static_cast<BlendMode1B>((words[1] >> 26) & 3);
-	depth_blend.blend_cycles[1].blend_1b = static_cast<BlendMode1B>((words[1] >> 24) & 3);
-	depth_blend.blend_cycles[0].blend_2a = static_cast<BlendMode2A>((words[1] >> 22) & 3);
-	depth_blend.blend_cycles[1].blend_2a = static_cast<BlendMode2A>((words[1] >> 20) & 3);
-	depth_blend.blend_cycles[0].blend_2b = static_cast<BlendMode2B>((words[1] >> 18) & 3);
-	depth_blend.blend_cycles[1].blend_2b = static_cast<BlendMode2B>((words[1] >> 16) & 3);
+	const bool enable_primitive_depth = detail::apply_set_other_modes_words(
+			static_state,
+			depth_blend,
+			words[0],
+			words[1]);
 
 	renderer.set_static_rasterization_state(static_state);
 	renderer.set_depth_blend_state(depth_blend);
-	renderer.set_enable_primitive_depth(bool(words[1] & (1 << 2)));
+	renderer.set_enable_primitive_depth(enable_primitive_depth);
 }
 
 void CommandProcessor::op_set_texture_image(const uint32_t *words)
@@ -730,112 +658,48 @@ void CommandProcessor::op_set_fill_color(const uint32_t *words)
 
 void CommandProcessor::op_fill_rectangle(const uint32_t *words)
 {
-	uint32_t xl = (words[0] >> 12) & 0xfff;
-	uint32_t yl = (words[0] >> 0) & 0xfff;
-	uint32_t xh = (words[1] >> 12) & 0xfff;
-	uint32_t yh = (words[1] >> 0) & 0xfff;
-
-	if ((static_state.flags & (RASTERIZATION_COPY_BIT | RASTERIZATION_FILL_BIT)) != 0)
-		yl |= 3;
-
-	TriangleSetup setup = {};
-	setup.xh = xh << 13;
-	setup.xl = xl << 13;
-	setup.xm = xl << 13;
-	setup.ym = yl;
-	setup.yl = yl;
-	setup.yh = yh;
-	setup.flags = TRIANGLE_SETUP_FLIP_BIT | TRIANGLE_SETUP_DISABLE_UPSCALING_BIT;
-
+	auto rect = detail::decode_rectangle_coordinates(words[0], words[1]);
+	rect = detail::apply_copy_fill_y_adjust(rect, static_state.flags);
+	auto setup = detail::build_fill_rectangle_setup(rect);
 	renderer.draw_flat_primitive(setup);
 }
 
 void CommandProcessor::op_texture_rectangle(const uint32_t *words)
 {
-	uint32_t xl = (words[0] >> 12) & 0xfff;
-	uint32_t yl = (words[0] >> 0) & 0xfff;
-	uint32_t xh = (words[1] >> 12) & 0xfff;
-	uint32_t yh = (words[1] >> 0) & 0xfff;
-	uint32_t tile = (words[1] >> 24) & 0x7;
+	auto rect = detail::decode_rectangle_coordinates(words[0], words[1]);
+	rect = detail::apply_copy_fill_y_adjust(rect, static_state.flags);
 
-	int32_t s = (words[2] >> 16) & 0xffff;
-	int32_t t = (words[2] >> 0) & 0xffff;
-	int32_t dsdx = (words[3] >> 16) & 0xffff;
-	int32_t dtdy = (words[3] >> 0) & 0xffff;
-	dsdx = sext<16>(dsdx);
-	dtdy = sext<16>(dtdy);
+	detail::TextureRectanglePolicyInput input = {};
+	input.rect = rect;
+	input.word1 = words[1];
+	input.word2 = words[2];
+	input.word3 = words[3];
+	input.raster_flags = static_state.flags;
+	input.flip = false;
+	input.native_resolution_tex_rect = quirks.u.options.native_resolution_tex_rect;
+	input.native_texture_lod = quirks.u.options.native_texture_lod;
 
-	if ((static_state.flags & (RASTERIZATION_COPY_BIT | RASTERIZATION_FILL_BIT)) != 0)
-		yl |= 3;
-
-	TriangleSetup setup = {};
-	AttributeSetup attr = {};
-
-	setup.xh = xh << 13;
-	setup.xl = xl << 13;
-	setup.xm = xl << 13;
-	setup.ym = yl;
-	setup.yl = yl;
-	setup.yh = yh;
-	setup.flags = TRIANGLE_SETUP_FLIP_BIT |
-	              (quirks.u.options.native_resolution_tex_rect ? TRIANGLE_SETUP_DISABLE_UPSCALING_BIT : 0) |
-	              (quirks.u.options.native_texture_lod ? TRIANGLE_SETUP_NATIVE_LOD_BIT : 0);
-	setup.tile = tile;
-
-	attr.s = s << 16;
-	attr.t = t << 16;
-	attr.dsdx = dsdx << 11;
-	attr.dtde = dtdy << 11;
-	attr.dtdy = dtdy << 11;
-
-	if ((static_state.flags & RASTERIZATION_COPY_BIT) != 0)
-		setup.flags |= TRIANGLE_SETUP_SKIP_XFRAC_BIT;
-
-	renderer.draw_shaded_primitive(setup, attr, HiresDrawClass::TexRect);
+	auto policy = detail::build_texture_rectangle_policy(input);
+	renderer.draw_shaded_primitive(policy.setup, policy.attr, HiresDrawClass::TexRect);
 }
 
 void CommandProcessor::op_texture_rectangle_flip(const uint32_t *words)
 {
-	uint32_t xl = (words[0] >> 12) & 0xfff;
-	uint32_t yl = (words[0] >> 0) & 0xfff;
-	uint32_t xh = (words[1] >> 12) & 0xfff;
-	uint32_t yh = (words[1] >> 0) & 0xfff;
-	uint32_t tile = (words[1] >> 24) & 0x7;
+	auto rect = detail::decode_rectangle_coordinates(words[0], words[1]);
+	rect = detail::apply_copy_fill_y_adjust(rect, static_state.flags);
 
-	int32_t s = (words[2] >> 16) & 0xffff;
-	int32_t t = (words[2] >> 0) & 0xffff;
-	int32_t dsdx = (words[3] >> 16) & 0xffff;
-	int32_t dtdy = (words[3] >> 0) & 0xffff;
-	dsdx = sext<16>(dsdx);
-	dtdy = sext<16>(dtdy);
+	detail::TextureRectanglePolicyInput input = {};
+	input.rect = rect;
+	input.word1 = words[1];
+	input.word2 = words[2];
+	input.word3 = words[3];
+	input.raster_flags = static_state.flags;
+	input.flip = true;
+	input.native_resolution_tex_rect = quirks.u.options.native_resolution_tex_rect;
+	input.native_texture_lod = quirks.u.options.native_texture_lod;
 
-	if ((static_state.flags & (RASTERIZATION_COPY_BIT | RASTERIZATION_FILL_BIT)) != 0)
-		yl |= 3;
-
-	TriangleSetup setup = {};
-	AttributeSetup attr = {};
-
-	setup.xh = xh << 13;
-	setup.xl = xl << 13;
-	setup.xm = xl << 13;
-	setup.ym = yl;
-	setup.yl = yl;
-	setup.yh = yh;
-	setup.flags = TRIANGLE_SETUP_FLIP_BIT | TRIANGLE_SETUP_DISABLE_UPSCALING_BIT |
-	              (quirks.u.options.native_resolution_tex_rect ? TRIANGLE_SETUP_DISABLE_UPSCALING_BIT : 0) |
-	              (quirks.u.options.native_texture_lod ? TRIANGLE_SETUP_NATIVE_LOD_BIT : 0);
-	setup.tile = tile;
-
-	attr.s = s << 16;
-	attr.t = t << 16;
-	attr.dtdx = dtdy << 11;
-	attr.dsde = dsdx << 11;
-	attr.dsdy = dsdx << 11;
-
-	if ((static_state.flags & RASTERIZATION_COPY_BIT) != 0)
-		setup.flags |= TRIANGLE_SETUP_SKIP_XFRAC_BIT;
-
-	renderer.draw_shaded_primitive(setup, attr, HiresDrawClass::TexRectFlip);
+	auto policy = detail::build_texture_rectangle_policy(input);
+	renderer.draw_shaded_primitive(policy.setup, policy.attr, HiresDrawClass::TexRectFlip);
 }
 
 void CommandProcessor::op_set_prim_depth(const uint32_t *words)

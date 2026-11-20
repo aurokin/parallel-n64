@@ -110,7 +110,8 @@ struct HiresRuleCounters
 	// rather than the load tile's offset address (the two differ).
 	uint64_t tlut_image_base_loads = 0;
 	// Texrects whose native-resolution snap was lifted at upscale > 1, and
-	// the bottom-edge round-up, split by whether a snap was present.
+	// the presented-pass bottom-edge round-up, split by whether a snap was
+	// present (without one, only copy-mode rects round up).
 	uint64_t texrect_snap_lifts = 0;
 	uint64_t texrect_bottom_round_ups = 0;
 	uint64_t texrect_bottom_round_ups_unsnapped = 0;

@@ -73,8 +73,10 @@ int main()
 
 					const bool round_up = (with_pack.tile & TRIANGLE_SETUP_TILE_HIRES_ROUND_UP_YL_BIT) != 0;
 					check(round_up == lift.rounds_up_bottom, "the round-up report must match the setup");
-					check(round_up == (upscaling > 1 && (without_pack.yl & 3) != 0),
-					      "only an upscaled fractional bottom edge rounds up");
+					// Copy rects always have a fractional edge (yl |= 3); an unsnapped
+					// 1- or 2-cycle rect presents its own partial last line.
+					check(round_up == (upscaling > 1 && (without_pack.yl & 3) != 0 && (snap_option || copy)),
+					      "only an upscaled fractional bottom edge of a snapped or copy rect rounds up");
 				}
 
 	return 0;

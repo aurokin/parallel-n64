@@ -1,0 +1,25 @@
+{
+  "schema": "n64-sweep-input/1",
+  "description": "Boot sweep default. Hands off for 1200 frames, then Start and A alternate every 300 frames, with three direction-then-A pairs that pick the second entry of vertical or horizontal menus. See tools/sweep/README.md.",
+  "frames": 4800,
+  "captures": [600, 1200, 1800, 2400, 3000, 3600, 4200, 4800],
+  "hold_frames": 6,
+  "frozen_min_captures": 5,
+  "presses": [
+    {"frame": 1200, "input": "start", "why": "skip intro or title"},
+    {"frame": 1500, "input": "a", "why": "confirm the default choice"},
+    {"frame": 1800, "input": "start"},
+    {"frame": 2100, "input": "a"},
+    {"frame": 2400, "input": "down", "why": "second entry of a vertical menu"},
+    {"frame": 2430, "input": "a"},
+    {"frame": 2700, "input": "start"},
+    {"frame": 3000, "input": "a"},
+    {"frame": 3300, "input": "right", "why": "second entry of a horizontal menu (Yes/No)"},
+    {"frame": 3330, "input": "a"},
+    {"frame": 3600, "input": "start"},
+    {"frame": 3900, "input": "a"},
+    {"frame": 4200, "input": "down"},
+    {"frame": 4230, "input": "a"},
+    {"frame": 4500, "input": "a"}
+  ]
+}

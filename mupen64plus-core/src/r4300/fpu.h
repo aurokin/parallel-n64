@@ -23,6 +23,7 @@
 #define M64P_R4300_FPU_H
 
 #include <math.h>
+#include <string.h>
 #include <stdint.h>
 
 #include "cp1_private.h"
@@ -254,89 +255,122 @@ M64P_FPU_INLINE void cvt_l_d(const double *source,int64_t *dest)
   }
 }
 
+/* Compare operands are unordered when either is a NaN. The core is built
+ * with -Ofast, under which isnan() and the C comparison operators may
+ * assume a NaN never occurs, so the test is made on the bit pattern before
+ * any comparison is evaluated. The signalling predicates (sf..ngt) should
+ * also raise Invalid Operation on a NaN; this FPU model has no exception
+ * state, so they only set the condition. */
+M64P_FPU_INLINE int fpu_isnan_s(const float *value)
+{
+  uint32_t bits;
+  memcpy(&bits, value, sizeof(bits));
+  return (bits & UINT32_C(0x7fffffff)) > UINT32_C(0x7f800000);
+}
+M64P_FPU_INLINE int fpu_isnan_d(const double *value)
+{
+  uint64_t bits;
+  memcpy(&bits, value, sizeof(bits));
+  return (bits & UINT64_C(0x7fffffffffffffff)) > UINT64_C(0x7ff0000000000000);
+}
+M64P_FPU_INLINE int fpu_unordered_s(const float *source, const float *target)
+{
+  return fpu_isnan_s(source) || fpu_isnan_s(target);
+}
+M64P_FPU_INLINE int fpu_unordered_d(const double *source, const double *target)
+{
+  return fpu_isnan_d(source) || fpu_isnan_d(target);
+}
+
 M64P_FPU_INLINE void c_f_s()
 {
   FCR31 &= ~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_un_s(const float *source,const float *target)
 {
-  FCR31=(isnan(*source) || isnan(*target)) ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
+  FCR31=fpu_unordered_s(source,target) ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
                           
 M64P_FPU_INLINE void c_eq_s(const float *source,const float *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31&=~FCR31_CMP_BIT;return;}
+  if (fpu_unordered_s(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source==*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ueq_s(const float *source,const float *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31|=FCR31_CMP_BIT;return;}
+  if (fpu_unordered_s(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source==*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_olt_s(const float *source,const float *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31&=~FCR31_CMP_BIT;return;}
+  if (fpu_unordered_s(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source<*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ult_s(const float *source,const float *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31|=FCR31_CMP_BIT;return;}
+  if (fpu_unordered_s(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source<*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_ole_s(const float *source,const float *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31&=~FCR31_CMP_BIT;return;}
+  if (fpu_unordered_s(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source<=*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ule_s(const float *source,const float *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31|=FCR31_CMP_BIT;return;}
+  if (fpu_unordered_s(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source<=*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_sf_s(const float *source,const float *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
   FCR31&=~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ngle_s(const float *source,const float *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
-  FCR31&=~FCR31_CMP_BIT;
+  /* FIXME: also raise Invalid Operation on a NaN */
+  FCR31 = fpu_unordered_s(source,target) ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_seq_s(const float *source,const float *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_s(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source==*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ngl_s(const float *source,const float *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_s(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source==*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_lt_s(const float *source,const float *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_s(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source<*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_nge_s(const float *source,const float *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_s(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source<*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_le_s(const float *source,const float *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_s(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source<=*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ngt_s(const float *source,const float *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_s(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source<=*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
@@ -346,83 +380,89 @@ M64P_FPU_INLINE void c_f_d()
 }
 M64P_FPU_INLINE void c_un_d(const double *source,const double *target)
 {
-  FCR31=(isnan(*source) || isnan(*target)) ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
+  FCR31=fpu_unordered_d(source,target) ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
                           
 M64P_FPU_INLINE void c_eq_d(const double *source,const double *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31&=~FCR31_CMP_BIT;return;}
+  if (fpu_unordered_d(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source==*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ueq_d(const double *source,const double *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31|=FCR31_CMP_BIT;return;}
+  if (fpu_unordered_d(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source==*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_olt_d(const double *source,const double *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31&=~FCR31_CMP_BIT;return;}
+  if (fpu_unordered_d(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source<*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ult_d(const double *source,const double *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31|=FCR31_CMP_BIT;return;}
+  if (fpu_unordered_d(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source<*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_ole_d(const double *source,const double *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31&=~FCR31_CMP_BIT;return;}
+  if (fpu_unordered_d(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source<=*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ule_d(const double *source,const double *target)
 {
-  if (isnan(*source) || isnan(*target)) {FCR31|=FCR31_CMP_BIT;return;}
+  if (fpu_unordered_d(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source<=*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_sf_d(const double *source,const double *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
   FCR31&=~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ngle_d(const double *source,const double *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
-  FCR31&=~FCR31_CMP_BIT;
+  /* FIXME: also raise Invalid Operation on a NaN */
+  FCR31 = fpu_unordered_d(source,target) ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_seq_d(const double *source,const double *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_d(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source==*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ngl_d(const double *source,const double *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_d(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source==*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_lt_d(const double *source,const double *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_d(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source<*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_nge_d(const double *source,const double *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_d(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source<*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 
 M64P_FPU_INLINE void c_le_d(const double *source,const double *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_d(source,target)) {FCR31&=~FCR31_CMP_BIT;return;}
   FCR31 = *source<=*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 M64P_FPU_INLINE void c_ngt_d(const double *source,const double *target)
 {
-  //if (isnan(*source) || isnan(*target)) // FIXME - exception
+  /* FIXME: also raise Invalid Operation on a NaN */
+  if (fpu_unordered_d(source,target)) {FCR31|=FCR31_CMP_BIT;return;}
   FCR31 = *source<=*target ? FCR31|FCR31_CMP_BIT : FCR31&~FCR31_CMP_BIT;
 }
 

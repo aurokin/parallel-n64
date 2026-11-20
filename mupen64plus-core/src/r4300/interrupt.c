@@ -570,7 +570,9 @@ void gen_interrupt(void)
 
       case CHECK_INT:
          remove_interrupt_event();
-         wrapped_exception_general();
+         /* The check was queued when an interrupt became pending; take it
+          * only if it still is, and is still enabled, now that it fires. */
+         raise_maskable_interrupt(0);
          break;
 
       case SI_INT:

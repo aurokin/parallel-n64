@@ -2150,10 +2150,12 @@ DECLARE_INSTRUCTION(TLBP)
 DECLARE_INSTRUCTION(ERET)
 {
    cp0_update_count();
+   /* An error exception (reset, NMI) returns through ErrorEPC and clears
+    * ERL; any other exception returns through EPC and clears EXL. */
    if (g_cp0_regs[CP0_STATUS_REG] & CP0_STATUS_ERL)
    {
-     DebugMessage(M64MSG_ERROR, "error in ERET");
-     stop=1;
+     g_cp0_regs[CP0_STATUS_REG] &= ~CP0_STATUS_ERL;
+     generic_jump_to(g_cp0_regs[CP0_ERROREPC_REG]);
    }
    else
    {

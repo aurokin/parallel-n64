@@ -15,20 +15,25 @@ MISSING = "#3a2020"
 
 
 def run_row(title: str, captures: list[tuple[int, Path | None]]) -> Image.Image:
-    """`title` above one thumbnail per (frame, capture path); a missing path is a red cell."""
+    """`title` above one thumbnail per (frame, capture path); a missing or unreadable capture is a red cell."""
     width = THUMB[0] * max(len(captures), 1)
     row = Image.new("RGB", (width, HEADER + THUMB[1] + LABEL), BACKGROUND)
     draw = ImageDraw.Draw(row)
     draw.text((6, 5), title, fill=TEXT)
     for i, (frame, path) in enumerate(captures):
         x = i * THUMB[0]
-        if path is not None and path.is_file():
-            with Image.open(path) as image:
-                thumb = image.convert("RGB")
+        thumb = None
+        if path is not None:
+            try:
+                with Image.open(path) as image:
+                    thumb = image.convert("RGB")
+            except OSError:
+                pass
+        if thumb is None:
+            draw.rectangle((x + 1, HEADER + 1, x + THUMB[0] - 2, HEADER + THUMB[1] - 2), fill=MISSING)
+        else:
             thumb.thumbnail(THUMB)
             row.paste(thumb, (x + (THUMB[0] - thumb.width) // 2, HEADER + (THUMB[1] - thumb.height) // 2))
-        else:
-            draw.rectangle((x + 1, HEADER + 1, x + THUMB[0] - 2, HEADER + THUMB[1] - 2), fill=MISSING)
         draw.text((x + 6, HEADER + THUMB[1] + 2), f"frame {frame}", fill=TEXT)
     return row
 

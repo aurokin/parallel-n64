@@ -18,7 +18,7 @@ import run  # noqa: E402
 FIXTURES = REPO / "tests/emulator_behavior/fixtures/sweep"
 
 # Mimics the interactive adapter subcommands run_scenarios uses. FAKE_SWEEP_PLAN
-# picks the picture ("vary", "static", "black") and faults ("step_fail_at", "stop_fail").
+# picks the picture ("vary", "static", "black", "corrupt") and faults ("step_fail_at", "stop_fail").
 FAKE_ADAPTER = r'''#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
@@ -59,13 +59,15 @@ elif sub == "send":
         st["frame"] += int(command.split()[1])
     print(command)
 elif sub == "screenshot":
-    shade = {"vary": st["frame"] * 5 % 200, "static": 90, "black": 0}[plan.get("image", "vary")]
+    shade = {"static": 90, "black": 0}.get(plan.get("image"), st["frame"] * 5 % 200)
     image = Image.new("RGB", (64, 48), (0, 0, 0))
     if plan.get("image") != "black":
         for i in range(4):
             image.paste((40 + shade, 60 * i, 200 - 40 * i), (16 * i, 0, 16 * i + 16, 48))
     capture = bundle / "captures" / f"shot-{st['frame']:06d}.png"
     image.save(capture)
+    if plan.get("image") == "corrupt":
+        capture.write_bytes(b"not a png")
     print(capture)
 elif sub == "stop":
     if plan.get("stop_fail"):
@@ -188,6 +190,19 @@ class SweepRun(unittest.TestCase):
         self.out = self.root / "black"
         self.sweep("--limit", "1", plan={"image": "black"})
         self.assertEqual(self.records()["Alpha (USA).z64"]["verdict"], "blank")
+
+    def test_unreadable_rom_is_skipped_and_unreadable_capture_is_an_error(self):
+        with zipfile.ZipFile(self.library / "Ambiguous.zip", "w") as archive:
+            archive.writestr("one.z64", b"1")
+            archive.writestr("two.z64", b"2")
+        status, output = self.sweep(plan={"image": "corrupt"})
+        self.assertEqual(status, 1)
+        self.assertIn("Ambiguous.zip: not run", output)
+        records = self.records()
+        self.assertEqual(sorted(records), ["Alpha (USA).z64", "Beta (Europe).zip"])
+        alpha = records["Alpha (USA).z64"]
+        self.assertEqual((alpha["verdict"], alpha["sub_class"], alpha["exit_class"]),
+                         ("error", "capture-failed", "capture-failed"))
 
     def test_profile_options_the_core_does_not_declare_stop_the_sweep(self):
         declared = {"parallel-n64-gfxplugin": {"default": "auto", "values": ["auto", "parallel"]},

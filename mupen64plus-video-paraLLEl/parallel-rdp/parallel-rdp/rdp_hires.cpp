@@ -1500,7 +1500,7 @@ void HiresDrawBinding::lift_tex_rect_snap(TriangleSetup &queued_setup, unsigned 
 		return;
 	if (lift.was_snapped && upscaling > 1)
 		rule_counters->texrect_snap_lifts++;
-	// Without a snap there was no clipped row to restore; counted apart.
+	// Without a snap only copy-mode rects round up; counted apart.
 	if (lift.rounds_up_bottom)
 		(lift.was_snapped ? rule_counters->texrect_bottom_round_ups : rule_counters->texrect_bottom_round_ups_unsnapped)++;
 }

@@ -43,6 +43,11 @@ add_test(
   COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_sweep_input_contract.py"
 )
 
+add_test(
+  NAME emu.support.sweep_verdicts_contract
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/support/emu_sweep_verdicts_contract.py"
+)
+
 set(EMU_BEHAVIOR_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/support")
 
 add_test(

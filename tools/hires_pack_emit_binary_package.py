@@ -37,9 +37,9 @@ ASSET_STRUCT = struct.Struct('<IIIIIIIIIIIQQQQ')
 
 # The reader rejects a whole package that breaks any of these (PHRB_FORMAT.md),
 # so the writer refuses to produce one.
-MAX_RECORDS = 1 << 20
-MAX_ASSETS = 1 << 20
-MAX_TABLE_BYTES = 256 << 20
+MAX_RECORDS = 1 << 18
+MAX_ASSETS = 1 << 18
+MAX_TABLE_BYTES = 128 << 20
 MAX_DIMENSION = 16384
 MAX_PIXELS = 1 << 26
 BYTES_PER_PIXEL = {

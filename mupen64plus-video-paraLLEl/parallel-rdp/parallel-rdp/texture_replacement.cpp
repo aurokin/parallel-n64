@@ -46,11 +46,11 @@ inline uint64_t compose_hires_checksum64(uint32_t texture_crc, uint32_t palette_
 }
 
 // Package limits (tools/PHRB_FORMAT.md). The largest converted pack has 51,211
-// assets, 16 MB of tables and a 10240-pixel side; these leave ample headroom
-// while bounding what a crafted file can make the loader allocate.
-constexpr uint32_t PHRB_MAX_RECORDS = 1u << 20;
-constexpr uint32_t PHRB_MAX_ASSETS = 1u << 20;
-constexpr uint64_t PHRB_MAX_TABLE_BYTES = 256ull << 20;
+// assets, 16 MB of tables and a 10240-pixel side. At these limits a crafted
+// package can make the loader hold about 400 MB of entries.
+constexpr uint32_t PHRB_MAX_RECORDS = 1u << 18;
+constexpr uint32_t PHRB_MAX_ASSETS = 1u << 18;
+constexpr uint64_t PHRB_MAX_TABLE_BYTES = 128ull << 20;
 constexpr uint32_t PHRB_MAX_DIMENSION = 16384;
 // 256 MiB once decoded to RGBA8.
 constexpr uint64_t PHRB_MAX_PIXELS = 1ull << 26;

@@ -10,7 +10,8 @@ outside `mupen64plus-video-paraLLEl/parallel-rdp/` is outside this MIT scope.
 Paths below are relative to `mupen64plus-video-paraLLEl/parallel-rdp/`.
 Each file was introduced by the listed local commit and is absent both from
 the upstream tree and from all fetched upstream path history at paraLLEl-RDP
-commit `7a3e561e89d35f7e221770d21e7efa970b496a1e` (the vendored `COMMIT`).
+commit `65f4f4da2ec11cf3485318dbb4ccd41d35d72a36` (the vendored `COMMIT`;
+standalone export `c6f79549`).
 This is the ownership basis for adding `SPDX-License-Identifier: MIT` to
 these files. Existing upstream files keep their original headers, including
 files that contain local modifications.
@@ -36,7 +37,6 @@ files that contain local modifications.
 | `parallel-rdp/rdp_memory_path_policy.hpp` | `31ff74e2` |
 | `parallel-rdp/rdp_other_modes_policy.hpp` | `ab6975a3` |
 | `parallel-rdp/rdp_rect_setup_policy.hpp` | `71324b1f` |
-| `parallel-rdp/rdp_scanout_coherency_policy.hpp` | `d30b5568` |
 | `parallel-rdp/rdp_scissor_policy.hpp` | `2d4ad38a` |
 | `parallel-rdp/rdp_tex_rect_policy.hpp` | `d850a45d` |
 | `parallel-rdp/rdp_triangle_setup_policy.hpp` | `cc320f8a` |
@@ -45,24 +45,21 @@ files that contain local modifications.
 | `parallel-rdp/texture_keying.hpp` | `7b1e276f` |
 | `parallel-rdp/texture_replacement.cpp` | `8d5f2d40` |
 | `parallel-rdp/texture_replacement.hpp` | `8d5f2d40` |
-| `parallel-rdp/vi_scale_policy.hpp` | `fd00563e` |
-| `parallel-rdp/vi_scanout_policy.hpp` | `7f0e2b91` |
 
 The generated `parallel-rdp/shaders/slangmosh.hpp` is not an entirely local
 source file; it embeds upstream and local shaders. It receives no new SPDX
-header. Neither do imported Granite, SPIRV-Cross, Vulkan-Headers, volk or
+header. Neither do imported Granite, Vulkan-Headers, volk or
 BSD-2-Clause `parallel-rdp/xxhash.h`. Their original notices remain intact.
 The GPL core also includes this BSD-2-Clause xxHash header for TLB code-page
 fingerprints; the renderer does not depend on core headers.
-Full Apache-2.0 license copies accompany SPIRV-Cross and Vulkan-Headers.
+A full Apache-2.0 license copy accompanies Vulkan-Headers. The renderer no
+longer vendors SPIRV-Cross.
 
 ## Dependency boundary
 
 A static scan of the vendored renderer's C/C++ and shader includes found no
-includes of GPL repository headers, including Mupen64Plus headers. The optional
-`HAVE_LIBRETRO` logging path in `util/logging.hpp` includes the MIT
-`libretro-common/include/libretro.h` API header. Standalone consumers may omit
-that integration define and provide their own frontend.
+includes of GPL repository headers, including Mupen64Plus headers. Renderer
+logging goes through `util/logging.hpp`, which has no frontend dependency.
 
 The renderer uses zlib for PHRB decompression. It does not use a PNG decoder;
 PNG/JPEG/BMP input decoding is performed offline by the converter. The retained

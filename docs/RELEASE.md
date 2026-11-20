@@ -10,8 +10,8 @@ Every published core archive contains, next to the core binary:
 
 - `LICENSE` (GPLv2, the combined core) and `LICENSES.md`;
 - a `licenses/` directory with the license text of every component compiled
-  into that binary: paraLLEl-RDP (MIT), SPIRV-Cross and the Vulkan headers
-  (Apache-2.0, with their notices), volk (MIT), xxHash (BSD-2-Clause), CXD4 RSP
+  into that binary: paraLLEl-RDP (MIT), the Vulkan headers (Apache-2.0,
+  with their notices), volk (MIT), xxHash (BSD-2-Clause), CXD4 RSP
   (CC0), the Mupen64Plus HLE RSP (GPLv2), libretro-common, and zlib when it is
   linked statically;
 - a pointer to the exact source revision (GPLv2 section 3).

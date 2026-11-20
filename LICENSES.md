@@ -17,11 +17,10 @@ the [MIT file inventory](docs/MIT_COMPONENTS.md) and
 | CXD4 RSP | [`mupen64plus-rsp-cxd4/COPYING`](mupen64plus-rsp-cxd4/COPYING): CC0 1.0 Universal |
 | ParaLLEl RSP | [`mupen64plus-rsp-paraLLEl/LICENSE`](mupen64plus-rsp-paraLLEl/LICENSE): dual MIT or LGPLv3 |
 | GNU Lightning bundled with ParaLLEl RSP | [`lightning/COPYING`](mupen64plus-rsp-paraLLEl/lightning/COPYING) and [`lightning/COPYING.LESSER`](mupen64plus-rsp-paraLLEl/lightning/COPYING.LESSER): GPLv3 or LGPLv3 as described by the component |
-| Vendored paraLLEl-RDP project-owned code | [`mupen64plus-video-paraLLEl/parallel-rdp/LICENSE`](mupen64plus-video-paraLLEl/parallel-rdp/LICENSE): MIT; imported headers and third-party code retain their own notices, including Apache-2.0 SPIRV-Cross/Vulkan material and MIT-licensed volk |
+| Vendored paraLLEl-RDP project-owned code | [`mupen64plus-video-paraLLEl/parallel-rdp/LICENSE`](mupen64plus-video-paraLLEl/parallel-rdp/LICENSE): MIT; imported headers and third-party code retain their own notices, including Apache-2.0 Vulkan material and MIT-licensed volk |
 | Hi-res pack converter and PHRB format | [`tools/LICENSE-hires-converter`](tools/LICENSE-hires-converter): MIT; covered files are listed in [`tools/README.md`](tools/README.md#license) |
 | Granite runtime/util imports in paraLLEl-RDP | MIT; copyright and permission notices retained in [`util/`](mupen64plus-video-paraLLEl/parallel-rdp/util/) and [`vulkan/`](mupen64plus-video-paraLLEl/parallel-rdp/vulkan/) |
 | xxHash 0.8.4 (renderer and core) | [`xxhash.LICENSE`](mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/xxhash.LICENSE) and [`xxhash.h`](mupen64plus-video-paraLLEl/parallel-rdp/parallel-rdp/xxhash.h): BSD-2-Clause, Yann Collet |
-| SPIRV-Cross | [`spirv-cross/LICENSE`](mupen64plus-video-paraLLEl/parallel-rdp/spirv-cross/LICENSE): Apache-2.0; generated Khronos enum headers retain their own permissive grants |
 | Vulkan-Headers | [`vulkan-headers/LICENSE.txt`](mupen64plus-video-paraLLEl/parallel-rdp/vulkan-headers/LICENSE.txt): Apache-2.0 in these pinned headers, with per-file notices retained |
 | volk | MIT, Arseny Kapoulkine; full notice in [`volk.h`](mupen64plus-video-paraLLEl/parallel-rdp/volk/volk.h) |
 | libretro-common and libretro API | Primarily MIT, with per-file declarations in [`libretro-common/`](libretro-common/); the [`libretro.h`](libretro-common/include/libretro.h) API header is MIT |

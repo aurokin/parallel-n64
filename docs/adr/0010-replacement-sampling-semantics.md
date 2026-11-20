@@ -120,9 +120,10 @@ Replaced draws thereby diverge deliberately from N64 filter semantics — sancti
 because direct sampling is the point of replacement. Feature-off is provably inert
 for every rule (digest checks, ADR-0002).
 
-Supporting toolchain decision: shader regeneration uses a 2020-vintage slangmosh
-built from the fork's pinned parallel-rdp upstream snapshot (modern slangmosh emits
-an incompatible interface); `tools/regen-parallel-rdp-shaders.sh` rewrites the
+Supporting toolchain decision: shader regeneration uses the slangmosh that matches
+the vendored parallel-rdp snapshot (other vintages emit an incompatible interface;
+since the move to `65f4f4da` this is Granite `194abc80`, see
+`tools/parallel-rdp-toolchain-patches/`); `tools/regen-parallel-rdp-shaders.sh` rewrites the
 Granite include path at run time. This is what makes shader-level fixes and probes
 possible without modernizing the Vulkan backend.
 

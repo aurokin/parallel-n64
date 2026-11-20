@@ -52,5 +52,7 @@ variables; never teach product code to discover a fleet controller.
 
 - `texture_replacement.{hpp,cpp}`;
 - vendored `parallel-rdp/video_interface.cpp` and `shaders/vi_scale.frag`;
-- `vi_scanout_policy.hpp` and `vi_scale_policy.hpp`;
+- the 2020 VI test seams (`vi_scanout_policy.hpp`, `vi_scale_policy.hpp`),
+  removed when the renderer moved to paraLLEl-RDP `65f4f4da`, whose VI
+  rewrite they no longer describe;
 - repository-local fixture and adapter test contracts.
